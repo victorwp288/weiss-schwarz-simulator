@@ -81,7 +81,7 @@ pub const OBS_LEN: usize = OBS_HEADER_LEN + 2 * PER_PLAYER_BLOCK_LEN;
 pub fn encode_observation(
     state: &GameState,
     db: &CardDb,
-    curriculum: &CurriculumConfig,
+    _curriculum: &CurriculumConfig,
     perspective: u8,
     decision: Option<&Decision>,
     last_action: Option<&ActionDesc>,
@@ -131,25 +131,15 @@ pub fn encode_observation(
 
         for slot in 0..MAX_STAGE {
             let slot_state = &p.stage[slot];
-            let card_id = slot_state.card.unwrap_or(0) as i32;
+            let card_id = slot_state.card.map(|c| c.id).unwrap_or(0) as i32;
             let status = if slot_state.card.is_some() {
                 status_to_i32(slot_state.status)
             } else {
                 0
             };
             let has_attacked = if slot_state.has_attacked { 1 } else { 0 };
-            let (power, soul) = if let Some(card) = slot_state.card.and_then(|id| db.get(id)) {
-                let mut power = card.power;
-                if curriculum.enable_continuous_modifiers
-                    && card.abilities.iter().any(|a| matches!(a, crate::db::AbilityTemplate::ContinuousPower { .. }))
-                {
-                    for ability in &card.abilities {
-                        if let crate::db::AbilityTemplate::ContinuousPower { amount } = ability {
-                            power += *amount;
-                        }
-                    }
-                }
-                power += slot_state.power_mod_turn + slot_state.power_mod_battle;
+            let (power, soul) = if let Some(card) = slot_state.card.and_then(|inst| db.get(inst.id)) {
+                let mut power = card.power + slot_state.power_mod_turn + slot_state.power_mod_battle;
                 for modifier in &state.modifiers {
                     if modifier.kind != ModifierKind::Power {
                         continue;
@@ -157,7 +147,7 @@ pub fn encode_observation(
                     if modifier.target_player as usize != *player_index || modifier.target_slot as usize != slot {
                         continue;
                     }
-                    if modifier.target_card != slot_state.card.unwrap_or(0) {
+                    if modifier.target_card != slot_state.card.map(|c| c.id).unwrap_or(0) {
                         continue;
                     }
                     power += modifier.magnitude;
@@ -176,24 +166,24 @@ pub fn encode_observation(
         }
         offset += PER_PLAYER_STAGE;
 
-        out[offset] = p.climax.last().cloned().unwrap_or(0) as i32;
+        out[offset] = p.climax.last().map(|c| c.id).unwrap_or(0) as i32;
         offset += PER_PLAYER_CLIMAX_TOP;
 
         for i in 0..MAX_LEVEL {
-            out[offset + i] = p.level.get(i).cloned().unwrap_or(0) as i32;
+            out[offset + i] = p.level.get(i).map(|c| c.id).unwrap_or(0) as i32;
         }
         offset += PER_PLAYER_LEVEL;
 
         for i in 0..TOP_CLOCK {
             let idx = p.clock.len().saturating_sub(1 + i);
-            let value = if idx < p.clock.len() { p.clock[idx] as i32 } else { 0 };
+            let value = if idx < p.clock.len() { p.clock[idx].id as i32 } else { 0 };
             out[offset + i] = value;
         }
         offset += PER_PLAYER_CLOCK_TOP;
 
         for i in 0..TOP_WAITING_ROOM {
             let idx = p.waiting_room.len().saturating_sub(1 + i);
-            let value = if idx < p.waiting_room.len() { p.waiting_room[idx] as i32 } else { 0 };
+            let value = if idx < p.waiting_room.len() { p.waiting_room[idx].id as i32 } else { 0 };
             out[offset + i] = value;
         }
         offset += PER_PLAYER_WAITING_TOP;
@@ -201,7 +191,7 @@ pub fn encode_observation(
         for i in 0..TOP_STOCK {
             let value = if visibility == ObservationVisibility::Full {
                 let idx = p.stock.len().saturating_sub(1 + i);
-                if idx < p.stock.len() { p.stock[idx] as i32 } else { 0 }
+                if idx < p.stock.len() { p.stock[idx].id as i32 } else { 0 }
             } else {
                 -1
             };
@@ -211,7 +201,7 @@ pub fn encode_observation(
 
         for i in 0..MAX_HAND {
             let value = if visibility == ObservationVisibility::Full || idx == 0 {
-                p.hand.get(i).cloned().unwrap_or(0) as i32
+                p.hand.get(i).map(|c| c.id).unwrap_or(0) as i32
             } else {
                 -1
             };
@@ -223,7 +213,7 @@ pub fn encode_observation(
             let value = if visibility == ObservationVisibility::Full {
                 if i < p.deck.len() {
                     let deck_idx = p.deck.len() - 1 - i;
-                    p.deck[deck_idx] as i32
+                    p.deck[deck_idx].id as i32
                 } else {
                     0
                 }

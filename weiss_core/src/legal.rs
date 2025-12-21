@@ -5,7 +5,6 @@ use crate::config::CurriculumConfig;
 use crate::db::{AbilityTemplate, CardColor, CardDb, CardStatic, CardType};
 use crate::state::{AttackType, GameState, StageSlot, StageStatus};
 
-const MAX_ABILITIES_PER_CARD: usize = 4;
 const MAX_HAND: usize = 10;
 const MAX_STAGE: usize = 5;
 
@@ -150,11 +149,11 @@ pub fn legal_actions_cached(
             let mut actions = Vec::new();
             actions.push(ActionDesc::ClockPass);
             let p = &state.players[player];
-            for (hand_index, card_id) in p.hand.iter().enumerate() {
+            for (hand_index, card_inst) in p.hand.iter().enumerate() {
                 if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                     break;
                 }
-                if let Some(card) = db.get(*card_id) {
+                if let Some(card) = db.get(card_inst.id) {
                     if !card_set_allowed(card, curriculum, allowed_card_sets) {
                         continue;
                     }
@@ -167,11 +166,11 @@ pub fn legal_actions_cached(
             let mut actions = Vec::new();
             let p = &state.players[player];
             let max_slot = if curriculum.reduced_stage_mode { 1 } else { MAX_STAGE };
-            for (hand_index, card_id) in p.hand.iter().enumerate() {
+            for (hand_index, card_inst) in p.hand.iter().enumerate() {
                 if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                     break;
                 }
-                if let Some(card) = db.get(*card_id) {
+                if let Some(card) = db.get(card_inst.id) {
                     if !card_set_allowed(card, curriculum, allowed_card_sets) {
                         continue;
                     }
@@ -223,23 +222,6 @@ pub fn legal_actions_cached(
                     }
                 }
             }
-            if curriculum.enable_activated_abilities {
-                for slot in 0..max_slot {
-                    let slot_state = &p.stage[slot];
-                    if let Some(card_id) = slot_state.card {
-                        if let Some(card) = db.get(card_id) {
-                            for (idx, ability) in card.abilities.iter().enumerate() {
-                                if idx >= MAX_ABILITIES_PER_CARD || idx > u8::MAX as usize {
-                                    break;
-                                }
-                                if matches!(ability, AbilityTemplate::ActivatedPlaceholder) {
-                                    actions.push(ActionDesc::MainActivateAbility { slot: slot as u8, ability_index: idx as u8 });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
             actions.push(ActionDesc::MainPass);
             actions
         }
@@ -247,11 +229,11 @@ pub fn legal_actions_cached(
             let mut actions = Vec::new();
             let p = &state.players[player];
             if curriculum.enable_climax_phase {
-                for (hand_index, card_id) in p.hand.iter().enumerate() {
+                for (hand_index, card_inst) in p.hand.iter().enumerate() {
                     if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                         break;
                     }
-                    if let Some(card) = db.get(*card_id) {
+                    if let Some(card) = db.get(card_inst.id) {
                         if !card_set_allowed(card, curriculum, allowed_card_sets) {
                             continue;
                         }
@@ -284,15 +266,15 @@ pub fn legal_actions_cached(
             let p = &state.players[player];
             actions.push(ActionDesc::CounterPass);
             if curriculum.enable_counters {
-                for (hand_index, card_id) in p.hand.iter().enumerate() {
+                for (hand_index, card_inst) in p.hand.iter().enumerate() {
                     if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                         break;
                     }
-                    if let Some(card) = db.get(*card_id) {
+                    if let Some(card) = db.get(card_inst.id) {
                         if !card_set_allowed(card, curriculum, allowed_card_sets) {
                             continue;
                         }
-                        if is_counter_card(card)
+                        if is_counter_card(card, db)
                             && meets_level_requirement(card, p.level.len())
                             && meets_color_requirement(card, p, db, curriculum)
                             && meets_cost_requirement(card, p, curriculum)
@@ -384,7 +366,7 @@ fn meets_color_requirement(card: &CardStatic, player: &crate::state::PlayerState
         return true;
     }
     for card_id in player.level.iter().chain(player.clock.iter()) {
-        if let Some(c) = db.get(*card_id) {
+        if let Some(c) = db.get(card_id.id) {
             if c.color == card.color {
                 return true;
             }
@@ -394,12 +376,12 @@ fn meets_color_requirement(card: &CardStatic, player: &crate::state::PlayerState
 }
 
 fn is_character_slot(slot: &StageSlot, db: &CardDb) -> bool {
-    slot.card.and_then(|id| db.get(id)).map(|c| c.card_type == CardType::Character).unwrap_or(false)
+    slot.card.and_then(|inst| db.get(inst.id)).map(|c| c.card_type == CardType::Character).unwrap_or(false)
 }
 
-fn is_counter_card(card: &CardStatic) -> bool {
+fn is_counter_card(card: &CardStatic, db: &CardDb) -> bool {
     if !card.counter_timing {
         return false;
     }
-    card.abilities.iter().any(|a| matches!(a, AbilityTemplate::CounterBackup { .. } | AbilityTemplate::CounterDamageReduce { .. } | AbilityTemplate::CounterDamageCancel))
+    db.ability_specs(card.id).iter().any(|spec| matches!(spec.template, AbilityTemplate::CounterBackup { .. } | AbilityTemplate::CounterDamageReduce { .. } | AbilityTemplate::CounterDamageCancel))
 }

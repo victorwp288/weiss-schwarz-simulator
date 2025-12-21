@@ -3,12 +3,12 @@ use std::sync::Arc;
 use anyhow::{Result, anyhow};
 
 use crate::config::{CurriculumConfig, EnvConfig, ErrorPolicy, RewardConfig};
-use crate::db::{AbilityTemplate, CardDb, CardId, CardColor, CardStatic, CardType, TriggerIcon};
-use crate::encode::{fill_action_mask, encode_observation, ACTION_ENCODING_VERSION, OBS_ENCODING_VERSION, OBS_LEN, MAX_STAGE};
+use crate::db::{AbilityKind, AbilitySpec, AbilityTemplate, AbilityTemplateTag, CardDb, CardId, CardColor, CardStatic, CardType, TargetTemplate, TriggerIcon};
+use crate::encode::{fill_action_mask, encode_observation, ACTION_ENCODING_VERSION, OBS_ENCODING_VERSION, OBS_LEN, MAX_ABILITIES_PER_CARD, MAX_STAGE};
 use crate::events::{ChoiceOptionSummary, ChoiceSkipReason, Event, ModifierRemoveReason, RevealAudience, RevealReason, TriggerCancelReason, Zone};
 use crate::legal::{ActionDesc, Decision, DecisionKind};
 use crate::replay::{EpisodeBody, EpisodeHeader, ReplayConfig, ReplayData, ReplayWriter, StepMeta, ReplayFinal, ReplayEvent, REPLAY_SCHEMA_VERSION};
-use crate::state::{AttackContext, AttackStep, AttackType, ChoiceOptionRef, ChoiceReason, ChoiceState, ChoiceZone, DamageModifier, DamageModifierKind, DamageType, EncoreRequest, GameState, ModifierDuration, ModifierKind, PendingTrigger, Phase, StageSlot, StageStatus, TerminalResult, TriggerEffect, TriggerOrderState};
+use crate::state::{AttackContext, AttackStep, AttackType, CardInstance, ChoiceOptionRef, ChoiceReason, ChoiceState, ChoiceZone, DamageModifier, DamageModifierKind, DamageType, EncoreRequest, GameState, ModifierDuration, ModifierKind, PendingTrigger, Phase, PendingTargetEffect, PriorityState, StackEffectKind, StackItem, StackOrderState, StageSlot, StageStatus, TargetRef, TargetSelectionState, TargetSide, TargetSlotFilter, TargetSpec, TargetZone, TerminalResult, TimingWindow, TriggerEffect, TriggerOrderState};
 use crate::util::Rng64;
 
 /// Metadata describing the current environment state for Python info payloads.
@@ -73,6 +73,44 @@ struct DamageIntentLocal {
 }
 
 const MAX_CHOICE_OPTIONS: usize = crate::encode::CHOICE_COUNT;
+
+#[derive(Clone, Copy)]
+struct ActivatedAbilityHandler {
+    tag: AbilityTemplateTag,
+    queue: fn(&mut GameEnv, player: u8, source_id: CardId, slot: u8, ability_index: u8, template: &AbilityTemplate) -> Result<()>,
+}
+
+#[derive(Clone, Copy)]
+struct ContinuousAbilityHandler {
+    tag: AbilityTemplateTag,
+    apply: fn(&mut GameEnv, player: u8, source_id: CardId, slot: u8, template: &AbilityTemplate),
+}
+
+const ACTIVATED_ABILITY_HANDLERS: &[ActivatedAbilityHandler] = &[
+    ActivatedAbilityHandler {
+        tag: AbilityTemplateTag::ActivatedPlaceholder,
+        queue: GameEnv::queue_activated_placeholder,
+    },
+    ActivatedAbilityHandler {
+        tag: AbilityTemplateTag::ActivatedTargetedPower,
+        queue: GameEnv::queue_activated_targeted_power,
+    },
+    ActivatedAbilityHandler {
+        tag: AbilityTemplateTag::ActivatedTargetedMoveToHand,
+        queue: GameEnv::queue_activated_targeted_move_to_hand,
+    },
+    ActivatedAbilityHandler {
+        tag: AbilityTemplateTag::ActivatedChangeController,
+        queue: GameEnv::queue_activated_change_controller,
+    },
+];
+
+const CONTINUOUS_ABILITY_HANDLERS: &[ContinuousAbilityHandler] = &[
+    ContinuousAbilityHandler {
+        tag: AbilityTemplateTag::ContinuousPower,
+        apply: GameEnv::apply_continuous_power_modifier,
+    },
+];
 
 impl GameEnv {
     pub fn add_modifier(&mut self, source: CardId, target_player: u8, target_slot: u8, kind: ModifierKind, magnitude: i32, duration: ModifierDuration) -> Option<u32> {
@@ -264,13 +302,13 @@ impl GameEnv {
                         let p = decision.player as usize;
                         let hand_len = self.state.players[p].hand.len();
                         let mut new_hand = Vec::with_capacity(hand_len);
-                        let mut discarded = Vec::new();
+                        let mut discarded: Vec<CardInstance> = Vec::new();
                         std::mem::swap(&mut discarded, &mut self.state.players[p].hand);
                         self.state.players[p].waiting_room.extend(discarded);
                         for _ in 0..hand_len {
                             if let Some(card) = self.draw_from_deck(p as u8) {
                                 new_hand.push(card);
-                                self.log_event(Event::Draw { player: p as u8, card });
+                                self.log_event(Event::Draw { player: p as u8, card: card.id });
                             }
                         }
                         self.state.players[p].hand = new_hand;
@@ -291,9 +329,9 @@ impl GameEnv {
                         if hi >= self.state.players[p].hand.len() {
                             return self.handle_illegal_action(decision.player, "Clock hand index out of range", copy_obs);
                         }
-                        let card_id = self.state.players[p].hand.remove(hi);
-                        self.state.players[p].clock.push(card_id);
-                        self.log_event(Event::Clock { player: decision.player, card: Some(card_id) });
+                        let card = self.state.players[p].hand.remove(hi);
+                        self.state.players[p].clock.push(card);
+                        self.log_event(Event::Clock { player: decision.player, card: Some(card.id) });
                         self.draw_to_hand(decision.player, 2);
                         self.check_level_up(decision.player);
                     }
@@ -304,7 +342,10 @@ impl GameEnv {
             DecisionKind::Main => {
                 match action {
                     ActionDesc::MainPass => {
-                        self.state.turn.phase = Phase::Climax;
+                        self.state.turn.main_passed = true;
+                        if self.state.turn.priority.is_none() {
+                            self.enter_timing_window(TimingWindow::MainWindow, decision.player);
+                        }
                     }
                     ActionDesc::MainPlayCharacter { hand_index, stage_slot } => {
                         if let Err(err) = self.play_character(decision.player, hand_index, stage_slot) {
@@ -329,25 +370,16 @@ impl GameEnv {
                         self.state.players[p].stage.swap(fs, ts);
                         self.remove_modifiers_for_slot(decision.player, from_slot);
                         self.remove_modifiers_for_slot(decision.player, to_slot);
+                        if let Some(card) = self.state.players[p].stage[fs].card {
+                            self.apply_continuous_modifiers_for_slot(decision.player, from_slot, card.id);
+                        }
+                        if let Some(card) = self.state.players[p].stage[ts].card {
+                            self.apply_continuous_modifiers_for_slot(decision.player, to_slot, card.id);
+                        }
                     }
                     ActionDesc::MainActivateAbility { slot, ability_index } => {
-                        if !self.curriculum.enable_activated_abilities {
-                            return self.handle_illegal_action(decision.player, "Activated abilities disabled", copy_obs);
-                        }
-                        let p = decision.player as usize;
-                        let s = slot as usize;
-                        if s >= self.state.players[p].stage.len() {
-                            return self.handle_illegal_action(decision.player, "Ability slot out of range", copy_obs);
-                        }
-                        let card_id = self.state.players[p].stage[s].card.ok_or_else(|| anyhow!("No card in ability slot"))?;
-                        let card = self.db.get(card_id).ok_or_else(|| anyhow!("Card missing in db"))?;
-                        let idx = ability_index as usize;
-                        if idx >= card.abilities.len() {
-                            return self.handle_illegal_action(decision.player, "Ability index out of range", copy_obs);
-                        }
-                        if !matches!(card.abilities[idx], AbilityTemplate::ActivatedPlaceholder) {
-                            return self.handle_illegal_action(decision.player, "Unsupported activated ability", copy_obs);
-                        }
+                        let _ = (slot, ability_index);
+                        return self.handle_illegal_action(decision.player, "Activated abilities only via priority window", copy_obs);
                     }
                     _ => return self.handle_illegal_action(decision.player, "Invalid main action", copy_obs),
                 }
@@ -562,55 +594,60 @@ impl GameEnv {
         use std::collections::HashMap;
         let mut errors = Vec::new();
 
-        for player in 0..2 {
-            let deck_list = &self.config.deck_lists[player];
-            let mut counts: HashMap<CardId, i32> = HashMap::new();
+        let mut counts: [HashMap<CardId, i32>; 2] = [HashMap::new(), HashMap::new()];
+        for (owner, owner_counts) in counts.iter_mut().enumerate() {
+            let deck_list = &self.config.deck_lists[owner];
             for card in deck_list.iter().copied() {
-                *counts.entry(card).or_insert(0) += 1;
+                *owner_counts.entry(card).or_insert(0) += 1;
             }
+        }
 
-            let mut consume = |card: CardId, zone: &str| {
-                let entry = counts.entry(card).or_insert(0);
-                *entry -= 1;
-                if *entry < 0 {
-                    errors.push(format!("Player {player} has extra card {card} in {zone}"));
-                }
-            };
+        let mut consume = |owner: u8, card: CardId, zone: &str| {
+            let owner_idx = owner as usize;
+            let entry = counts[owner_idx].entry(card).or_insert(0);
+            *entry -= 1;
+            if *entry < 0 {
+                errors.push(format!("Owner {owner} has extra card {card} in {zone}"));
+            }
+        };
 
-            let p = &self.state.players[player];
-            for &card in &p.deck {
-                consume(card, "deck");
+        for zone_player in 0..2 {
+            let p = &self.state.players[zone_player];
+            for card in &p.deck {
+                consume(card.owner, card.id, &format!("p{zone_player} deck"));
             }
-            for &card in &p.hand {
-                consume(card, "hand");
+            for card in &p.hand {
+                consume(card.owner, card.id, &format!("p{zone_player} hand"));
             }
-            for &card in &p.waiting_room {
-                consume(card, "waiting_room");
+            for card in &p.waiting_room {
+                consume(card.owner, card.id, &format!("p{zone_player} waiting_room"));
             }
-            for &card in &p.clock {
-                consume(card, "clock");
+            for card in &p.clock {
+                consume(card.owner, card.id, &format!("p{zone_player} clock"));
             }
-            for &card in &p.level {
-                consume(card, "level");
+            for card in &p.level {
+                consume(card.owner, card.id, &format!("p{zone_player} level"));
             }
-            for &card in &p.stock {
-                consume(card, "stock");
+            for card in &p.stock {
+                consume(card.owner, card.id, &format!("p{zone_player} stock"));
             }
-            for &card in &p.memory {
-                consume(card, "memory");
+            for card in &p.memory {
+                consume(card.owner, card.id, &format!("p{zone_player} memory"));
             }
-            for &card in &p.climax {
-                consume(card, "climax");
+            for card in &p.climax {
+                consume(card.owner, card.id, &format!("p{zone_player} climax"));
             }
             for (slot_idx, slot) in p.stage.iter().enumerate() {
                 if let Some(card) = slot.card {
-                    consume(card, &format!("stage[{slot_idx}]"));
+                    consume(card.owner, card.id, &format!("p{zone_player} stage[{slot_idx}]"));
                 }
             }
+        }
 
-            for (card, remaining) in counts {
-                if remaining != 0 {
-                    errors.push(format!("Player {player} card {card} count mismatch ({remaining})"));
+        for (owner, owner_counts) in counts.iter().enumerate() {
+            for (card, remaining) in owner_counts.iter() {
+                if *remaining != 0 {
+                    errors.push(format!("Owner {owner} card {card} count mismatch ({remaining})"));
                 }
             }
         }
@@ -767,6 +804,13 @@ impl GameEnv {
                 continue;
             }
 
+            if self.handle_priority_window() {
+                if self.decision.is_some() {
+                    break;
+                }
+                continue;
+            }
+
             if let Some(req) = self.state.turn.encore_queue.first().copied() {
                 self.decision = Some(Decision { player: req.player, kind: DecisionKind::Encore, focus_slot: Some(req.slot) });
                 break;
@@ -890,6 +934,25 @@ impl GameEnv {
         true
     }
 
+    fn handle_priority_window(&mut self) -> bool {
+        let Some(priority) = self.state.turn.priority.clone() else { return false; };
+        if self.decision.is_some() {
+            return true;
+        }
+        let actions = self.collect_priority_actions(priority.holder);
+        if actions.is_empty() {
+            self.priority_pass(priority.holder);
+            return true;
+        }
+        if actions.len() == 1 {
+            let action = actions[0].clone();
+            let _ = self.apply_priority_action(priority.holder, action);
+            return true;
+        }
+        self.start_priority_choice(priority.holder, actions);
+        true
+    }
+
     fn allocate_trigger_group(&mut self) -> u32 {
         let group_id = self.state.turn.next_trigger_group_id;
         self.state.turn.next_trigger_group_id = self.state.turn.next_trigger_group_id.wrapping_add(1);
@@ -902,10 +965,26 @@ impl GameEnv {
         choice_id
     }
 
+    fn allocate_stack_id(&mut self) -> u32 {
+        let stack_id = self.state.turn.next_stack_id;
+        self.state.turn.next_stack_id = self.state.turn.next_stack_id.wrapping_add(1);
+        stack_id
+    }
+
+    fn allocate_stack_group_id(&mut self) -> u32 {
+        let group_id = self.state.turn.next_stack_group_id;
+        self.state.turn.next_stack_group_id = self.state.turn.next_stack_group_id.wrapping_add(1);
+        group_id
+    }
+
     fn choice_option_id(&self, option: &ChoiceOptionRef) -> u64 {
         let zone_id = match option.zone {
             ChoiceZone::WaitingRoom => 1u64,
             ChoiceZone::Stage => 2u64,
+            ChoiceZone::DeckTop => 3u64,
+            ChoiceZone::Stack => 4u64,
+            ChoiceZone::PriorityCounter => 5u64,
+            ChoiceZone::PriorityAct => 6u64,
         };
         let index = option.index.unwrap_or(0) as u64;
         let target = option.target_slot.unwrap_or(0) as u64;
@@ -925,6 +1004,25 @@ impl GameEnv {
             ChoiceZone::Stage => {
                 let slot = option.index.unwrap_or(0);
                 format!("ST[{slot}] card {}", option.card_id)
+            }
+            ChoiceZone::DeckTop => {
+                match option.index.unwrap_or(0) {
+                    0 => "Treasure: Stock top card".to_string(),
+                    _ => "Treasure: Skip".to_string(),
+                }
+            }
+            ChoiceZone::Stack => {
+                let idx = option.index.unwrap_or(0);
+                format!("Stack order [{idx}] card {}", option.card_id)
+            }
+            ChoiceZone::PriorityCounter => {
+                let idx = option.index.unwrap_or(0);
+                format!("Counter hand[{idx}] card {}", option.card_id)
+            }
+            ChoiceZone::PriorityAct => {
+                let slot = option.index.unwrap_or(0);
+                let ability = option.target_slot.unwrap_or(0);
+                format!("Act ST[{slot}] ability {ability} card {}", option.card_id)
             }
         }
     }
@@ -982,13 +1080,861 @@ impl GameEnv {
                 self.move_stage_to_hand(player, option);
             }
             ChoiceReason::TriggerStandbySelect => {
-                self.move_waiting_room_to_stage(player, option);
+                self.move_waiting_room_to_stage_standby(player, option);
             }
-            ChoiceReason::TriggerTreasureSelect => {}
+            ChoiceReason::TriggerTreasureSelect => {
+                self.apply_treasure_choice(player, option);
+            }
+            ChoiceReason::StackOrderSelect => {
+                self.apply_stack_order_choice(player, option);
+            }
+            ChoiceReason::PriorityActionSelect => {
+                self.apply_priority_action_choice(player, option);
+            }
+            ChoiceReason::TargetSelect => {
+                self.apply_target_choice(player, option);
+            }
         }
         if let Some(trigger) = pending_trigger {
             self.log_event(Event::TriggerResolved { trigger_id: trigger.id, player: trigger.player, effect: trigger.effect });
         }
+    }
+
+    fn target_spec_from_template(&self, template: TargetTemplate, count: u8) -> TargetSpec {
+        match template {
+            TargetTemplate::OppFrontRow => TargetSpec {
+                zone: TargetZone::Stage,
+                side: TargetSide::Opponent,
+                slot_filter: TargetSlotFilter::FrontRow,
+                card_type: Some(CardType::Character),
+                count,
+            },
+            TargetTemplate::SelfStage => TargetSpec {
+                zone: TargetZone::Stage,
+                side: TargetSide::SelfSide,
+                slot_filter: TargetSlotFilter::Any,
+                card_type: Some(CardType::Character),
+                count,
+            },
+            TargetTemplate::SelfWaitingRoom => TargetSpec {
+                zone: TargetZone::WaitingRoom,
+                side: TargetSide::SelfSide,
+                slot_filter: TargetSlotFilter::Any,
+                card_type: None,
+                count,
+            },
+        }
+    }
+
+    fn start_target_selection(&mut self, controller: u8, source_id: CardId, spec: TargetSpec, effect: PendingTargetEffect) {
+        self.state.turn.target_selection = Some(TargetSelectionState {
+            controller,
+            source_id,
+            remaining: spec.count,
+            spec,
+            selected: Vec::new(),
+            effect,
+        });
+        self.present_target_choice();
+    }
+
+    fn enumerate_target_candidates(&self, controller: u8, spec: &TargetSpec, selected: &[TargetRef]) -> Vec<TargetRef> {
+        let target_player = match spec.side {
+            TargetSide::SelfSide => controller,
+            TargetSide::Opponent => 1 - controller,
+        };
+        let mut candidates = Vec::new();
+        match spec.zone {
+            TargetZone::Stage => {
+                let max_slot = if self.curriculum.reduced_stage_mode { 1 } else { MAX_STAGE };
+                // Deterministic target ordering: stage slot ascending (front row is slots 0..2, then back row).
+                for slot in 0..max_slot {
+                    if spec.slot_filter == TargetSlotFilter::FrontRow && slot >= 3 {
+                        continue;
+                    }
+                    let slot_state = &self.state.players[target_player as usize].stage[slot];
+                    let Some(card_inst) = slot_state.card else { continue; };
+                    let Some(card) = self.db.get(card_inst.id) else { continue; };
+                    if let Some(card_type) = spec.card_type {
+                        if card.card_type != card_type {
+                            continue;
+                        }
+                    }
+                    if selected.iter().any(|t| t.player == target_player && t.zone == TargetZone::Stage && t.index as usize == slot) {
+                        continue;
+                    }
+                    let index = slot as u8;
+                    candidates.push(TargetRef {
+                        player: target_player,
+                        zone: TargetZone::Stage,
+                        index,
+                        card_id: card_inst.id,
+                    });
+                }
+            }
+            TargetZone::WaitingRoom => {
+                // Deterministic target ordering: waiting room index ascending.
+                for (idx, card_inst) in self.state.players[target_player as usize].waiting_room.iter().copied().enumerate() {
+                    if idx > u8::MAX as usize {
+                        break;
+                    }
+                    let Some(card) = self.db.get(card_inst.id) else { continue; };
+                    if let Some(card_type) = spec.card_type {
+                        if card.card_type != card_type {
+                            continue;
+                        }
+                    }
+                    if selected.iter().any(|t| t.player == target_player && t.zone == TargetZone::WaitingRoom && t.index as usize == idx) {
+                        continue;
+                    }
+                    candidates.push(TargetRef {
+                        player: target_player,
+                        zone: TargetZone::WaitingRoom,
+                        index: idx as u8,
+                        card_id: card_inst.id,
+                    });
+                }
+            }
+        }
+        candidates
+    }
+
+    fn present_target_choice(&mut self) {
+        let Some(selection) = &self.state.turn.target_selection else { return; };
+        let candidates = self.enumerate_target_candidates(selection.controller, &selection.spec, &selection.selected);
+        if candidates.is_empty() {
+            let _ = self.start_choice(ChoiceReason::TargetSelect, selection.controller, Vec::new(), None);
+            self.state.turn.target_selection = None;
+            return;
+        }
+        let mut options = Vec::new();
+        for target in candidates {
+            let zone = match target.zone {
+                TargetZone::Stage => ChoiceZone::Stage,
+                TargetZone::WaitingRoom => ChoiceZone::WaitingRoom,
+            };
+            options.push(ChoiceOptionRef {
+                card_id: target.card_id,
+                zone,
+                index: Some(target.index),
+                target_slot: None,
+            });
+        }
+        let _ = self.start_choice(ChoiceReason::TargetSelect, selection.controller, options, None);
+    }
+
+    fn apply_target_choice(&mut self, player: u8, option: ChoiceOptionRef) {
+        let Some(mut selection) = self.state.turn.target_selection.take() else { return; };
+        if selection.controller != player {
+            self.state.turn.target_selection = Some(selection);
+            return;
+        }
+        let Some(index) = option.index else {
+            self.state.turn.target_selection = Some(selection);
+            return;
+        };
+        let zone = match option.zone {
+            ChoiceZone::Stage => TargetZone::Stage,
+            ChoiceZone::WaitingRoom => TargetZone::WaitingRoom,
+            _ => {
+                self.state.turn.target_selection = Some(selection);
+                return;
+            }
+        };
+        if zone != selection.spec.zone {
+            self.state.turn.target_selection = Some(selection);
+            return;
+        }
+        let target_player = match selection.spec.side {
+            TargetSide::SelfSide => selection.controller,
+            TargetSide::Opponent => 1 - selection.controller,
+        };
+        let valid = match zone {
+            TargetZone::Stage => {
+                let slot = index as usize;
+                if slot >= self.state.players[target_player as usize].stage.len() {
+                    false
+                } else {
+                    self.state.players[target_player as usize].stage[slot]
+                        .card
+                        .map(|c| c.id)
+                        == Some(option.card_id)
+                }
+            }
+            TargetZone::WaitingRoom => {
+                let idx = index as usize;
+                if idx >= self.state.players[target_player as usize].waiting_room.len() {
+                    false
+                } else {
+                    self.state.players[target_player as usize].waiting_room[idx].id == option.card_id
+                }
+            }
+        };
+        if !valid {
+            self.state.turn.target_selection = Some(selection);
+            return;
+        }
+        let target = TargetRef {
+            player: target_player,
+            zone,
+            index,
+            card_id: option.card_id,
+        };
+        if selection.selected.iter().any(|t| t.player == target.player && t.zone == target.zone && t.index == target.index) {
+            self.state.turn.target_selection = Some(selection);
+            return;
+        }
+        selection.selected.push(target);
+        if selection.remaining > 0 {
+            selection.remaining -= 1;
+        }
+        if selection.remaining == 0 {
+            let targets = selection.selected.clone();
+            match selection.effect {
+                PendingTargetEffect::StackTargetedPower { magnitude, duration } => {
+                    let item = StackItem {
+                        id: self.allocate_stack_id(),
+                        controller: selection.controller,
+                        source_id: selection.source_id,
+                        effect: StackEffectKind::TargetedPower { targets, magnitude, duration },
+                    };
+                    self.enqueue_stack_items(vec![item]);
+                }
+                PendingTargetEffect::StackMoveToHand => {
+                    let item = StackItem {
+                        id: self.allocate_stack_id(),
+                        controller: selection.controller,
+                        source_id: selection.source_id,
+                        effect: StackEffectKind::TargetedMoveToHand { targets },
+                    };
+                    self.enqueue_stack_items(vec![item]);
+                }
+                PendingTargetEffect::StackChangeController { new_controller } => {
+                    let item = StackItem {
+                        id: self.allocate_stack_id(),
+                        controller: selection.controller,
+                        source_id: selection.source_id,
+                        effect: StackEffectKind::TargetedChangeController { targets, new_controller },
+                    };
+                    self.enqueue_stack_items(vec![item]);
+                }
+            }
+            self.state.turn.target_selection = None;
+            return;
+        }
+        self.state.turn.target_selection = Some(selection);
+        self.present_target_choice();
+    }
+
+    fn enter_timing_window(&mut self, window: TimingWindow, holder: u8) {
+        self.state.turn.priority = Some(PriorityState {
+            holder,
+            passes: 0,
+            window,
+            used_act_mask: 0,
+        });
+        self.log_event(Event::TimingWindowEntered { window, player: holder });
+    }
+
+    fn collect_priority_actions(&self, player: u8) -> Vec<ActionDesc> {
+        let mut actions = Vec::new();
+        let Some(priority) = self.state.turn.priority.as_ref() else { return actions; };
+        if priority.holder != player {
+            return actions;
+        }
+        match priority.window {
+            TimingWindow::MainWindow => {
+                if !self.curriculum.enable_activated_abilities {
+                    return actions;
+                }
+                let p = &self.state.players[player as usize];
+                let max_slot = if self.curriculum.reduced_stage_mode { 1 } else { MAX_STAGE };
+                // Deterministic priority ordering: stage slot ascending, then ability index ascending.
+                for slot in 0..max_slot {
+                    let slot_state = &p.stage[slot];
+                    let Some(card_inst) = slot_state.card else { continue; };
+                    let card_id = card_inst.id;
+                    if self.db.get(card_id).is_none() {
+                        continue;
+                    }
+                    let specs = self.db.ability_specs(card_id);
+                    for (idx, spec) in specs.iter().enumerate() {
+                        if idx >= MAX_ABILITIES_PER_CARD || idx > u8::MAX as usize {
+                            break;
+                        }
+                        if spec.kind != AbilityKind::Activated {
+                            continue;
+                        }
+                        let template = &spec.template;
+                        if Self::activated_handler_for(template).is_none() {
+                            continue;
+                        }
+                        let bit = (slot * MAX_ABILITIES_PER_CARD + idx) as u32;
+                        if priority.used_act_mask & (1u32 << bit) != 0 {
+                            continue;
+                        }
+                        actions.push(ActionDesc::MainActivateAbility { slot: slot as u8, ability_index: idx as u8 });
+                    }
+                }
+            }
+            TimingWindow::CounterWindow => {
+                let Some(ctx) = &self.state.turn.attack else { return actions; };
+                if ctx.attack_type != AttackType::Frontal || ctx.defender_slot.is_none() || ctx.counter_played {
+                    return actions;
+                }
+                if self.curriculum.enable_counters {
+                    let p = &self.state.players[player as usize];
+                    // Deterministic priority ordering: hand index ascending.
+                    for (hand_index, card_inst) in p.hand.iter().enumerate() {
+                        if hand_index >= crate::encode::MAX_HAND || hand_index > u8::MAX as usize {
+                            break;
+                        }
+                        let Some(card) = self.db.get(card_inst.id) else { continue; };
+                        if !self.card_set_allowed(card) {
+                            continue;
+                        }
+                        if self.is_counter_card(card)
+                            && self.meets_level_requirement(player, card)
+                            && self.meets_color_requirement(player, card)
+                            && self.meets_cost_requirement(player, card)
+                        {
+                            actions.push(ActionDesc::CounterPlay { hand_index: hand_index as u8 });
+                        }
+                    }
+                }
+            }
+            TimingWindow::EndOfTurnWindow => {}
+        }
+        actions
+    }
+
+    fn start_priority_choice(&mut self, player: u8, actions: Vec<ActionDesc>) {
+        let mut options = Vec::new();
+        for action in actions {
+            match action {
+                ActionDesc::CounterPlay { hand_index } => {
+                    let card_id = self.state.players[player as usize]
+                        .hand
+                        .get(hand_index as usize)
+                        .map(|c| c.id)
+                        .unwrap_or(0);
+                    options.push(ChoiceOptionRef {
+                        card_id,
+                        zone: ChoiceZone::PriorityCounter,
+                        index: Some(hand_index),
+                        target_slot: None,
+                    });
+                }
+                ActionDesc::MainActivateAbility { slot, ability_index } => {
+                    let card_id = self.state.players[player as usize]
+                        .stage
+                        .get(slot as usize)
+                        .and_then(|s| s.card)
+                        .map(|c| c.id)
+                        .unwrap_or(0);
+                    options.push(ChoiceOptionRef {
+                        card_id,
+                        zone: ChoiceZone::PriorityAct,
+                        index: Some(slot),
+                        target_slot: Some(ability_index),
+                    });
+                }
+                _ => {}
+            }
+        }
+        self.start_choice(ChoiceReason::PriorityActionSelect, player, options, None);
+    }
+
+    fn apply_priority_action_choice(&mut self, player: u8, option: ChoiceOptionRef) {
+        let action = match option.zone {
+            ChoiceZone::PriorityCounter => option.index.map(|idx| ActionDesc::CounterPlay { hand_index: idx }),
+            ChoiceZone::PriorityAct => {
+                if let (Some(slot), Some(ability)) = (option.index, option.target_slot) {
+                    Some(ActionDesc::MainActivateAbility { slot, ability_index: ability })
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        if let Some(action) = action {
+            let _ = self.apply_priority_action(player, action);
+        }
+    }
+
+    fn apply_priority_action(&mut self, player: u8, action: ActionDesc) -> Result<()> {
+        let Some(priority) = self.state.turn.priority.as_ref() else {
+            return Err(anyhow!("Priority window not active"));
+        };
+        if priority.holder != player {
+            return Err(anyhow!("Priority holder mismatch"));
+        }
+        let window = priority.window;
+        match action {
+            ActionDesc::MainActivateAbility { slot, ability_index } => {
+                if window != TimingWindow::MainWindow {
+                    return Err(anyhow!("Activated abilities not allowed in this window"));
+                }
+                self.queue_activated_ability_stack_item(player, slot, ability_index)?;
+                let bit = slot as u32 * MAX_ABILITIES_PER_CARD as u32 + ability_index as u32;
+                if let Some(priority) = &mut self.state.turn.priority {
+                    priority.used_act_mask |= 1u32 << bit;
+                    priority.holder = 1 - player;
+                    priority.passes = 0;
+                }
+            }
+            ActionDesc::CounterPlay { hand_index } => {
+                if window != TimingWindow::CounterWindow {
+                    return Err(anyhow!("Counter play not allowed in this window"));
+                }
+                self.queue_counter_stack_item(player, hand_index)?;
+                if let Some(priority) = &mut self.state.turn.priority {
+                    priority.holder = 1 - player;
+                    priority.passes = 0;
+                }
+            }
+            ActionDesc::MainPass | ActionDesc::CounterPass => {
+                let actions = self.collect_priority_actions(player);
+                if !actions.is_empty() {
+                    return Err(anyhow!("Explicit pass not allowed when priority actions exist"));
+                }
+                self.priority_pass(player);
+            }
+            _ => return Err(anyhow!("Invalid priority action")),
+        }
+        Ok(())
+    }
+
+    fn priority_pass(&mut self, player: u8) {
+        let (window, pass_count, should_check_stack) = {
+            let Some(priority) = &mut self.state.turn.priority else { return; };
+            if priority.holder != player {
+                return;
+            }
+            priority.passes = priority.passes.saturating_add(1);
+            let window = priority.window;
+            let pass_count = priority.passes;
+            if pass_count < 2 {
+                priority.holder = 1 - player;
+            }
+            (window, pass_count, pass_count >= 2)
+        };
+        self.log_event(Event::PriorityPassed { player, window, pass_count });
+        if should_check_stack {
+            if let Some(item) = self.state.turn.stack.pop() {
+                self.resolve_stack_item(&item);
+                self.log_event(Event::StackResolved { item });
+                if let Some(priority) = &mut self.state.turn.priority {
+                    priority.passes = 0;
+                    priority.holder = self.state.turn.active_player;
+                }
+            } else {
+                self.close_priority_window(window);
+            }
+        }
+    }
+
+    fn close_priority_window(&mut self, window: TimingWindow) {
+        self.state.turn.priority = None;
+        match window {
+            TimingWindow::MainWindow => {
+                if self.state.turn.main_passed {
+                    self.state.turn.main_passed = false;
+                    self.state.turn.phase = Phase::Climax;
+                }
+            }
+            TimingWindow::CounterWindow => {
+                if let Some(ctx) = &mut self.state.turn.attack {
+                    ctx.step = AttackStep::Damage;
+                }
+            }
+            TimingWindow::EndOfTurnWindow => {}
+        }
+    }
+
+    fn stack_effect_key(effect: &StackEffectKind) -> u8 {
+        match effect {
+            StackEffectKind::ActivatedPlaceholder { .. } => 0,
+            StackEffectKind::Counter { .. } => 1,
+            StackEffectKind::TargetedPower { .. } => 2,
+            StackEffectKind::TargetedMoveToHand { .. } => 3,
+            StackEffectKind::TargetedChangeController { .. } => 4,
+        }
+    }
+
+    fn enqueue_stack_items(&mut self, items: Vec<StackItem>) {
+        if items.is_empty() {
+            return;
+        }
+        let active = self.state.turn.active_player;
+        let mut per_player: [Vec<StackItem>; 2] = [Vec::new(), Vec::new()];
+        for item in items {
+            per_player[item.controller as usize].push(item);
+        }
+        for controller in [active, 1 - active] {
+            let list = &mut per_player[controller as usize];
+            if list.is_empty() {
+                continue;
+            }
+            // Deterministic ordering for simultaneous stack items: source id, effect kind, then stack id.
+            list.sort_by_key(|item| (item.source_id, Self::stack_effect_key(&item.effect), item.id));
+            let group_id = self.allocate_stack_group_id();
+            let items = std::mem::take(list);
+            let group = StackOrderState { group_id, controller, items };
+            self.state.turn.pending_stack_groups.push(group);
+        }
+        self.process_next_stack_group();
+    }
+
+    fn process_next_stack_group(&mut self) {
+        if self.state.turn.stack_order.is_some() {
+            return;
+        }
+        if self.state.turn.pending_stack_groups.is_empty() {
+            return;
+        }
+        let group = self.state.turn.pending_stack_groups.remove(0);
+        if group.items.len() == 1 {
+            let item = group.items.into_iter().next().expect("group item");
+            self.push_stack_item(item);
+            self.process_next_stack_group();
+            return;
+        }
+        self.log_event(Event::StackGroupPresented { group_id: group.group_id, controller: group.controller, items: group.items.clone() });
+        self.state.turn.stack_order = Some(group);
+        self.present_stack_order_choice();
+    }
+
+    fn present_stack_order_choice(&mut self) {
+        let Some(order) = &self.state.turn.stack_order else { return; };
+        let mut options = Vec::new();
+        for (idx, item) in order.items.iter().enumerate() {
+            let index = if idx <= u8::MAX as usize { Some(idx as u8) } else { None };
+            options.push(ChoiceOptionRef {
+                card_id: item.source_id,
+                zone: ChoiceZone::Stack,
+                index,
+                target_slot: None,
+            });
+        }
+        self.start_choice(ChoiceReason::StackOrderSelect, order.controller, options, None);
+    }
+
+    fn apply_stack_order_choice(&mut self, player: u8, option: ChoiceOptionRef) {
+        if option.zone != ChoiceZone::Stack {
+            return;
+        }
+        let Some(idx) = option.index else { return; };
+        let Some(mut order) = self.state.turn.stack_order.take() else { return; };
+        if order.controller != player {
+            self.state.turn.stack_order = Some(order);
+            return;
+        }
+        let index = idx as usize;
+        if index >= order.items.len() {
+            self.state.turn.stack_order = Some(order);
+            return;
+        }
+        let item = order.items.remove(index);
+        self.log_event(Event::StackOrderChosen { group_id: order.group_id, controller: order.controller, stack_id: item.id });
+        self.push_stack_item(item);
+        if !order.items.is_empty() {
+            self.state.turn.stack_order = Some(order);
+            self.present_stack_order_choice();
+        } else {
+            self.state.turn.stack_order = None;
+            self.process_next_stack_group();
+        }
+    }
+
+    fn push_stack_item(&mut self, item: StackItem) {
+        self.state.turn.stack.push(item.clone());
+        self.log_event(Event::StackPushed { item });
+    }
+
+    fn resolve_stack_item(&mut self, item: &StackItem) {
+        match &item.effect {
+            StackEffectKind::ActivatedPlaceholder { slot, .. } => {
+                let p = item.controller as usize;
+                let s = *slot as usize;
+                if s >= self.state.players[p].stage.len() {
+                    return;
+                }
+                if self.state.players[p].stage[s].card.map(|c| c.id) != Some(item.source_id) {
+                    return;
+                }
+                let _ = self.add_modifier(item.source_id, item.controller, *slot, ModifierKind::Power, 1000, ModifierDuration::UntilEndOfTurn);
+            }
+            StackEffectKind::Counter { card_id, power, damage_reduce, damage_cancel } => {
+                if let Some(ctx) = &mut self.state.turn.attack {
+                    if let Some(def_slot) = ctx.defender_slot {
+                        let slot_state = &mut self.state.players[item.controller as usize].stage[def_slot as usize];
+                        slot_state.power_mod_battle += *power;
+                        ctx.counter_power += *power;
+                    }
+                    if *damage_reduce > 0 {
+                        Self::push_attack_damage_modifier(ctx, DamageModifierKind::AddAmount { delta: -(*damage_reduce) }, *card_id);
+                    }
+                    if *damage_cancel {
+                        Self::push_attack_damage_modifier(ctx, DamageModifierKind::CancelNext, *card_id);
+                    }
+                }
+                self.log_event(Event::Counter { player: item.controller, card: *card_id, power: *power });
+            }
+            StackEffectKind::TargetedPower { targets, magnitude, duration } => {
+                for target in targets {
+                    if target.zone != TargetZone::Stage {
+                        continue;
+                    }
+                    let p = target.player as usize;
+                    let s = target.index as usize;
+                    if s >= self.state.players[p].stage.len() {
+                        continue;
+                    }
+                    if self.state.players[p].stage[s].card.map(|c| c.id) != Some(target.card_id) {
+                        continue;
+                    }
+                    let _ = self.add_modifier(item.source_id, target.player, target.index, ModifierKind::Power, *magnitude, *duration);
+                }
+            }
+            StackEffectKind::TargetedMoveToHand { targets } => {
+                let mut waiting_room_targets: Vec<TargetRef> = Vec::new();
+                for target in targets {
+                    match target.zone {
+                        TargetZone::Stage => {
+                            let option = ChoiceOptionRef {
+                                card_id: target.card_id,
+                                zone: ChoiceZone::Stage,
+                                index: Some(target.index),
+                                target_slot: None,
+                            };
+                            self.move_stage_to_hand(target.player, option);
+                        }
+                        TargetZone::WaitingRoom => {
+                            waiting_room_targets.push(*target);
+                        }
+                    }
+                }
+                // Remove waiting room targets in descending index order to avoid index shifts.
+                waiting_room_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in waiting_room_targets {
+                    let option = ChoiceOptionRef {
+                        card_id: target.card_id,
+                        zone: ChoiceZone::WaitingRoom,
+                        index: Some(target.index),
+                        target_slot: None,
+                    };
+                    self.move_waiting_room_to_hand(target.player, option);
+                }
+            }
+            StackEffectKind::TargetedChangeController { targets, new_controller } => {
+                for target in targets {
+                    if target.zone != TargetZone::Stage {
+                        continue;
+                    }
+                    let from_player = target.player;
+                    let to_player = *new_controller;
+                    if from_player == to_player {
+                        continue;
+                    }
+                    let from_slot = target.index as usize;
+                    let to_slot = target.index as usize;
+                    if from_slot >= self.state.players[from_player as usize].stage.len()
+                        || to_slot >= self.state.players[to_player as usize].stage.len()
+                    {
+                        continue;
+                    }
+                    if self.state.players[to_player as usize].stage[to_slot].card.is_some() {
+                        continue;
+                    }
+                    let Some(card_inst) = self.state.players[from_player as usize].stage[from_slot].card else {
+                        continue;
+                    };
+                    if card_inst.id != target.card_id {
+                        continue;
+                    }
+                    self.remove_modifiers_for_slot(from_player, target.index);
+                    let mut moved_slot = std::mem::replace(&mut self.state.players[from_player as usize].stage[from_slot], StageSlot::empty());
+                    let mut moved_card = moved_slot.card.take().expect("card present");
+                    moved_card.controller = to_player;
+                    moved_slot.card = Some(moved_card);
+                    self.state.players[to_player as usize].stage[to_slot] = moved_slot;
+                    self.apply_continuous_modifiers_for_slot(to_player, target.index, moved_card.id);
+                    self.log_event(Event::ControlChanged {
+                        card: moved_card.id,
+                        owner: moved_card.owner,
+                        from_controller: from_player,
+                        to_controller: to_player,
+                        from_slot: target.index,
+                        to_slot: target.index,
+                    });
+                }
+            }
+        }
+    }
+
+    fn activated_handler_for(template: &AbilityTemplate) -> Option<&'static ActivatedAbilityHandler> {
+        let tag = template.tag();
+        ACTIVATED_ABILITY_HANDLERS.iter().find(|h| h.tag == tag)
+    }
+
+    fn continuous_handler_for(template: &AbilityTemplate) -> Option<&'static ContinuousAbilityHandler> {
+        let tag = template.tag();
+        CONTINUOUS_ABILITY_HANDLERS.iter().find(|h| h.tag == tag)
+    }
+
+    fn queue_activated_placeholder(&mut self, player: u8, source_id: CardId, slot: u8, ability_index: u8, _template: &AbilityTemplate) -> Result<()> {
+        let item = StackItem {
+            id: self.allocate_stack_id(),
+            controller: player,
+            source_id,
+            effect: StackEffectKind::ActivatedPlaceholder { slot, ability_index },
+        };
+        self.enqueue_stack_items(vec![item]);
+        Ok(())
+    }
+
+    fn queue_activated_targeted_power(&mut self, player: u8, source_id: CardId, _slot: u8, _ability_index: u8, template: &AbilityTemplate) -> Result<()> {
+        let AbilityTemplate::ActivatedTargetedPower { amount, count, target } = template else {
+            return Err(anyhow!("Ability template mismatch"));
+        };
+        if *count == 0 {
+            return Ok(());
+        }
+        let spec = self.target_spec_from_template(*target, *count);
+        self.start_target_selection(player, source_id, spec, PendingTargetEffect::StackTargetedPower {
+            magnitude: *amount,
+            duration: ModifierDuration::UntilEndOfTurn,
+        });
+        Ok(())
+    }
+
+    fn queue_activated_targeted_move_to_hand(&mut self, player: u8, source_id: CardId, _slot: u8, _ability_index: u8, template: &AbilityTemplate) -> Result<()> {
+        let AbilityTemplate::ActivatedTargetedMoveToHand { count, target } = template else {
+            return Err(anyhow!("Ability template mismatch"));
+        };
+        if *count == 0 {
+            return Ok(());
+        }
+        let spec = self.target_spec_from_template(*target, *count);
+        self.start_target_selection(player, source_id, spec, PendingTargetEffect::StackMoveToHand);
+        Ok(())
+    }
+
+    fn queue_activated_change_controller(&mut self, player: u8, source_id: CardId, _slot: u8, _ability_index: u8, template: &AbilityTemplate) -> Result<()> {
+        let AbilityTemplate::ActivatedChangeController { count, target } = template else {
+            return Err(anyhow!("Ability template mismatch"));
+        };
+        if *count == 0 {
+            return Ok(());
+        }
+        let spec = self.target_spec_from_template(*target, *count);
+        self.start_target_selection(player, source_id, spec, PendingTargetEffect::StackChangeController { new_controller: player });
+        Ok(())
+    }
+
+    fn apply_continuous_power_modifier(&mut self, player: u8, source_id: CardId, slot: u8, template: &AbilityTemplate) {
+        let AbilityTemplate::ContinuousPower { amount } = template else { return; };
+        if *amount == 0 {
+            return;
+        }
+        let _ = self.add_modifier(source_id, player, slot, ModifierKind::Power, *amount, ModifierDuration::WhileOnStage);
+    }
+
+    fn apply_continuous_modifiers_for_slot(&mut self, player: u8, slot: u8, card_id: CardId) {
+        if !self.curriculum.enable_continuous_modifiers {
+            return;
+        }
+        let specs_len = self.db.ability_specs(card_id).len();
+        for idx in 0..specs_len {
+            let spec = self.db.ability_specs(card_id)[idx].clone();
+            if spec.kind != AbilityKind::Continuous {
+                continue;
+            }
+            if let Some(handler) = Self::continuous_handler_for(&spec.template) {
+                (handler.apply)(self, player, card_id, slot, &spec.template);
+            }
+        }
+    }
+
+    fn queue_activated_ability_stack_item(&mut self, player: u8, slot: u8, ability_index: u8) -> Result<()> {
+        if !self.curriculum.enable_activated_abilities {
+            return Err(anyhow!("Activated abilities disabled"));
+        }
+        let p = player as usize;
+        let s = slot as usize;
+        if s >= self.state.players[p].stage.len() {
+            return Err(anyhow!("Ability slot out of range"));
+        }
+        let card_inst = self.state.players[p].stage[s].card.ok_or_else(|| anyhow!("No card in ability slot"))?;
+        let card_id = card_inst.id;
+        if self.db.get(card_id).is_none() {
+            return Err(anyhow!("Card missing in db"));
+        }
+        let idx = ability_index as usize;
+        let specs_len = self.db.ability_specs(card_id).len();
+        if idx >= specs_len || idx >= MAX_ABILITIES_PER_CARD {
+            return Err(anyhow!("Ability index out of range"));
+        }
+        let spec = self.db.ability_specs(card_id)[idx].clone();
+        if spec.kind != AbilityKind::Activated {
+            return Err(anyhow!("Ability is not activated"));
+        }
+        let template = &spec.template;
+        let Some(handler) = Self::activated_handler_for(template) else {
+            return Err(anyhow!("Unsupported activated ability"));
+        };
+        (handler.queue)(self, player, card_id, slot, ability_index, template)
+    }
+
+    fn queue_counter_stack_item(&mut self, player: u8, hand_index: u8) -> Result<()> {
+        if !self.curriculum.enable_counters {
+            return Err(anyhow!("Counters disabled"));
+        }
+        let Some(ctx) = &self.state.turn.attack else {
+            return Err(anyhow!("No attack context for counter"));
+        };
+        if ctx.attack_type != AttackType::Frontal || ctx.defender_slot.is_none() || ctx.counter_played {
+            return Err(anyhow!("Counter not allowed for this attack"));
+        }
+        let p = player as usize;
+        let hi = hand_index as usize;
+        if hi >= self.state.players[p].hand.len() {
+            return Err(anyhow!("Counter hand index out of range"));
+        }
+        let card_inst = self.state.players[p].hand[hi];
+        let card = self.db.get(card_inst.id).ok_or_else(|| anyhow!("Card missing in db"))?;
+        if !self.card_set_allowed(card) {
+            return Err(anyhow!("Card set not allowed"));
+        }
+        if !self.is_counter_card(card) {
+            return Err(anyhow!("Card is not a counter"));
+        }
+        if !self.meets_level_requirement(player, card) || !self.meets_color_requirement(player, card) || !self.meets_cost_requirement(player, card) {
+            return Err(anyhow!("Counter requirements not met"));
+        }
+        let power = self.counter_power(card);
+        let damage_reduce = self.counter_damage_reductions(card).iter().sum::<i32>();
+        let damage_cancel = self.counter_damage_cancel(card);
+        self.pay_cost(player, card.cost as usize)?;
+        let card_inst = self.state.players[p].hand.remove(hi);
+        self.state.players[p].waiting_room.push(card_inst);
+        if let Some(ctx) = &mut self.state.turn.attack {
+            ctx.counter_played = true;
+        }
+        let item = StackItem {
+            id: self.allocate_stack_id(),
+            controller: player,
+            source_id: card_inst.id,
+            effect: StackEffectKind::Counter {
+                card_id: card_inst.id,
+                power,
+                damage_reduce,
+                damage_cancel,
+            },
+        };
+        self.enqueue_stack_items(vec![item]);
+        Ok(())
     }
 
     fn enumerate_open_stage_slots(&self, player: u8) -> Vec<u8> {
@@ -1009,13 +1955,13 @@ impl GameEnv {
         let mut options = Vec::new();
         for slot in 0..max_slot {
             let slot_state = &self.state.players[p].stage[slot];
-            let Some(card_id) = slot_state.card else { continue; };
-            let Some(card) = self.db.get(card_id) else { continue; };
+            let Some(card_inst) = slot_state.card else { continue; };
+            let Some(card) = self.db.get(card_inst.id) else { continue; };
             if card.card_type != CardType::Character {
                 continue;
             }
             options.push(ChoiceOptionRef {
-                card_id,
+                card_id: card_inst.id,
                 zone: ChoiceZone::Stage,
                 index: Some(slot as u8),
                 target_slot: None,
@@ -1027,8 +1973,8 @@ impl GameEnv {
     fn enumerate_waiting_room_characters(&self, player: u8, target_slots: Option<&[u8]>) -> Vec<ChoiceOptionRef> {
         let p = player as usize;
         let mut options = Vec::new();
-        for (idx, card_id) in self.state.players[p].waiting_room.iter().copied().enumerate() {
-            let Some(card) = self.db.get(card_id) else { continue; };
+        for (idx, card_inst) in self.state.players[p].waiting_room.iter().copied().enumerate() {
+            let Some(card) = self.db.get(card_inst.id) else { continue; };
             if card.card_type != CardType::Character {
                 continue;
             }
@@ -1036,7 +1982,7 @@ impl GameEnv {
             if let Some(slots) = target_slots {
                 for slot in slots {
                     options.push(ChoiceOptionRef {
-                        card_id,
+                        card_id: card_inst.id,
                         zone: ChoiceZone::WaitingRoom,
                         index,
                         target_slot: Some(*slot),
@@ -1044,7 +1990,7 @@ impl GameEnv {
                 }
             } else {
                 options.push(ChoiceOptionRef {
-                    card_id,
+                    card_id: card_inst.id,
                     zone: ChoiceZone::WaitingRoom,
                     index,
                     target_slot: None,
@@ -1129,24 +2075,54 @@ impl GameEnv {
 
     fn resolve_trigger_standby(&mut self, trigger: PendingTrigger) -> bool {
         let open_slots = self.enumerate_open_stage_slots(trigger.player);
-        if open_slots.is_empty() {
-            return self.start_choice(ChoiceReason::TriggerStandbySelect, trigger.player, Vec::new(), Some(trigger));
+        let target_slots = if open_slots.is_empty() {
+            let max_slot = if self.curriculum.reduced_stage_mode { 1 } else { MAX_STAGE };
+            (0..max_slot).map(|slot| slot as u8).collect::<Vec<_>>()
+        } else {
+            open_slots
+        };
+        let level_limit = self.state.players[trigger.player as usize].level.len().saturating_add(1);
+        let mut candidates = Vec::new();
+        // Deterministic ordering: waiting room order, then slot order (ascending).
+        for (idx, card_inst) in self.state.players[trigger.player as usize].waiting_room.iter().copied().enumerate() {
+            let Some(card) = self.db.get(card_inst.id) else { continue; };
+            if card.card_type != CardType::Character {
+                continue;
+            }
+            if card.level as usize > level_limit {
+                continue;
+            }
+            let index = if idx <= u8::MAX as usize { Some(idx as u8) } else { None };
+            for slot in &target_slots {
+                candidates.push(ChoiceOptionRef {
+                    card_id: card_inst.id,
+                    zone: ChoiceZone::WaitingRoom,
+                    index,
+                    target_slot: Some(*slot),
+                });
+            }
         }
-        // TODO: Standby level/cost constraints not modeled; currently allows any character in waiting room.
-        let candidates = self.enumerate_waiting_room_characters(trigger.player, Some(&open_slots));
         self.start_choice(ChoiceReason::TriggerStandbySelect, trigger.player, candidates, Some(trigger))
     }
 
     fn resolve_trigger_treasure(&mut self, trigger: PendingTrigger) -> bool {
-        // TODO: Treasure trigger effect simplified; currently grants +1 stock via top card to stock.
-        if let Some(card) = self.draw_from_deck(trigger.player) {
-            let p = trigger.player as usize;
-            self.state.players[p].stock.push(card);
-            self.log_event(Event::ZoneMove { player: trigger.player, card, from: Zone::Deck, to: Zone::Stock, from_slot: None, to_slot: None });
+        self.move_trigger_card_from_stock_to_hand(trigger.player, trigger.source_card);
+        let mut options = Vec::new();
+        if self.treasure_stock_available(trigger.player) {
+            options.push(ChoiceOptionRef {
+                card_id: 0,
+                zone: ChoiceZone::DeckTop,
+                index: Some(0),
+                target_slot: None,
+            });
         }
-        self.log_event(Event::TriggerResolved { trigger_id: trigger.id, player: trigger.player, effect: trigger.effect });
-        self.maybe_validate_state("trigger_treasure");
-        false
+        options.push(ChoiceOptionRef {
+            card_id: 0,
+            zone: ChoiceZone::DeckTop,
+            index: Some(1),
+            target_slot: None,
+        });
+        self.start_choice(ChoiceReason::TriggerTreasureSelect, trigger.player, options, Some(trigger))
     }
 
     fn resolve_stand_phase(&mut self, player: u8) {
@@ -1209,10 +2185,12 @@ impl GameEnv {
                 let mut entry = crate::state::DerivedAttackSlot::empty();
                 entry.cannot_attack = slot_state.cannot_attack;
                 entry.attack_cost = slot_state.attack_cost;
-                if let Some(card_id) = slot_state.card {
-                    if let Some(card) = self.db.get(card_id) {
-                        for ability in &card.abilities {
-                            match ability {
+                if let Some(card_inst) = slot_state.card {
+                    let card_id = card_inst.id;
+                    if self.db.get(card_id).is_some() {
+                        let specs = self.db.ability_specs(card_id);
+                        for spec in specs {
+                            match &spec.template {
                                 AbilityTemplate::ContinuousCannotAttack => {
                                     entry.cannot_attack = true;
                                 }
@@ -1259,10 +2237,14 @@ impl GameEnv {
         let mut pending: Vec<(u8, CardId, TriggerEffect)> = Vec::new();
         for player in 0..2 {
             for slot in &self.state.players[player].stage {
-                let Some(card_id) = slot.card else { continue; };
-                let Some(card) = self.db.get(card_id) else { continue; };
-                for ability in &card.abilities {
-                    if let AbilityTemplate::AutoEndPhaseDraw { count } = ability {
+                let Some(card_inst) = slot.card else { continue; };
+                let card_id = card_inst.id;
+                if self.db.get(card_id).is_none() {
+                    continue;
+                }
+                let specs = self.db.ability_specs(card_id);
+                for spec in specs {
+                    if let AbilityTemplate::AutoEndPhaseDraw { count } = &spec.template {
                         pending.push((player as u8, card_id, TriggerEffect::EndPhaseDraw { count: *count }));
                     }
                 }
@@ -1286,10 +2268,15 @@ impl GameEnv {
         self.state.turn.pending_triggers.clear();
         self.state.turn.trigger_order = None;
         self.state.turn.choice = None;
+        self.state.turn.priority = None;
+        self.state.turn.stack.clear();
+        self.state.turn.pending_stack_groups.clear();
+        self.state.turn.stack_order = None;
         self.state.turn.derived_attack = None;
         self.state.turn.attack = None;
         self.state.turn.encore_queue.clear();
         self.state.turn.pending_level_up = None;
+        self.state.turn.main_passed = false;
         self.log_event(Event::EndTurn { player });
         self.maybe_validate_state("end_phase_finish");
     }
@@ -1317,10 +2304,11 @@ impl GameEnv {
                 }
                 AttackStep::Counter => {
                     let defender = 1 - self.state.turn.active_player;
-                    let focus = ctx.defender_slot;
                     self.state.turn.attack = Some(ctx);
-                    self.decision = Some(Decision { player: defender, kind: DecisionKind::Counter, focus_slot: focus });
-                    self.maybe_validate_state("attack_counter_decision");
+                    if self.state.turn.priority.is_none() {
+                        self.enter_timing_window(TimingWindow::CounterWindow, defender);
+                    }
+                    self.maybe_validate_state("attack_counter_window");
                     break;
                 }
                 AttackStep::Damage => {
@@ -1358,7 +2346,8 @@ impl GameEnv {
     fn resolve_trigger_step(&mut self, ctx: &mut AttackContext) {
         let active = self.state.turn.active_player as usize;
         let card = self.draw_from_deck(active as u8);
-        if let Some(card_id) = card {
+        if let Some(card_inst) = card {
+            let card_id = card_inst.id;
             ctx.trigger_card = Some(card_id);
             let _ = self.reveal_cards(active as u8, &[card_id], RevealReason::TriggerCheck, RevealAudience::Public);
             if self.curriculum.enable_triggers {
@@ -1381,7 +2370,7 @@ impl GameEnv {
                     self.queue_trigger_group(active as u8, card_id, effects);
                 }
             }
-            self.state.players[active].stock.push(card_id);
+            self.state.players[active].stock.push(card_inst);
         }
     }
 
@@ -1399,10 +2388,12 @@ impl GameEnv {
     fn collect_attack_damage_intents(&self, ctx: &AttackContext, attacker: u8, defender: u8) -> Vec<DamageIntentLocal> {
         let mut intents = Vec::new();
         let attacker_slot = ctx.attacker_slot as usize;
-        if let Some(card_id) = self.state.players[attacker as usize].stage[attacker_slot].card {
-            if let Some(card) = self.db.get(card_id) {
-                for ability in &card.abilities {
-                    if let AbilityTemplate::AutoOnAttackDealDamage { amount, cancelable } = ability {
+        if let Some(card_inst) = self.state.players[attacker as usize].stage[attacker_slot].card {
+            let card_id = card_inst.id;
+            if self.db.get(card_id).is_some() {
+                let specs = self.db.ability_specs(card_id);
+                for spec in specs {
+                    if let AbilityTemplate::AutoOnAttackDealDamage { amount, cancelable } = &spec.template {
                         intents.push(DamageIntentLocal {
                             source_player: attacker,
                             source_slot: Some(ctx.attacker_slot),
@@ -1502,13 +2493,13 @@ impl GameEnv {
             });
         }
 
-        let mut revealed = Vec::new();
+        let mut revealed: Vec<CardInstance> = Vec::new();
         if cancelable && !canceled && amount > 0 {
             for _ in 0..amount {
                 if let Some(card) = self.draw_from_deck(intent.target) {
-                    self.reveal_card(intent.target, card, RevealReason::DamageCheck, RevealAudience::Public);
+                    self.reveal_card(intent.target, card.id, RevealReason::DamageCheck, RevealAudience::Public);
                     revealed.push(card);
-                    if let Some(static_card) = self.db.get(card) {
+                    if let Some(static_card) = self.db.get(card.id) {
                         if static_card.card_type == CardType::Climax {
                             canceled = true;
                             break;
@@ -1546,8 +2537,8 @@ impl GameEnv {
         if cancelable {
             for card in revealed {
                 self.state.players[target].clock.push(card);
-                self.log_event(Event::DamageCommitted { event_id, target: intent.target, card, damage_type: intent.damage_type });
-                self.log_event(Event::Damage { player: intent.target, card });
+                self.log_event(Event::DamageCommitted { event_id, target: intent.target, card: card.id, damage_type: intent.damage_type });
+                self.log_event(Event::Damage { player: intent.target, card: card.id });
                 self.pending_damage_delta[target] += 1;
             }
         } else {
@@ -1555,8 +2546,8 @@ impl GameEnv {
             for _ in 0..count {
                 if let Some(card) = self.draw_from_deck(intent.target) {
                     self.state.players[target].clock.push(card);
-                    self.log_event(Event::DamageCommitted { event_id, target: intent.target, card, damage_type: intent.damage_type });
-                    self.log_event(Event::Damage { player: intent.target, card });
+                    self.log_event(Event::DamageCommitted { event_id, target: intent.target, card: card.id, damage_type: intent.damage_type });
+                    self.log_event(Event::Damage { player: intent.target, card: card.id });
                     self.pending_damage_delta[target] += 1;
                 }
             }
@@ -1627,8 +2618,8 @@ impl GameEnv {
         if ss >= MAX_STAGE || (self.curriculum.reduced_stage_mode && ss > 0) || self.state.players[p].stage[ss].card.is_some() {
             return Err(anyhow!("Stage slot invalid"));
         }
-        let card_id = self.state.players[p].hand[hi];
-        let card = self.db.get(card_id).ok_or_else(|| anyhow!("Card missing in db"))?;
+        let card_inst = self.state.players[p].hand[hi];
+        let card = self.db.get(card_inst.id).ok_or_else(|| anyhow!("Card missing in db"))?;
         if !self.card_set_allowed(card) {
             return Err(anyhow!("Card set not allowed"));
         }
@@ -1641,16 +2632,17 @@ impl GameEnv {
         if !self.meets_level_requirement(player, card) || !self.meets_color_requirement(player, card) || !self.meets_cost_requirement(player, card) {
             return Err(anyhow!("Play requirements not met"));
         }
-        let abilities = card.abilities.clone();
+        let specs: Vec<AbilitySpec> = self.db.ability_specs(card_inst.id).to_vec();
         let cost = card.cost as usize;
         self.pay_cost(player, cost)?;
-        let card_id = self.state.players[p].hand.remove(hi);
+        let card_inst = self.state.players[p].hand.remove(hi);
         let mut slot = StageSlot::empty();
-        slot.card = Some(card_id);
+        slot.card = Some(card_inst);
         slot.status = StageStatus::Stand;
         self.state.players[p].stage[ss] = slot;
-        self.log_event(Event::Play { player, card: card_id, slot: stage_slot });
-        self.resolve_on_play_abilities(player, &abilities);
+        self.log_event(Event::Play { player, card: card_inst.id, slot: stage_slot });
+        self.apply_continuous_modifiers_for_slot(player, stage_slot, card_inst.id);
+        self.resolve_on_play_abilities(player, &specs);
         Ok(())
     }
 
@@ -1660,8 +2652,8 @@ impl GameEnv {
         if hi >= self.state.players[p].hand.len() {
             return Err(anyhow!("Event hand index out of range"));
         }
-        let card_id = self.state.players[p].hand[hi];
-        let card = self.db.get(card_id).ok_or_else(|| anyhow!("Card missing in db"))?;
+        let card_inst = self.state.players[p].hand[hi];
+        let card = self.db.get(card_inst.id).ok_or_else(|| anyhow!("Card missing in db"))?;
         if !self.card_set_allowed(card) {
             return Err(anyhow!("Card set not allowed"));
         }
@@ -1674,19 +2666,19 @@ impl GameEnv {
         if !self.meets_level_requirement(player, card) || !self.meets_color_requirement(player, card) || !self.meets_cost_requirement(player, card) {
             return Err(anyhow!("Event requirements not met"));
         }
-        let abilities = card.abilities.clone();
+        let specs: Vec<AbilitySpec> = self.db.ability_specs(card_inst.id).to_vec();
         let cost = card.cost as usize;
         self.pay_cost(player, cost)?;
-        let card_id = self.state.players[p].hand.remove(hi);
-        self.log_event(Event::PlayEvent { player, card: card_id });
-        self.resolve_on_play_abilities(player, &abilities);
-        for ability in &abilities {
-            if let AbilityTemplate::EventDealDamage { amount, cancelable } = ability {
+        let card_inst = self.state.players[p].hand.remove(hi);
+        self.log_event(Event::PlayEvent { player, card: card_inst.id });
+        self.resolve_on_play_abilities(player, &specs);
+        for spec in &specs {
+            if let AbilityTemplate::EventDealDamage { amount, cancelable } = &spec.template {
                 let target = 1 - player;
-                let _ = self.resolve_effect_damage(player, target, *amount as i32, *cancelable, Some(card_id));
+                let _ = self.resolve_effect_damage(player, target, *amount as i32, *cancelable, Some(card_inst.id));
             }
         }
-        self.state.players[p].waiting_room.push(card_id);
+        self.state.players[p].waiting_room.push(card_inst);
         Ok(())
     }
 
@@ -1702,8 +2694,8 @@ impl GameEnv {
         if !self.state.players[p].climax.is_empty() {
             return Err(anyhow!("Climax zone occupied"));
         }
-        let card_id = self.state.players[p].hand[hi];
-        let card = self.db.get(card_id).ok_or_else(|| anyhow!("Card missing in db"))?;
+        let card_inst = self.state.players[p].hand[hi];
+        let card = self.db.get(card_inst.id).ok_or_else(|| anyhow!("Card missing in db"))?;
         if !self.card_set_allowed(card) {
             return Err(anyhow!("Card set not allowed"));
         }
@@ -1715,9 +2707,9 @@ impl GameEnv {
         }
         let cost = card.cost as usize;
         self.pay_cost(player, cost)?;
-        let card_id = self.state.players[p].hand.remove(hi);
-        self.state.players[p].climax.push(card_id);
-        self.log_event(Event::PlayClimax { player, card: card_id });
+        let card_inst = self.state.players[p].hand.remove(hi);
+        self.state.players[p].climax.push(card_inst);
+        self.log_event(Event::PlayClimax { player, card: card_inst.id });
         Ok(())
     }
 
@@ -1738,8 +2730,8 @@ impl GameEnv {
         let attacker_slot = &mut self.state.players[p].stage[s];
         attacker_slot.status = StageStatus::Rest;
         attacker_slot.has_attacked = true;
-        let card_id = attacker_slot.card.ok_or_else(|| anyhow!("Missing attacker card"))?;
-        let card = self.db.get(card_id).ok_or_else(|| anyhow!("Card missing in db"))?;
+        let card_inst = attacker_slot.card.ok_or_else(|| anyhow!("Missing attacker card"))?;
+        let card = self.db.get(card_inst.id).ok_or_else(|| anyhow!("Card missing in db"))?;
         let mut damage = card.soul as i32;
         if attack_type == AttackType::Direct {
             damage += 1;
@@ -1756,6 +2748,7 @@ impl GameEnv {
             trigger_card: None,
             damage,
             counter_allowed: attack_type == AttackType::Frontal,
+            counter_played: false,
             counter_power: 0,
             damage_modifiers: Vec::new(),
             next_modifier_id: 1,
@@ -1781,8 +2774,8 @@ impl GameEnv {
         if hi >= self.state.players[p].hand.len() {
             return Err(anyhow!("Counter hand index out of range"));
         }
-        let card_id = self.state.players[p].hand[hi];
-        let card = self.db.get(card_id).ok_or_else(|| anyhow!("Card missing in db"))?;
+        let card_inst = self.state.players[p].hand[hi];
+        let card = self.db.get(card_inst.id).ok_or_else(|| anyhow!("Card missing in db"))?;
         if !self.card_set_allowed(card) {
             return Err(anyhow!("Card set not allowed"));
         }
@@ -1796,8 +2789,8 @@ impl GameEnv {
         let damage_reduces = self.counter_damage_reductions(card);
         let damage_cancel = self.counter_damage_cancel(card);
         self.pay_cost(player, card.cost as usize)?;
-        let card_id = self.state.players[p].hand.remove(hi);
-        self.state.players[p].waiting_room.push(card_id);
+        let card_inst = self.state.players[p].hand.remove(hi);
+        self.state.players[p].waiting_room.push(card_inst);
         if let Some(ctx) = &mut self.state.turn.attack {
             if let Some(def_slot) = ctx.defender_slot {
                 let slot_state = &mut self.state.players[p].stage[def_slot as usize];
@@ -1806,14 +2799,14 @@ impl GameEnv {
             }
             for reduce in damage_reduces {
                 if reduce > 0 {
-                    Self::push_attack_damage_modifier(ctx, DamageModifierKind::AddAmount { delta: -reduce }, card_id);
+                    Self::push_attack_damage_modifier(ctx, DamageModifierKind::AddAmount { delta: -reduce }, card_inst.id);
                 }
             }
             if damage_cancel {
-                Self::push_attack_damage_modifier(ctx, DamageModifierKind::CancelNext, card_id);
+                Self::push_attack_damage_modifier(ctx, DamageModifierKind::CancelNext, card_inst.id);
             }
         }
-        self.log_event(Event::Counter { player, card: card_id, power });
+        self.log_event(Event::Counter { player, card: card_inst.id, power });
         Ok(())
     }
 
@@ -1843,7 +2836,7 @@ impl GameEnv {
                 self.state.players[p].waiting_room.push(card);
             }
         }
-        self.log_event(Event::LevelUpChoice { player, card: chosen });
+        self.log_event(Event::LevelUpChoice { player, card: chosen.id });
         self.state.turn.pending_level_up = None;
         if self.state.players[p].level.len() >= 4 {
             self.state.terminal = Some(TerminalResult::Win { winner: (1 - p) as u8 });
@@ -1900,11 +2893,11 @@ impl GameEnv {
             return;
         }
         let card = self.state.players[p].waiting_room.remove(index);
-        if card != option.card_id {
+        if card.id != option.card_id {
             return;
         }
         self.state.players[p].hand.push(card);
-        self.log_event(Event::ZoneMove { player, card, from: Zone::WaitingRoom, to: Zone::Hand, from_slot: None, to_slot: None });
+        self.log_event(Event::ZoneMove { player, card: card.id, from: Zone::WaitingRoom, to: Zone::Hand, from_slot: None, to_slot: None });
     }
 
     fn move_stage_to_hand(&mut self, player: u8, option: ChoiceOptionRef) {
@@ -1920,15 +2913,15 @@ impl GameEnv {
         self.remove_modifiers_for_slot(player, idx);
         let card = self.state.players[p].stage[slot].card.take();
         let Some(card) = card else { return; };
-        if card != option.card_id {
+        if card.id != option.card_id {
             return;
         }
         self.state.players[p].stage[slot] = StageSlot::empty();
         self.state.players[p].hand.push(card);
-        self.log_event(Event::ZoneMove { player, card, from: Zone::Stage, to: Zone::Hand, from_slot: Some(idx), to_slot: None });
+        self.log_event(Event::ZoneMove { player, card: card.id, from: Zone::Stage, to: Zone::Hand, from_slot: Some(idx), to_slot: None });
     }
 
-    fn move_waiting_room_to_stage(&mut self, player: u8, option: ChoiceOptionRef) {
+    fn move_waiting_room_to_stage_standby(&mut self, player: u8, option: ChoiceOptionRef) {
         if option.zone != ChoiceZone::WaitingRoom {
             return;
         }
@@ -1939,23 +2932,65 @@ impl GameEnv {
         if slot >= self.state.players[p].stage.len() {
             return;
         }
-        if self.state.players[p].stage[slot].card.is_some() {
-            return;
+        if let Some(existing) = self.state.players[p].stage[slot].card {
+            self.remove_modifiers_for_slot(player, target_slot);
+            self.state.players[p].stage[slot] = StageSlot::empty();
+            self.state.players[p].waiting_room.push(existing);
+            self.log_event(Event::ZoneMove {
+                player,
+                card: existing.id,
+                from: Zone::Stage,
+                to: Zone::WaitingRoom,
+                from_slot: Some(target_slot),
+                to_slot: None,
+            });
         }
-        self.remove_modifiers_for_slot(player, target_slot);
         let index = idx as usize;
         if index >= self.state.players[p].waiting_room.len() {
             return;
         }
         let card = self.state.players[p].waiting_room.remove(index);
-        if card != option.card_id {
+        if card.id != option.card_id {
             return;
         }
         let mut slot_state = StageSlot::empty();
         slot_state.card = Some(card);
-        slot_state.status = StageStatus::Stand;
+        slot_state.status = StageStatus::Rest;
         self.state.players[p].stage[slot] = slot_state;
-        self.log_event(Event::ZoneMove { player, card, from: Zone::WaitingRoom, to: Zone::Stage, from_slot: None, to_slot: Some(target_slot) });
+        self.apply_continuous_modifiers_for_slot(player, target_slot, card.id);
+        self.log_event(Event::ZoneMove { player, card: card.id, from: Zone::WaitingRoom, to: Zone::Stage, from_slot: None, to_slot: Some(target_slot) });
+    }
+
+    fn move_trigger_card_from_stock_to_hand(&mut self, player: u8, card_id: CardId) -> bool {
+        let p = player as usize;
+        // Deterministic removal: take the most recent matching card from stock.
+        if let Some(pos) = self.state.players[p].stock.iter().rposition(|c| c.id == card_id) {
+            let card = self.state.players[p].stock.remove(pos);
+            self.state.players[p].hand.push(card);
+            self.log_event(Event::ZoneMove { player, card: card.id, from: Zone::Stock, to: Zone::Hand, from_slot: None, to_slot: None });
+            return true;
+        }
+        false
+    }
+
+    fn treasure_stock_available(&self, player: u8) -> bool {
+        let p = player as usize;
+        !self.state.players[p].deck.is_empty() || !self.state.players[p].waiting_room.is_empty()
+    }
+
+    fn apply_treasure_choice(&mut self, player: u8, option: ChoiceOptionRef) {
+        if option.zone != ChoiceZone::DeckTop {
+            return;
+        }
+        let take_stock = option.index.unwrap_or(0) == 0;
+        if !take_stock {
+            return;
+        }
+        if let Some(card) = self.draw_from_deck(player) {
+            let p = player as usize;
+            self.state.players[p].stock.push(card);
+            self.log_event(Event::ZoneMove { player, card: card.id, from: Zone::Deck, to: Zone::Stock, from_slot: None, to_slot: None });
+        }
     }
 
     fn push_attack_damage_modifier(ctx: &mut AttackContext, kind: DamageModifierKind, source_id: u32) {
@@ -1987,7 +3022,7 @@ impl GameEnv {
         if s >= self.state.players[p].stage.len() {
             return None;
         }
-        let target_card = self.state.players[p].stage[s].card?;
+        let target_card = self.state.players[p].stage[s].card?.id;
         let id = self.state.next_modifier_id;
         self.state.next_modifier_id = self.state.next_modifier_id.wrapping_add(1);
         self.state.modifiers.push(crate::state::ModifierInstance {
@@ -2021,9 +3056,9 @@ impl GameEnv {
         }
     }
 
-    fn resolve_on_play_abilities(&mut self, player: u8, abilities: &[AbilityTemplate]) {
-        for ability in abilities {
-            if let AbilityTemplate::AutoOnPlayDraw { count } = ability {
+    fn resolve_on_play_abilities(&mut self, player: u8, specs: &[AbilitySpec]) {
+        for spec in specs {
+            if let AbilityTemplate::AutoOnPlayDraw { count } = &spec.template {
                 self.draw_to_hand(player, *count as usize);
             }
         }
@@ -2031,16 +3066,10 @@ impl GameEnv {
 
     fn compute_slot_power(&self, player: usize, slot: usize) -> i32 {
         let slot_state = &self.state.players[player].stage[slot];
-        let Some(card_id) = slot_state.card else { return 0; };
+        let Some(card_inst) = slot_state.card else { return 0; };
+        let card_id = card_inst.id;
         let Some(card) = self.db.get(card_id) else { return 0; };
         let mut power = card.power + slot_state.power_mod_turn + slot_state.power_mod_battle;
-        if self.curriculum.enable_continuous_modifiers {
-            for ability in &card.abilities {
-                if let AbilityTemplate::ContinuousPower { amount } = ability {
-                    power += *amount;
-                }
-            }
-        }
         for modifier in &self.state.modifiers {
             if modifier.kind != ModifierKind::Power {
                 continue;
@@ -2076,7 +3105,7 @@ impl GameEnv {
         }
         let p = &self.state.players[player as usize];
         for card_id in p.level.iter().chain(p.clock.iter()) {
-            if let Some(c) = self.db.get(*card_id) {
+            if let Some(c) = self.db.get(card_id.id) {
                 if c.color == card.color {
                     return true;
                 }
@@ -2109,13 +3138,13 @@ impl GameEnv {
         if !card.counter_timing {
             return false;
         }
-        card.abilities.iter().any(|a| matches!(a, AbilityTemplate::CounterBackup { .. } | AbilityTemplate::CounterDamageReduce { .. } | AbilityTemplate::CounterDamageCancel))
+        self.db.ability_specs(card.id).iter().any(|spec| matches!(spec.template, AbilityTemplate::CounterBackup { .. } | AbilityTemplate::CounterDamageReduce { .. } | AbilityTemplate::CounterDamageCancel))
     }
 
     fn counter_power(&self, card: &CardStatic) -> i32 {
-        for ability in &card.abilities {
-            if let AbilityTemplate::CounterBackup { power } = ability {
-                return *power;
+        for spec in self.db.ability_specs(card.id) {
+            if let AbilityTemplate::CounterBackup { power } = spec.template {
+                return power;
             }
         }
         0
@@ -2123,16 +3152,16 @@ impl GameEnv {
 
     fn counter_damage_reductions(&self, card: &CardStatic) -> Vec<i32> {
         let mut out = Vec::new();
-        for ability in &card.abilities {
-            if let AbilityTemplate::CounterDamageReduce { amount } = ability {
-                out.push(*amount as i32);
+        for spec in self.db.ability_specs(card.id) {
+            if let AbilityTemplate::CounterDamageReduce { amount } = spec.template {
+                out.push(amount as i32);
             }
         }
         out
     }
 
     fn counter_damage_cancel(&self, card: &CardStatic) -> bool {
-        card.abilities.iter().any(|a| matches!(a, AbilityTemplate::CounterDamageCancel))
+        self.db.ability_specs(card.id).iter().any(|spec| matches!(spec.template, AbilityTemplate::CounterDamageCancel))
     }
 
     fn shuffle_deck(&mut self, player: u8) {
@@ -2145,7 +3174,7 @@ impl GameEnv {
             if let Some(card) = self.draw_from_deck(player) {
                 let p = player as usize;
                 self.state.players[p].hand.push(card);
-                self.log_event(Event::Draw { player, card });
+                self.log_event(Event::Draw { player, card: card.id });
             }
         }
     }
@@ -2161,7 +3190,7 @@ impl GameEnv {
         cards.to_vec()
     }
 
-    fn draw_from_deck(&mut self, player: u8) -> Option<CardId> {
+    fn draw_from_deck(&mut self, player: u8) -> Option<CardInstance> {
         let p = player as usize;
         if self.state.players[p].deck.is_empty() && !self.refresh_deck(player) {
             return None;
@@ -2207,7 +3236,7 @@ impl GameEnv {
             };
             let _ = self.resolve_damage_intent(intent, &mut modifiers);
             if let Some(card) = self.state.players[p].clock.last().copied() {
-                self.log_event(Event::RefreshPenalty { player, card });
+                self.log_event(Event::RefreshPenalty { player, card: card.id });
             }
         }
         true
@@ -2228,11 +3257,25 @@ impl GameEnv {
                 Event::TriggerQueued { trigger_id, group_id, player, source, effect } => ReplayEvent::TriggerQueued { trigger_id, group_id, player, source, effect },
                 Event::TriggerResolved { trigger_id, player, effect } => ReplayEvent::TriggerResolved { trigger_id, player, effect },
                 Event::TriggerCanceled { trigger_id, player, reason } => ReplayEvent::TriggerCanceled { trigger_id, player, reason },
+                Event::TimingWindowEntered { window, player } => ReplayEvent::TimingWindowEntered { window, player },
+                Event::PriorityPassed { player, window, pass_count } => ReplayEvent::PriorityPassed { player, window, pass_count },
+                Event::StackGroupPresented { group_id, controller, items } => ReplayEvent::StackGroupPresented { group_id, controller, items },
+                Event::StackOrderChosen { group_id, controller, stack_id } => ReplayEvent::StackOrderChosen { group_id, controller, stack_id },
+                Event::StackPushed { item } => ReplayEvent::StackPushed { item },
+                Event::StackResolved { item } => ReplayEvent::StackResolved { item },
                 Event::ChoicePresented { choice_id, player, reason, options, total_candidates } => ReplayEvent::ChoicePresented { choice_id, player, reason, options, total_candidates },
                 Event::ChoiceMade { choice_id, player, option } => ReplayEvent::ChoiceMade { choice_id, player, option },
                 Event::ChoiceAutopicked { choice_id, player, option } => ReplayEvent::ChoiceAutopicked { choice_id, player, option },
                 Event::ChoiceSkipped { choice_id, player, reason, skip_reason } => ReplayEvent::ChoiceSkipped { choice_id, player, reason, skip_reason },
                 Event::ZoneMove { player, card, from, to, from_slot, to_slot } => ReplayEvent::ZoneMove { player, card, from, to, from_slot, to_slot },
+                Event::ControlChanged { card, owner, from_controller, to_controller, from_slot, to_slot } => ReplayEvent::ControlChanged {
+                    card,
+                    owner,
+                    from_controller,
+                    to_controller,
+                    from_slot,
+                    to_slot,
+                },
                 Event::ModifierAdded { id, source, target_player, target_slot, target_card, kind, magnitude, duration } => ReplayEvent::ModifierAdded { id, source, target_player, target_slot, target_card, kind, magnitude, duration },
                 Event::ModifierRemoved { id, reason } => ReplayEvent::ModifierRemoved { id, reason },
                 Event::Play { player, card, slot } => ReplayEvent::Play { player, card, slot },

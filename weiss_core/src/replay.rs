@@ -8,10 +8,10 @@ use anyhow::{Context, Result};
 use crate::legal::ActionDesc;
 use crate::db::{CardId, TriggerIcon};
 use crate::events::{ChoiceOptionSummary, ChoiceSkipReason, ModifierRemoveReason, RevealAudience, RevealReason, TriggerCancelReason, Zone};
-use crate::state::{ChoiceOptionRef, ChoiceReason, DamageModifierKind, DamageType, ModifierDuration, ModifierKind, TriggerEffect};
+use crate::state::{ChoiceOptionRef, ChoiceReason, DamageModifierKind, DamageType, ModifierDuration, ModifierKind, StackItem, TimingWindow, TriggerEffect};
 
 const MAGIC: &[u8; 4] = b"WSR1";
-pub const REPLAY_SCHEMA_VERSION: u32 = 5;
+pub const REPLAY_SCHEMA_VERSION: u32 = 9;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EpisodeHeader {
@@ -47,11 +47,18 @@ pub enum ReplayEvent {
     TriggerQueued { trigger_id: u32, group_id: u32, player: u8, source: CardId, effect: TriggerEffect },
     TriggerResolved { trigger_id: u32, player: u8, effect: TriggerEffect },
     TriggerCanceled { trigger_id: u32, player: u8, reason: TriggerCancelReason },
+    TimingWindowEntered { window: TimingWindow, player: u8 },
+    PriorityPassed { player: u8, window: TimingWindow, pass_count: u8 },
+    StackGroupPresented { group_id: u32, controller: u8, items: Vec<StackItem> },
+    StackOrderChosen { group_id: u32, controller: u8, stack_id: u32 },
+    StackPushed { item: StackItem },
+    StackResolved { item: StackItem },
     ChoicePresented { choice_id: u32, player: u8, reason: ChoiceReason, options: Vec<ChoiceOptionSummary>, total_candidates: u16 },
     ChoiceMade { choice_id: u32, player: u8, option: ChoiceOptionRef },
     ChoiceAutopicked { choice_id: u32, player: u8, option: ChoiceOptionRef },
     ChoiceSkipped { choice_id: u32, player: u8, reason: ChoiceReason, skip_reason: ChoiceSkipReason },
     ZoneMove { player: u8, card: CardId, from: Zone, to: Zone, from_slot: Option<u8>, to_slot: Option<u8> },
+    ControlChanged { card: CardId, owner: u8, from_controller: u8, to_controller: u8, from_slot: u8, to_slot: u8 },
     ModifierAdded { id: u32, source: CardId, target_player: u8, target_slot: u8, target_card: CardId, kind: ModifierKind, magnitude: i32, duration: ModifierDuration },
     ModifierRemoved { id: u32, reason: ModifierRemoveReason },
     Play { player: u8, card: CardId, slot: u8 },

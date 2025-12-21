@@ -2,6 +2,19 @@ use crate::db::CardId;
 use crate::util::Rng64;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CardInstance {
+    pub id: CardId,
+    pub owner: u8,
+    pub controller: u8,
+}
+
+impl CardInstance {
+    pub fn new(id: CardId, owner: u8) -> Self {
+        Self { id, owner, controller: owner }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Phase {
     Mulligan,
@@ -15,6 +28,13 @@ pub enum Phase {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TimingWindow {
+    MainWindow,
+    CounterWindow,
+    EndOfTurnWindow,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum StageStatus {
     Stand,
     Rest,
@@ -23,7 +43,7 @@ pub enum StageStatus {
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct StageSlot {
-    pub card: Option<CardId>,
+    pub card: Option<CardInstance>,
     pub status: StageStatus,
     pub power_mod_battle: i32,
     pub power_mod_turn: i32,
@@ -103,17 +123,108 @@ pub enum TriggerEffect {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TargetZone {
+    Stage,
+    WaitingRoom,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TargetSide {
+    SelfSide,
+    Opponent,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TargetSlotFilter {
+    Any,
+    FrontRow,
+}
+
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub struct TargetSpec {
+    pub zone: TargetZone,
+    pub side: TargetSide,
+    pub slot_filter: TargetSlotFilter,
+    pub card_type: Option<crate::db::CardType>,
+    pub count: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TargetRef {
+    pub player: u8,
+    pub zone: TargetZone,
+    pub index: u8,
+    pub card_id: CardId,
+}
+
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub enum PendingTargetEffect {
+    StackTargetedPower { magnitude: i32, duration: ModifierDuration },
+    StackMoveToHand,
+    StackChangeController { new_controller: u8 },
+}
+
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub struct TargetSelectionState {
+    pub controller: u8,
+    pub source_id: CardId,
+    pub spec: TargetSpec,
+    pub remaining: u8,
+    pub selected: Vec<TargetRef>,
+    pub effect: PendingTargetEffect,
+}
+
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub enum StackEffectKind {
+    ActivatedPlaceholder { slot: u8, ability_index: u8 },
+    Counter { card_id: CardId, power: i32, damage_reduce: i32, damage_cancel: bool },
+    TargetedPower { targets: Vec<TargetRef>, magnitude: i32, duration: ModifierDuration },
+    TargetedMoveToHand { targets: Vec<TargetRef> },
+    TargetedChangeController { targets: Vec<TargetRef>, new_controller: u8 },
+}
+
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub struct StackItem {
+    pub id: u32,
+    pub controller: u8,
+    pub source_id: CardId,
+    pub effect: StackEffectKind,
+}
+
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub struct PriorityState {
+    pub holder: u8,
+    pub passes: u8,
+    pub window: TimingWindow,
+    pub used_act_mask: u32,
+}
+
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub struct StackOrderState {
+    pub group_id: u32,
+    pub controller: u8,
+    pub items: Vec<StackItem>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ChoiceReason {
     TriggerGateSelect,
     TriggerBounceSelect,
     TriggerStandbySelect,
     TriggerTreasureSelect,
+    StackOrderSelect,
+    PriorityActionSelect,
+    TargetSelect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ChoiceZone {
     WaitingRoom,
     Stage,
+    DeckTop,
+    Stack,
+    PriorityCounter,
+    PriorityAct,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -142,6 +253,7 @@ pub struct AttackContext {
     pub trigger_card: Option<CardId>,
     pub damage: i32,
     pub counter_allowed: bool,
+    pub counter_played: bool,
     pub counter_power: i32,
     pub damage_modifiers: Vec<DamageModifier>,
     pub next_modifier_id: u32,
@@ -211,19 +323,20 @@ pub enum TerminalResult {
 
 #[derive(Clone, Debug, Hash)]
 pub struct PlayerState {
-    pub deck: Vec<CardId>,
-    pub hand: Vec<CardId>,
-    pub waiting_room: Vec<CardId>,
-    pub clock: Vec<CardId>,
-    pub level: Vec<CardId>,
-    pub stock: Vec<CardId>,
-    pub memory: Vec<CardId>,
-    pub climax: Vec<CardId>,
+    pub deck: Vec<CardInstance>,
+    pub hand: Vec<CardInstance>,
+    pub waiting_room: Vec<CardInstance>,
+    pub clock: Vec<CardInstance>,
+    pub level: Vec<CardInstance>,
+    pub stock: Vec<CardInstance>,
+    pub memory: Vec<CardInstance>,
+    pub climax: Vec<CardInstance>,
     pub stage: [StageSlot; 5],
 }
 
 impl PlayerState {
-    pub fn new(deck: Vec<CardId>) -> Self {
+    pub fn new(deck: Vec<CardId>, owner: u8) -> Self {
+        let deck = deck.into_iter().map(|id| CardInstance::new(id, owner)).collect();
         Self {
             deck,
             hand: Vec::new(),
@@ -276,6 +389,7 @@ pub struct TurnState {
     pub starting_player: u8,
     pub phase: Phase,
     pub mulligan_done: [bool; 2],
+    pub main_passed: bool,
     pub decision_count: u32,
     pub tick_count: u32,
     pub attack: Option<AttackContext>,
@@ -284,10 +398,17 @@ pub struct TurnState {
     pub pending_triggers: Vec<PendingTrigger>,
     pub trigger_order: Option<TriggerOrderState>,
     pub choice: Option<ChoiceState>,
+    pub target_selection: Option<TargetSelectionState>,
+    pub priority: Option<PriorityState>,
+    pub stack: Vec<StackItem>,
+    pub pending_stack_groups: Vec<StackOrderState>,
+    pub stack_order: Option<StackOrderState>,
     pub derived_attack: Option<DerivedAttackState>,
     pub next_trigger_id: u32,
     pub next_trigger_group_id: u32,
     pub next_choice_id: u32,
+    pub next_stack_id: u32,
+    pub next_stack_group_id: u32,
     pub next_damage_event_id: u32,
     pub end_phase_pending: bool,
 }
@@ -306,12 +427,13 @@ impl GameState {
     pub fn new(deck_a: Vec<CardId>, deck_b: Vec<CardId>, seed: u64, starting_player: u8) -> Self {
         let rng = Rng64::new(seed);
         Self {
-            players: [PlayerState::new(deck_a), PlayerState::new(deck_b)],
+            players: [PlayerState::new(deck_a, 0), PlayerState::new(deck_b, 1)],
             turn: TurnState {
                 active_player: starting_player,
                 starting_player,
                 phase: Phase::Mulligan,
                 mulligan_done: [false; 2],
+                main_passed: false,
                 decision_count: 0,
                 tick_count: 0,
                 attack: None,
@@ -320,10 +442,17 @@ impl GameState {
                 pending_triggers: Vec::new(),
                 trigger_order: None,
                 choice: None,
+                target_selection: None,
+                priority: None,
+                stack: Vec::new(),
+                pending_stack_groups: Vec::new(),
+                stack_order: None,
                 derived_attack: None,
                 next_trigger_id: 1,
                 next_trigger_group_id: 1,
                 next_choice_id: 1,
+                next_stack_id: 1,
+                next_stack_group_id: 1,
                 next_damage_event_id: 1,
                 end_phase_pending: false,
             },

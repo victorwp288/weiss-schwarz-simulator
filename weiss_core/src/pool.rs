@@ -1,6 +1,7 @@
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
 use crate::config::{CurriculumConfig, EnvConfig, ErrorPolicy};
@@ -28,6 +29,16 @@ pub struct EnvPool {
 }
 
 impl EnvPool {
+    fn panic_message(panic: Box<dyn std::any::Any + Send>) -> String {
+        if let Some(msg) = panic.downcast_ref::<&str>() {
+            (*msg).to_string()
+        } else if let Some(msg) = panic.downcast_ref::<String>() {
+            msg.clone()
+        } else {
+            "unknown panic".to_string()
+        }
+    }
+
     pub fn new(num_envs: usize, db: Arc<CardDb>, config: EnvConfig, curriculum: CurriculumConfig, seed: u64) -> Self {
         let replay_config = ReplayConfig::default();
         let mut envs = Vec::with_capacity(num_envs);
@@ -75,42 +86,49 @@ impl EnvPool {
         let outcomes: Vec<StepOutcome> = if strict {
             let mut out = Vec::with_capacity(self.envs.len());
             for (env, &action_id) in self.envs.iter_mut().zip(action_ids.iter()) {
-                let outcome = if env.state.terminal.is_some() {
-                    env.clear_status_flags();
-                    env.build_outcome_no_copy(0.0)
-                } else if env.decision.is_none() {
-                    env.advance_until_decision();
-                    env.update_action_cache();
-                    env.clear_status_flags();
-                    env.build_outcome_no_copy(0.0)
-                } else {
-                    env.apply_action_id_no_copy(action_id as usize)?
-                };
+                let result = catch_unwind(AssertUnwindSafe(|| {
+                    if env.state.terminal.is_some() {
+                        env.clear_status_flags();
+                        return Ok(env.build_outcome_no_copy(0.0));
+                    }
+                    if env.decision.is_none() {
+                        env.advance_until_decision();
+                        env.update_action_cache();
+                        env.clear_status_flags();
+                        return Ok(env.build_outcome_no_copy(0.0));
+                    }
+                    env.apply_action_id_no_copy(action_id as usize)
+                }))
+                .map_err(|panic| anyhow!("panic in env step: {}", Self::panic_message(panic)))?;
+                let outcome = result?;
                 out.push(outcome);
             }
             out
         } else {
             self.envs.par_iter_mut().zip(action_ids.par_iter()).map(|(env, &action_id)| {
-                if env.state.terminal.is_some() {
-                    env.clear_status_flags();
-                    env.build_outcome_no_copy(0.0)
-                } else if env.decision.is_none() {
-                    env.advance_until_decision();
-                    env.update_action_cache();
-                    env.clear_status_flags();
-                    env.build_outcome_no_copy(0.0)
-                } else {
-                    match env.apply_action_id_no_copy(action_id as usize) {
-                        Ok(outcome) => outcome,
-                        Err(_) => {
-                            let acting_player = env.decision.as_ref().map(|d| d.player).unwrap_or(env.last_perspective);
-                            env.last_engine_error = true;
-                            env.last_perspective = acting_player;
-                            env.state.terminal = Some(crate::state::TerminalResult::Win { winner: 1 - acting_player });
-                            env.decision = None;
-                            env.update_action_cache();
-                            env.build_outcome_no_copy(env.terminal_reward_for(acting_player))
-                        }
+                let result = catch_unwind(AssertUnwindSafe(|| {
+                    if env.state.terminal.is_some() {
+                        env.clear_status_flags();
+                        return Ok(env.build_outcome_no_copy(0.0));
+                    }
+                    if env.decision.is_none() {
+                        env.advance_until_decision();
+                        env.update_action_cache();
+                        env.clear_status_flags();
+                        return Ok(env.build_outcome_no_copy(0.0));
+                    }
+                    env.apply_action_id_no_copy(action_id as usize)
+                }));
+                match result {
+                    Ok(Ok(outcome)) => outcome,
+                    Ok(Err(_)) | Err(_) => {
+                        let acting_player = env.decision.as_ref().map(|d| d.player).unwrap_or(env.last_perspective);
+                        env.last_engine_error = true;
+                        env.last_perspective = acting_player;
+                        env.state.terminal = Some(crate::state::TerminalResult::Win { winner: 1 - acting_player });
+                        env.decision = None;
+                        env.update_action_cache();
+                        env.build_outcome_no_copy(env.terminal_reward_for(acting_player))
                     }
                 }
             }).collect()

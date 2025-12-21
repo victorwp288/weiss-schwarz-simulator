@@ -35,6 +35,13 @@ pub enum TriggerIcon {
     Standby,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum TargetTemplate {
+    OppFrontRow,
+    SelfStage,
+    SelfWaitingRoom,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum AbilityTemplate {
     Vanilla,
@@ -46,10 +53,85 @@ pub enum AbilityTemplate {
     AutoEndPhaseDraw { count: u8 },
     EventDealDamage { amount: u8, cancelable: bool },
     ActivatedPlaceholder,
+    ActivatedTargetedPower { amount: i32, count: u8, target: TargetTemplate },
+    ActivatedTargetedMoveToHand { count: u8, target: TargetTemplate },
+    ActivatedChangeController { count: u8, target: TargetTemplate },
     CounterBackup { power: i32 },
     CounterDamageReduce { amount: u8 },
     CounterDamageCancel,
     Unsupported { id: u32 },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AbilityKind {
+    Continuous,
+    Activated,
+    Auto,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AbilitySpec {
+    pub kind: AbilityKind,
+    pub template: AbilityTemplate,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AbilityTemplateTag {
+    Vanilla,
+    ContinuousPower,
+    ContinuousCannotAttack,
+    ContinuousAttackCost,
+    AutoOnPlayDraw,
+    AutoOnAttackDealDamage,
+    AutoEndPhaseDraw,
+    EventDealDamage,
+    ActivatedPlaceholder,
+    ActivatedTargetedPower,
+    ActivatedTargetedMoveToHand,
+    ActivatedChangeController,
+    CounterBackup,
+    CounterDamageReduce,
+    CounterDamageCancel,
+    Unsupported,
+}
+
+impl AbilityTemplate {
+    pub fn tag(&self) -> AbilityTemplateTag {
+        match self {
+            AbilityTemplate::Vanilla => AbilityTemplateTag::Vanilla,
+            AbilityTemplate::ContinuousPower { .. } => AbilityTemplateTag::ContinuousPower,
+            AbilityTemplate::ContinuousCannotAttack => AbilityTemplateTag::ContinuousCannotAttack,
+            AbilityTemplate::ContinuousAttackCost { .. } => AbilityTemplateTag::ContinuousAttackCost,
+            AbilityTemplate::AutoOnPlayDraw { .. } => AbilityTemplateTag::AutoOnPlayDraw,
+            AbilityTemplate::AutoOnAttackDealDamage { .. } => AbilityTemplateTag::AutoOnAttackDealDamage,
+            AbilityTemplate::AutoEndPhaseDraw { .. } => AbilityTemplateTag::AutoEndPhaseDraw,
+            AbilityTemplate::EventDealDamage { .. } => AbilityTemplateTag::EventDealDamage,
+            AbilityTemplate::ActivatedPlaceholder => AbilityTemplateTag::ActivatedPlaceholder,
+            AbilityTemplate::ActivatedTargetedPower { .. } => AbilityTemplateTag::ActivatedTargetedPower,
+            AbilityTemplate::ActivatedTargetedMoveToHand { .. } => AbilityTemplateTag::ActivatedTargetedMoveToHand,
+            AbilityTemplate::ActivatedChangeController { .. } => AbilityTemplateTag::ActivatedChangeController,
+            AbilityTemplate::CounterBackup { .. } => AbilityTemplateTag::CounterBackup,
+            AbilityTemplate::CounterDamageReduce { .. } => AbilityTemplateTag::CounterDamageReduce,
+            AbilityTemplate::CounterDamageCancel => AbilityTemplateTag::CounterDamageCancel,
+            AbilityTemplate::Unsupported { .. } => AbilityTemplateTag::Unsupported,
+        }
+    }
+}
+
+impl AbilitySpec {
+    pub fn from_template(template: &AbilityTemplate) -> Self {
+        let kind = match template {
+            AbilityTemplate::ContinuousPower { .. }
+            | AbilityTemplate::ContinuousCannotAttack
+            | AbilityTemplate::ContinuousAttackCost { .. } => AbilityKind::Continuous,
+            AbilityTemplate::ActivatedPlaceholder
+            | AbilityTemplate::ActivatedTargetedPower { .. }
+            | AbilityTemplate::ActivatedTargetedMoveToHand { .. }
+            | AbilityTemplate::ActivatedChangeController { .. } => AbilityKind::Activated,
+            _ => AbilityKind::Auto,
+        };
+        Self { kind, template: template.clone() }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -76,11 +158,13 @@ pub struct CardDb {
     pub cards: Vec<CardStatic>,
     #[serde(skip)]
     index: Vec<usize>,
+    #[serde(skip)]
+    ability_specs: Vec<Vec<AbilitySpec>>,
 }
 
 impl CardDb {
     pub fn new(cards: Vec<CardStatic>) -> Result<Self> {
-        let mut db = Self { cards, index: Vec::new() };
+        let mut db = Self { cards, index: Vec::new(), ability_specs: Vec::new() };
         db.build_index()?;
         Ok(db)
     }
@@ -156,6 +240,25 @@ impl CardDb {
             index[id] = i;
         }
         self.index = index;
+        self.build_ability_specs();
         Ok(())
+    }
+
+    fn build_ability_specs(&mut self) {
+        self.ability_specs = self.cards
+            .iter()
+            .map(|card| card.abilities.iter().map(AbilitySpec::from_template).collect())
+            .collect();
+    }
+
+    pub fn ability_specs(&self, card_id: CardId) -> &[AbilitySpec] {
+        let idx = match self.index.get(card_id as usize) {
+            Some(idx) => *idx,
+            None => return &[],
+        };
+        if idx == usize::MAX {
+            return &[];
+        }
+        self.ability_specs.get(idx).map(|v| v.as_slice()).unwrap_or(&[])
     }
 }
