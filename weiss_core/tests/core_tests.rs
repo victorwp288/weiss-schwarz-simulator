@@ -461,7 +461,7 @@ fn test_level_up_decision_changes_level_card() {
         env.state.players[defender].clock.clear();
         let deck = &mut env.state.players[defender].deck;
         let mut take_card = |id| {
-            let pos = deck.iter().position(|c| *c == id).expect("card missing");
+            let pos = deck.iter().position(|c| c.id == id).expect("card missing");
             deck.remove(pos)
         };
         let mut clock_cards = Vec::new();

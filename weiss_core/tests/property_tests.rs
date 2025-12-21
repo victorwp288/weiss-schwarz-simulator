@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use proptest::prelude::*;
 
@@ -59,6 +59,13 @@ fn make_env(seed: u64) -> GameEnv {
     GameEnv::new(db, config, CurriculumConfig::default(), seed, Default::default(), None)
 }
 
+fn enable_validate() {
+    static VALIDATE_ONCE: OnceLock<()> = OnceLock::new();
+    VALIDATE_ONCE.get_or_init(|| {
+        std::env::set_var("WEISS_VALIDATE_STATE", "1");
+    });
+}
+
 fn total_cards(env: &GameEnv, player: usize) -> usize {
     let p = &env.state.players[player];
     let stage_count = p.stage.iter().filter(|c| c.card.is_some()).count();
@@ -68,7 +75,7 @@ fn total_cards(env: &GameEnv, player: usize) -> usize {
 proptest! {
     #[test]
     fn proptest_invariants(seed in any::<u64>()) {
-        std::env::set_var("WEISS_VALIDATE_STATE", "1");
+        enable_validate();
         let mut env = make_env(seed);
         let mut rng = Rng64::new(seed ^ 0x1234_5678);
         for _ in 0..80 {
@@ -88,7 +95,7 @@ proptest! {
 
 #[test]
 fn fuzz_invariants_fixed_seed() {
-    std::env::set_var("WEISS_VALIDATE_STATE", "1");
+    enable_validate();
     let seed = 2025;
     let mut env = make_env(seed);
     let mut rng = Rng64::new(seed ^ 0xDEADBEEF);

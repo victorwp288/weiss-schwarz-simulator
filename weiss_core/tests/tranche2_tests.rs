@@ -1,11 +1,12 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use weiss_core::config::{CurriculumConfig, EnvConfig, RewardConfig, ObservationVisibility, ErrorPolicy};
 use weiss_core::db::{CardDb, CardStatic, CardType, CardColor, TriggerIcon, AbilityTemplate};
 use weiss_core::env::GameEnv;
 use weiss_core::legal::{Decision, DecisionKind, ActionDesc};
+use weiss_core::events::{RevealAudience, RevealReason};
 use weiss_core::replay::ReplayEvent;
-use weiss_core::state::{AttackType, ChoiceReason, DamageType, ModifierDuration, ModifierKind, PendingTrigger, Phase, StageSlot, StageStatus, TriggerEffect};
+use weiss_core::state::{AttackType, CardInstance, ChoiceOptionRef, ChoiceReason, ChoiceZone, DamageType, ModifierDuration, ModifierKind, PendingTrigger, Phase, StageSlot, StageStatus, StackEffectKind, TimingWindow, TriggerEffect};
 use weiss_core::replay::ReplayConfig;
 
 const CARD_BASIC: u32 = 1;
@@ -25,9 +26,15 @@ const CARD_TRIGGER_TREASURE: u32 = 15;
 const CARD_TRIGGER_STANDBY: u32 = 16;
 const CARD_CANNOT_ATTACK: u32 = 17;
 const CARD_COUNTER_DOUBLE_REDUCE: u32 = 18;
+const CARD_LEVEL_ONE: u32 = 19;
+const CARD_LEVEL_TWO: u32 = 20;
+const CARD_ACT_ABILITY: u32 = 21;
 
 fn enable_validate() {
-    std::env::set_var("WEISS_VALIDATE_STATE", "1");
+    static VALIDATE_ONCE: OnceLock<()> = OnceLock::new();
+    VALIDATE_ONCE.get_or_init(|| {
+        std::env::set_var("WEISS_VALIDATE_STATE", "1");
+    });
 }
 
 fn replay_config() -> ReplayConfig {
@@ -306,6 +313,51 @@ fn make_db() -> Arc<CardDb> {
             counter_timing: true,
             raw_text: None,
         },
+        CardStatic {
+            id: CARD_LEVEL_ONE,
+            card_set: None,
+            card_type: CardType::Character,
+            color: CardColor::Green,
+            level: 1,
+            cost: 0,
+            power: 500,
+            soul: 1,
+            triggers: vec![],
+            traits: vec![],
+            abilities: vec![],
+            counter_timing: false,
+            raw_text: None,
+        },
+        CardStatic {
+            id: CARD_LEVEL_TWO,
+            card_set: None,
+            card_type: CardType::Character,
+            color: CardColor::Green,
+            level: 2,
+            cost: 0,
+            power: 500,
+            soul: 1,
+            triggers: vec![],
+            traits: vec![],
+            abilities: vec![],
+            counter_timing: false,
+            raw_text: None,
+        },
+        CardStatic {
+            id: CARD_ACT_ABILITY,
+            card_set: None,
+            card_type: CardType::Character,
+            color: CardColor::Yellow,
+            level: 0,
+            cost: 0,
+            power: 500,
+            soul: 1,
+            triggers: vec![],
+            traits: vec![],
+            abilities: vec![AbilityTemplate::ActivatedPlaceholder],
+            counter_timing: false,
+            raw_text: None,
+        },
     ];
     Arc::new(CardDb::new(cards).expect("db build"))
 }
@@ -381,19 +433,20 @@ fn setup_player_state(
     top.reverse();
     deck.extend(top);
 
+    let owner = player as u8;
     let p = &mut env.state.players[player];
-    p.hand = hand;
-    p.stock = stock;
-    p.clock = clock;
-    p.level = level;
-    p.waiting_room = waiting_room;
-    p.memory = memory;
-    p.climax = climax;
-    p.deck = deck;
+    p.hand = hand.into_iter().map(|id| CardInstance::new(id, owner)).collect();
+    p.stock = stock.into_iter().map(|id| CardInstance::new(id, owner)).collect();
+    p.clock = clock.into_iter().map(|id| CardInstance::new(id, owner)).collect();
+    p.level = level.into_iter().map(|id| CardInstance::new(id, owner)).collect();
+    p.waiting_room = waiting_room.into_iter().map(|id| CardInstance::new(id, owner)).collect();
+    p.memory = memory.into_iter().map(|id| CardInstance::new(id, owner)).collect();
+    p.climax = climax.into_iter().map(|id| CardInstance::new(id, owner)).collect();
+    p.deck = deck.into_iter().map(|id| CardInstance::new(id, owner)).collect();
     p.stage = [StageSlot::empty(), StageSlot::empty(), StageSlot::empty(), StageSlot::empty(), StageSlot::empty()];
     for (slot, card) in stage_cards {
         let mut slot_state = StageSlot::empty();
-        slot_state.card = Some(card);
+        slot_state.card = Some(CardInstance::new(card, owner));
         slot_state.status = StageStatus::Stand;
         p.stage[slot] = slot_state;
     }
@@ -410,8 +463,13 @@ fn force_attack_decision(env: &mut GameEnv, player: u8) {
     env.state.turn.pending_triggers.clear();
     env.state.turn.trigger_order = None;
     env.state.turn.choice = None;
+    env.state.turn.priority = None;
+    env.state.turn.stack.clear();
+    env.state.turn.pending_stack_groups.clear();
+    env.state.turn.stack_order = None;
     env.state.turn.derived_attack = None;
     env.state.turn.end_phase_pending = false;
+    env.state.turn.main_passed = false;
     env.decision = Some(Decision { player, kind: DecisionKind::AttackDeclaration, focus_slot: None });
 }
 
@@ -438,8 +496,6 @@ fn effect_damage_canceled_by_counter() {
     env.validate_state().unwrap();
 
     env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Frontal }).unwrap();
-    assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Counter);
-    env.apply_action(ActionDesc::CounterPlay { hand_index: 0 }).unwrap();
 
     let effect_modified = env.replay_events.iter().any(|e| matches!(e,
         ReplayEvent::DamageModified { damage_type: DamageType::Effect, canceled: true, modified: 0, .. }
@@ -470,7 +526,6 @@ fn effect_damage_reduced_then_applied() {
     env.validate_state().unwrap();
 
     env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Frontal }).unwrap();
-    env.apply_action(ActionDesc::CounterPlay { hand_index: 0 }).unwrap();
 
     let effect_modified = env.replay_events.iter().any(|e| matches!(e,
         ReplayEvent::DamageModified { damage_type: DamageType::Effect, canceled: false, modified: 1, .. }
@@ -498,7 +553,6 @@ fn effect_damage_multiple_reductions_apply_in_order() {
     force_attack_decision(&mut env, 0);
 
     env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Frontal }).unwrap();
-    env.apply_action(ActionDesc::CounterPlay { hand_index: 0 }).unwrap();
 
     let effect_event_id = env.replay_events.iter().find_map(|e| {
         if let ReplayEvent::DamageIntent { event_id, damage_type: DamageType::Effect, .. } = e {
@@ -516,9 +570,8 @@ fn effect_damage_multiple_reductions_apply_in_order() {
         }
         None
     }).collect();
-    assert_eq!(applied.len(), 2);
-    assert_eq!(applied[0], (2, 1));
-    assert_eq!(applied[1], (1, 0));
+    assert_eq!(applied.len(), 1);
+    assert_eq!(applied[0], (2, 0));
     env.validate_state().unwrap();
 }
 
@@ -912,7 +965,7 @@ fn trigger_gate_choice_autopicked_single_candidate() {
     ));
     assert!(autopicked);
     assert_eq!(env.state.players[0].hand.len(), 1);
-    assert!(env.state.players[0].hand.contains(&CARD_BASIC));
+    assert!(env.state.players[0].hand.iter().any(|c| c.id == CARD_BASIC));
     env.validate_state().unwrap();
 }
 
@@ -940,7 +993,7 @@ fn trigger_gate_choice_manual_multiple_candidates() {
     let made = env.replay_events.iter().any(|e| matches!(e, ReplayEvent::ChoiceMade { .. }));
     assert!(presented);
     assert!(made);
-    assert!(env.state.players[0].hand.contains(&CARD_BASIC));
+    assert!(env.state.players[0].hand.iter().any(|c| c.id == CARD_BASIC));
     env.validate_state().unwrap();
 }
 
@@ -961,55 +1014,188 @@ fn trigger_bounce_choice_moves_stage_card() {
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Choice);
 
     env.apply_action(ActionDesc::ChoiceSelect { index: 1 }).unwrap();
-    assert!(env.state.players[0].hand.contains(&CARD_HIGH_POWER));
+    assert!(env.state.players[0].hand.iter().any(|c| c.id == CARD_HIGH_POWER));
     assert!(env.state.players[0].stage[1].card.is_none());
     env.validate_state().unwrap();
 }
 
 #[test]
-fn trigger_standby_autopick_moves_waiting_room_card() {
+fn trigger_standby_choice_skipped_no_candidates() {
     enable_validate();
     let db = make_db();
-    let deck_a = build_deck_list(20, &[CARD_TRIGGER_STANDBY, CARD_HIGH_POWER]);
+    let deck_a = build_deck_list(20, &[CARD_TRIGGER_STANDBY, CARD_LEVEL_TWO]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new(db, config, CurriculumConfig::default(), 34, replay_config(), None);
 
-    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_BASIC), (1, CARD_BASIC), (2, CARD_BASIC), (3, CARD_BASIC)], vec![CARD_TRIGGER_STANDBY], vec![], vec![], vec![CARD_HIGH_POWER], vec![], vec![]);
+    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_BASIC)], vec![CARD_TRIGGER_STANDBY], vec![], vec![], vec![CARD_LEVEL_TWO], vec![], vec![]);
     setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
     force_attack_decision(&mut env, 0);
 
     env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Direct }).unwrap();
 
-    let autopicked = env.replay_events.iter().any(|e| matches!(e,
-        ReplayEvent::ChoiceAutopicked { .. }
+    let skipped = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::ChoiceSkipped { reason: ChoiceReason::TriggerStandbySelect, .. }
     ));
-    assert!(autopicked);
-    assert!(env.state.players[0].stage[4].card.is_some());
-    assert!(env.state.players[0].stage[4].card == Some(CARD_HIGH_POWER));
+    assert!(skipped);
+    assert!(env.state.players[0].waiting_room.iter().any(|c| c.id == CARD_LEVEL_TWO));
+    assert!(!env.state.players[0].stage.iter().any(|slot| slot.card.map(|c| c.id) == Some(CARD_LEVEL_TWO)));
     env.validate_state().unwrap();
 }
 
 #[test]
-fn trigger_treasure_adds_stock() {
+fn trigger_standby_autopick_single_candidate() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_TRIGGER_STANDBY, CARD_LEVEL_ONE]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new(db, config, CurriculumConfig::default(), 35, replay_config(), None);
+
+    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_BASIC), (1, CARD_BASIC), (2, CARD_BASIC), (3, CARD_BASIC)], vec![CARD_TRIGGER_STANDBY], vec![], vec![], vec![CARD_LEVEL_ONE], vec![], vec![]);
+    setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+    force_attack_decision(&mut env, 0);
+
+    env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Direct }).unwrap();
+
+    let autopicked = env.replay_events.iter().any(|e| matches!(e, ReplayEvent::ChoiceAutopicked { .. }));
+    let moved = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::ZoneMove { card, from: weiss_core::events::Zone::WaitingRoom, to: weiss_core::events::Zone::Stage, to_slot: Some(4), .. } if *card == CARD_LEVEL_ONE
+    ));
+    assert!(autopicked);
+    assert!(moved);
+    assert_eq!(env.state.players[0].stage[4].card.map(|c| c.id), Some(CARD_LEVEL_ONE));
+    assert_eq!(env.state.players[0].stage[4].status, StageStatus::Rest);
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn trigger_standby_choice_orders_candidates_and_replaces_when_full() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_TRIGGER_STANDBY, CARD_LEVEL_ONE, CARD_HIGH_POWER]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new(db, config, CurriculumConfig::default(), 36, replay_config(), None);
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![
+            (0, CARD_BASIC),
+            (1, CARD_HIGH_POWER),
+            (2, CARD_BASIC),
+            (3, CARD_BASIC),
+            (4, CARD_BASIC),
+        ],
+        vec![CARD_TRIGGER_STANDBY],
+        vec![],
+        vec![],
+        vec![CARD_BASIC, CARD_LEVEL_ONE],
+        vec![],
+        vec![],
+    );
+    setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+    force_attack_decision(&mut env, 0);
+
+    env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Direct }).unwrap();
+
+    let presented = env.replay_events.iter().find_map(|e| {
+        if let ReplayEvent::ChoicePresented { reason: ChoiceReason::TriggerStandbySelect, options, total_candidates, .. } = e {
+            Some((options, total_candidates))
+        } else {
+            None
+        }
+    }).expect("standby choice presented");
+    assert_eq!(*presented.1, 10);
+    assert_eq!(presented.0[0].reference, ChoiceOptionRef { card_id: CARD_BASIC, zone: ChoiceZone::WaitingRoom, index: Some(0), target_slot: Some(0) });
+    assert_eq!(presented.0[5].reference, ChoiceOptionRef { card_id: CARD_LEVEL_ONE, zone: ChoiceZone::WaitingRoom, index: Some(1), target_slot: Some(0) });
+
+    env.apply_action(ActionDesc::ChoiceSelect { index: 6 }).unwrap();
+    assert_eq!(env.state.players[0].stage[1].card.map(|c| c.id), Some(CARD_LEVEL_ONE));
+    assert_eq!(env.state.players[0].stage[1].status, StageStatus::Rest);
+    assert!(env.state.players[0].waiting_room.iter().any(|c| c.id == CARD_HIGH_POWER));
+    let replaced = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::ZoneMove { card, from: weiss_core::events::Zone::Stage, to: weiss_core::events::Zone::WaitingRoom, from_slot: Some(1), .. } if *card == CARD_HIGH_POWER
+    ));
+    assert!(replaced);
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn trigger_treasure_choice_stock_top_card() {
     enable_validate();
     let db = make_db();
     let deck_a = build_deck_list(20, &[CARD_TRIGGER_TREASURE]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, CurriculumConfig::default(), 35, replay_config(), None);
+    let mut env = GameEnv::new(db, config, CurriculumConfig::default(), 37, replay_config(), None);
 
     setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_BASIC)], vec![CARD_TRIGGER_TREASURE, CARD_BASIC], vec![], vec![], vec![], vec![], vec![]);
     setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
     force_attack_decision(&mut env, 0);
 
     env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Direct }).unwrap();
+    assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Choice);
 
-    assert_eq!(env.state.players[0].stock.len(), 2);
-    let treasure_resolved = env.replay_events.iter().any(|e| matches!(e,
-        ReplayEvent::TriggerResolved { effect: TriggerEffect::Treasure, .. }
+    let reveal_ok = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::Reveal { card, reason: RevealReason::TriggerCheck, audience: RevealAudience::Public, .. } if *card == CARD_TRIGGER_TREASURE
     ));
-    assert!(treasure_resolved);
+    assert!(reveal_ok);
+
+    let (options, _) = env.replay_events.iter().find_map(|e| {
+        if let ReplayEvent::ChoicePresented { reason: ChoiceReason::TriggerTreasureSelect, options, total_candidates, .. } = e {
+            Some((options, total_candidates))
+        } else {
+            None
+        }
+    }).expect("treasure choice presented");
+    assert_eq!(options.len(), 2);
+    let stock_id = (3u64 << 24) | (0u64 << 8);
+    let skip_id = (3u64 << 24) | (1u64 << 8);
+    assert_eq!(options[0].option_id, stock_id);
+    assert_eq!(options[1].option_id, skip_id);
+    assert!(matches!(options[0].reference.zone, ChoiceZone::DeckTop));
+
+    env.apply_action(ActionDesc::ChoiceSelect { index: 0 }).unwrap();
+
+    assert!(env.state.players[0].hand.iter().any(|c| c.id == CARD_TRIGGER_TREASURE));
+    assert!(env.state.players[0].stock.iter().any(|c| c.id == CARD_BASIC));
+    let moved_to_hand = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::ZoneMove { card, from: weiss_core::events::Zone::Stock, to: weiss_core::events::Zone::Hand, .. } if *card == CARD_TRIGGER_TREASURE
+    ));
+    let moved_to_stock = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::ZoneMove { card, from: weiss_core::events::Zone::Deck, to: weiss_core::events::Zone::Stock, .. } if *card == CARD_BASIC
+    ));
+    assert!(moved_to_hand);
+    assert!(moved_to_stock);
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn trigger_treasure_choice_skip() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_TRIGGER_TREASURE]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new(db, config, CurriculumConfig::default(), 38, replay_config(), None);
+
+    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_BASIC)], vec![CARD_TRIGGER_TREASURE, CARD_BASIC], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+    force_attack_decision(&mut env, 0);
+
+    env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Direct }).unwrap();
+    env.apply_action(ActionDesc::ChoiceSelect { index: 1 }).unwrap();
+
+    assert!(env.state.players[0].hand.iter().any(|c| c.id == CARD_TRIGGER_TREASURE));
+    assert!(env.state.players[0].stock.is_empty());
+    let moved_to_stock = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::ZoneMove { from: weiss_core::events::Zone::Deck, to: weiss_core::events::Zone::Stock, .. }
+    ));
+    assert!(!moved_to_stock);
     env.validate_state().unwrap();
 }
 
@@ -1035,7 +1221,147 @@ fn reveal_then_move_zone_is_logged_and_correct() {
     if let Some(trigger_index) = trigger_index {
         assert!(reveal_index < trigger_index);
     }
-    assert!(env.state.players[0].stock.contains(&CARD_TRIGGER_MULTI));
+    assert!(env.state.players[0].stock.iter().any(|c| c.id == CARD_TRIGGER_MULTI));
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn counter_priority_autoplays_single_counter() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_BASIC]);
+    let deck_b = build_deck_list(20, &[CARD_COUNTER_REDUCE]);
+    let mut curriculum = CurriculumConfig::default();
+    curriculum.enable_triggers = false;
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new(db, config, curriculum, 40, replay_config(), None);
+
+    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_BASIC)], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(&mut env, 1, vec![CARD_COUNTER_REDUCE], vec![], vec![(0, CARD_BASIC)], vec![], vec![], vec![], vec![], vec![], vec![]);
+    force_attack_decision(&mut env, 0);
+
+    env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Frontal }).unwrap();
+
+    let pushed = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::StackPushed { item } if matches!(item.effect, StackEffectKind::Counter { card_id, .. } if card_id == CARD_COUNTER_REDUCE)
+    ));
+    let resolved = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::StackResolved { item } if matches!(item.effect, StackEffectKind::Counter { card_id, .. } if card_id == CARD_COUNTER_REDUCE)
+    ));
+    let choice_presented = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::ChoicePresented { reason: ChoiceReason::PriorityActionSelect, .. }
+    ));
+    assert!(pushed);
+    assert!(resolved);
+    assert!(!choice_presented);
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn counter_priority_choice_orders_by_hand_index() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_BASIC]);
+    let deck_b = build_deck_list(20, &[CARD_COUNTER_REDUCE, CARD_COUNTER_CANCEL]);
+    let mut curriculum = CurriculumConfig::default();
+    curriculum.enable_triggers = false;
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new(db, config, curriculum, 41, replay_config(), None);
+
+    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_BASIC)], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(&mut env, 1, vec![CARD_COUNTER_REDUCE, CARD_COUNTER_CANCEL], vec![], vec![(0, CARD_BASIC)], vec![], vec![], vec![], vec![], vec![], vec![]);
+    force_attack_decision(&mut env, 0);
+
+    env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Frontal }).unwrap();
+    assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Choice);
+
+    let (options, total) = env.replay_events.iter().find_map(|e| {
+        if let ReplayEvent::ChoicePresented { reason: ChoiceReason::PriorityActionSelect, options, total_candidates, .. } = e {
+            Some((options, total_candidates))
+        } else {
+            None
+        }
+    }).expect("priority choice presented");
+    assert_eq!(*total, 2);
+    let option_id_0 = (CARD_COUNTER_REDUCE as u64) << 32 | (5u64 << 24) | (0u64 << 8);
+    let option_id_1 = (CARD_COUNTER_CANCEL as u64) << 32 | (5u64 << 24) | (1u64 << 8);
+    assert_eq!(options[0].option_id, option_id_0);
+    assert_eq!(options[1].option_id, option_id_1);
+
+    env.apply_action(ActionDesc::ChoiceSelect { index: 1 }).unwrap();
+    let pushed = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::StackPushed { item } if matches!(item.effect, StackEffectKind::Counter { card_id, .. } if card_id == CARD_COUNTER_CANCEL)
+    ));
+    assert!(pushed);
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn main_priority_act_ability_pushes_and_resolves() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_ACT_ABILITY]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new(db, config, CurriculumConfig::default(), 42, replay_config(), None);
+
+    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_ACT_ABILITY)], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+    env.state.turn.phase = Phase::Main;
+    env.state.turn.active_player = 0;
+    env.state.turn.starting_player = 0;
+    env.state.turn.mulligan_done = [true, true];
+    env.decision = Some(Decision { player: 0, kind: DecisionKind::Main, focus_slot: None });
+
+    env.apply_action(ActionDesc::MainPass).unwrap();
+
+    let entered = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::TimingWindowEntered { window: TimingWindow::MainWindow, .. }
+    ));
+    let pushed = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::StackPushed { item } if matches!(item.effect, StackEffectKind::ActivatedPlaceholder { .. })
+    ));
+    let resolved = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::StackResolved { item } if matches!(item.effect, StackEffectKind::ActivatedPlaceholder { .. })
+    ));
+    let modifier_added = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::ModifierAdded { magnitude, .. } if *magnitude == 1000
+    ));
+    assert!(entered);
+    assert!(pushed);
+    assert!(resolved);
+    assert!(modifier_added);
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn main_priority_double_pass_ends_window() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_BASIC]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new(db, config, CurriculumConfig::default(), 43, replay_config(), None);
+
+    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_BASIC)], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+    env.state.turn.phase = Phase::Main;
+    env.state.turn.active_player = 0;
+    env.state.turn.starting_player = 0;
+    env.state.turn.mulligan_done = [true, true];
+    env.decision = Some(Decision { player: 0, kind: DecisionKind::Main, focus_slot: None });
+
+    env.apply_action(ActionDesc::MainPass).unwrap();
+
+    let passes: Vec<u8> = env.replay_events.iter().filter_map(|e| {
+        if let ReplayEvent::PriorityPassed { window: TimingWindow::MainWindow, pass_count, .. } = e {
+            Some(*pass_count)
+        } else {
+            None
+        }
+    }).collect();
+    assert_eq!(passes, vec![1, 2]);
+    assert!(env.state.turn.priority.is_none());
     env.validate_state().unwrap();
 }
 
