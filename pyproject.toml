@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.5"]
+build-backend = "maturin"
+
+[project]
+name = "weiss-sim"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+[tool.maturin]
+manifest-path = "weiss_py/Cargo.toml"
+python-source = "python"
+module-name = "weiss_sim"

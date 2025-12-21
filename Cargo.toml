@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "weiss_core",
+    "weiss_py",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"

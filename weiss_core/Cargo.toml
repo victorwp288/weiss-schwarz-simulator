@@ -1,0 +1,39 @@
+[package]
+name = "weiss_core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "weiss_core"
+path = "src/lib.rs"
+
+[features]
+default = []
+replay-zstd = ["dep:zstd"]
+tracing = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-appender"]
+
+[dependencies]
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+postcard = { version = "1", features = ["alloc", "use-std"] }
+rayon = "1"
+smallvec = "1"
+bitvec = "1"
+hashbrown = "0.14"
+
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", optional = true, features = ["fmt", "env-filter"] }
+tracing-appender = { version = "0.2", optional = true }
+
+zstd = { version = "0.13", optional = true }
+
+[dev-dependencies]
+proptest = "1"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "core_benches"
+harness = false

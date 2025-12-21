@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "card_set": "TEST",
+    "card_type": "Character",
+    "color": "Red",
+    "level": 0,
+    "cost": 0,
+    "power": 500,
+    "soul": 1,
+    "triggers": [],
+    "traits": [],
+    "abilities": ["Vanilla"],
+    "raw_text": null
+  },
+  {
+    "id": 2,
+    "card_set": "TEST",
+    "card_type": "Character",
+    "color": "Blue",
+    "level": 0,
+    "cost": 0,
+    "power": 500,
+    "soul": 1,
+    "triggers": [],
+    "traits": [],
+    "abilities": ["Vanilla"],
+    "raw_text": null
+  }
+]
