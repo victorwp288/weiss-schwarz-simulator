@@ -1,16 +1,18 @@
 use std::sync::Arc;
 
-use numpy::{PyArray1, PyArray2};
 use numpy::ndarray::Array2;
+use numpy::{PyArray1, PyArray2};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::Bound;
 
-use weiss_core::{CardDb, CurriculumConfig, EnvConfig, EnvPool, RewardConfig};
 use weiss_core::config::{ErrorPolicy, ObservationVisibility};
-use weiss_core::encode::{ACTION_SPACE_SIZE, OBS_LEN, OBS_ENCODING_VERSION, ACTION_ENCODING_VERSION};
+use weiss_core::encode::{
+    ACTION_ENCODING_VERSION, ACTION_SPACE_SIZE, OBS_ENCODING_VERSION, OBS_LEN,
+};
 use weiss_core::legal::ActionDesc;
 use weiss_core::replay::ReplayConfig;
+use weiss_core::{CardDb, CurriculumConfig, EnvConfig, EnvPool, RewardConfig};
 
 type StepBatchResultPy = (
     Py<PyArray2<i32>>,
@@ -57,23 +59,39 @@ impl PyEnvPool {
         observation_visibility: Option<String>,
     ) -> PyResult<Self> {
         if num_envs == 0 {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("num_envs must be > 0"));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "num_envs must be > 0",
+            ));
         }
-        let db = CardDb::load(db_path).map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Card DB load failed: {e}")))?;
+        let db = CardDb::load(db_path).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Card DB load failed: {e}"))
+        })?;
         if deck_lists.len() != 2 {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("deck_lists must have length 2"));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "deck_lists must have length 2",
+            ));
         }
         let deck_ids_vec = deck_ids.unwrap_or_else(|| vec![0, 1]);
         if deck_ids_vec.len() != 2 {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>("deck_ids must have length 2"));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "deck_ids must have length 2",
+            ));
         }
         let reward = if let Some(json) = reward_json {
-            serde_json::from_str::<RewardConfig>(&json).map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("reward_json parse error: {e}")))?
+            serde_json::from_str::<RewardConfig>(&json).map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "reward_json parse error: {e}"
+                ))
+            })?
         } else {
             RewardConfig::default()
         };
         let curriculum = if let Some(json) = curriculum_json {
-            serde_json::from_str::<CurriculumConfig>(&json).map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("curriculum_json parse error: {e}")))?
+            serde_json::from_str::<CurriculumConfig>(&json).map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "curriculum_json parse error: {e}"
+                ))
+            })?
         } else {
             CurriculumConfig::default()
         };
@@ -112,6 +130,7 @@ impl PyEnvPool {
             reward,
             error_policy,
             observation_visibility,
+            end_condition_policy: Default::default(),
         };
         let pool = EnvPool::new(num_envs, Arc::new(db), config, curriculum, seed);
         Ok(Self { pool })
@@ -120,27 +139,41 @@ impl PyEnvPool {
     fn reset_all<'py>(&mut self, py: Python<'py>) -> PyResult<Py<PyArray2<i32>>> {
         let result = self.pool.reset_all();
         let num_envs = self.pool.envs.len();
-        let obs = Array2::from_shape_vec((num_envs, OBS_LEN), result.obs)
-            .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to shape obs array"))?;
+        let obs = Array2::from_shape_vec((num_envs, OBS_LEN), result.obs).map_err(|_| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to shape obs array")
+        })?;
         Ok(PyArray2::from_owned_array_bound(py, obs).unbind())
     }
 
-    fn reset_indices<'py>(&mut self, py: Python<'py>, indices: Vec<usize>) -> PyResult<Py<PyArray2<i32>>> {
+    fn reset_indices<'py>(
+        &mut self,
+        py: Python<'py>,
+        indices: Vec<usize>,
+    ) -> PyResult<Py<PyArray2<i32>>> {
         let result = self.pool.reset_indices(&indices);
         let num_envs = self.pool.envs.len();
-        let obs = Array2::from_shape_vec((num_envs, OBS_LEN), result.obs)
-            .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to shape obs array"))?;
+        let obs = Array2::from_shape_vec((num_envs, OBS_LEN), result.obs).map_err(|_| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to shape obs array")
+        })?;
         Ok(PyArray2::from_owned_array_bound(py, obs).unbind())
     }
 
     /// Step all envs once. Info dict includes `actor`, the observation/reward perspective for this transition.
-    fn step_batch<'py>(&mut self, py: Python<'py>, actions: Vec<u32>) -> PyResult<StepBatchResultPy> {
-        let result = py.allow_threads(|| self.pool.step_batch(&actions))
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("step_batch failed: {e}")))?;
+    fn step_batch<'py>(
+        &mut self,
+        py: Python<'py>,
+        actions: Vec<u32>,
+    ) -> PyResult<StepBatchResultPy> {
+        let result = py
+            .allow_threads(|| self.pool.step_batch(&actions))
+            .map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("step_batch failed: {e}"))
+            })?;
 
         let num_envs = self.pool.envs.len();
-        let obs = Array2::from_shape_vec((num_envs, OBS_LEN), result.obs)
-            .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to shape obs array"))?;
+        let obs = Array2::from_shape_vec((num_envs, OBS_LEN), result.obs).map_err(|_| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to shape obs array")
+        })?;
         let obs = PyArray2::from_owned_array_bound(py, obs).unbind();
         let rewards = PyArray1::from_vec_bound(py, result.rewards).unbind();
         let terminated = PyArray1::from_iter_bound(py, result.terminated).unbind();
@@ -166,13 +199,21 @@ impl PyEnvPool {
     }
 
     /// Fast step: returns arrays only. `actor` is the observation/reward perspective per env.
-    fn step_batch_fast<'py>(&mut self, py: Python<'py>, actions: Vec<u32>) -> PyResult<StepBatchFastResultPy> {
-        let result = py.allow_threads(|| self.pool.step_batch(&actions))
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("step_batch failed: {e}")))?;
+    fn step_batch_fast<'py>(
+        &mut self,
+        py: Python<'py>,
+        actions: Vec<u32>,
+    ) -> PyResult<StepBatchFastResultPy> {
+        let result = py
+            .allow_threads(|| self.pool.step_batch(&actions))
+            .map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("step_batch failed: {e}"))
+            })?;
 
         let num_envs = self.pool.envs.len();
-        let obs = Array2::from_shape_vec((num_envs, OBS_LEN), result.obs)
-            .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to shape obs array"))?;
+        let obs = Array2::from_shape_vec((num_envs, OBS_LEN), result.obs).map_err(|_| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to shape obs array")
+        })?;
         let obs = PyArray2::from_owned_array_bound(py, obs).unbind();
         let rewards = PyArray1::from_vec_bound(py, result.rewards).unbind();
         let terminated = PyArray1::from_iter_bound(py, result.terminated).unbind();
@@ -212,8 +253,10 @@ impl PyEnvPool {
     fn action_masks_batch<'py>(&self, py: Python<'py>) -> PyResult<Py<PyArray2<u8>>> {
         let masks = self.pool.action_masks_batch();
         let num_envs = self.pool.envs.len();
-        let mask_array = Array2::from_shape_vec((num_envs, ACTION_SPACE_SIZE), masks)
-            .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to shape mask array"))?;
+        let mask_array =
+            Array2::from_shape_vec((num_envs, ACTION_SPACE_SIZE), masks).map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to shape mask array")
+            })?;
         Ok(PyArray2::from_owned_array_bound(py, mask_array).unbind())
     }
 
@@ -242,7 +285,10 @@ impl PyEnvPool {
                         ActionDesc::MainPass => {
                             dict.set_item("kind", "main_pass")?;
                         }
-                        ActionDesc::MainPlayCharacter { hand_index, stage_slot } => {
+                        ActionDesc::MainPlayCharacter {
+                            hand_index,
+                            stage_slot,
+                        } => {
                             dict.set_item("kind", "main_play_character")?;
                             dict.set_item("hand_index", hand_index)?;
                             dict.set_item("stage_slot", stage_slot)?;
@@ -256,7 +302,10 @@ impl PyEnvPool {
                             dict.set_item("from_slot", from_slot)?;
                             dict.set_item("to_slot", to_slot)?;
                         }
-                        ActionDesc::MainActivateAbility { slot, ability_index } => {
+                        ActionDesc::MainActivateAbility {
+                            slot,
+                            ability_index,
+                        } => {
                             dict.set_item("kind", "main_activate_ability")?;
                             dict.set_item("slot", slot)?;
                             dict.set_item("ability_index", ability_index)?;
@@ -320,14 +369,24 @@ impl PyEnvPool {
     }
 
     fn set_curriculum(&mut self, curriculum_json: String) -> PyResult<()> {
-        let curriculum: CurriculumConfig = serde_json::from_str(&curriculum_json)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("curriculum_json parse error: {e}")))?;
+        let curriculum: CurriculumConfig = serde_json::from_str(&curriculum_json).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "curriculum_json parse error: {e}"
+            ))
+        })?;
         self.pool.set_curriculum(curriculum);
         Ok(())
     }
 
     #[pyo3(signature = (enabled, sample_rate, out_dir, compress=false, include_trigger_card_id=false))]
-    fn enable_replay_sampling(&mut self, enabled: bool, sample_rate: f32, out_dir: String, compress: bool, include_trigger_card_id: bool) -> PyResult<()> {
+    fn enable_replay_sampling(
+        &mut self,
+        enabled: bool,
+        sample_rate: f32,
+        out_dir: String,
+        compress: bool,
+        include_trigger_card_id: bool,
+    ) -> PyResult<()> {
         let config = ReplayConfig {
             enabled,
             sample_rate,
@@ -335,8 +394,11 @@ impl PyEnvPool {
             compress,
             include_trigger_card_id,
         };
-        self.pool.enable_replay_sampling(config)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("enable_replay_sampling failed: {e}")))?;
+        self.pool.enable_replay_sampling(config).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "enable_replay_sampling failed: {e}"
+            ))
+        })?;
         Ok(())
     }
 
