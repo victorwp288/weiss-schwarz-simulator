@@ -39,19 +39,42 @@ impl EnvPool {
         }
     }
 
-    pub fn new(num_envs: usize, db: Arc<CardDb>, config: EnvConfig, curriculum: CurriculumConfig, seed: u64) -> Self {
+    pub fn new(
+        num_envs: usize,
+        db: Arc<CardDb>,
+        config: EnvConfig,
+        curriculum: CurriculumConfig,
+        seed: u64,
+    ) -> Self {
         let replay_config = ReplayConfig::default();
         let mut envs = Vec::with_capacity(num_envs);
         for i in 0..num_envs {
             let env_seed = seed ^ (i as u64).wrapping_mul(0x9E3779B97F4A7C15);
-            envs.push(GameEnv::new(db.clone(), config.clone(), curriculum.clone(), env_seed, replay_config.clone(), None));
+            envs.push(GameEnv::new(
+                db.clone(),
+                config.clone(),
+                curriculum.clone(),
+                env_seed,
+                replay_config.clone(),
+                None,
+            ));
         }
-        debug_assert!(envs.iter().all(|e| e.config.error_policy == config.error_policy));
-        Self { envs, action_space: ACTION_SPACE_SIZE, error_policy: config.error_policy }
+        debug_assert!(envs
+            .iter()
+            .all(|e| e.config.error_policy == config.error_policy));
+        Self {
+            envs,
+            action_space: ACTION_SPACE_SIZE,
+            error_policy: config.error_policy,
+        }
     }
 
     pub fn reset_all(&mut self) -> StepBatchResult {
-        let outcomes: Vec<StepOutcome> = self.envs.par_iter_mut().map(|env| env.reset_no_copy()).collect();
+        let outcomes: Vec<StepOutcome> = self
+            .envs
+            .par_iter_mut()
+            .map(|env| env.reset_no_copy())
+            .collect();
         self.pack_outcomes(outcomes)
     }
 
@@ -105,33 +128,43 @@ impl EnvPool {
             }
             out
         } else {
-            self.envs.par_iter_mut().zip(action_ids.par_iter()).map(|(env, &action_id)| {
-                let result = catch_unwind(AssertUnwindSafe(|| {
-                    if env.state.terminal.is_some() {
-                        env.clear_status_flags();
-                        return Ok(env.build_outcome_no_copy(0.0));
+            self.envs
+                .par_iter_mut()
+                .zip(action_ids.par_iter())
+                .map(|(env, &action_id)| {
+                    let result = catch_unwind(AssertUnwindSafe(|| {
+                        if env.state.terminal.is_some() {
+                            env.clear_status_flags();
+                            return Ok(env.build_outcome_no_copy(0.0));
+                        }
+                        if env.decision.is_none() {
+                            env.advance_until_decision();
+                            env.update_action_cache();
+                            env.clear_status_flags();
+                            return Ok(env.build_outcome_no_copy(0.0));
+                        }
+                        env.apply_action_id_no_copy(action_id as usize)
+                    }));
+                    match result {
+                        Ok(Ok(outcome)) => outcome,
+                        Ok(Err(_)) | Err(_) => {
+                            let acting_player = env
+                                .decision
+                                .as_ref()
+                                .map(|d| d.player)
+                                .unwrap_or(env.last_perspective);
+                            env.last_engine_error = true;
+                            env.last_perspective = acting_player;
+                            env.state.terminal = Some(crate::state::TerminalResult::Win {
+                                winner: 1 - acting_player,
+                            });
+                            env.decision = None;
+                            env.update_action_cache();
+                            env.build_outcome_no_copy(env.terminal_reward_for(acting_player))
+                        }
                     }
-                    if env.decision.is_none() {
-                        env.advance_until_decision();
-                        env.update_action_cache();
-                        env.clear_status_flags();
-                        return Ok(env.build_outcome_no_copy(0.0));
-                    }
-                    env.apply_action_id_no_copy(action_id as usize)
-                }));
-                match result {
-                    Ok(Ok(outcome)) => outcome,
-                    Ok(Err(_)) | Err(_) => {
-                        let acting_player = env.decision.as_ref().map(|d| d.player).unwrap_or(env.last_perspective);
-                        env.last_engine_error = true;
-                        env.last_perspective = acting_player;
-                        env.state.terminal = Some(crate::state::TerminalResult::Win { winner: 1 - acting_player });
-                        env.decision = None;
-                        env.update_action_cache();
-                        env.build_outcome_no_copy(env.terminal_reward_for(acting_player))
-                    }
-                }
-            }).collect()
+                })
+                .collect()
         };
 
         for env in &mut self.envs {
@@ -153,13 +186,17 @@ impl EnvPool {
     }
 
     pub fn legal_actions_batch(&self) -> Vec<Vec<ActionDesc>> {
-        self.envs.iter().map(|env| {
-            env.last_legal_actions.clone()
-        }).collect()
+        self.envs
+            .iter()
+            .map(|env| env.last_legal_actions.clone())
+            .collect()
     }
 
     pub fn get_current_player_batch(&self) -> Vec<i8> {
-        self.envs.iter().map(|env| env.decision.as_ref().map(|d| d.player as i8).unwrap_or(-1)).collect()
+        self.envs
+            .iter()
+            .map(|env| env.decision.as_ref().map(|d| d.player as i8).unwrap_or(-1))
+            .collect()
     }
 
     pub fn render_ansi(&self, env_index: usize, perspective: u8) -> String {
@@ -173,8 +210,22 @@ impl EnvPool {
         let mut out = String::new();
         out.push_str(&format!("Phase: {:?}\n", state.turn.phase));
         out.push_str(&format!("Active: {}\n", state.turn.active_player));
-        out.push_str(&format!("P{} Level: {} Clock: {} Hand: {} Deck: {}\n", p0, state.players[p0].level.len(), state.players[p0].clock.len(), state.players[p0].hand.len(), state.players[p0].deck.len()));
-        out.push_str(&format!("P{} Level: {} Clock: {} Hand: {} Deck: {}\n", p1, state.players[p1].level.len(), state.players[p1].clock.len(), state.players[p1].hand.len(), state.players[p1].deck.len()));
+        out.push_str(&format!(
+            "P{} Level: {} Clock: {} Hand: {} Deck: {}\n",
+            p0,
+            state.players[p0].level.len(),
+            state.players[p0].clock.len(),
+            state.players[p0].hand.len(),
+            state.players[p0].deck.len()
+        ));
+        out.push_str(&format!(
+            "P{} Level: {} Clock: {} Hand: {} Deck: {}\n",
+            p1,
+            state.players[p1].level.len(),
+            state.players[p1].clock.len(),
+            state.players[p1].hand.len(),
+            state.players[p1].deck.len()
+        ));
         out.push_str("Stage:\n");
         out.push_str(&format!(" P{}: {:?}\n", p0, state.players[p0].stage));
         out.push_str(&format!(" P{}: {:?}\n", p1, state.players[p1].stage));
@@ -193,7 +244,11 @@ impl EnvPool {
     }
 
     pub fn enable_replay_sampling(&mut self, config: ReplayConfig) -> Result<()> {
-        let writer = if config.enabled { Some(ReplayWriter::new(&config)?) } else { None };
+        let writer = if config.enabled {
+            Some(ReplayWriter::new(&config)?)
+        } else {
+            None
+        };
         for env in &mut self.envs {
             env.replay_config = config.clone();
             env.replay_writer = writer.clone();
@@ -221,6 +276,12 @@ impl EnvPool {
             infos.push(outcome.info);
         }
 
-        StepBatchResult { obs, rewards, terminated, truncated, infos }
+        StepBatchResult {
+            obs,
+            rewards,
+            terminated,
+            truncated,
+            infos,
+        }
     }
 }

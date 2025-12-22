@@ -119,19 +119,31 @@ pub fn legal_attack_actions(
     curriculum: &CurriculumConfig,
 ) -> Vec<ActionDesc> {
     let mut actions = Vec::new();
-    let max_slot = if curriculum.reduced_stage_mode { 1 } else { MAX_STAGE };
+    let max_slot = if curriculum.reduced_stage_mode {
+        1
+    } else {
+        MAX_STAGE
+    };
     for slot in 0..max_slot {
         let slot_u8 = slot as u8;
         for attack_type in [AttackType::Frontal, AttackType::Side, AttackType::Direct] {
             if can_declare_attack(state, player, slot_u8, attack_type, curriculum).is_ok() {
-                actions.push(ActionDesc::Attack { slot: slot_u8, attack_type });
+                actions.push(ActionDesc::Attack {
+                    slot: slot_u8,
+                    attack_type,
+                });
             }
         }
     }
     actions
 }
 
-pub fn legal_actions(state: &GameState, decision: &Decision, db: &CardDb, curriculum: &CurriculumConfig) -> Vec<ActionDesc> {
+pub fn legal_actions(
+    state: &GameState,
+    decision: &Decision,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+) -> Vec<ActionDesc> {
     legal_actions_cached(state, decision, db, curriculum, None)
 }
 
@@ -157,7 +169,9 @@ pub fn legal_actions_cached(
                     if !card_set_allowed(card, curriculum, allowed_card_sets) {
                         continue;
                     }
-                    actions.push(ActionDesc::Clock { hand_index: hand_index as u8 });
+                    actions.push(ActionDesc::Clock {
+                        hand_index: hand_index as u8,
+                    });
                 }
             }
             actions
@@ -165,7 +179,11 @@ pub fn legal_actions_cached(
         DecisionKind::Main => {
             let mut actions = Vec::new();
             let p = &state.players[player];
-            let max_slot = if curriculum.reduced_stage_mode { 1 } else { MAX_STAGE };
+            let max_slot = if curriculum.reduced_stage_mode {
+                1
+            } else {
+                MAX_STAGE
+            };
             for (hand_index, card_inst) in p.hand.iter().enumerate() {
                 if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                     break;
@@ -197,7 +215,9 @@ pub fn legal_actions_cached(
                                 && meets_color_requirement(card, p, db, curriculum)
                                 && meets_cost_requirement(card, p, curriculum)
                             {
-                                actions.push(ActionDesc::MainPlayEvent { hand_index: hand_index as u8 });
+                                actions.push(ActionDesc::MainPlayEvent {
+                                    hand_index: hand_index as u8,
+                                });
                             }
                         }
                         CardType::Climax => {
@@ -218,7 +238,10 @@ pub fn legal_actions_cached(
                         && is_character_slot(from_slot, db)
                         && is_character_slot(to_slot, db)
                     {
-                        actions.push(ActionDesc::MainMove { from_slot: from as u8, to_slot: to as u8 });
+                        actions.push(ActionDesc::MainMove {
+                            from_slot: from as u8,
+                            to_slot: to as u8,
+                        });
                     }
                 }
             }
@@ -244,7 +267,9 @@ pub fn legal_actions_cached(
                             && meets_color_requirement(card, p, db, curriculum)
                             && meets_cost_requirement(card, p, curriculum)
                         {
-                            actions.push(ActionDesc::ClimaxPlay { hand_index: hand_index as u8 });
+                            actions.push(ActionDesc::ClimaxPlay {
+                                hand_index: hand_index as u8,
+                            });
                         }
                     }
                 }
@@ -279,7 +304,9 @@ pub fn legal_actions_cached(
                             && meets_color_requirement(card, p, db, curriculum)
                             && meets_cost_requirement(card, p, curriculum)
                         {
-                            actions.push(ActionDesc::CounterPlay { hand_index: hand_index as u8 });
+                            actions.push(ActionDesc::CounterPlay {
+                                hand_index: hand_index as u8,
+                            });
                         }
                     }
                 }
@@ -288,7 +315,9 @@ pub fn legal_actions_cached(
         }
         DecisionKind::LevelUp => {
             if state.players[player].clock.len() >= 7 {
-                (0..7).map(|idx| ActionDesc::LevelUp { index: idx }).collect()
+                (0..7)
+                    .map(|idx| ActionDesc::LevelUp { index: idx })
+                    .collect()
             } else {
                 Vec::new()
             }
@@ -307,7 +336,12 @@ pub fn legal_actions_cached(
         }
         DecisionKind::TriggerOrder => {
             let mut actions = Vec::new();
-            let choices = state.turn.trigger_order.as_ref().map(|o| o.choices.len()).unwrap_or(0);
+            let choices = state
+                .turn
+                .trigger_order
+                .as_ref()
+                .map(|o| o.choices.len())
+                .unwrap_or(0);
             let max = choices.min(10);
             for idx in 0..max {
                 actions.push(ActionDesc::TriggerOrder { index: idx as u8 });
@@ -316,7 +350,12 @@ pub fn legal_actions_cached(
         }
         DecisionKind::Choice => {
             let mut actions = Vec::new();
-            let choices = state.turn.choice.as_ref().map(|c| c.options.len()).unwrap_or(0);
+            let choices = state
+                .turn
+                .choice
+                .as_ref()
+                .map(|c| c.options.len())
+                .unwrap_or(0);
             let max = choices.min(16);
             for idx in 0..max {
                 actions.push(ActionDesc::ChoiceSelect { index: idx as u8 });
@@ -351,14 +390,23 @@ fn meets_level_requirement(card: &CardStatic, level_count: usize) -> bool {
     card.level as usize <= level_count
 }
 
-fn meets_cost_requirement(card: &CardStatic, player: &crate::state::PlayerState, curriculum: &CurriculumConfig) -> bool {
+fn meets_cost_requirement(
+    card: &CardStatic,
+    player: &crate::state::PlayerState,
+    curriculum: &CurriculumConfig,
+) -> bool {
     if !curriculum.enforce_cost_requirement {
         return true;
     }
     player.stock.len() >= card.cost as usize
 }
 
-fn meets_color_requirement(card: &CardStatic, player: &crate::state::PlayerState, db: &CardDb, curriculum: &CurriculumConfig) -> bool {
+fn meets_color_requirement(
+    card: &CardStatic,
+    player: &crate::state::PlayerState,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+) -> bool {
     if !curriculum.enforce_color_requirement {
         return true;
     }
@@ -376,12 +424,24 @@ fn meets_color_requirement(card: &CardStatic, player: &crate::state::PlayerState
 }
 
 fn is_character_slot(slot: &StageSlot, db: &CardDb) -> bool {
-    slot.card.and_then(|inst| db.get(inst.id)).map(|c| c.card_type == CardType::Character).unwrap_or(false)
+    slot.card
+        .and_then(|inst| db.get(inst.id))
+        .map(|c| c.card_type == CardType::Character)
+        .unwrap_or(false)
 }
 
 fn is_counter_card(card: &CardStatic, db: &CardDb) -> bool {
     if !card.counter_timing {
         return false;
     }
-    db.ability_specs(card.id).iter().any(|spec| matches!(spec.template, AbilityTemplate::CounterBackup { .. } | AbilityTemplate::CounterDamageReduce { .. } | AbilityTemplate::CounterDamageCancel))
+    db.iter_card_abilities_in_canonical_order(card.id)
+        .iter()
+        .any(|spec| {
+            matches!(
+                spec.template,
+                AbilityTemplate::CounterBackup { .. }
+                    | AbilityTemplate::CounterDamageReduce { .. }
+                    | AbilityTemplate::CounterDamageCancel
+            )
+        })
 }

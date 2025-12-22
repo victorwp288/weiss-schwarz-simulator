@@ -1,6 +1,6 @@
+use crate::db::CardId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use crate::db::CardId;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum ErrorPolicy {
@@ -49,12 +49,14 @@ pub struct EnvConfig {
     pub error_policy: ErrorPolicy,
     #[serde(default)]
     pub observation_visibility: ObservationVisibility,
+    #[serde(default)]
+    pub end_condition_policy: EndConditionPolicy,
 }
 
 impl EnvConfig {
     pub fn config_hash(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
         use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
         let mut hasher = DefaultHasher::new();
         self.deck_lists.hash(&mut hasher);
         self.deck_ids.hash(&mut hasher);
@@ -67,7 +69,33 @@ impl EnvConfig {
         self.reward.damage_reward.to_bits().hash(&mut hasher);
         self.error_policy.hash(&mut hasher);
         self.observation_visibility.hash(&mut hasher);
+        self.end_condition_policy.hash(&mut hasher);
         hasher.finish()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
+pub enum SimultaneousLossPolicy {
+    ActivePlayerWins,
+    NonActivePlayerWins,
+    #[default]
+    Draw,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct EndConditionPolicy {
+    #[serde(default)]
+    pub simultaneous_loss: SimultaneousLossPolicy,
+    #[serde(default)]
+    pub allow_draw_on_simultaneous_loss: bool,
+}
+
+impl Default for EndConditionPolicy {
+    fn default() -> Self {
+        Self {
+            simultaneous_loss: SimultaneousLossPolicy::Draw,
+            allow_draw_on_simultaneous_loss: true,
+        }
     }
 }
 
@@ -120,6 +148,14 @@ pub struct CurriculumConfig {
     #[serde(default = "default_true")]
     pub enable_continuous_modifiers: bool,
     #[serde(default)]
+    pub enable_priority_windows: bool,
+    #[serde(default)]
+    pub enable_visibility_policies: bool,
+    #[serde(default)]
+    pub use_alternate_end_conditions: bool,
+    #[serde(default = "default_true")]
+    pub priority_autopick_single_action: bool,
+    #[serde(default)]
     pub reduced_stage_mode: bool,
     #[serde(default = "default_true")]
     pub enforce_color_requirement: bool,
@@ -155,6 +191,10 @@ impl Default for CurriculumConfig {
             enable_level_up_choice: true,
             enable_activated_abilities: true,
             enable_continuous_modifiers: true,
+            enable_priority_windows: false,
+            enable_visibility_policies: false,
+            use_alternate_end_conditions: false,
+            priority_autopick_single_action: true,
             reduced_stage_mode: false,
             enforce_color_requirement: true,
             enforce_cost_requirement: true,

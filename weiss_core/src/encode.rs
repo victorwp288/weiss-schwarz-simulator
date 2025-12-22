@@ -3,8 +3,8 @@ use crate::db::CardDb;
 use crate::legal::{ActionDesc, Decision, DecisionKind};
 use crate::state::{AttackType, GameState, ModifierKind, Phase, StageStatus, TerminalResult};
 
-pub const OBS_ENCODING_VERSION: u32 = 3;
-pub const ACTION_ENCODING_VERSION: u32 = 3;
+pub const OBS_ENCODING_VERSION: u32 = 1;
+pub const ACTION_ENCODING_VERSION: u32 = 1;
 
 pub const MAX_HAND: usize = 10;
 pub const MAX_DECK: usize = 60;
@@ -114,7 +114,9 @@ pub fn encode_observation(
         out[11] = 0;
         out[12] = 0;
     }
-    out[13] = decision.and_then(|d| d.focus_slot.map(|s| s as i32)).unwrap_or(-1);
+    out[13] = decision
+        .and_then(|d| d.focus_slot.map(|s| s as i32))
+        .unwrap_or(-1);
 
     let mut offset = OBS_HEADER_LEN;
     for (idx, player_index) in [p0, p1].iter().enumerate() {
@@ -138,13 +140,17 @@ pub fn encode_observation(
                 0
             };
             let has_attacked = if slot_state.has_attacked { 1 } else { 0 };
-            let (power, soul) = if let Some(card) = slot_state.card.and_then(|inst| db.get(inst.id)) {
-                let mut power = card.power + slot_state.power_mod_turn + slot_state.power_mod_battle;
+            let (power, soul) = if let Some(card) = slot_state.card.and_then(|inst| db.get(inst.id))
+            {
+                let mut power =
+                    card.power + slot_state.power_mod_turn + slot_state.power_mod_battle;
                 for modifier in &state.modifiers {
                     if modifier.kind != ModifierKind::Power {
                         continue;
                     }
-                    if modifier.target_player as usize != *player_index || modifier.target_slot as usize != slot {
+                    if modifier.target_player as usize != *player_index
+                        || modifier.target_slot as usize != slot
+                    {
                         continue;
                     }
                     if modifier.target_card != slot_state.card.map(|c| c.id).unwrap_or(0) {
@@ -176,14 +182,22 @@ pub fn encode_observation(
 
         for i in 0..TOP_CLOCK {
             let idx = p.clock.len().saturating_sub(1 + i);
-            let value = if idx < p.clock.len() { p.clock[idx].id as i32 } else { 0 };
+            let value = if idx < p.clock.len() {
+                p.clock[idx].id as i32
+            } else {
+                0
+            };
             out[offset + i] = value;
         }
         offset += PER_PLAYER_CLOCK_TOP;
 
         for i in 0..TOP_WAITING_ROOM {
             let idx = p.waiting_room.len().saturating_sub(1 + i);
-            let value = if idx < p.waiting_room.len() { p.waiting_room[idx].id as i32 } else { 0 };
+            let value = if idx < p.waiting_room.len() {
+                p.waiting_room[idx].id as i32
+            } else {
+                0
+            };
             out[offset + i] = value;
         }
         offset += PER_PLAYER_WAITING_TOP;
@@ -191,7 +205,11 @@ pub fn encode_observation(
         for i in 0..TOP_STOCK {
             let value = if visibility == ObservationVisibility::Full {
                 let idx = p.stock.len().saturating_sub(1 + i);
-                if idx < p.stock.len() { p.stock[idx].id as i32 } else { 0 }
+                if idx < p.stock.len() {
+                    p.stock[idx].id as i32
+                } else {
+                    0
+                }
             } else {
                 -1
             };
@@ -274,7 +292,13 @@ fn status_to_i32(status: StageStatus) -> i32 {
 fn terminal_to_i32(term: Option<TerminalResult>) -> i32 {
     match term {
         None => 0,
-        Some(TerminalResult::Win { winner }) => if winner == 0 { 1 } else { 2 },
+        Some(TerminalResult::Win { winner }) => {
+            if winner == 0 {
+                1
+            } else {
+                2
+            }
+        }
         Some(TerminalResult::Draw) => 3,
         Some(TerminalResult::Timeout) => 4,
     }
@@ -288,14 +312,24 @@ fn last_action_to_fields(action: Option<&ActionDesc>) -> (i32, i32, i32) {
         Some(ActionDesc::ClockPass) => (3, -1, -1),
         Some(ActionDesc::Clock { hand_index }) => (4, *hand_index as i32, -1),
         Some(ActionDesc::MainPass) => (5, -1, -1),
-        Some(ActionDesc::MainPlayCharacter { hand_index, stage_slot }) => (6, *hand_index as i32, *stage_slot as i32),
+        Some(ActionDesc::MainPlayCharacter {
+            hand_index,
+            stage_slot,
+        }) => (6, *hand_index as i32, *stage_slot as i32),
         Some(ActionDesc::MainPlayEvent { hand_index }) => (7, *hand_index as i32, -1),
-        Some(ActionDesc::MainMove { from_slot, to_slot }) => (8, *from_slot as i32, *to_slot as i32),
-        Some(ActionDesc::MainActivateAbility { slot, ability_index }) => (9, *slot as i32, *ability_index as i32),
+        Some(ActionDesc::MainMove { from_slot, to_slot }) => {
+            (8, *from_slot as i32, *to_slot as i32)
+        }
+        Some(ActionDesc::MainActivateAbility {
+            slot,
+            ability_index,
+        }) => (9, *slot as i32, *ability_index as i32),
         Some(ActionDesc::ClimaxPass) => (10, -1, -1),
         Some(ActionDesc::ClimaxPlay { hand_index }) => (11, *hand_index as i32, -1),
         Some(ActionDesc::AttackPass) => (12, -1, -1),
-        Some(ActionDesc::Attack { slot, attack_type }) => (13, *slot as i32, attack_type_to_i32(*attack_type)),
+        Some(ActionDesc::Attack { slot, attack_type }) => {
+            (13, *slot as i32, attack_type_to_i32(*attack_type))
+        }
         Some(ActionDesc::CounterPass) => (14, -1, -1),
         Some(ActionDesc::CounterPlay { hand_index }) => (15, *hand_index as i32, -1),
         Some(ActionDesc::LevelUp { index }) => (16, *index as i32, -1),
@@ -320,7 +354,10 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
             }
         }
         ActionDesc::MainPass => Some(MAIN_PASS_ID),
-        ActionDesc::MainPlayCharacter { hand_index, stage_slot } => {
+        ActionDesc::MainPlayCharacter {
+            hand_index,
+            stage_slot,
+        } => {
             let hi = *hand_index as usize;
             let ss = *stage_slot as usize;
             if hi < MAX_HAND && ss < MAX_STAGE {
@@ -346,7 +383,10 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
                 None
             }
         }
-        ActionDesc::MainActivateAbility { slot, ability_index } => {
+        ActionDesc::MainActivateAbility {
+            slot,
+            ability_index,
+        } => {
             let s = *slot as usize;
             let a = *ability_index as usize;
             if s < MAX_STAGE && a < MAX_ABILITIES_PER_CARD {
@@ -412,7 +452,11 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
     }
 }
 
-pub fn fill_action_mask(actions: &[ActionDesc], mask: &mut [u8], lookup: &mut [Option<ActionDesc>]) {
+pub fn fill_action_mask(
+    actions: &[ActionDesc],
+    mask: &mut [u8],
+    lookup: &mut [Option<ActionDesc>],
+) {
     mask.fill(0);
     for slot in lookup.iter_mut() {
         *slot = None;

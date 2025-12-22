@@ -1,4 +1,5 @@
 use crate::db::CardId;
+use crate::effects::{EffectId, EffectPayload, ReplacementSpec};
 use crate::util::Rng64;
 use serde::{Deserialize, Serialize};
 
@@ -11,7 +12,11 @@ pub struct CardInstance {
 
 impl CardInstance {
     pub fn new(id: CardId, owner: u8) -> Self {
-        Self { id, owner, controller: owner }
+        Self {
+            id,
+            owner,
+            controller: owner,
+        }
     }
 }
 
@@ -30,8 +35,13 @@ pub enum Phase {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TimingWindow {
     MainWindow,
+    ClimaxWindow,
+    AttackDeclarationWindow,
+    TriggerResolutionWindow,
     CounterWindow,
-    EndOfTurnWindow,
+    DamageResolutionWindow,
+    EncoreWindow,
+    EndPhaseWindow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -119,13 +129,20 @@ pub enum TriggerEffect {
     Treasure,
     Gate,
     Standby,
-    EndPhaseDraw { count: u8 },
+    EndPhaseDraw { count: u8, ability_index: u8 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TargetZone {
     Stage,
+    Hand,
+    DeckTop,
+    Clock,
+    Level,
+    Stock,
+    Memory,
     WaitingRoom,
+    Climax,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -159,9 +176,10 @@ pub struct TargetRef {
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub enum PendingTargetEffect {
-    StackTargetedPower { magnitude: i32, duration: ModifierDuration },
-    StackMoveToHand,
-    StackChangeController { new_controller: u8 },
+    EffectPending {
+        instance_id: u32,
+        payload: EffectPayload,
+    },
 }
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
@@ -175,20 +193,12 @@ pub struct TargetSelectionState {
 }
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
-pub enum StackEffectKind {
-    ActivatedPlaceholder { slot: u8, ability_index: u8 },
-    Counter { card_id: CardId, power: i32, damage_reduce: i32, damage_cancel: bool },
-    TargetedPower { targets: Vec<TargetRef>, magnitude: i32, duration: ModifierDuration },
-    TargetedMoveToHand { targets: Vec<TargetRef> },
-    TargetedChangeController { targets: Vec<TargetRef>, new_controller: u8 },
-}
-
-#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct StackItem {
     pub id: u32,
     pub controller: u8,
     pub source_id: CardId,
-    pub effect: StackEffectKind,
+    pub effect_id: EffectId,
+    pub payload: EffectPayload,
 }
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
@@ -208,8 +218,6 @@ pub struct StackOrderState {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ChoiceReason {
-    TriggerGateSelect,
-    TriggerBounceSelect,
     TriggerStandbySelect,
     TriggerTreasureSelect,
     StackOrderSelect,
@@ -221,7 +229,13 @@ pub enum ChoiceReason {
 pub enum ChoiceZone {
     WaitingRoom,
     Stage,
+    Hand,
     DeckTop,
+    Clock,
+    Level,
+    Stock,
+    Memory,
+    Climax,
     Stack,
     PriorityCounter,
     PriorityAct,
@@ -258,7 +272,12 @@ pub struct AttackContext {
     pub damage_modifiers: Vec<DamageModifier>,
     pub next_modifier_id: u32,
     pub last_damage_event_id: Option<u32>,
+    pub auto_damage_enqueued: bool,
+    pub battle_damage_applied: bool,
     pub step: AttackStep,
+    pub decl_window_done: bool,
+    pub trigger_window_done: bool,
+    pub damage_window_done: bool,
 }
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
@@ -268,6 +287,7 @@ pub struct PendingTrigger {
     pub player: u8,
     pub source_card: CardId,
     pub effect: TriggerEffect,
+    pub effect_id: Option<EffectId>,
 }
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
@@ -285,7 +305,10 @@ pub struct DerivedAttackSlot {
 
 impl DerivedAttackSlot {
     pub fn empty() -> Self {
-        Self { cannot_attack: false, attack_cost: 0 }
+        Self {
+            cannot_attack: false,
+            attack_cost: 0,
+        }
     }
 }
 
@@ -336,7 +359,10 @@ pub struct PlayerState {
 
 impl PlayerState {
     pub fn new(deck: Vec<CardId>, owner: u8) -> Self {
-        let deck = deck.into_iter().map(|id| CardInstance::new(id, owner)).collect();
+        let deck = deck
+            .into_iter()
+            .map(|id| CardInstance::new(id, owner))
+            .collect();
         Self {
             deck,
             hand: Vec::new(),
@@ -396,6 +422,10 @@ pub struct TurnState {
     pub pending_level_up: Option<u8>,
     pub encore_queue: Vec<EncoreRequest>,
     pub pending_triggers: Vec<PendingTrigger>,
+    pub active_window: Option<TimingWindow>,
+    pub end_phase_window_done: bool,
+    pub encore_window_done: bool,
+    pub pending_losses: [bool; 2],
     pub trigger_order: Option<TriggerOrderState>,
     pub choice: Option<ChoiceState>,
     pub target_selection: Option<TargetSelectionState>,
@@ -410,6 +440,7 @@ pub struct TurnState {
     pub next_stack_id: u32,
     pub next_stack_group_id: u32,
     pub next_damage_event_id: u32,
+    pub next_effect_instance_id: u32,
     pub end_phase_pending: bool,
 }
 
@@ -420,6 +451,8 @@ pub struct GameState {
     pub rng: Rng64,
     pub modifiers: Vec<ModifierInstance>,
     pub next_modifier_id: u32,
+    pub replacements: Vec<ReplacementSpec>,
+    pub next_replacement_insertion: u32,
     pub terminal: Option<TerminalResult>,
 }
 
@@ -454,11 +487,18 @@ impl GameState {
                 next_stack_id: 1,
                 next_stack_group_id: 1,
                 next_damage_event_id: 1,
+                next_effect_instance_id: 1,
+                active_window: None,
+                end_phase_window_done: false,
+                encore_window_done: false,
+                pending_losses: [false; 2],
                 end_phase_pending: false,
             },
             rng,
             modifiers: Vec::new(),
             next_modifier_id: 1,
+            replacements: Vec::new(),
+            next_replacement_insertion: 1,
             terminal: None,
         }
     }
