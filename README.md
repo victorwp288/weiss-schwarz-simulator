@@ -87,6 +87,15 @@ Benchmarks (Criterion):
 cargo bench -p weiss_core
 ```
 
+Recent bench summary (Dec 22, 2025; M4 MacBook Air, 16GB RAM, 256GB SSD):
+- `advance_until_decision`: ~33.3 µs
+- `step_batch_64`: ~42.1 µs
+- `step_batch_fast_256_priority_off`: ~75.8 µs
+- `step_batch_fast_256_priority_on`: ~76.1 µs
+- `legal_actions`: ~17.5 ns
+- `observation_encode`: ~80.3 ns
+- `mask_construction`: ~131.8 ns
+
 ---
 
 ## Quickstart (Python): step with a trivial policy
@@ -184,6 +193,24 @@ Module constants:
 
 ---
 
+## CurriculumConfig flags (defaults)
+
+Curriculum flags are the main way to gate rules/complexity. Defaults preserve legacy behavior.
+
+- Core phases/attacks: `enable_clock_phase=true`, `enable_climax_phase=true`, `enable_side_attacks=true`, `enable_direct_attacks=true`
+- Counters/triggers: `enable_counters=true`, `enable_triggers=true`, `enable_trigger_soul/draw/shot/bounce/treasure/gate/standby=true`
+- Other rules: `enable_backup=true`, `enable_encore=true`, `enable_refresh_penalty=true`, `enable_level_up_choice=true`
+- Abilities/modifiers: `enable_activated_abilities=true`, `enable_continuous_modifiers=true`
+- Optional systems (default **off**): `enable_priority_windows=false`, `enable_visibility_policies=false`, `use_alternate_end_conditions=false`
+- Training knobs: `priority_autopick_single_action=true`, `reduced_stage_mode=false`
+- Requirements: `enforce_color_requirement=true`, `enforce_cost_requirement=true`
+
+Notes:
+- `enable_priority_windows` gates **additional** windows beyond Main/Counter. MainWindow opens on `MainPass` and CounterWindow opens when counters are allowed.
+- `enable_visibility_policies` masks hidden-zone choice info in replays/labels when `observation_visibility="public"`.
+
+---
+
 ## Rust API (core crate)
 
 `weiss_core` re-exports the main types for embedding the simulator in Rust:
@@ -216,9 +243,18 @@ let batch = pool.reset_all();
 
 ---
 
+## Replay schema policy
+
+- Replay binary format is versioned by `REPLAY_SCHEMA_VERSION` in `weiss_core/src/replay.rs` (pinned to `1`).
+- If the serialized structure changes, update code/tests/docs **without** bumping the version; old artifacts are deleted.
+- Event **content** changes (e.g., masked labels under visibility policies) do **not** change the schema version.
+- Dump tooling should check the header and reject unsupported versions.
+
+---
+
 ## Encodings (stable + versioned)
 
-Encodings are **deterministic** and **explicitly versioned**. Query current versions at runtime via:
+Encodings are **deterministic** and **explicitly versioned** (pinned to `1`). Query current versions at runtime via:
 
 - `weiss_sim.OBS_ENCODING_VERSION`
 - `weiss_sim.ACTION_ENCODING_VERSION`
@@ -247,11 +283,11 @@ Header indices in the observation array:
 - `12`: counter power bonus
 - `13`: decision focus slot (`-1` if none)
 
-Per-player blocks follow for the **perspective player first**, then the opponent. The exact layout is defined in `weiss_core/src/encode.rs` and versioned by `OBS_ENCODING_VERSION` (update this section if the version changes).
+Per-player blocks follow for the **perspective player first**, then the opponent. The exact layout is defined in `weiss_core/src/encode.rs` and versioned by `OBS_ENCODING_VERSION`.
 
 ### Action space
 
-Actions are fixed to `ACTION_SPACE_SIZE` (`pool.action_space`). The exact id layout is **derived from constants in `weiss_core/src/encode.rs`** and is versioned by `ACTION_ENCODING_VERSION` (update this section if the version changes). Action families include:
+Actions are fixed to `ACTION_SPACE_SIZE` (`pool.action_space`). The exact id layout is **derived from constants in `weiss_core/src/encode.rs`** and is versioned by `ACTION_ENCODING_VERSION`. Action families include:
 
 - mulligan keep/all
 - clock pass / clock(hand_index)
