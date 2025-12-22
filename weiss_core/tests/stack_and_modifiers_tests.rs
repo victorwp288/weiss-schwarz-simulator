@@ -1,11 +1,15 @@
 use std::sync::{Arc, OnceLock};
 
-use weiss_core::config::{CurriculumConfig, EnvConfig, RewardConfig, ObservationVisibility, ErrorPolicy};
-use weiss_core::db::{CardDb, CardStatic, CardType, CardColor, AbilityTemplate, TargetTemplate};
+use weiss_core::config::{
+    CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
+};
+use weiss_core::db::{AbilityTemplate, CardColor, CardDb, CardStatic, CardType, TargetTemplate};
 use weiss_core::env::GameEnv;
-use weiss_core::legal::{Decision, DecisionKind, ActionDesc};
+use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
 use weiss_core::replay::{ReplayConfig, ReplayEvent};
-use weiss_core::state::{CardInstance, ChoiceReason, ModifierDuration, Phase, StageSlot, StageStatus, StackEffectKind, TargetZone};
+use weiss_core::state::{
+    CardInstance, ChoiceReason, ModifierDuration, Phase, StageSlot, StageStatus, TargetZone,
+};
 
 const CARD_BASIC: u32 = 1;
 const CARD_ACT_TARGET_POWER: u32 = 40;
@@ -42,6 +46,7 @@ fn make_db() -> Arc<CardDb> {
             triggers: vec![],
             traits: vec![],
             abilities: vec![],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -56,13 +61,12 @@ fn make_db() -> Arc<CardDb> {
             soul: 1,
             triggers: vec![],
             traits: vec![],
-            abilities: vec![
-                AbilityTemplate::ActivatedTargetedPower {
-                    amount: 1000,
-                    count: 1,
-                    target: TargetTemplate::SelfStage,
-                }
-            ],
+            abilities: vec![AbilityTemplate::ActivatedTargetedPower {
+                amount: 1000,
+                count: 1,
+                target: TargetTemplate::SelfStage,
+            }],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -84,6 +88,7 @@ fn make_db() -> Arc<CardDb> {
                     target: TargetTemplate::SelfStage,
                 },
             ],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -100,6 +105,7 @@ fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
         reward: RewardConfig::default(),
         error_policy: ErrorPolicy::Strict,
         observation_visibility: ObservationVisibility::Public,
+        end_condition_policy: Default::default(),
     }
 }
 
@@ -137,15 +143,33 @@ fn setup_player_state(
         }
     };
 
-    for &card in &hand { consume(card, "hand"); }
-    for &card in &stock { consume(card, "stock"); }
-    for &card in &deck_top { consume(card, "deck_top"); }
-    for &card in &clock { consume(card, "clock"); }
-    for &card in &level { consume(card, "level"); }
-    for &card in &waiting_room { consume(card, "waiting_room"); }
-    for &card in &memory { consume(card, "memory"); }
-    for &card in &climax { consume(card, "climax"); }
-    for &(_, card) in &stage_cards { consume(card, "stage"); }
+    for &card in &hand {
+        consume(card, "hand");
+    }
+    for &card in &stock {
+        consume(card, "stock");
+    }
+    for &card in &deck_top {
+        consume(card, "deck_top");
+    }
+    for &card in &clock {
+        consume(card, "clock");
+    }
+    for &card in &level {
+        consume(card, "level");
+    }
+    for &card in &waiting_room {
+        consume(card, "waiting_room");
+    }
+    for &card in &memory {
+        consume(card, "memory");
+    }
+    for &card in &climax {
+        consume(card, "climax");
+    }
+    for &(_, card) in &stage_cards {
+        consume(card, "stage");
+    }
 
     let mut remaining = Vec::new();
     for (card, count) in counts {
@@ -164,15 +188,45 @@ fn setup_player_state(
 
     let owner = player as u8;
     let p = &mut env.state.players[player];
-    p.hand = hand.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.stock = stock.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.clock = clock.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.level = level.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.waiting_room = waiting_room.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.memory = memory.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.climax = climax.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.deck = deck.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.stage = [StageSlot::empty(), StageSlot::empty(), StageSlot::empty(), StageSlot::empty(), StageSlot::empty()];
+    p.hand = hand
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.stock = stock
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.clock = clock
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.level = level
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.waiting_room = waiting_room
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.memory = memory
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.climax = climax
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.deck = deck
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.stage = [
+        StageSlot::empty(),
+        StageSlot::empty(),
+        StageSlot::empty(),
+        StageSlot::empty(),
+        StageSlot::empty(),
+    ];
     for (slot, card) in stage_cards {
         let mut slot_state = StageSlot::empty();
         slot_state.card = Some(CardInstance::new(card, owner));
@@ -200,7 +254,11 @@ fn force_main_decision(env: &mut GameEnv, player: u8) {
     env.state.turn.derived_attack = None;
     env.state.turn.end_phase_pending = false;
     env.state.turn.main_passed = false;
-    env.decision = Some(Decision { player, kind: DecisionKind::Main, focus_slot: None });
+    env.decision = Some(Decision {
+        player,
+        kind: DecisionKind::Main,
+        focus_slot: None,
+    });
 }
 
 #[test]
@@ -213,26 +271,60 @@ fn activated_targeting_resolves_via_stack() {
     let curriculum = CurriculumConfig::default();
     let mut env = GameEnv::new(db, config, curriculum, 120, replay_config(), None);
 
-    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_ACT_TARGET_POWER), (1, CARD_BASIC)], vec![], vec![], vec![], vec![], vec![], vec![]);
-    setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_ACT_TARGET_POWER), (1, CARD_BASIC)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
     force_main_decision(&mut env, 0);
     env.validate_state().unwrap();
 
     env.apply_action(ActionDesc::MainPass).unwrap();
 
-    let presented = env.replay_events.iter().rev().find_map(|e| {
-        match e {
-            ReplayEvent::ChoicePresented { reason: ChoiceReason::TargetSelect, options, .. } => Some(options.clone()),
+    let presented = env
+        .replay_events
+        .iter()
+        .rev()
+        .find_map(|e| match e {
+            ReplayEvent::ChoicePresented {
+                reason: ChoiceReason::TargetSelect,
+                options,
+                ..
+            } => Some(options.clone()),
             _ => None,
-        }
-    }).expect("target choice");
+        })
+        .expect("target choice");
     assert_eq!(presented.len(), 2);
 
-    env.apply_action(ActionDesc::ChoiceSelect { index: 1 }).unwrap();
+    env.apply_action(ActionDesc::ChoiceSelect { index: 1 })
+        .unwrap();
 
     let stack_pushed = env.replay_events.iter().any(|e| matches!(e,
-        ReplayEvent::StackPushed { item } if matches!(item.effect, StackEffectKind::TargetedPower { ref targets, magnitude: 1000, duration: ModifierDuration::UntilEndOfTurn }
-            if targets.len() == 1 && targets[0].zone == TargetZone::Stage && targets[0].index == 1)
+        ReplayEvent::StackPushed { item } if matches!(item.payload.spec.kind, weiss_core::effects::EffectKind::AddModifier { magnitude: 1000, duration: ModifierDuration::UntilEndOfTurn, .. })
+            && item.payload.targets.len() == 1
+            && item.payload.targets[0].zone == TargetZone::Stage
+            && item.payload.targets[0].index == 1
     ));
     assert!(stack_pushed);
 
@@ -253,12 +345,40 @@ fn continuous_modifier_applies_and_clears_on_leave() {
     let curriculum = CurriculumConfig::default();
     let mut env = GameEnv::new(db, config, curriculum, 121, replay_config(), None);
 
-    setup_player_state(&mut env, 0, vec![CARD_CONTINUOUS_SELF_BOUNCE], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
-    setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(
+        &mut env,
+        0,
+        vec![CARD_CONTINUOUS_SELF_BOUNCE],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
     force_main_decision(&mut env, 0);
     env.validate_state().unwrap();
 
-    env.apply_action(ActionDesc::MainPlayCharacter { hand_index: 0, stage_slot: 0 }).unwrap();
+    env.apply_action(ActionDesc::MainPlayCharacter {
+        hand_index: 0,
+        stage_slot: 0,
+    })
+    .unwrap();
 
     let modifier_added = env.replay_events.iter().any(|e| matches!(e,
         ReplayEvent::ModifierAdded { source, target_slot, magnitude: 1500, duration: ModifierDuration::WhileOnStage, .. }
@@ -273,5 +393,8 @@ fn continuous_modifier_applies_and_clears_on_leave() {
     ));
     assert!(modifier_removed);
     assert!(env.state.players[0].stage[0].card.is_none());
-    assert!(env.state.players[0].hand.iter().any(|c| c.id == CARD_CONTINUOUS_SELF_BOUNCE));
+    assert!(env.state.players[0]
+        .hand
+        .iter()
+        .any(|c| c.id == CARD_CONTINUOUS_SELF_BOUNCE));
 }

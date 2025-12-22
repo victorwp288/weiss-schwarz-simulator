@@ -2,9 +2,12 @@ use std::sync::{Arc, OnceLock};
 
 use proptest::prelude::*;
 
-use weiss_core::config::{CurriculumConfig, EnvConfig, RewardConfig, ObservationVisibility, ErrorPolicy};
-use weiss_core::db::{CardDb, CardStatic, CardType, CardColor};
+use weiss_core::config::{
+    CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
+};
+use weiss_core::db::{CardColor, CardDb, CardStatic, CardType};
 use weiss_core::env::GameEnv;
+use weiss_core::util::hash_value;
 use weiss_core::util::Rng64;
 
 fn make_db() -> Arc<CardDb> {
@@ -21,6 +24,7 @@ fn make_db() -> Arc<CardDb> {
             triggers: vec![],
             traits: vec![],
             abilities: vec![],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -36,6 +40,7 @@ fn make_db() -> Arc<CardDb> {
             triggers: vec![],
             traits: vec![],
             abilities: vec![],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -55,8 +60,16 @@ fn make_env(seed: u64) -> GameEnv {
         reward: RewardConfig::default(),
         error_policy: ErrorPolicy::Strict,
         observation_visibility: ObservationVisibility::Public,
+        end_condition_policy: Default::default(),
     };
-    GameEnv::new(db, config, CurriculumConfig::default(), seed, Default::default(), None)
+    GameEnv::new(
+        db,
+        config,
+        CurriculumConfig::default(),
+        seed,
+        Default::default(),
+        None,
+    )
 }
 
 fn enable_validate() {
@@ -69,7 +82,15 @@ fn enable_validate() {
 fn total_cards(env: &GameEnv, player: usize) -> usize {
     let p = &env.state.players[player];
     let stage_count = p.stage.iter().filter(|c| c.card.is_some()).count();
-    p.deck.len() + p.hand.len() + p.waiting_room.len() + p.clock.len() + p.level.len() + p.stock.len() + p.memory.len() + p.climax.len() + stage_count
+    p.deck.len()
+        + p.hand.len()
+        + p.waiting_room.len()
+        + p.clock.len()
+        + p.level.len()
+        + p.stock.len()
+        + p.memory.len()
+        + p.climax.len()
+        + stage_count
 }
 
 proptest! {
@@ -91,6 +112,26 @@ proptest! {
             prop_assert_eq!(total_cards(&env, 1), 20);
         }
     }
+
+    #[test]
+    fn proptest_determinism(seed in any::<u64>()) {
+        enable_validate();
+        let mut env_a = make_env(seed);
+        let mut env_b = make_env(seed);
+        let mut rng = Rng64::new(seed ^ 0xBEEF_BEEF);
+        for _ in 0..80 {
+            if env_a.state.terminal.is_some() || env_b.state.terminal.is_some() {
+                break;
+            }
+            let decision = env_a.decision.clone().expect("decision should exist");
+            let actions = weiss_core::legal::legal_actions(&env_a.state, &decision, &env_a.db, &env_a.curriculum);
+            let idx = rng.gen_range(actions.len());
+            let action = actions[idx].clone();
+            env_a.apply_action(action.clone()).unwrap();
+            env_b.apply_action(action).unwrap();
+            prop_assert_eq!(hash_value(&env_a.state), hash_value(&env_b.state));
+        }
+    }
 }
 
 #[test]
@@ -104,7 +145,8 @@ fn fuzz_invariants_fixed_seed() {
             break;
         }
         let decision = env.decision.clone().expect("decision should exist");
-        let actions = weiss_core::legal::legal_actions(&env.state, &decision, &env.db, &env.curriculum);
+        let actions =
+            weiss_core::legal::legal_actions(&env.state, &decision, &env.db, &env.curriculum);
         let idx = rng.gen_range(actions.len());
         env.apply_action(actions[idx].clone()).unwrap();
         env.validate_state().unwrap();

@@ -1,9 +1,11 @@
 use std::sync::{Arc, OnceLock};
 
-use weiss_core::config::{CurriculumConfig, EnvConfig, RewardConfig, ObservationVisibility, ErrorPolicy};
-use weiss_core::db::{CardDb, CardStatic, CardType, CardColor, AbilityTemplate, TargetTemplate};
+use weiss_core::config::{
+    CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
+};
+use weiss_core::db::{AbilityTemplate, CardColor, CardDb, CardStatic, CardType, TargetTemplate};
 use weiss_core::env::GameEnv;
-use weiss_core::legal::{Decision, DecisionKind, ActionDesc};
+use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
 use weiss_core::replay::{ReplayConfig, ReplayEvent};
 use weiss_core::state::{CardInstance, ChoiceReason, ChoiceZone, Phase, StageSlot, StageStatus};
 
@@ -43,6 +45,7 @@ fn make_db() -> Arc<CardDb> {
             triggers: vec![],
             traits: vec![],
             abilities: vec![],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -57,13 +60,12 @@ fn make_db() -> Arc<CardDb> {
             soul: 1,
             triggers: vec![],
             traits: vec![],
-            abilities: vec![
-                AbilityTemplate::ActivatedTargetedPower {
-                    amount: 500,
-                    count: 1,
-                    target: TargetTemplate::OppFrontRow,
-                }
-            ],
+            abilities: vec![AbilityTemplate::ActivatedTargetedPower {
+                amount: 500,
+                count: 1,
+                target: TargetTemplate::OppFrontRow,
+            }],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -78,12 +80,11 @@ fn make_db() -> Arc<CardDb> {
             soul: 1,
             triggers: vec![],
             traits: vec![],
-            abilities: vec![
-                AbilityTemplate::ActivatedTargetedMoveToHand {
-                    count: 2,
-                    target: TargetTemplate::SelfWaitingRoom,
-                }
-            ],
+            abilities: vec![AbilityTemplate::ActivatedTargetedMoveToHand {
+                count: 2,
+                target: TargetTemplate::SelfWaitingRoom,
+            }],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -98,12 +99,11 @@ fn make_db() -> Arc<CardDb> {
             soul: 1,
             triggers: vec![],
             traits: vec![],
-            abilities: vec![
-                AbilityTemplate::ActivatedTargetedMoveToHand {
-                    count: 1,
-                    target: TargetTemplate::SelfWaitingRoom,
-                }
-            ],
+            abilities: vec![AbilityTemplate::ActivatedTargetedMoveToHand {
+                count: 1,
+                target: TargetTemplate::SelfWaitingRoom,
+            }],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -120,6 +120,7 @@ fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
         reward: RewardConfig::default(),
         error_policy: ErrorPolicy::Strict,
         observation_visibility: ObservationVisibility::Public,
+        end_condition_policy: Default::default(),
     }
 }
 
@@ -157,15 +158,33 @@ fn setup_player_state(
         }
     };
 
-    for &card in &hand { consume(card, "hand"); }
-    for &card in &stock { consume(card, "stock"); }
-    for &card in &deck_top { consume(card, "deck_top"); }
-    for &card in &clock { consume(card, "clock"); }
-    for &card in &level { consume(card, "level"); }
-    for &card in &waiting_room { consume(card, "waiting_room"); }
-    for &card in &memory { consume(card, "memory"); }
-    for &card in &climax { consume(card, "climax"); }
-    for &(_, card) in &stage_cards { consume(card, "stage"); }
+    for &card in &hand {
+        consume(card, "hand");
+    }
+    for &card in &stock {
+        consume(card, "stock");
+    }
+    for &card in &deck_top {
+        consume(card, "deck_top");
+    }
+    for &card in &clock {
+        consume(card, "clock");
+    }
+    for &card in &level {
+        consume(card, "level");
+    }
+    for &card in &waiting_room {
+        consume(card, "waiting_room");
+    }
+    for &card in &memory {
+        consume(card, "memory");
+    }
+    for &card in &climax {
+        consume(card, "climax");
+    }
+    for &(_, card) in &stage_cards {
+        consume(card, "stage");
+    }
 
     let mut remaining = Vec::new();
     for (card, count) in counts {
@@ -184,15 +203,45 @@ fn setup_player_state(
 
     let owner = player as u8;
     let p = &mut env.state.players[player];
-    p.hand = hand.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.stock = stock.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.clock = clock.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.level = level.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.waiting_room = waiting_room.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.memory = memory.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.climax = climax.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.deck = deck.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.stage = [StageSlot::empty(), StageSlot::empty(), StageSlot::empty(), StageSlot::empty(), StageSlot::empty()];
+    p.hand = hand
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.stock = stock
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.clock = clock
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.level = level
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.waiting_room = waiting_room
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.memory = memory
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.climax = climax
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.deck = deck
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.stage = [
+        StageSlot::empty(),
+        StageSlot::empty(),
+        StageSlot::empty(),
+        StageSlot::empty(),
+        StageSlot::empty(),
+    ];
     for (slot, card) in stage_cards {
         let mut slot_state = StageSlot::empty();
         slot_state.card = Some(CardInstance::new(card, owner));
@@ -220,7 +269,11 @@ fn force_main_decision(env: &mut GameEnv, player: u8) {
     env.state.turn.derived_attack = None;
     env.state.turn.end_phase_pending = false;
     env.state.turn.main_passed = false;
-    env.decision = Some(Decision { player, kind: DecisionKind::Main, focus_slot: None });
+    env.decision = Some(Decision {
+        player,
+        kind: DecisionKind::Main,
+        focus_slot: None,
+    });
 }
 
 #[test]
@@ -233,28 +286,73 @@ fn target_opponent_front_row_ordering() {
     let curriculum = CurriculumConfig::default();
     let mut env = GameEnv::new(db, config, curriculum, 99, replay_config(), None);
 
-    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_TARGET_OPP_FRONT)], vec![], vec![], vec![], vec![], vec![], vec![]);
-    setup_player_state(&mut env, 1, vec![], vec![], vec![(0, CARD_BASIC), (1, CARD_BASIC), (2, CARD_BASIC), (3, CARD_BASIC)], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_TARGET_OPP_FRONT)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![
+            (0, CARD_BASIC),
+            (1, CARD_BASIC),
+            (2, CARD_BASIC),
+            (3, CARD_BASIC),
+        ],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
     force_main_decision(&mut env, 0);
     env.validate_state().unwrap();
 
     env.apply_action(ActionDesc::MainPass).unwrap();
 
-    let presented = env.replay_events.iter().rev().find_map(|e| {
-        match e {
-            ReplayEvent::ChoicePresented { reason: ChoiceReason::TargetSelect, options, .. } => Some(options.clone()),
+    let presented = env
+        .replay_events
+        .iter()
+        .rev()
+        .find_map(|e| match e {
+            ReplayEvent::ChoicePresented {
+                reason: ChoiceReason::TargetSelect,
+                options,
+                ..
+            } => Some(options.clone()),
             _ => None,
-        }
-    }).expect("target selection choice");
+        })
+        .expect("target selection choice");
 
-    let indices: Vec<u8> = presented.iter().map(|opt| opt.reference.index.unwrap()).collect();
+    let indices: Vec<u8> = presented
+        .iter()
+        .map(|opt| opt.reference.index.unwrap())
+        .collect();
     assert_eq!(indices, vec![0, 1, 2]);
-    assert!(presented.iter().all(|opt| opt.reference.zone == ChoiceZone::Stage));
+    assert!(presented
+        .iter()
+        .all(|opt| opt.reference.zone == ChoiceZone::Stage));
 
-    env.apply_action(ActionDesc::ChoiceSelect { index: 1 }).unwrap();
+    env.apply_action(ActionDesc::ChoiceSelect { index: 1 })
+        .unwrap();
 
     let applied = env.state.modifiers.iter().any(|m| {
-        m.source == CARD_TARGET_OPP_FRONT && m.target_player == 1 && m.target_slot == 1 && m.magnitude == 500
+        m.source == CARD_TARGET_OPP_FRONT
+            && m.target_player == 1
+            && m.target_slot == 1
+            && m.magnitude == 500
     });
     assert!(applied);
 }
@@ -269,25 +367,61 @@ fn multi_target_selection_no_duplicates() {
     let curriculum = CurriculumConfig::default();
     let mut env = GameEnv::new(db, config, curriculum, 100, replay_config(), None);
 
-    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_TARGET_WR_MULTI)], vec![], vec![], vec![], vec![CARD_BASIC, CARD_BASIC, CARD_BASIC], vec![], vec![]);
-    setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_TARGET_WR_MULTI)],
+        vec![],
+        vec![],
+        vec![],
+        vec![CARD_BASIC, CARD_BASIC, CARD_BASIC],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
     force_main_decision(&mut env, 0);
     env.validate_state().unwrap();
 
     env.apply_action(ActionDesc::MainPass).unwrap();
-    env.apply_action(ActionDesc::ChoiceSelect { index: 1 }).unwrap();
+    env.apply_action(ActionDesc::ChoiceSelect { index: 1 })
+        .unwrap();
 
-    let second_presented = env.replay_events.iter().rev().find_map(|e| {
-        match e {
-            ReplayEvent::ChoicePresented { reason: ChoiceReason::TargetSelect, options, .. } => Some(options.clone()),
+    let second_presented = env
+        .replay_events
+        .iter()
+        .rev()
+        .find_map(|e| match e {
+            ReplayEvent::ChoicePresented {
+                reason: ChoiceReason::TargetSelect,
+                options,
+                ..
+            } => Some(options.clone()),
             _ => None,
-        }
-    }).expect("second target choice");
+        })
+        .expect("second target choice");
 
-    let indices: Vec<u8> = second_presented.iter().map(|opt| opt.reference.index.unwrap()).collect();
+    let indices: Vec<u8> = second_presented
+        .iter()
+        .map(|opt| opt.reference.index.unwrap())
+        .collect();
     assert_eq!(indices, vec![0, 2]);
 
-    env.apply_action(ActionDesc::ChoiceSelect { index: 0 }).unwrap();
+    env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
+        .unwrap();
 
     assert_eq!(env.state.players[0].hand.len(), 2);
     assert_eq!(env.state.players[0].waiting_room.len(), 1);
@@ -307,24 +441,57 @@ fn target_choice_truncation_metadata() {
     for _ in 0..18 {
         waiting_room.push(CARD_BASIC);
     }
-    setup_player_state(&mut env, 0, vec![], vec![], vec![(0, CARD_TARGET_WR_TRUNC)], vec![], vec![], vec![], waiting_room, vec![], vec![]);
-    setup_player_state(&mut env, 1, vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_TARGET_WR_TRUNC)],
+        vec![],
+        vec![],
+        vec![],
+        waiting_room,
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
     force_main_decision(&mut env, 0);
     env.validate_state().unwrap();
 
     env.apply_action(ActionDesc::MainPass).unwrap();
 
-    let (options, total) = env.replay_events.iter().rev().find_map(|e| {
-        match e {
-            ReplayEvent::ChoicePresented { reason: ChoiceReason::TargetSelect, options, total_candidates, .. } => {
-                Some((options.clone(), *total_candidates))
-            }
+    let (options, total) = env
+        .replay_events
+        .iter()
+        .rev()
+        .find_map(|e| match e {
+            ReplayEvent::ChoicePresented {
+                reason: ChoiceReason::TargetSelect,
+                options,
+                total_candidates,
+                ..
+            } => Some((options.clone(), *total_candidates)),
             _ => None,
-        }
-    }).expect("truncation choice");
+        })
+        .expect("truncation choice");
 
     assert_eq!(total, 18);
     assert_eq!(options.len(), 16);
-    let indices: Vec<u8> = options.iter().map(|opt| opt.reference.index.unwrap()).collect();
+    let indices: Vec<u8> = options
+        .iter()
+        .map(|opt| opt.reference.index.unwrap())
+        .collect();
     assert_eq!(indices, (0u8..16u8).collect::<Vec<u8>>());
 }

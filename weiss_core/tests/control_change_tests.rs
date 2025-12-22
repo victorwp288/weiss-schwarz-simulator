@@ -1,11 +1,15 @@
 use std::sync::{Arc, OnceLock};
 
-use weiss_core::config::{CurriculumConfig, EnvConfig, RewardConfig, ObservationVisibility, ErrorPolicy};
-use weiss_core::db::{CardDb, CardStatic, CardType, CardColor, AbilityTemplate, TargetTemplate, TriggerIcon};
+use weiss_core::config::{
+    CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
+};
+use weiss_core::db::{
+    AbilityTemplate, CardColor, CardDb, CardStatic, CardType, TargetTemplate, TriggerIcon,
+};
 use weiss_core::env::GameEnv;
-use weiss_core::legal::{Decision, DecisionKind, ActionDesc};
+use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
 use weiss_core::replay::{ReplayConfig, ReplayEvent};
-use weiss_core::state::{CardInstance, AttackType, Phase, StageSlot, StageStatus};
+use weiss_core::state::{AttackType, CardInstance, Phase, StageSlot, StageStatus};
 
 const CARD_BASIC: u32 = 1;
 const CARD_CONTROL_CHANGE: u32 = 50;
@@ -42,6 +46,7 @@ fn make_db() -> Arc<CardDb> {
             triggers: vec![],
             traits: vec![],
             abilities: vec![],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -56,9 +61,11 @@ fn make_db() -> Arc<CardDb> {
             soul: 1,
             triggers: vec![],
             traits: vec![],
-            abilities: vec![
-                AbilityTemplate::ActivatedChangeController { count: 1, target: TargetTemplate::OppFrontRow }
-            ],
+            abilities: vec![AbilityTemplate::ActivatedChangeController {
+                count: 1,
+                target: TargetTemplate::OppFrontRow,
+            }],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -74,6 +81,7 @@ fn make_db() -> Arc<CardDb> {
             triggers: vec![TriggerIcon::Bounce],
             traits: vec![],
             abilities: vec![],
+            ability_defs: vec![],
             counter_timing: false,
             raw_text: None,
         },
@@ -90,6 +98,7 @@ fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
         reward: RewardConfig::default(),
         error_policy: ErrorPolicy::Strict,
         observation_visibility: ObservationVisibility::Public,
+        end_condition_policy: Default::default(),
     }
 }
 
@@ -127,15 +136,33 @@ fn setup_player_state(
         }
     };
 
-    for &card in &hand { consume(card, "hand"); }
-    for &card in &stock { consume(card, "stock"); }
-    for &card in &deck_top { consume(card, "deck_top"); }
-    for &card in &clock { consume(card, "clock"); }
-    for &card in &level { consume(card, "level"); }
-    for &card in &waiting_room { consume(card, "waiting_room"); }
-    for &card in &memory { consume(card, "memory"); }
-    for &card in &climax { consume(card, "climax"); }
-    for &(_, card) in &stage_cards { consume(card, "stage"); }
+    for &card in &hand {
+        consume(card, "hand");
+    }
+    for &card in &stock {
+        consume(card, "stock");
+    }
+    for &card in &deck_top {
+        consume(card, "deck_top");
+    }
+    for &card in &clock {
+        consume(card, "clock");
+    }
+    for &card in &level {
+        consume(card, "level");
+    }
+    for &card in &waiting_room {
+        consume(card, "waiting_room");
+    }
+    for &card in &memory {
+        consume(card, "memory");
+    }
+    for &card in &climax {
+        consume(card, "climax");
+    }
+    for &(_, card) in &stage_cards {
+        consume(card, "stage");
+    }
 
     let mut remaining = Vec::new();
     for (card, count) in counts {
@@ -154,15 +181,45 @@ fn setup_player_state(
 
     let owner = player as u8;
     let p = &mut env.state.players[player];
-    p.hand = hand.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.stock = stock.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.clock = clock.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.level = level.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.waiting_room = waiting_room.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.memory = memory.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.climax = climax.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.deck = deck.into_iter().map(|id| CardInstance::new(id, owner)).collect();
-    p.stage = [StageSlot::empty(), StageSlot::empty(), StageSlot::empty(), StageSlot::empty(), StageSlot::empty()];
+    p.hand = hand
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.stock = stock
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.clock = clock
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.level = level
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.waiting_room = waiting_room
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.memory = memory
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.climax = climax
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.deck = deck
+        .into_iter()
+        .map(|id| CardInstance::new(id, owner))
+        .collect();
+    p.stage = [
+        StageSlot::empty(),
+        StageSlot::empty(),
+        StageSlot::empty(),
+        StageSlot::empty(),
+        StageSlot::empty(),
+    ];
     for (slot, card) in stage_cards {
         let mut slot_state = StageSlot::empty();
         slot_state.card = Some(CardInstance::new(card, owner));
@@ -190,7 +247,11 @@ fn force_main_decision(env: &mut GameEnv, player: u8) {
     env.state.turn.derived_attack = None;
     env.state.turn.end_phase_pending = false;
     env.state.turn.main_passed = false;
-    env.decision = Some(Decision { player, kind: DecisionKind::Main, focus_slot: None });
+    env.decision = Some(Decision {
+        player,
+        kind: DecisionKind::Main,
+        focus_slot: None,
+    });
 }
 
 fn force_attack_decision(env: &mut GameEnv, player: u8) {
@@ -212,7 +273,11 @@ fn force_attack_decision(env: &mut GameEnv, player: u8) {
     env.state.turn.derived_attack = None;
     env.state.turn.end_phase_pending = false;
     env.state.turn.main_passed = false;
-    env.decision = Some(Decision { player, kind: DecisionKind::AttackDeclaration, focus_slot: None });
+    env.decision = Some(Decision {
+        player,
+        kind: DecisionKind::AttackDeclaration,
+        focus_slot: None,
+    });
 }
 
 #[test]
@@ -225,8 +290,32 @@ fn control_change_allows_attack() {
     let curriculum = CurriculumConfig::default();
     let mut env = GameEnv::new(db, config, curriculum, 130, replay_config(), None);
 
-    setup_player_state(&mut env, 0, vec![], vec![], vec![(1, CARD_CONTROL_CHANGE)], vec![], vec![], vec![], vec![], vec![], vec![]);
-    setup_player_state(&mut env, 1, vec![], vec![], vec![(0, CARD_BASIC)], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(1, CARD_CONTROL_CHANGE)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![(0, CARD_BASIC)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
     force_main_decision(&mut env, 0);
     env.validate_state().unwrap();
 
@@ -245,7 +334,11 @@ fn control_change_allows_attack() {
     assert!(control_logged);
 
     force_attack_decision(&mut env, 0);
-    env.apply_action(ActionDesc::Attack { slot: 0, attack_type: AttackType::Direct }).unwrap();
+    env.apply_action(ActionDesc::Attack {
+        slot: 0,
+        attack_type: AttackType::Direct,
+    })
+    .unwrap();
 }
 
 #[test]
@@ -271,16 +364,33 @@ fn control_persists_after_leaving_stage() {
         vec![],
         vec![],
     );
-    setup_player_state(&mut env, 1, vec![], vec![], vec![(0, CARD_BASIC)], vec![], vec![], vec![], vec![], vec![], vec![]);
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![(0, CARD_BASIC)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
     force_main_decision(&mut env, 0);
     env.validate_state().unwrap();
 
     env.apply_action(ActionDesc::MainPass).unwrap();
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Climax);
     env.apply_action(ActionDesc::ClimaxPass).unwrap();
-    env.apply_action(ActionDesc::Attack { slot: 2, attack_type: AttackType::Direct }).unwrap();
+    env.apply_action(ActionDesc::Attack {
+        slot: 2,
+        attack_type: AttackType::Direct,
+    })
+    .unwrap();
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Choice);
-    env.apply_action(ActionDesc::ChoiceSelect { index: 0 }).unwrap();
+    env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
+        .unwrap();
 
     let controlled_in_hand = env.state.players[0]
         .hand
