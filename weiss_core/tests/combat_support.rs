@@ -28,6 +28,11 @@ pub const CARD_TRIGGER_TREASURE: u32 = 15;
 pub const CARD_TRIGGER_STANDBY: u32 = 16;
 pub const CARD_CANNOT_ATTACK: u32 = 17;
 pub const CARD_COUNTER_DOUBLE_REDUCE: u32 = 18;
+
+fn make_instance(card_id: u32, owner: u8, zone_tag: u32, index: usize) -> CardInstance {
+    let instance_id = ((owner as u32) << 24) | (zone_tag << 16) | (index as u32);
+    CardInstance::new(card_id, owner, instance_id)
+}
 pub const CARD_LEVEL_ONE: u32 = 19;
 pub const CARD_LEVEL_TWO: u32 = 20;
 pub const CARD_ACT_ABILITY: u32 = 21;
@@ -491,35 +496,43 @@ pub fn setup_player_state(
     let p = &mut env.state.players[player];
     p.hand = hand
         .into_iter()
-        .map(|id| CardInstance::new(id, owner))
+        .enumerate()
+        .map(|(idx, id)| make_instance(id, owner, 1, idx))
         .collect();
     p.stock = stock
         .into_iter()
-        .map(|id| CardInstance::new(id, owner))
+        .enumerate()
+        .map(|(idx, id)| make_instance(id, owner, 2, idx))
         .collect();
     p.clock = clock
         .into_iter()
-        .map(|id| CardInstance::new(id, owner))
+        .enumerate()
+        .map(|(idx, id)| make_instance(id, owner, 3, idx))
         .collect();
     p.level = level
         .into_iter()
-        .map(|id| CardInstance::new(id, owner))
+        .enumerate()
+        .map(|(idx, id)| make_instance(id, owner, 4, idx))
         .collect();
     p.waiting_room = waiting_room
         .into_iter()
-        .map(|id| CardInstance::new(id, owner))
+        .enumerate()
+        .map(|(idx, id)| make_instance(id, owner, 5, idx))
         .collect();
     p.memory = memory
         .into_iter()
-        .map(|id| CardInstance::new(id, owner))
+        .enumerate()
+        .map(|(idx, id)| make_instance(id, owner, 6, idx))
         .collect();
     p.climax = climax
         .into_iter()
-        .map(|id| CardInstance::new(id, owner))
+        .enumerate()
+        .map(|(idx, id)| make_instance(id, owner, 7, idx))
         .collect();
     p.deck = deck
         .into_iter()
-        .map(|id| CardInstance::new(id, owner))
+        .enumerate()
+        .map(|(idx, id)| make_instance(id, owner, 8, idx))
         .collect();
     p.stage = [
         StageSlot::empty(),
@@ -530,7 +543,7 @@ pub fn setup_player_state(
     ];
     for (slot, card) in stage_cards {
         let mut slot_state = StageSlot::empty();
-        slot_state.card = Some(CardInstance::new(card, owner));
+        slot_state.card = Some(make_instance(card, owner, 4, slot));
         slot_state.status = StageStatus::Stand;
         p.stage[slot] = slot_state;
     }

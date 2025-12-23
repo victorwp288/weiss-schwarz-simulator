@@ -19,6 +19,11 @@ const CARD_ACTIVATED: u32 = 102;
 const CARD_AUTO: u32 = 103;
 const CARD_FILLER: u32 = 104;
 
+fn make_instance(card_id: u32, owner: u8, zone_tag: u32, index: usize) -> CardInstance {
+    let instance_id = ((owner as u32) << 24) | (zone_tag << 16) | (index as u32);
+    CardInstance::new(card_id, owner, instance_id)
+}
+
 fn make_db() -> Arc<CardDb> {
     let activated = AbilityDef {
         kind: AbilityKind::Activated,
@@ -179,14 +184,14 @@ fn unified_effects_pipeline_coverage() {
         vec![CARD_ATTACKER, CARD_ATTACKER, CARD_TRIGGER_DRAW];
     env.config.deck_lists[1] = vec![CARD_ATTACKER];
     let mut slot = StageSlot::empty();
-    slot.card = Some(CardInstance::new(CARD_ATTACKER, 0));
+    slot.card = Some(make_instance(CARD_ATTACKER, 0, 4, 0));
     slot.status = StageStatus::Stand;
     env.state.players[0].stage[0] = slot;
     env.state.players[0].deck = vec![
-        CardInstance::new(CARD_ATTACKER, 0),
-        CardInstance::new(CARD_TRIGGER_DRAW, 0),
+        make_instance(CARD_ATTACKER, 0, 8, 0),
+        make_instance(CARD_TRIGGER_DRAW, 0, 8, 1),
     ];
-    env.state.players[1].deck = vec![CardInstance::new(CARD_ATTACKER, 1)];
+    env.state.players[1].deck = vec![make_instance(CARD_ATTACKER, 1, 8, 0)];
     env.state.turn.phase = Phase::Attack;
     env.state.turn.active_player = 0;
     env.state.turn.starting_player = 0;
@@ -236,9 +241,9 @@ fn unified_effects_pipeline_coverage() {
     clear_player_state(&mut env, 1);
     env.config.deck_lists[0] = vec![CARD_AUTO, CARD_FILLER];
     env.config.deck_lists[1] = vec![CARD_FILLER];
-    env.state.players[0].hand = vec![CardInstance::new(CARD_AUTO, 0)];
-    env.state.players[0].deck = vec![CardInstance::new(CARD_FILLER, 0)];
-    env.state.players[1].deck = vec![CardInstance::new(CARD_FILLER, 1)];
+    env.state.players[0].hand = vec![make_instance(CARD_AUTO, 0, 1, 0)];
+    env.state.players[0].deck = vec![make_instance(CARD_FILLER, 0, 8, 0)];
+    env.state.players[1].deck = vec![make_instance(CARD_FILLER, 1, 8, 0)];
     env.state.turn.phase = Phase::Main;
     env.state.turn.active_player = 0;
     env.state.turn.starting_player = 0;
@@ -273,9 +278,9 @@ fn unified_effects_pipeline_coverage() {
     clear_player_state(&mut env, 1);
     env.config.deck_lists[0] = vec![CARD_ACTIVATED];
     env.config.deck_lists[1] = vec![CARD_FILLER];
-    env.state.players[1].deck = vec![CardInstance::new(CARD_FILLER, 1)];
+    env.state.players[1].deck = vec![make_instance(CARD_FILLER, 1, 8, 0)];
     let mut slot = StageSlot::empty();
-    slot.card = Some(CardInstance::new(CARD_ACTIVATED, 0));
+    slot.card = Some(make_instance(CARD_ACTIVATED, 0, 4, 0));
     slot.status = StageStatus::Stand;
     env.state.players[0].stage[0] = slot;
     env.state.turn.phase = Phase::Main;
@@ -308,11 +313,11 @@ fn unified_effects_pipeline_coverage() {
     env.config.deck_lists[active] = vec![CARD_FILLER, CARD_FILLER];
     env.config.deck_lists[1 - active] = vec![CARD_FILLER];
     env.state.players[active].waiting_room = vec![
-        CardInstance::new(CARD_FILLER, active as u8),
-        CardInstance::new(CARD_FILLER, active as u8),
+        make_instance(CARD_FILLER, active as u8, 5, 0),
+        make_instance(CARD_FILLER, active as u8, 5, 1),
     ];
     env.state.players[1 - active].deck =
-        vec![CardInstance::new(CARD_FILLER, (1 - active) as u8)];
+        vec![make_instance(CARD_FILLER, (1 - active) as u8, 8, 0)];
     env.apply_action(ActionDesc::MulliganKeep).unwrap();
     env.apply_action(ActionDesc::MulliganKeep).unwrap();
     assert!(stack_pushed_with_source(

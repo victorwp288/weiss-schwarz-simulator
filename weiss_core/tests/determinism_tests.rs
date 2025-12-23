@@ -7,7 +7,7 @@ use weiss_core::db::{CardColor, CardDb, CardStatic, CardType};
 use weiss_core::env::GameEnv;
 use weiss_core::legal::DecisionKind;
 use weiss_core::replay::{ReplayConfig, ReplayEvent};
-use weiss_core::util::hash_value;
+use weiss_core::fingerprint::{events_fingerprint, state_fingerprint};
 
 const CARD_BASIC: u32 = 1;
 
@@ -61,10 +61,8 @@ fn run_episode(env: &mut GameEnv, max_steps: usize) -> (Vec<DecisionKind>, Vec<V
             .expect("legal action");
         env.apply_action_id(action_id).expect("apply action");
     }
-    let state_hash = hash_value(&env.state);
-    let replay_fingerprint: Vec<String> =
-        env.replay_events.iter().map(|e| format!("{e:?}")).collect();
-    let replay_hash = hash_value(&replay_fingerprint);
+    let state_hash = state_fingerprint(&env.state);
+    let replay_hash = events_fingerprint(env.canonical_events());
     (kinds, masks, state_hash, replay_hash)
 }
 

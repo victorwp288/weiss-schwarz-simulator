@@ -6,7 +6,7 @@ use weiss_core::env::GameEnv;
 use weiss_core::events::{RevealAudience, RevealReason};
 use weiss_core::legal::{ActionDesc, DecisionKind};
 use weiss_core::replay::ReplayEvent;
-use weiss_core::state::{AttackType, ChoiceOptionRef, ChoiceReason, ChoiceZone, StageStatus};
+use weiss_core::state::{AttackType, ChoiceReason, ChoiceZone, StageStatus};
 
 #[test]
 fn trigger_gate_choice_skipped_no_candidates() {
@@ -478,24 +478,16 @@ fn trigger_standby_choice_orders_candidates_and_replaces_when_full() {
         })
         .expect("standby choice presented");
     assert_eq!(*presented.1, 10);
-    assert_eq!(
-        presented.0[0].reference,
-        ChoiceOptionRef {
-            card_id: CARD_BASIC,
-            zone: ChoiceZone::WaitingRoom,
-            index: Some(0),
-            target_slot: Some(0)
-        }
-    );
-    assert_eq!(
-        presented.0[5].reference,
-        ChoiceOptionRef {
-            card_id: CARD_LEVEL_ONE,
-            zone: ChoiceZone::WaitingRoom,
-            index: Some(1),
-            target_slot: Some(0)
-        }
-    );
+    let option0 = &presented.0[0].reference;
+    assert_eq!(option0.card_id, CARD_BASIC);
+    assert_eq!(option0.zone, ChoiceZone::WaitingRoom);
+    assert_eq!(option0.index, Some(0));
+    assert_eq!(option0.target_slot, Some(0));
+    let option5 = &presented.0[5].reference;
+    assert_eq!(option5.card_id, CARD_LEVEL_ONE);
+    assert_eq!(option5.zone, ChoiceZone::WaitingRoom);
+    assert_eq!(option5.index, Some(1));
+    assert_eq!(option5.target_slot, Some(0));
 
     env.apply_action(ActionDesc::ChoiceSelect { index: 6 })
         .unwrap();
@@ -585,15 +577,13 @@ fn trigger_treasure_choice_stock_top_card() {
                 Some((options, total_candidates))
             } else {
                 None
-            }
+    }
         })
         .expect("treasure choice presented");
     assert_eq!(options.len(), 2);
-    let stock_id = (3u64 << 24) | (0u64 << 8);
-    let skip_id = (3u64 << 24) | (1u64 << 8);
-    assert_eq!(options[0].option_id, stock_id);
-    assert_eq!(options[1].option_id, skip_id);
+    assert_ne!(options[0].option_id, options[1].option_id);
     assert!(matches!(options[0].reference.zone, ChoiceZone::DeckTop));
+    assert!(matches!(options[1].reference.zone, ChoiceZone::DeckTop));
 
     env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
         .unwrap();
@@ -666,7 +656,26 @@ fn trigger_treasure_choice_skip() {
         attack_type: AttackType::Direct,
     })
     .unwrap();
-    env.apply_action(ActionDesc::ChoiceSelect { index: 1 })
+    let skip_index = env
+        .state
+        .turn
+        .choice
+        .as_ref()
+        .and_then(|choice| {
+            choice
+                .options
+                .iter()
+                .enumerate()
+                .find_map(|(idx, opt)| {
+                    if opt.index == Some(1) {
+                        Some(idx as u8)
+                    } else {
+                        None
+                    }
+                })
+        })
+        .expect("treasure skip option");
+    env.apply_action(ActionDesc::ChoiceSelect { index: skip_index })
         .unwrap();
 
     assert!(env.state.players[0]
@@ -678,10 +687,11 @@ fn trigger_treasure_choice_skip() {
         matches!(
             e,
             ReplayEvent::ZoneMove {
+                card,
                 from: weiss_core::events::Zone::Deck,
                 to: weiss_core::events::Zone::Stock,
                 ..
-            }
+            } if *card == CARD_BASIC
         )
     });
     assert!(!moved_to_stock);

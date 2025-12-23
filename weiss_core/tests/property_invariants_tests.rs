@@ -7,7 +7,7 @@ use weiss_core::config::{
 };
 use weiss_core::db::{CardColor, CardDb, CardStatic, CardType};
 use weiss_core::env::GameEnv;
-use weiss_core::util::hash_value;
+use weiss_core::fingerprint::state_fingerprint;
 use weiss_core::util::Rng64;
 
 fn make_db() -> Arc<CardDb> {
@@ -129,7 +129,7 @@ proptest! {
             let action = actions[idx].clone();
             env_a.apply_action(action.clone()).unwrap();
             env_b.apply_action(action).unwrap();
-            prop_assert_eq!(hash_value(&env_a.state), hash_value(&env_b.state));
+            prop_assert_eq!(state_fingerprint(&env_a.state), state_fingerprint(&env_b.state));
         }
     }
 }

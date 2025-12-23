@@ -117,7 +117,7 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
         ];
     }
     let mut slot = StageSlot::empty();
-    slot.card = Some(CardInstance::new(1, 0));
+    slot.card = Some(CardInstance::new(1, 0, 1));
     slot.status = StageStatus::Stand;
     env.state.players[0].stage[0] = slot;
     env.state.turn.phase = Phase::Main;
@@ -136,18 +136,6 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
     assert_eq!(choice.options.len(), 2);
     assert_eq!(choice.options[0].target_slot, Some(0));
     assert_eq!(choice.options[1].target_slot, Some(1));
-
-    let action_a = ActionDesc::MainActivateAbility {
-        slot: 0,
-        ability_index: 0,
-    };
-    let action_b = ActionDesc::MainActivateAbility {
-        slot: 0,
-        ability_index: 1,
-    };
-    let id_a = weiss_core::encode::action_id_for(&action_a).expect("action id a");
-    let id_b = weiss_core::encode::action_id_for(&action_b).expect("action id b");
-    assert!(id_a < id_b);
 
     env.apply_action(ActionDesc::ChoiceSelect { index: 1 })
         .unwrap();

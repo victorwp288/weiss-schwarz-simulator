@@ -7,10 +7,15 @@ use weiss_core::db::{AbilityTemplate, CardColor, CardDb, CardStatic, CardType};
 use weiss_core::env::GameEnv;
 use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
 use weiss_core::replay::ReplayConfig;
-use weiss_core::state::{Phase, StageSlot, StageStatus};
+use weiss_core::state::{CardInstance, Phase, StageSlot, StageStatus};
 
 const CARD_BASIC: u32 = 1;
 const CARD_ACT: u32 = 2;
+
+fn make_instance(card_id: u32, owner: u8, zone_tag: u32, index: usize) -> CardInstance {
+    let instance_id = ((owner as u32) << 24) | (zone_tag << 16) | (index as u32);
+    CardInstance::new(card_id, owner, instance_id)
+}
 
 fn make_db() -> Arc<CardDb> {
     let cards = vec![
@@ -141,10 +146,10 @@ fn priority_single_action_autopick_does_not_repeat() {
             StageSlot::empty(),
         ];
     }
-    env.state.players[1].deck = vec![weiss_core::state::CardInstance::new(CARD_BASIC, 1)];
+    env.state.players[1].deck = vec![make_instance(CARD_BASIC, 1, 8, 0)];
 
     let mut slot = StageSlot::empty();
-    slot.card = Some(weiss_core::state::CardInstance::new(CARD_ACT, 0));
+    slot.card = Some(make_instance(CARD_ACT, 0, 4, 0));
     slot.status = StageStatus::Stand;
     env.state.players[0].stage[0] = slot;
 

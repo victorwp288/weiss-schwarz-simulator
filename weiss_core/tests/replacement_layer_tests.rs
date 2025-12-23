@@ -17,6 +17,11 @@ use weiss_core::state::{CardInstance, Phase, StageSlot, StageStatus, TargetSide,
 const CARD_DAMAGE_ACT: u32 = 90;
 const CARD_BASIC: u32 = 91;
 
+fn make_instance(card_id: u32, owner: u8, zone_tag: u32, index: usize) -> CardInstance {
+    let instance_id = ((owner as u32) << 24) | (zone_tag << 16) | (index as u32);
+    CardInstance::new(card_id, owner, instance_id)
+}
+
 fn enable_validate() {
     static VALIDATE_ONCE: OnceLock<()> = OnceLock::new();
     VALIDATE_ONCE.get_or_init(|| {
@@ -92,7 +97,9 @@ fn setup_player_state(
 ) {
     let owner = player as u8;
     let p = &mut env.state.players[player];
-    p.deck = vec![CardInstance::new(deck_fill, owner); deck_count];
+    p.deck = (0..deck_count)
+        .map(|idx| make_instance(deck_fill, owner, 8, idx))
+        .collect();
     p.hand.clear();
     p.waiting_room.clear();
     p.clock.clear();
@@ -109,7 +116,7 @@ fn setup_player_state(
     ];
     if let Some(stage_card) = stage_card {
         let mut slot_state = StageSlot::empty();
-        slot_state.card = Some(CardInstance::new(stage_card, owner));
+        slot_state.card = Some(make_instance(stage_card, owner, 4, 0));
         slot_state.status = StageStatus::Stand;
         p.stage[0] = slot_state;
     }
@@ -135,7 +142,7 @@ fn replacements_apply_in_priority_order() {
     setup_player_state(&mut env, 1, None, CARD_BASIC, 20);
     env.state.players[0]
         .hand
-        .push(CardInstance::new(CARD_DAMAGE_ACT, 0));
+        .push(make_instance(CARD_DAMAGE_ACT, 0, 3, 0));
     env.state.turn.phase = Phase::Main;
     env.state.turn.active_player = 0;
     env.state.turn.starting_player = 0;

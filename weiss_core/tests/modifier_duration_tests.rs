@@ -105,7 +105,9 @@ fn modifier_until_end_of_turn_expires() {
         0,
         env.decision.as_ref(),
         env.last_action_desc.as_ref(),
+        env.last_action_player,
         env.config.observation_visibility,
+        env.curriculum.enable_visibility_policies,
         &mut obs,
     );
     assert_eq!(slot_power_from_obs(&obs, 0, 0), 1500);

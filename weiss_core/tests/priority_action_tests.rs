@@ -134,12 +134,24 @@ fn counter_priority_choice_orders_by_hand_index() {
                 Some((options, total_candidates))
             } else {
                 None
-            }
+    }
         })
         .expect("priority choice presented");
     assert_eq!(*total, 2);
-    let option_id_0 = (CARD_COUNTER_REDUCE as u64) << 32 | (11u64 << 24) | (0u64 << 8);
-    let option_id_1 = (CARD_COUNTER_CANCEL as u64) << 32 | (11u64 << 24) | (1u64 << 8);
+    let ref0 = &options[0].reference;
+    let ref1 = &options[1].reference;
+    let id0 = if ref0.instance_id != 0 {
+        ref0.instance_id
+    } else {
+        ref0.card_id
+    };
+    let id1 = if ref1.instance_id != 0 {
+        ref1.instance_id
+    } else {
+        ref1.card_id
+    };
+    let option_id_0 = (id0 as u64) << 32 | (11u64 << 24) | (0u64 << 8);
+    let option_id_1 = (id1 as u64) << 32 | (11u64 << 24) | (1u64 << 8);
     assert_eq!(options[0].option_id, option_id_0);
     assert_eq!(options[1].option_id, option_id_1);
 

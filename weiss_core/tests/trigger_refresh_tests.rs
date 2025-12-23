@@ -1,6 +1,7 @@
 mod engine_support;
 
 use engine_support::*;
+use weiss_core::events::{RevealReason, Zone};
 use weiss_core::env::GameEnv;
 use weiss_core::legal::ActionDesc;
 use weiss_core::replay::{ReplayConfig, ReplayEvent, ReplayWriter};
@@ -82,4 +83,122 @@ fn refresh_penalty_applied() {
     }
     assert_eq!(env.state.players[active].clock.len(), 1);
     assert!(!env.state.players[active].deck.is_empty());
+}
+
+#[test]
+fn refresh_penalty_event_ordering() {
+    let db = make_db();
+    let deck_a = vec![1; 20];
+    let deck_b = vec![1; 20];
+    let config = make_config(deck_a, deck_b);
+    let replay_config = ReplayConfig {
+        enabled: true,
+        sample_rate: 1.0,
+        ..Default::default()
+    };
+    let mut env = GameEnv::new(db, config, default_curriculum(), 22, replay_config, None);
+    let active = env.state.turn.starting_player as usize;
+    let mut deck = Vec::new();
+    std::mem::swap(&mut deck, &mut env.state.players[active].deck);
+    env.state.players[active].waiting_room = deck;
+    env.apply_action(ActionDesc::MulliganKeep).unwrap();
+    env.apply_action(ActionDesc::MulliganKeep).unwrap();
+
+    let events = &env.replay_events;
+    let refresh_idx = events
+        .iter()
+        .position(|e| matches!(e, ReplayEvent::Refresh { player } if *player == active as u8))
+        .expect("refresh event");
+    let shuffle_idx = events[..refresh_idx]
+        .iter()
+        .rposition(|e| matches!(e, ReplayEvent::Shuffle { player, zone: Zone::Deck } if *player == active as u8))
+        .expect("shuffle event");
+    let (reveal_idx, penalty_card) = events
+        .iter()
+        .enumerate()
+        .find_map(|(idx, event)| match event {
+            ReplayEvent::Reveal {
+                player,
+                card,
+                reason: RevealReason::RefreshPenalty,
+                ..
+            } if *player == active as u8 => Some((idx, *card)),
+            _ => None,
+        })
+        .expect("refresh penalty reveal");
+    let zone_idx = events
+        .iter()
+        .enumerate()
+        .find_map(|(idx, event)| match event {
+            ReplayEvent::ZoneMove {
+                player,
+                card,
+                from: Zone::Deck,
+                to: Zone::Clock,
+                ..
+            } if *player == active as u8 && *card == penalty_card => Some(idx),
+            _ => None,
+        })
+        .expect("refresh penalty zone move");
+    let penalty_idx = events
+        .iter()
+        .enumerate()
+        .find_map(|(idx, event)| match event {
+            ReplayEvent::RefreshPenalty { player, card }
+                if *player == active as u8 && *card == penalty_card =>
+            {
+                Some(idx)
+            }
+            _ => None,
+        })
+        .expect("refresh penalty event");
+
+    assert!(shuffle_idx < refresh_idx);
+    assert!(refresh_idx < reveal_idx);
+    assert!(reveal_idx < zone_idx);
+    assert!(zone_idx < penalty_idx);
+}
+
+#[test]
+fn refresh_penalty_public_reveal_visible() {
+    let db = make_db();
+    let deck_a = vec![1; 20];
+    let deck_b = vec![1; 20];
+    let config = make_config(deck_a, deck_b);
+    let replay_config = ReplayConfig {
+        enabled: true,
+        sample_rate: 1.0,
+        ..Default::default()
+    };
+    let mut curriculum = default_curriculum();
+    curriculum.enable_visibility_policies = true;
+    let mut env = GameEnv::new(db, config, curriculum, 23, replay_config, None);
+    let active = env.state.turn.starting_player as usize;
+    let mut deck = Vec::new();
+    std::mem::swap(&mut deck, &mut env.state.players[active].deck);
+    env.state.players[active].waiting_room = deck;
+    env.apply_action(ActionDesc::MulliganKeep).unwrap();
+    env.apply_action(ActionDesc::MulliganKeep).unwrap();
+
+    let reveal = env.replay_events.iter().find(|event| {
+        matches!(
+            event,
+            ReplayEvent::Reveal {
+                reason: RevealReason::RefreshPenalty,
+                ..
+            }
+        )
+    });
+    let penalty = env.replay_events.iter().find(|event| {
+        matches!(event, ReplayEvent::RefreshPenalty { .. })
+    });
+
+    match reveal {
+        Some(ReplayEvent::Reveal { card, .. }) => assert_ne!(*card, 0),
+        _ => panic!("refresh penalty reveal missing"),
+    }
+    match penalty {
+        Some(ReplayEvent::RefreshPenalty { card, .. }) => assert_ne!(*card, 0),
+        _ => panic!("refresh penalty event missing"),
+    }
 }
