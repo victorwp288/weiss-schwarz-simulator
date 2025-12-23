@@ -24,7 +24,7 @@ This repo is built around those constraints.
 - **Fixed action id space + mask**: derived from canonical actions and **versioned** by `ACTION_ENCODING_VERSION`.
 - **Fixed-length observations**: int32 arrays, **versioned** by `OBS_ENCODING_VERSION`.
 - **Multicore stepping**: `EnvPool` steps many envs in parallel via `rayon`; Python binding releases the GIL.
-- **Replays**: record seeds, actions, step metadata, optional event stream, final snapshot hash.
+- **Replays**: record seeds, actions, step metadata, optional event stream, final snapshot hash (sanitized only when visibility policies are enabled in public mode).
 - **Curriculum switches**: selectively enable/disable chunks of the rules for training curricula.
 
 Each environment is deterministic given its seed and action sequence. Parallel batch stepping does not change outcomes because environments have no shared state.
@@ -86,15 +86,6 @@ Benchmarks (Criterion):
 ```bash
 cargo bench -p weiss_core
 ```
-
-Recent bench summary (Dec 22, 2025; M4 MacBook Air, 16GB RAM, 256GB SSD):
-- `advance_until_decision`: ~33.3 µs
-- `step_batch_64`: ~42.1 µs
-- `step_batch_fast_256_priority_off`: ~75.8 µs
-- `step_batch_fast_256_priority_on`: ~76.1 µs
-- `legal_actions`: ~17.5 ns
-- `observation_encode`: ~80.3 ns
-- `mask_construction`: ~131.8 ns
 
 ---
 
@@ -195,19 +186,12 @@ Module constants:
 
 ## CurriculumConfig flags (defaults)
 
-Curriculum flags are the main way to gate rules/complexity. Defaults preserve legacy behavior.
-
-- Core phases/attacks: `enable_clock_phase=true`, `enable_climax_phase=true`, `enable_side_attacks=true`, `enable_direct_attacks=true`
-- Counters/triggers: `enable_counters=true`, `enable_triggers=true`, `enable_trigger_soul/draw/shot/bounce/treasure/gate/standby=true`
-- Other rules: `enable_backup=true`, `enable_encore=true`, `enable_refresh_penalty=true`, `enable_level_up_choice=true`
-- Abilities/modifiers: `enable_activated_abilities=true`, `enable_continuous_modifiers=true`
-- Optional systems (default **off**): `enable_priority_windows=false`, `enable_visibility_policies=false`, `use_alternate_end_conditions=false`
-- Training knobs: `priority_autopick_single_action=true`, `reduced_stage_mode=false`
-- Requirements: `enforce_color_requirement=true`, `enforce_cost_requirement=true`
+Curriculum flags gate rules/complexity. For the canonical default list and behavior notes,
+see `PROJECT_STATE.md` (single source of truth) and `docs/invariants.md` (machine-checked).
 
 Notes:
-- `enable_priority_windows` gates **additional** windows beyond Main/Counter. MainWindow opens on `MainPass` and CounterWindow opens when counters are allowed.
-- `enable_visibility_policies` masks hidden-zone choice info in replays/labels when `observation_visibility="public"`.
+- `enable_priority_windows` gates **additional** windows beyond the base phase decisions. MainWindow opens on `MainPass`, and CounterWindow opens during the attack counter step when counters are allowed. Priority actions (activated abilities, counters) are surfaced as `ChoiceSelect` decisions.
+- `enable_visibility_policies` masks hidden-zone choice info in replays/labels when `observation_visibility="public"`. When disabled, replays can include hidden info even in public mode.
 
 ---
 
@@ -272,7 +256,7 @@ Visibility modes (`observation_visibility`):
 Header indices in the observation array:
 - `0`: active player
 - `1`: phase (`0..7` = Mulligan, Stand, Draw, Clock, Main, Climax, Attack, End)
-- `2`: decision kind (`-1` none; `0..9` = Mulligan, Clock, Main, Climax, AttackDeclaration, Counter, LevelUp, Encore, TriggerOrder, Choice)
+- `2`: decision kind (`-1` none; `0..8` = Mulligan, Clock, Main, Climax, AttackDeclaration, LevelUp, Encore, TriggerOrder, Choice)
 - `3`: decision player (`-1` if none)
 - `4`: terminal code (`0` none, `1` win P0, `2` win P1, `3` draw, `4` timeout)
 - `5..7`: last action fields (kind, param1, param2)
@@ -282,6 +266,8 @@ Header indices in the observation array:
 - `11`: pending attack damage
 - `12`: counter power bonus
 - `13`: decision focus slot (`-1` if none)
+- `14`: choice page start (`-1` if not in a choice decision)
+- `15`: choice total candidates (`-1` if not in a choice decision)
 
 Per-player blocks follow for the **perspective player first**, then the opponent. The exact layout is defined in `weiss_core/src/encode.rs` and versioned by `OBS_ENCODING_VERSION`.
 
@@ -291,14 +277,14 @@ Actions are fixed to `ACTION_SPACE_SIZE` (`pool.action_space`). The exact id lay
 
 - mulligan keep/all
 - clock pass / clock(hand_index)
-- main pass / play_character(hand_index, stage_slot) / play_event(hand_index) / move(from_slot, to_slot) / activate_ability(slot, ability_index)
+- main pass / play_character(hand_index, stage_slot) / play_event(hand_index) / move(from_slot, to_slot)
 - climax pass / play(hand_index)
 - attack pass / attack(slot, attack_type)
-- counter pass / counter_play(hand_index)
+- choice_select(index) (also used for priority-window actions like activated abilities and counters)
+- choice_prev_page / choice_next_page
 - level_up(index)
 - encore yes/no
 - trigger_order(index)
-- choice_select(index)
 
 The legal-action **mask** is derived from the canonical `ActionDesc` list, and the mapping is versioned by `ACTION_ENCODING_VERSION`.
 
