@@ -128,8 +128,10 @@ fn replacements_apply_in_priority_order() {
     let db = make_db();
     let deck_a = vec![CARD_DAMAGE_ACT; 20];
     let deck_b = vec![CARD_BASIC; 20];
-    let mut curriculum = CurriculumConfig::default();
-    curriculum.allow_character = true;
+    let curriculum = CurriculumConfig {
+        allow_character: true,
+        ..Default::default()
+    };
     let config = make_config(deck_a, deck_b);
     let replay_config = ReplayConfig {
         enabled: true,

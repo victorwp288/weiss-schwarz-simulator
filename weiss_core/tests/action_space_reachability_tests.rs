@@ -162,9 +162,10 @@ fn record_mask(
 fn action_space_ids_are_reachable() {
     let db = build_db();
     let mut curricula = vec![CurriculumConfig::default()];
-    let mut reduced = CurriculumConfig::default();
-    reduced.reduced_stage_mode = true;
-    curricula.push(reduced);
+    curricula.push(CurriculumConfig {
+        reduced_stage_mode: true,
+        ..Default::default()
+    });
     let seeds = [1u64, 2u64, 3u64];
     let mut seen: HashSet<usize> = HashSet::new();
 

@@ -41,9 +41,10 @@ fn make_config() -> EnvConfig {
 }
 
 fn make_curriculum(enable_priority_windows: bool) -> CurriculumConfig {
-    let mut curriculum = CurriculumConfig::default();
-    curriculum.enable_priority_windows = enable_priority_windows;
-    curriculum
+    CurriculumConfig {
+        enable_priority_windows,
+        ..Default::default()
+    }
 }
 
 fn bench_advance_until_decision(c: &mut Criterion) {
@@ -84,7 +85,7 @@ fn bench_step_batch(c: &mut Criterion) {
         b.iter(|| {
             let masks = pool.action_masks_batch();
             let mut actions = vec![0u32; pool.envs.len()];
-            for i in 0..pool.envs.len() {
+            for (i, action) in actions.iter_mut().enumerate() {
                 let offset = i * weiss_core::encode::ACTION_SPACE_SIZE;
                 let slice = &masks[offset..offset + weiss_core::encode::ACTION_SPACE_SIZE];
                 let mut chosen = 0u32;
@@ -94,7 +95,7 @@ fn bench_step_batch(c: &mut Criterion) {
                         break;
                     }
                 }
-                actions[i] = chosen;
+                *action = chosen;
             }
             let _ = pool.step_batch(&actions).unwrap();
         })
@@ -110,7 +111,7 @@ fn bench_step_batch_fast_priority_off(c: &mut Criterion) {
     c.bench_function("step_batch_fast_256_priority_off", |b| {
         b.iter(|| {
             let masks = pool.action_masks_batch();
-            for i in 0..pool.envs.len() {
+            for (i, action) in actions.iter_mut().enumerate() {
                 let offset = i * weiss_core::encode::ACTION_SPACE_SIZE;
                 let slice = &masks[offset..offset + weiss_core::encode::ACTION_SPACE_SIZE];
                 let mut chosen = 0u32;
@@ -120,7 +121,7 @@ fn bench_step_batch_fast_priority_off(c: &mut Criterion) {
                         break;
                     }
                 }
-                actions[i] = chosen;
+                *action = chosen;
             }
             let _ = pool.step_batch(&actions).unwrap();
         })
@@ -136,7 +137,7 @@ fn bench_step_batch_fast_priority_on(c: &mut Criterion) {
     c.bench_function("step_batch_fast_256_priority_on", |b| {
         b.iter(|| {
             let masks = pool.action_masks_batch();
-            for i in 0..pool.envs.len() {
+            for (i, action) in actions.iter_mut().enumerate() {
                 let offset = i * weiss_core::encode::ACTION_SPACE_SIZE;
                 let slice = &masks[offset..offset + weiss_core::encode::ACTION_SPACE_SIZE];
                 let mut chosen = 0u32;
@@ -146,7 +147,7 @@ fn bench_step_batch_fast_priority_on(c: &mut Criterion) {
                         break;
                     }
                 }
-                actions[i] = chosen;
+                *action = chosen;
             }
             let _ = pool.step_batch(&actions).unwrap();
         })

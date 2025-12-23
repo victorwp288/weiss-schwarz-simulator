@@ -704,8 +704,10 @@ fn reveal_then_move_zone_is_logged_and_correct() {
     let db = make_db();
     let deck_a = build_deck_list(20, &[CARD_TRIGGER_MULTI]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
-    let mut curriculum = CurriculumConfig::default();
-    curriculum.enable_triggers = false;
+    let curriculum = CurriculumConfig {
+        enable_triggers: false,
+        ..Default::default()
+    };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new(db, config, curriculum, 23, replay_config(), None);
 

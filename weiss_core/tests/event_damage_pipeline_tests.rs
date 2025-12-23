@@ -13,8 +13,10 @@ fn effect_damage_from_event_uses_pipeline() {
     let db = make_db();
     let deck_a = build_deck_list(20, &[CARD_EVENT_DAMAGE]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
-    let mut curriculum = CurriculumConfig::default();
-    curriculum.enable_triggers = false;
+    let curriculum = CurriculumConfig {
+        enable_triggers: false,
+        ..Default::default()
+    };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new(db, config, curriculum, 26, replay_config(), None);
 

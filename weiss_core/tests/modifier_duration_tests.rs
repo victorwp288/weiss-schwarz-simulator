@@ -56,9 +56,11 @@ fn modifier_until_end_of_turn_expires() {
     let db = make_db();
     let deck_a = build_deck_list(20, &[CARD_BASIC]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
-    let mut curriculum = CurriculumConfig::default();
-    curriculum.enable_triggers = false;
-    curriculum.enable_counters = false;
+    let curriculum = CurriculumConfig {
+        enable_triggers: false,
+        enable_counters: false,
+        ..Default::default()
+    };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new(db, config, curriculum, 40, replay_config(), None);
 
@@ -136,10 +138,12 @@ fn modifier_while_on_stage_removed_on_leave() {
     let db = make_db();
     let deck_a = build_deck_list(20, &[CARD_BASIC]);
     let deck_b = build_deck_list(20, &[CARD_HIGH_POWER]);
-    let mut curriculum = CurriculumConfig::default();
-    curriculum.enable_triggers = false;
-    curriculum.enable_counters = false;
-    curriculum.enable_encore = false;
+    let curriculum = CurriculumConfig {
+        enable_triggers: false,
+        enable_counters: false,
+        enable_encore: false,
+        ..Default::default()
+    };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new(db, config, curriculum, 41, replay_config(), None);
 

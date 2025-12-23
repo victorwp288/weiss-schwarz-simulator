@@ -10,10 +10,14 @@ fn config_hash_stable() {
     let deck_a = vec![1; 20];
     let deck_b = vec![1; 20];
     let config = make_config(deck_a, deck_b);
-    let mut curriculum_a = CurriculumConfig::default();
-    curriculum_a.allowed_card_sets = vec!["A".to_string(), "B".to_string()];
-    let mut curriculum_b = CurriculumConfig::default();
-    curriculum_b.allowed_card_sets = vec!["B".to_string(), "A".to_string()];
+    let curriculum_a = CurriculumConfig {
+        allowed_card_sets: vec!["A".to_string(), "B".to_string()],
+        ..Default::default()
+    };
+    let curriculum_b = CurriculumConfig {
+        allowed_card_sets: vec!["B".to_string(), "A".to_string()],
+        ..Default::default()
+    };
 
     let hash_a = config_fingerprint(&config, &curriculum_a);
     let hash_b = config_fingerprint(&config, &curriculum_b);
@@ -33,7 +37,7 @@ fn state_hash_stable_across_runs() {
     for _ in 0..6 {
         let action = env_a
             .last_legal_actions
-            .get(0)
+            .first()
             .cloned()
             .expect("legal action");
         env_a.apply_action(action.clone()).unwrap();

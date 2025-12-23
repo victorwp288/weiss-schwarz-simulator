@@ -78,9 +78,11 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
     };
     let db = Arc::new(CardDb::new(vec![card]).expect("db"));
 
-    let mut curriculum = weiss_core::config::CurriculumConfig::default();
-    curriculum.enable_priority_windows = true;
-    curriculum.priority_autopick_single_action = false;
+    let curriculum = weiss_core::config::CurriculumConfig {
+        enable_priority_windows: true,
+        priority_autopick_single_action: false,
+        ..Default::default()
+    };
     let config = weiss_core::config::EnvConfig {
         deck_lists: [vec![1; 10], vec![1; 10]],
         deck_ids: [1, 2],

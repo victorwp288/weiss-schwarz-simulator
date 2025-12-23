@@ -76,7 +76,7 @@ fn refresh_penalty_applied() {
         }
         let action = env
             .last_legal_actions
-            .get(0)
+            .first()
             .cloned()
             .expect("legal action");
         env.apply_action(action).unwrap();

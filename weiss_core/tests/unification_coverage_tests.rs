@@ -264,8 +264,10 @@ fn unified_effects_pipeline_coverage() {
     ));
 
     // Activated ability -> stack push (priority window).
-    let mut curriculum = CurriculumConfig::default();
-    curriculum.enable_priority_windows = true;
+    let curriculum = CurriculumConfig {
+        enable_priority_windows: true,
+        ..Default::default()
+    };
     let mut env = GameEnv::new(
         db.clone(),
         make_config(vec![CARD_FILLER; 10], vec![CARD_FILLER; 10]),

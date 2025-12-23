@@ -423,6 +423,7 @@ pub fn build_deck_list(size: usize, extras: &[u32]) -> Vec<u32> {
     deck
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn setup_player_state(
     env: &mut GameEnv,
     player: usize,

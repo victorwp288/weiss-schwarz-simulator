@@ -137,6 +137,7 @@ fn build_deck_list(size: usize, extras: &[u32]) -> Vec<u32> {
     deck
 }
 
+#[allow(clippy::too_many_arguments)]
 fn setup_player_state(
     env: &mut GameEnv,
     player: usize,
@@ -450,10 +451,7 @@ fn target_choice_truncation_metadata() {
     let curriculum = CurriculumConfig::default();
     let mut env = GameEnv::new(db, config, curriculum, 101, replay_config(), None);
 
-    let mut waiting_room = Vec::new();
-    for _ in 0..18 {
-        waiting_room.push(CARD_BASIC);
-    }
+    let waiting_room = vec![CARD_BASIC; 18];
     setup_player_state(
         &mut env,
         0,

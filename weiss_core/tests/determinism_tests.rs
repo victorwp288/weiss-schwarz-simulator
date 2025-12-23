@@ -116,8 +116,10 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
         ..Default::default()
     };
 
-    let mut curriculum_off = CurriculumConfig::default();
-    curriculum_off.enable_priority_windows = false;
+    let curriculum_off = CurriculumConfig {
+        enable_priority_windows: false,
+        ..Default::default()
+    };
     let mut env_off = GameEnv::new(
         db.clone(),
         config.clone(),
@@ -138,9 +140,11 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
     });
     assert!(!off_has_climax_window);
 
-    let mut curriculum_on = CurriculumConfig::default();
-    curriculum_on.enable_priority_windows = true;
-    curriculum_on.enable_visibility_policies = true;
+    let curriculum_on = CurriculumConfig {
+        enable_priority_windows: true,
+        enable_visibility_policies: true,
+        ..Default::default()
+    };
     let mut env_on_a = GameEnv::new(
         db.clone(),
         config.clone(),

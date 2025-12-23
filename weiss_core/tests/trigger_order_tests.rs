@@ -178,8 +178,10 @@ fn player_orders_own_simultaneous_triggers_decision() {
     let db = make_db();
     let deck_a = build_deck_list(20, &[CARD_BASIC, CARD_TRIGGER_MULTI]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
-    let mut curriculum = CurriculumConfig::default();
-    curriculum.enable_triggers = true;
+    let curriculum = CurriculumConfig {
+        enable_triggers: true,
+        ..Default::default()
+    };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new(db, config, curriculum, 21, replay_config(), None);
 

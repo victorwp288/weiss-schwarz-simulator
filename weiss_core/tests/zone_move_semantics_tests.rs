@@ -14,9 +14,11 @@ fn reversed_stage_cleanup_emits_zone_move() {
     let deck_a = build_deck_list(20, &[CARD_BASIC, CARD_HIGH_POWER]);
     let deck_b = build_deck_list(20, &[CARD_HIGH_POWER, CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut curriculum = CurriculumConfig::default();
-    curriculum.enable_encore = false;
-    curriculum.enable_triggers = false;
+    let curriculum = CurriculumConfig {
+        enable_encore: false,
+        enable_triggers: false,
+        ..Default::default()
+    };
     let replay_config = replay_config();
     let mut env = GameEnv::new(db, config, curriculum, 55, replay_config, None);
 
