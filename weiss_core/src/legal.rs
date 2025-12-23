@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 use crate::config::CurriculumConfig;
-use crate::db::{AbilityTemplate, CardColor, CardDb, CardStatic, CardType};
+use crate::db::{CardColor, CardDb, CardStatic, CardType};
 use crate::state::{AttackType, GameState, StageSlot, StageStatus};
 
 const MAX_HAND: usize = 10;
@@ -16,7 +16,6 @@ pub enum DecisionKind {
     Main,
     Climax,
     AttackDeclaration,
-    Counter,
     LevelUp,
     Encore,
     TriggerOrder,
@@ -54,6 +53,8 @@ pub enum ActionDesc {
     EncoreNo,
     TriggerOrder { index: u8 },
     ChoiceSelect { index: u8 },
+    ChoicePrevPage,
+    ChoiceNextPage,
 }
 
 pub fn can_declare_attack(
@@ -286,33 +287,6 @@ pub fn legal_actions_cached(
             }
             actions
         }
-        DecisionKind::Counter => {
-            let mut actions = Vec::new();
-            let p = &state.players[player];
-            actions.push(ActionDesc::CounterPass);
-            if curriculum.enable_counters {
-                for (hand_index, card_inst) in p.hand.iter().enumerate() {
-                    if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
-                        break;
-                    }
-                    if let Some(card) = db.get(card_inst.id) {
-                        if !card_set_allowed(card, curriculum, allowed_card_sets) {
-                            continue;
-                        }
-                        if is_counter_card(card, db)
-                            && meets_level_requirement(card, p.level.len())
-                            && meets_color_requirement(card, p, db, curriculum)
-                            && meets_cost_requirement(card, p, curriculum)
-                        {
-                            actions.push(ActionDesc::CounterPlay {
-                                hand_index: hand_index as u8,
-                            });
-                        }
-                    }
-                }
-            }
-            actions
-        }
         DecisionKind::LevelUp => {
             if state.players[player].clock.len() >= 7 {
                 (0..7)
@@ -350,15 +324,22 @@ pub fn legal_actions_cached(
         }
         DecisionKind::Choice => {
             let mut actions = Vec::new();
-            let choices = state
-                .turn
-                .choice
-                .as_ref()
-                .map(|c| c.options.len())
-                .unwrap_or(0);
-            let max = choices.min(16);
-            for idx in 0..max {
+            let Some(choice) = state.turn.choice.as_ref() else {
+                return actions;
+            };
+            let total = choice.total_candidates as usize;
+            let page_size = crate::encode::CHOICE_COUNT;
+            let page_start = choice.page_start as usize;
+            let safe_start = page_start.min(total);
+            let page_end = total.min(safe_start + page_size);
+            for idx in 0..(page_end - safe_start) {
                 actions.push(ActionDesc::ChoiceSelect { index: idx as u8 });
+            }
+            if page_start >= page_size {
+                actions.push(ActionDesc::ChoicePrevPage);
+            }
+            if page_start + page_size < total {
+                actions.push(ActionDesc::ChoiceNextPage);
             }
             actions
         }
@@ -428,20 +409,4 @@ fn is_character_slot(slot: &StageSlot, db: &CardDb) -> bool {
         .and_then(|inst| db.get(inst.id))
         .map(|c| c.card_type == CardType::Character)
         .unwrap_or(false)
-}
-
-fn is_counter_card(card: &CardStatic, db: &CardDb) -> bool {
-    if !card.counter_timing {
-        return false;
-    }
-    db.iter_card_abilities_in_canonical_order(card.id)
-        .iter()
-        .any(|spec| {
-            matches!(
-                spec.template,
-                AbilityTemplate::CounterBackup { .. }
-                    | AbilityTemplate::CounterDamageReduce { .. }
-                    | AbilityTemplate::CounterDamageCancel
-            )
-        })
 }

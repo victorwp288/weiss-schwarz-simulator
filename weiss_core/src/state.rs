@@ -3,24 +3,28 @@ use crate::effects::{EffectId, EffectPayload, ReplacementSpec};
 use crate::util::Rng64;
 use serde::{Deserialize, Serialize};
 
+pub type CardInstanceId = u32;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CardInstance {
     pub id: CardId,
+    pub instance_id: CardInstanceId,
     pub owner: u8,
     pub controller: u8,
 }
 
 impl CardInstance {
-    pub fn new(id: CardId, owner: u8) -> Self {
+    pub fn new(id: CardId, owner: u8, instance_id: CardInstanceId) -> Self {
         Self {
             id,
+            instance_id,
             owner,
             controller: owner,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Phase {
     Mulligan,
     Stand,
@@ -172,6 +176,7 @@ pub struct TargetRef {
     pub zone: TargetZone,
     pub index: u8,
     pub card_id: CardId,
+    pub instance_id: CardInstanceId,
 }
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
@@ -244,6 +249,7 @@ pub enum ChoiceZone {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ChoiceOptionRef {
     pub card_id: CardId,
+    pub instance_id: CardInstanceId,
     pub zone: ChoiceZone,
     pub index: Option<u8>,
     pub target_slot: Option<u8>,
@@ -256,6 +262,7 @@ pub struct ChoiceState {
     pub player: u8,
     pub options: Vec<ChoiceOptionRef>,
     pub total_candidates: u16,
+    pub page_start: u16,
     pub pending_trigger: Option<PendingTrigger>,
 }
 
@@ -358,11 +365,7 @@ pub struct PlayerState {
 }
 
 impl PlayerState {
-    pub fn new(deck: Vec<CardId>, owner: u8) -> Self {
-        let deck = deck
-            .into_iter()
-            .map(|id| CardInstance::new(id, owner))
-            .collect();
+    pub fn new(deck: Vec<CardInstance>) -> Self {
         Self {
             deck,
             hand: Vec::new(),
@@ -437,7 +440,6 @@ pub struct TurnState {
     pub next_trigger_id: u32,
     pub next_trigger_group_id: u32,
     pub next_choice_id: u32,
-    pub next_stack_id: u32,
     pub next_stack_group_id: u32,
     pub next_damage_event_id: u32,
     pub next_effect_instance_id: u32,
@@ -459,8 +461,11 @@ pub struct GameState {
 impl GameState {
     pub fn new(deck_a: Vec<CardId>, deck_b: Vec<CardId>, seed: u64, starting_player: u8) -> Self {
         let rng = Rng64::new(seed);
+        let mut next_instance_id: CardInstanceId = 1;
+        let deck_a = Self::build_deck(deck_a, 0, &mut next_instance_id);
+        let deck_b = Self::build_deck(deck_b, 1, &mut next_instance_id);
         Self {
-            players: [PlayerState::new(deck_a, 0), PlayerState::new(deck_b, 1)],
+            players: [PlayerState::new(deck_a), PlayerState::new(deck_b)],
             turn: TurnState {
                 active_player: starting_player,
                 starting_player,
@@ -484,7 +489,6 @@ impl GameState {
                 next_trigger_id: 1,
                 next_trigger_group_id: 1,
                 next_choice_id: 1,
-                next_stack_id: 1,
                 next_stack_group_id: 1,
                 next_damage_event_id: 1,
                 next_effect_instance_id: 1,
@@ -501,5 +505,19 @@ impl GameState {
             next_replacement_insertion: 1,
             terminal: None,
         }
+    }
+
+    fn build_deck(
+        deck: Vec<CardId>,
+        owner: u8,
+        next_instance_id: &mut CardInstanceId,
+    ) -> Vec<CardInstance> {
+        deck.into_iter()
+            .map(|id| {
+                let instance_id = *next_instance_id;
+                *next_instance_id = next_instance_id.wrapping_add(1);
+                CardInstance::new(id, owner, instance_id)
+            })
+            .collect()
     }
 }

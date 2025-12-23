@@ -1,6 +1,3 @@
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
 /// Deterministic xorshift64* RNG for reproducibility.
 #[derive(Clone, Copy, Debug, Hash)]
 pub struct Rng64 {
@@ -30,6 +27,10 @@ impl Rng64 {
         (self.next_u64() >> 32) as u32
     }
 
+    pub fn state(&self) -> u64 {
+        self.state
+    }
+
     pub fn next_bool(&mut self) -> bool {
         (self.next_u64() & 1) == 1
     }
@@ -47,10 +48,4 @@ impl Rng64 {
             slice.swap(i, j);
         }
     }
-}
-
-pub fn hash_value<T: Hash>(value: &T) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
 }

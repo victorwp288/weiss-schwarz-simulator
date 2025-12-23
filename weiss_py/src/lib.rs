@@ -350,6 +350,12 @@ impl PyEnvPool {
                             dict.set_item("kind", "choice_select")?;
                             dict.set_item("index", index)?;
                         }
+                        ActionDesc::ChoicePrevPage => {
+                            dict.set_item("kind", "choice_prev_page")?;
+                        }
+                        ActionDesc::ChoiceNextPage => {
+                            dict.set_item("kind", "choice_next_page")?;
+                        }
                     }
                     py_list.push(dict.into_py(py));
                 }

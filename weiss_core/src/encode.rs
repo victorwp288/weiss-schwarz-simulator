@@ -10,6 +10,7 @@ pub const MAX_HAND: usize = 10;
 pub const MAX_DECK: usize = 60;
 pub const MAX_STAGE: usize = 5;
 pub const MAX_ABILITIES_PER_CARD: usize = 4;
+pub const ATTACK_SLOT_COUNT: usize = 3;
 pub const MAX_LEVEL: usize = 4;
 pub const TOP_CLOCK: usize = 7;
 pub const TOP_WAITING_ROOM: usize = 5;
@@ -25,23 +26,17 @@ pub const MAIN_PLAY_CHAR_COUNT: usize = MAX_HAND * MAX_STAGE;
 pub const MAIN_PLAY_EVENT_BASE: usize = MAIN_PLAY_CHAR_BASE + MAIN_PLAY_CHAR_COUNT;
 pub const MAIN_PLAY_EVENT_COUNT: usize = MAX_HAND;
 pub const MAIN_MOVE_BASE: usize = MAIN_PLAY_EVENT_BASE + MAIN_PLAY_EVENT_COUNT;
-pub const MAIN_MOVE_COUNT: usize = MAX_STAGE * MAX_STAGE;
-pub const MAIN_ACTIVATE_BASE: usize = MAIN_MOVE_BASE + MAIN_MOVE_COUNT;
-pub const MAIN_ACTIVATE_COUNT: usize = MAX_STAGE * MAX_ABILITIES_PER_CARD;
+pub const MAIN_MOVE_COUNT: usize = MAX_STAGE * (MAX_STAGE - 1);
 
-pub const CLIMAX_PASS_ID: usize = MAIN_ACTIVATE_BASE + MAIN_ACTIVATE_COUNT;
+pub const CLIMAX_PASS_ID: usize = MAIN_MOVE_BASE + MAIN_MOVE_COUNT;
 pub const CLIMAX_PLAY_BASE: usize = CLIMAX_PASS_ID + 1;
 pub const CLIMAX_PLAY_COUNT: usize = MAX_HAND;
 
 pub const ATTACK_PASS_ID: usize = CLIMAX_PLAY_BASE + CLIMAX_PLAY_COUNT;
 pub const ATTACK_BASE: usize = ATTACK_PASS_ID + 1;
-pub const ATTACK_COUNT: usize = MAX_STAGE * 3;
+pub const ATTACK_COUNT: usize = ATTACK_SLOT_COUNT * 3;
 
-pub const COUNTER_PASS_ID: usize = ATTACK_BASE + ATTACK_COUNT;
-pub const COUNTER_PLAY_BASE: usize = COUNTER_PASS_ID + 1;
-pub const COUNTER_PLAY_COUNT: usize = MAX_HAND;
-
-pub const LEVEL_UP_BASE: usize = COUNTER_PLAY_BASE + COUNTER_PLAY_COUNT;
+pub const LEVEL_UP_BASE: usize = ATTACK_BASE + ATTACK_COUNT;
 pub const LEVEL_UP_COUNT: usize = 7;
 
 pub const ENCORE_YES_ID: usize = LEVEL_UP_BASE + LEVEL_UP_COUNT;
@@ -52,10 +47,12 @@ pub const TRIGGER_ORDER_COUNT: usize = 10;
 
 pub const CHOICE_BASE: usize = TRIGGER_ORDER_BASE + TRIGGER_ORDER_COUNT;
 pub const CHOICE_COUNT: usize = 16;
+pub const CHOICE_PREV_ID: usize = CHOICE_BASE + CHOICE_COUNT;
+pub const CHOICE_NEXT_ID: usize = CHOICE_PREV_ID + 1;
 
-pub const ACTION_SPACE_SIZE: usize = CHOICE_BASE + CHOICE_COUNT;
+pub const ACTION_SPACE_SIZE: usize = CHOICE_NEXT_ID + 1;
 
-pub const OBS_HEADER_LEN: usize = 14;
+pub const OBS_HEADER_LEN: usize = 16;
 pub const PER_PLAYER_COUNTS: usize = 8;
 pub const PER_STAGE_SLOT: usize = 5;
 pub const PER_PLAYER_STAGE: usize = MAX_STAGE * PER_STAGE_SLOT;
@@ -85,11 +82,18 @@ pub fn encode_observation(
     perspective: u8,
     decision: Option<&Decision>,
     last_action: Option<&ActionDesc>,
+    last_action_player: Option<u8>,
     visibility: ObservationVisibility,
+    policies_enabled: bool,
     out: &mut [i32],
 ) {
     assert!(out.len() >= OBS_LEN);
     out.fill(0);
+    let visibility = if policies_enabled {
+        visibility
+    } else {
+        ObservationVisibility::Full
+    };
     let p0 = perspective as usize;
     let p1 = 1 - p0;
     out[0] = state.turn.active_player as i32;
@@ -97,7 +101,13 @@ pub fn encode_observation(
     out[2] = decision_kind_to_i32(decision.map(|d| d.kind));
     out[3] = decision.map(|d| d.player as i32).unwrap_or(-1);
     out[4] = terminal_to_i32(state.terminal);
-    let (last_kind, last_p1, last_p2) = last_action_to_fields(last_action);
+    let (last_kind, last_p1, last_p2) = last_action_to_fields(
+        last_action,
+        last_action_player,
+        perspective,
+        visibility,
+        policies_enabled,
+    );
     out[5] = last_kind;
     out[6] = last_p1;
     out[7] = last_p2;
@@ -117,6 +127,17 @@ pub fn encode_observation(
     out[13] = decision
         .and_then(|d| d.focus_slot.map(|s| s as i32))
         .unwrap_or(-1);
+    let choice_page = decision
+        .filter(|d| d.kind == DecisionKind::Choice)
+        .and(state.turn.choice.as_ref())
+        .map(|choice| (choice.page_start as i32, choice.total_candidates as i32));
+    if let Some((page_start, total)) = choice_page {
+        out[14] = page_start;
+        out[15] = total;
+    } else {
+        out[14] = -1;
+        out[15] = -1;
+    }
 
     let mut offset = OBS_HEADER_LEN;
     for (idx, player_index) in [p0, p1].iter().enumerate() {
@@ -264,11 +285,10 @@ fn decision_kind_to_i32(kind: Option<DecisionKind>) -> i32 {
         Some(DecisionKind::Main) => 2,
         Some(DecisionKind::Climax) => 3,
         Some(DecisionKind::AttackDeclaration) => 4,
-        Some(DecisionKind::Counter) => 5,
-        Some(DecisionKind::LevelUp) => 6,
-        Some(DecisionKind::Encore) => 7,
-        Some(DecisionKind::TriggerOrder) => 8,
-        Some(DecisionKind::Choice) => 9,
+        Some(DecisionKind::LevelUp) => 5,
+        Some(DecisionKind::Encore) => 6,
+        Some(DecisionKind::TriggerOrder) => 7,
+        Some(DecisionKind::Choice) => 8,
         None => -1,
     }
 }
@@ -304,19 +324,37 @@ fn terminal_to_i32(term: Option<TerminalResult>) -> i32 {
     }
 }
 
-fn last_action_to_fields(action: Option<&ActionDesc>) -> (i32, i32, i32) {
+fn last_action_to_fields(
+    action: Option<&ActionDesc>,
+    actor: Option<u8>,
+    perspective: u8,
+    visibility: ObservationVisibility,
+    policies_enabled: bool,
+) -> (i32, i32, i32) {
+    let mask = policies_enabled
+        && visibility == ObservationVisibility::Public
+        && actor.map(|p| p != perspective).unwrap_or(false);
     match action {
         None => (0, -1, -1),
         Some(ActionDesc::MulliganKeep) => (1, -1, -1),
         Some(ActionDesc::MulliganAll) => (2, -1, -1),
         Some(ActionDesc::ClockPass) => (3, -1, -1),
-        Some(ActionDesc::Clock { hand_index }) => (4, *hand_index as i32, -1),
+        Some(ActionDesc::Clock { hand_index }) => {
+            let idx = if mask { -1 } else { *hand_index as i32 };
+            (4, idx, -1)
+        }
         Some(ActionDesc::MainPass) => (5, -1, -1),
         Some(ActionDesc::MainPlayCharacter {
             hand_index,
             stage_slot,
-        }) => (6, *hand_index as i32, *stage_slot as i32),
-        Some(ActionDesc::MainPlayEvent { hand_index }) => (7, *hand_index as i32, -1),
+        }) => {
+            let idx = if mask { -1 } else { *hand_index as i32 };
+            (6, idx, *stage_slot as i32)
+        }
+        Some(ActionDesc::MainPlayEvent { hand_index }) => {
+            let idx = if mask { -1 } else { *hand_index as i32 };
+            (7, idx, -1)
+        }
         Some(ActionDesc::MainMove { from_slot, to_slot }) => {
             (8, *from_slot as i32, *to_slot as i32)
         }
@@ -325,18 +363,29 @@ fn last_action_to_fields(action: Option<&ActionDesc>) -> (i32, i32, i32) {
             ability_index,
         }) => (9, *slot as i32, *ability_index as i32),
         Some(ActionDesc::ClimaxPass) => (10, -1, -1),
-        Some(ActionDesc::ClimaxPlay { hand_index }) => (11, *hand_index as i32, -1),
+        Some(ActionDesc::ClimaxPlay { hand_index }) => {
+            let idx = if mask { -1 } else { *hand_index as i32 };
+            (11, idx, -1)
+        }
         Some(ActionDesc::AttackPass) => (12, -1, -1),
         Some(ActionDesc::Attack { slot, attack_type }) => {
             (13, *slot as i32, attack_type_to_i32(*attack_type))
         }
         Some(ActionDesc::CounterPass) => (14, -1, -1),
-        Some(ActionDesc::CounterPlay { hand_index }) => (15, *hand_index as i32, -1),
+        Some(ActionDesc::CounterPlay { hand_index }) => {
+            let idx = if mask { -1 } else { *hand_index as i32 };
+            (15, idx, -1)
+        }
         Some(ActionDesc::LevelUp { index }) => (16, *index as i32, -1),
         Some(ActionDesc::EncoreYes) => (17, -1, -1),
         Some(ActionDesc::EncoreNo) => (18, -1, -1),
         Some(ActionDesc::TriggerOrder { index }) => (19, *index as i32, -1),
-        Some(ActionDesc::ChoiceSelect { index }) => (20, *index as i32, -1),
+        Some(ActionDesc::ChoiceSelect { index }) => {
+            let idx = if mask { -1 } else { *index as i32 };
+            (20, idx, -1)
+        }
+        Some(ActionDesc::ChoicePrevPage) => (21, -1, -1),
+        Some(ActionDesc::ChoiceNextPage) => (22, -1, -1),
     }
 }
 
@@ -377,8 +426,9 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
         ActionDesc::MainMove { from_slot, to_slot } => {
             let fs = *from_slot as usize;
             let ts = *to_slot as usize;
-            if fs < MAX_STAGE && ts < MAX_STAGE {
-                Some(MAIN_MOVE_BASE + fs * MAX_STAGE + ts)
+            if fs < MAX_STAGE && ts < MAX_STAGE && fs != ts {
+                let to_index = if ts < fs { ts } else { ts - 1 };
+                Some(MAIN_MOVE_BASE + fs * (MAX_STAGE - 1) + to_index)
             } else {
                 None
             }
@@ -387,13 +437,8 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
             slot,
             ability_index,
         } => {
-            let s = *slot as usize;
-            let a = *ability_index as usize;
-            if s < MAX_STAGE && a < MAX_ABILITIES_PER_CARD {
-                Some(MAIN_ACTIVATE_BASE + s * MAX_ABILITIES_PER_CARD + a)
-            } else {
-                None
-            }
+            let _ = (slot, ability_index);
+            None
         }
         ActionDesc::ClimaxPass => Some(CLIMAX_PASS_ID),
         ActionDesc::ClimaxPlay { hand_index } => {
@@ -408,20 +453,16 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
         ActionDesc::Attack { slot, attack_type } => {
             let s = *slot as usize;
             let t = attack_type_to_i32(*attack_type) as usize;
-            if s < MAX_STAGE && t < 3 {
+            if s < ATTACK_SLOT_COUNT && t < 3 {
                 Some(ATTACK_BASE + s * 3 + t)
             } else {
                 None
             }
         }
-        ActionDesc::CounterPass => Some(COUNTER_PASS_ID),
+        ActionDesc::CounterPass => None,
         ActionDesc::CounterPlay { hand_index } => {
-            let hi = *hand_index as usize;
-            if hi < MAX_HAND {
-                Some(COUNTER_PLAY_BASE + hi)
-            } else {
-                None
-            }
+            let _ = hand_index;
+            None
         }
         ActionDesc::LevelUp { index } => {
             let idx = *index as usize;
@@ -449,6 +490,8 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
                 None
             }
         }
+        ActionDesc::ChoicePrevPage => Some(CHOICE_PREV_ID),
+        ActionDesc::ChoiceNextPage => Some(CHOICE_NEXT_ID),
     }
 }
 

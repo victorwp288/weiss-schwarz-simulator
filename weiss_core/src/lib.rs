@@ -6,6 +6,7 @@ pub mod effects;
 pub mod encode;
 pub mod env;
 pub mod events;
+pub mod fingerprint;
 pub mod legal;
 pub mod pool;
 pub mod replay;

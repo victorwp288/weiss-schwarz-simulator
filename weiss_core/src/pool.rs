@@ -230,7 +230,12 @@ impl EnvPool {
         out.push_str(&format!(" P{}: {:?}\n", p0, state.players[p0].stage));
         out.push_str(&format!(" P{}: {:?}\n", p1, state.players[p1].stage));
         if let Some(action) = &env.last_action_desc {
-            out.push_str(&format!("Last action: {:?}\n", action));
+            let hide_action = env.curriculum.enable_visibility_policies
+                && env.config.observation_visibility == crate::config::ObservationVisibility::Public
+                && env.last_action_player.map(|p| p != perspective).unwrap_or(false);
+            if !hide_action {
+                out.push_str(&format!("Last action: {:?}\n", action));
+            }
         }
         out
     }

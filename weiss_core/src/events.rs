@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub enum RevealReason {
     TriggerCheck,
     DamageCheck,
+    RefreshPenalty,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -45,9 +46,8 @@ pub enum Zone {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ChoiceOptionSummary {
+pub struct ChoiceOptionSnapshot {
     pub option_id: u64,
-    pub label: String,
     pub reference: ChoiceOptionRef,
 }
 
@@ -167,17 +167,26 @@ pub enum Event {
         choice_id: u32,
         player: u8,
         reason: ChoiceReason,
-        options: Vec<ChoiceOptionSummary>,
+        options: Vec<ChoiceOptionSnapshot>,
         total_candidates: u16,
+        page_start: u16,
+    },
+    ChoicePageChanged {
+        choice_id: u32,
+        player: u8,
+        from_start: u16,
+        to_start: u16,
     },
     ChoiceMade {
         choice_id: u32,
         player: u8,
+        reason: ChoiceReason,
         option: ChoiceOptionRef,
     },
     ChoiceAutopicked {
         choice_id: u32,
         player: u8,
+        reason: ChoiceReason,
         option: ChoiceOptionRef,
     },
     ChoiceSkipped {
@@ -232,6 +241,7 @@ pub enum Event {
     Trigger {
         player: u8,
         icon: crate::db::TriggerIcon,
+        card: Option<CardId>,
     },
     Attack {
         player: u8,
@@ -250,6 +260,10 @@ pub enum Event {
     Clock {
         player: u8,
         card: Option<CardId>,
+    },
+    Shuffle {
+        player: u8,
+        zone: Zone,
     },
     Refresh {
         player: u8,

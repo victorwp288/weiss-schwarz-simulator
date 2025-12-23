@@ -187,7 +187,9 @@ fn bench_observation_encode(c: &mut Criterion) {
                 0,
                 env.decision.as_ref(),
                 env.last_action_desc.as_ref(),
+                env.last_action_player,
                 env.config.observation_visibility,
+                env.curriculum.enable_visibility_policies,
                 &mut buf,
             );
         })

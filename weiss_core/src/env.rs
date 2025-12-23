@@ -1,5 +1,5 @@
+use std::collections::BTreeSet;
 use std::sync::Arc;
-
 use anyhow::{anyhow, Result};
 
 use crate::config::{
@@ -18,7 +18,7 @@ use crate::encode::{
     MAX_STAGE, OBS_ENCODING_VERSION, OBS_LEN,
 };
 use crate::events::{
-    ChoiceOptionSummary, ChoiceSkipReason, Event, ModifierRemoveReason, RevealAudience,
+    ChoiceOptionSnapshot, ChoiceSkipReason, Event, ModifierRemoveReason, RevealAudience,
     RevealReason, TriggerCancelReason, Zone,
 };
 use crate::legal::{ActionDesc, Decision, DecisionKind};
@@ -27,7 +27,8 @@ use crate::replay::{
     StepMeta, REPLAY_SCHEMA_VERSION,
 };
 use crate::state::{
-    AttackContext, AttackStep, AttackType, CardInstance, ChoiceOptionRef, ChoiceReason,
+    AttackContext, AttackStep, AttackType, CardInstance, CardInstanceId, ChoiceOptionRef,
+    ChoiceReason,
     ChoiceState, ChoiceZone, DamageModifier, DamageModifierKind, DamageType, EncoreRequest,
     GameState, ModifierDuration, ModifierKind, PendingTargetEffect, PendingTrigger, Phase,
     PriorityState, StackItem, StackOrderState, StageSlot, StageStatus, TargetRef,
@@ -35,7 +36,6 @@ use crate::state::{
     TimingWindow, TriggerEffect, TriggerOrderState,
 };
 use crate::util::Rng64;
-use std::collections::BTreeSet;
 
 /// Metadata describing the current environment state for Python info payloads.
 #[derive(Clone, Debug)]
@@ -62,6 +62,19 @@ pub struct StepOutcome {
     pub info: EnvInfo,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct VisibilityContext {
+    viewer: Option<u8>,
+    mode: ObservationVisibility,
+    policies_enabled: bool,
+}
+
+impl VisibilityContext {
+    fn is_public(self) -> bool {
+        self.policies_enabled && self.mode == ObservationVisibility::Public
+    }
+}
+
 /// A single Weiss Schwarz environment instance with deterministic RNG state.
 pub struct GameEnv {
     pub db: Arc<CardDb>,
@@ -73,6 +86,7 @@ pub struct GameEnv {
     pub last_action_mask: Vec<u8>,
     pub last_legal_actions: Vec<ActionDesc>,
     pub last_action_desc: Option<ActionDesc>,
+    pub last_action_player: Option<u8>,
     pub last_illegal_action: bool,
     pub last_engine_error: bool,
     pub last_perspective: u8,
@@ -82,12 +96,14 @@ pub struct GameEnv {
     pub replay_writer: Option<ReplayWriter>,
     pub replay_actions: Vec<ActionDesc>,
     pub replay_events: Vec<ReplayEvent>,
+    canonical_events: Vec<Event>,
     pub replay_steps: Vec<StepMeta>,
     pub recording: bool,
     pub meta_rng: Rng64,
     pub episode_seed: u64,
-    pub public_revealed: [BTreeSet<CardId>; 2],
     pub scratch_replacement_indices: Vec<usize>,
+    scratch: EnvScratch,
+    revealed_to_viewer: [BTreeSet<CardInstanceId>; 2],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -98,6 +114,23 @@ struct DamageIntentLocal {
     amount: i32,
     damage_type: DamageType,
     cancelable: bool,
+    refresh_penalty: bool,
+}
+
+struct EnvScratch {
+    targets: Vec<TargetRef>,
+    choice_options: Vec<ChoiceOptionRef>,
+    priority_actions: Vec<ActionDesc>,
+}
+
+impl EnvScratch {
+    fn new() -> Self {
+        Self {
+            targets: Vec::with_capacity(32),
+            choice_options: Vec::with_capacity(32),
+            priority_actions: Vec::with_capacity(16),
+        }
+    }
 }
 
 const MAX_CHOICE_OPTIONS: usize = crate::encode::CHOICE_COUNT;
@@ -166,6 +199,7 @@ impl GameEnv {
             last_action_mask: vec![0u8; crate::encode::ACTION_SPACE_SIZE],
             last_legal_actions: Vec::new(),
             last_action_desc: None,
+            last_action_player: None,
             last_illegal_action: false,
             last_engine_error: false,
             last_perspective: 0,
@@ -175,12 +209,14 @@ impl GameEnv {
             replay_writer,
             replay_actions: Vec::new(),
             replay_events: Vec::new(),
+            canonical_events: Vec::new(),
             replay_steps: Vec::new(),
             recording: false,
             meta_rng: Rng64::new(seed ^ 0xABCDEF1234567890),
             episode_seed: seed,
-            public_revealed: [BTreeSet::new(), BTreeSet::new()],
             scratch_replacement_indices: Vec::new(),
+            scratch: EnvScratch::new(),
+            revealed_to_viewer: std::array::from_fn(|_| BTreeSet::new()),
         };
         env.reset();
         env
@@ -192,6 +228,10 @@ impl GameEnv {
 
     pub fn reset_no_copy(&mut self) -> StepOutcome {
         self.reset_with_obs(false)
+    }
+
+    pub fn canonical_events(&self) -> &[Event] {
+        &self.canonical_events
     }
 
     fn reset_with_obs(&mut self, copy_obs: bool) -> StepOutcome {
@@ -219,6 +259,7 @@ impl GameEnv {
         self.last_action_mask.fill(0);
         self.last_legal_actions.clear();
         self.last_action_desc = None;
+        self.last_action_player = None;
         self.last_illegal_action = false;
         self.last_engine_error = false;
         self.last_perspective = self.state.turn.starting_player;
@@ -228,12 +269,13 @@ impl GameEnv {
         }
         self.replay_actions.clear();
         self.replay_events.clear();
+        self.canonical_events.clear();
         self.replay_steps.clear();
-        self.recording = self.replay_config.enabled
-            && self.meta_rng.next_u32() as f32 / u32::MAX as f32 <= self.replay_config.sample_rate;
-        for set in &mut self.public_revealed {
+        for set in &mut self.revealed_to_viewer {
             set.clear();
         }
+        self.recording = self.replay_config.enabled
+            && self.meta_rng.next_u32() as f32 / u32::MAX as f32 <= self.replay_config.sample_rate;
         self.scratch_replacement_indices.clear();
 
         for player in 0..2 {
@@ -345,7 +387,7 @@ impl GameEnv {
             },
         }?;
         if self.recording || self.should_validate_state() {
-            self.replay_actions.push(action_clone);
+            self.log_action(acting_player, action_clone);
             self.replay_steps.push(StepMeta {
                 actor: acting_player,
                 decision_kind,
@@ -363,6 +405,7 @@ impl GameEnv {
             .ok_or_else(|| anyhow!("No decision to apply"))?;
         self.last_perspective = decision.player;
         self.last_action_desc = Some(action.clone());
+        self.last_action_player = Some(decision.player);
 
         let mut reward = 0.0f32;
 
@@ -374,20 +417,24 @@ impl GameEnv {
                 ActionDesc::MulliganAll => {
                     let p = decision.player as usize;
                     let hand_len = self.state.players[p].hand.len();
-                    let mut new_hand = Vec::with_capacity(hand_len);
                     let mut discarded: Vec<CardInstance> = Vec::new();
                     std::mem::swap(&mut discarded, &mut self.state.players[p].hand);
-                    self.state.players[p].waiting_room.extend(discarded);
-                    for _ in 0..hand_len {
-                        if let Some(card) = self.draw_from_deck(p as u8) {
-                            new_hand.push(card);
-                            self.log_event(Event::Draw {
-                                player: p as u8,
-                                card: card.id,
-                            });
-                        }
+                    for (idx, card) in discarded.iter().enumerate() {
+                        let from_slot = if idx <= u8::MAX as usize {
+                            Some(idx as u8)
+                        } else {
+                            None
+                        };
+                        self.move_card_between_zones(
+                            p as u8,
+                            *card,
+                            Zone::Hand,
+                            Zone::WaitingRoom,
+                            from_slot,
+                            None,
+                        );
                     }
-                    self.state.players[p].hand = new_hand;
+                    self.draw_to_hand(p as u8, hand_len);
                     self.shuffle_deck(p as u8);
                     self.state.turn.mulligan_done[p] = true;
                 }
@@ -418,10 +465,18 @@ impl GameEnv {
                             );
                         }
                         let card = self.state.players[p].hand.remove(hi);
-                        self.state.players[p].clock.push(card);
+                        let card_id = card.id;
+                        self.move_card_between_zones(
+                            decision.player,
+                            card,
+                            Zone::Hand,
+                            Zone::Clock,
+                            Some(hand_index),
+                            None,
+                        );
                         self.log_event(Event::Clock {
                             player: decision.player,
-                            card: Some(card.id),
+                            card: Some(card_id),
                         });
                         self.draw_to_hand(decision.player, 2);
                         self.check_level_up(decision.player);
@@ -583,41 +638,6 @@ impl GameEnv {
                     )
                 }
             },
-            DecisionKind::Counter => {
-                if self.state.turn.attack.is_none() {
-                    return self.handle_illegal_action(
-                        decision.player,
-                        "No attack context for counter",
-                        copy_obs,
-                    );
-                }
-                match action {
-                    ActionDesc::CounterPass => {
-                        if let Some(ctx) = &mut self.state.turn.attack {
-                            ctx.step = AttackStep::Damage;
-                        }
-                    }
-                    ActionDesc::CounterPlay { hand_index } => {
-                        if let Err(err) = self.play_counter(decision.player, hand_index) {
-                            return self.handle_illegal_action(
-                                decision.player,
-                                &err.to_string(),
-                                copy_obs,
-                            );
-                        }
-                        if let Some(ctx) = &mut self.state.turn.attack {
-                            ctx.step = AttackStep::Damage;
-                        }
-                    }
-                    _ => {
-                        return self.handle_illegal_action(
-                            decision.player,
-                            "Invalid counter action",
-                            copy_obs,
-                        )
-                    }
-                }
-            }
             DecisionKind::LevelUp => match action {
                 ActionDesc::LevelUp { index } => {
                     if self.state.turn.pending_level_up != Some(decision.player) {
@@ -723,14 +743,14 @@ impl GameEnv {
                 }
             }
             DecisionKind::Choice => {
-                let Some(choice) = self.state.turn.choice.take() else {
+                let Some(choice_ref) = self.state.turn.choice.as_ref() else {
                     return self.handle_illegal_action(
                         decision.player,
                         "No choice pending",
                         copy_obs,
                     );
                 };
-                if choice.player != decision.player {
+                if choice_ref.player != decision.player {
                     return self.handle_illegal_action(
                         decision.player,
                         "Choice player mismatch",
@@ -739,33 +759,106 @@ impl GameEnv {
                 }
                 match action {
                     ActionDesc::ChoiceSelect { index } => {
+                        let Some(choice) = self.state.turn.choice.take() else {
+                            return self.handle_illegal_action(
+                                decision.player,
+                                "No choice pending",
+                                copy_obs,
+                            );
+                        };
                         let idx = index as usize;
-                        if idx >= choice.options.len() {
+                        if idx >= MAX_CHOICE_OPTIONS {
                             return self.handle_illegal_action(
                                 decision.player,
                                 "Choice index out of range",
                                 copy_obs,
                             );
                         }
-                        let option = choice.options[idx];
-                        if self.recording {
-                            let logged = self.sanitize_choice_option_for_event(
-                                choice.reason,
+                        let total = choice.total_candidates as usize;
+                        let page_start = choice.page_start as usize;
+                        let global_idx = page_start + idx;
+                        if global_idx >= total {
+                            return self.handle_illegal_action(
                                 decision.player,
-                                &option,
+                                "Choice index out of range",
+                                copy_obs,
                             );
+                        }
+                        let Some(option) = choice.options.get(global_idx).copied() else {
+                            return self.handle_illegal_action(
+                                decision.player,
+                                "Choice option missing",
+                                copy_obs,
+                            );
+                        };
+                        if self.recording {
                             self.log_event(Event::ChoiceMade {
                                 choice_id: choice.id,
                                 player: decision.player,
-                                option: logged,
+                                reason: choice.reason,
+                                option,
                             });
                         }
+                        self.recycle_choice_options(choice.options);
                         self.apply_choice_effect(
                             choice.reason,
                             choice.player,
                             option,
                             choice.pending_trigger,
                         );
+                    }
+                    ActionDesc::ChoicePrevPage | ActionDesc::ChoiceNextPage => {
+                        let nav = {
+                            let Some(choice) = self.state.turn.choice.as_mut() else {
+                                return self.handle_illegal_action(
+                                    decision.player,
+                                    "No choice pending",
+                                    copy_obs,
+                                );
+                            };
+                            let total = choice.total_candidates as usize;
+                            let page_size = MAX_CHOICE_OPTIONS;
+                            let current = choice.page_start as usize;
+                            let new_start = match action {
+                                ActionDesc::ChoicePrevPage => {
+                                    if current < page_size {
+                                        None
+                                    } else {
+                                        Some(current - page_size)
+                                    }
+                                }
+                                ActionDesc::ChoiceNextPage => {
+                                    if current + page_size >= total {
+                                        None
+                                    } else {
+                                        Some(current + page_size)
+                                    }
+                                }
+                                _ => None,
+                            };
+                            if let Some(new_start) = new_start {
+                                let from_start = choice.page_start;
+                                choice.page_start = new_start as u16;
+                                Some((choice.id, choice.player, from_start, choice.page_start))
+                            } else {
+                                None
+                            }
+                        };
+                        let Some((choice_id, player, from_start, to_start)) = nav else {
+                            return self.handle_illegal_action(
+                                decision.player,
+                                "Choice page out of range",
+                                copy_obs,
+                            );
+                        };
+                        if self.recording {
+                            self.log_event(Event::ChoicePageChanged {
+                                choice_id,
+                                player,
+                                from_start,
+                                to_start,
+                            });
+                        }
                     }
                     _ => {
                         return self.handle_illegal_action(
@@ -872,7 +965,7 @@ impl GameEnv {
     }
 
     pub fn validate_state(&self) -> Result<()> {
-        use std::collections::HashMap;
+        use std::collections::{HashMap, HashSet};
         let mut errors = Vec::new();
 
         let mut counts: [HashMap<CardId, i32>; 2] = [HashMap::new(), HashMap::new()];
@@ -883,46 +976,87 @@ impl GameEnv {
             }
         }
 
-        let mut consume = |owner: u8, card: CardId, zone: &str| {
+        fn consume(
+            counts: &mut [HashMap<CardId, i32>; 2],
+            errors: &mut Vec<String>,
+            owner: u8,
+            card: CardId,
+            zone: &str,
+        ) {
             let owner_idx = owner as usize;
             let entry = counts[owner_idx].entry(card).or_insert(0);
             *entry -= 1;
             if *entry < 0 {
                 errors.push(format!("Owner {owner} has extra card {card} in {zone}"));
             }
-        };
+        }
+
+        let mut instance_ids: HashSet<CardInstanceId> = HashSet::new();
+        fn check_instance(
+            instance_ids: &mut HashSet<CardInstanceId>,
+            errors: &mut Vec<String>,
+            card: &CardInstance,
+            zone: &str,
+        ) {
+            if card.instance_id == 0 {
+                errors.push(format!("Card instance id 0 in {zone}"));
+                return;
+            }
+            if !instance_ids.insert(card.instance_id) {
+                errors.push(format!(
+                    "Duplicate instance id {} in {zone}",
+                    card.instance_id
+                ));
+            }
+        }
 
         for zone_player in 0..2 {
             let p = &self.state.players[zone_player];
             for card in &p.deck {
-                consume(card.owner, card.id, &format!("p{zone_player} deck"));
+                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} deck"));
+                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} deck"));
             }
             for card in &p.hand {
-                consume(card.owner, card.id, &format!("p{zone_player} hand"));
+                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} hand"));
+                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} hand"));
             }
             for card in &p.waiting_room {
-                consume(card.owner, card.id, &format!("p{zone_player} waiting_room"));
+                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} waiting_room"));
+                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} waiting_room"));
             }
             for card in &p.clock {
-                consume(card.owner, card.id, &format!("p{zone_player} clock"));
+                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} clock"));
+                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} clock"));
             }
             for card in &p.level {
-                consume(card.owner, card.id, &format!("p{zone_player} level"));
+                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} level"));
+                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} level"));
             }
             for card in &p.stock {
-                consume(card.owner, card.id, &format!("p{zone_player} stock"));
+                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} stock"));
+                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} stock"));
             }
             for card in &p.memory {
-                consume(card.owner, card.id, &format!("p{zone_player} memory"));
+                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} memory"));
+                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} memory"));
             }
             for card in &p.climax {
-                consume(card.owner, card.id, &format!("p{zone_player} climax"));
+                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} climax"));
+                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} climax"));
             }
             for (slot_idx, slot) in p.stage.iter().enumerate() {
                 if let Some(card) = slot.card {
                     consume(
+                        &mut counts,
+                        &mut errors,
                         card.owner,
                         card.id,
+                        &format!("p{zone_player} stage[{slot_idx}]"),
+                    );
+                    check_instance(
+                        &mut instance_ids,
+                        &mut errors,
+                        &card,
                         &format!("p{zone_player} stage[{slot_idx}]"),
                     );
                 }
@@ -946,15 +1080,6 @@ impl GameEnv {
                 }
             }
             match decision.kind {
-                DecisionKind::Counter => {
-                    if let Some(ctx) = &self.state.turn.attack {
-                        if ctx.step != AttackStep::Counter {
-                            errors.push("Counter decision without counter step".to_string());
-                        }
-                    } else {
-                        errors.push("Counter decision without attack context".to_string());
-                    }
-                }
                 DecisionKind::AttackDeclaration => {
                     if self.state.turn.attack.is_some() {
                         errors.push("Attack declaration while attack context active".to_string());
@@ -996,7 +1121,7 @@ impl GameEnv {
             return Ok(());
         }
 
-        let state_hash = crate::util::hash_value(&self.state);
+        let state_hash = crate::fingerprint::state_fingerprint(&self.state);
         let phase = self.state.turn.phase;
         let attack_step = self.state.turn.attack.as_ref().map(|c| c.step);
         let tail_len = 8usize;
@@ -1051,7 +1176,9 @@ impl GameEnv {
             perspective,
             self.decision.as_ref(),
             self.last_action_desc.as_ref(),
+            self.last_action_player,
             self.config.observation_visibility,
+            self.curriculum.enable_visibility_policies,
             &mut self.obs_buf,
         );
         let obs = if copy_obs {
@@ -1071,11 +1198,10 @@ impl GameEnv {
                     DecisionKind::Main => 2,
                     DecisionKind::Climax => 3,
                     DecisionKind::AttackDeclaration => 4,
-                    DecisionKind::Counter => 5,
-                    DecisionKind::LevelUp => 6,
-                    DecisionKind::Encore => 7,
-                    DecisionKind::TriggerOrder => 8,
-                    DecisionKind::Choice => 9,
+                    DecisionKind::LevelUp => 5,
+                    DecisionKind::Encore => 6,
+                    DecisionKind::TriggerOrder => 7,
+                    DecisionKind::Choice => 8,
                 })
                 .unwrap_or(-1),
             current_player: self.decision.as_ref().map(|d| d.player as i8).unwrap_or(-1),
@@ -1361,17 +1487,19 @@ impl GameEnv {
         if self.decision.is_some() {
             return true;
         }
-        let actions = self.collect_priority_actions(priority.holder);
-        if actions.is_empty() {
+        self.collect_priority_actions(priority.holder);
+        if self.scratch.priority_actions.is_empty() {
             self.priority_pass(priority.holder);
             return true;
         }
-        if actions.len() == 1 && self.curriculum.priority_autopick_single_action {
-            let action = actions[0].clone();
+        if self.scratch.priority_actions.len() == 1
+            && self.curriculum.priority_autopick_single_action
+        {
+            let action = self.scratch.priority_actions[0].clone();
             let _ = self.apply_priority_action(priority.holder, action);
             return true;
         }
-        self.start_priority_choice(priority.holder, actions);
+        self.start_priority_choice(priority.holder);
         true
     }
 
@@ -1394,7 +1522,7 @@ impl GameEnv {
         group_id
     }
 
-    fn choice_option_id(&self, option: &ChoiceOptionRef) -> u64 {
+    fn choice_option_id(&self, option: &ChoiceOptionRef, choice_id: u32, global_index: usize) -> u64 {
         let zone_id = match option.zone {
             ChoiceZone::WaitingRoom => 1u64,
             ChoiceZone::Stage => 2u64,
@@ -1411,110 +1539,22 @@ impl GameEnv {
         };
         let index = option.index.unwrap_or(0) as u64;
         let target = option.target_slot.unwrap_or(0) as u64;
-        (option.card_id as u64) << 32 | (zone_id << 24) | (index << 8) | target
-    }
-
-    fn choice_option_label(&self, option: &ChoiceOptionRef) -> String {
-        match option.zone {
-            ChoiceZone::WaitingRoom => {
-                let idx = option.index.unwrap_or(0);
-                if let Some(slot) = option.target_slot {
-                    if option.card_id == 0 {
-                        format!("WR[{idx}] -> ST[{slot}]")
-                    } else {
-                        format!("WR[{idx}] -> ST[{slot}] card {}", option.card_id)
-                    }
-                } else if option.card_id == 0 {
-                    format!("WR[{idx}]")
-                } else {
-                    format!("WR[{idx}] card {}", option.card_id)
-                }
-            }
-            ChoiceZone::Stage => {
-                let slot = option.index.unwrap_or(0);
-                if option.card_id == 0 {
-                    format!("ST[{slot}]")
-                } else {
-                    format!("ST[{slot}] card {}", option.card_id)
-                }
-            }
-            ChoiceZone::DeckTop => match option.index.unwrap_or(0) {
-                0 => "Treasure: Stock top card".to_string(),
-                _ => "Treasure: Skip".to_string(),
-            },
-            ChoiceZone::Hand => {
-                let idx = option.index.unwrap_or(0);
-                if option.card_id == 0 {
-                    format!("Hand[{idx}]")
-                } else {
-                    format!("Hand[{idx}] card {}", option.card_id)
-                }
-            }
-            ChoiceZone::Clock => {
-                let idx = option.index.unwrap_or(0);
-                if option.card_id == 0 {
-                    format!("Clock[{idx}]")
-                } else {
-                    format!("Clock[{idx}] card {}", option.card_id)
-                }
-            }
-            ChoiceZone::Level => {
-                let idx = option.index.unwrap_or(0);
-                if option.card_id == 0 {
-                    format!("Level[{idx}]")
-                } else {
-                    format!("Level[{idx}] card {}", option.card_id)
-                }
-            }
-            ChoiceZone::Stock => {
-                let idx = option.index.unwrap_or(0);
-                if option.card_id == 0 {
-                    format!("Stock[{idx}]")
-                } else {
-                    format!("Stock[{idx}] card {}", option.card_id)
-                }
-            }
-            ChoiceZone::Memory => {
-                let idx = option.index.unwrap_or(0);
-                if option.card_id == 0 {
-                    format!("Memory[{idx}]")
-                } else {
-                    format!("Memory[{idx}] card {}", option.card_id)
-                }
-            }
-            ChoiceZone::Climax => {
-                let idx = option.index.unwrap_or(0);
-                if option.card_id == 0 {
-                    format!("Climax[{idx}]")
-                } else {
-                    format!("Climax[{idx}] card {}", option.card_id)
-                }
-            }
-            ChoiceZone::Stack => {
-                let idx = option.index.unwrap_or(0);
-                if option.card_id == 0 {
-                    format!("Stack order [{idx}]")
-                } else {
-                    format!("Stack order [{idx}] card {}", option.card_id)
-                }
-            }
-            ChoiceZone::PriorityCounter => {
-                let idx = option.index.unwrap_or(0);
-                if option.card_id == 0 {
-                    format!("Counter hand[{idx}]")
-                } else {
-                    format!("Counter hand[{idx}] card {}", option.card_id)
-                }
-            }
-            ChoiceZone::PriorityAct => {
-                let slot = option.index.unwrap_or(0);
-                let ability = option.target_slot.unwrap_or(0);
-                if option.card_id == 0 {
-                    format!("Act ST[{slot}] ability {ability}")
-                } else {
-                    format!("Act ST[{slot}] ability {ability} card {}", option.card_id)
-                }
-            }
+        let hidden_zone = matches!(
+            option.zone,
+            ChoiceZone::Hand
+                | ChoiceZone::DeckTop
+                | ChoiceZone::Stock
+                | ChoiceZone::Memory
+                | ChoiceZone::PriorityCounter
+        );
+        if option.instance_id != 0 {
+            (option.instance_id as u64) << 32 | (zone_id << 24) | (index << 8) | target
+        } else if option.card_id != 0 && !hidden_zone {
+            (option.card_id as u64) << 32 | (zone_id << 24) | (index << 8) | target
+        } else {
+            let choice_tag = (choice_id as u64) << 32;
+            let global_tag = (global_index as u64 & 0xFFFF) << 8;
+            choice_tag | (zone_id << 24) | global_tag | target
         }
     }
 
@@ -1522,15 +1562,20 @@ impl GameEnv {
         &self,
         reason: ChoiceReason,
         player: u8,
-        options: &[ChoiceOptionRef],
-    ) -> Vec<ChoiceOptionSummary> {
+        options: &[ChoiceOptionSnapshot],
+        page_start: u16,
+        choice_id: u32,
+        ctx: VisibilityContext,
+    ) -> Vec<ChoiceOptionSnapshot> {
         options
             .iter()
-            .map(|opt| {
-                let sanitized = self.sanitize_choice_option_for_event(reason, player, opt);
-                ChoiceOptionSummary {
-                    option_id: self.choice_option_id(&sanitized),
-                    label: self.choice_option_label(&sanitized),
+            .enumerate()
+            .map(|(idx, opt)| {
+                let global_index = page_start as usize + idx;
+                let sanitized =
+                    self.sanitize_choice_option_for_event(reason, player, ctx, &opt.reference);
+                ChoiceOptionSnapshot {
+                    option_id: self.choice_option_id(&sanitized, choice_id, global_index),
                     reference: sanitized,
                 }
             })
@@ -1541,37 +1586,11 @@ impl GameEnv {
         &self,
         reason: ChoiceReason,
         player: u8,
+        ctx: VisibilityContext,
         option: &ChoiceOptionRef,
     ) -> ChoiceOptionRef {
-        if !self.curriculum.enable_visibility_policies {
+        if !ctx.is_public() {
             return *option;
-        }
-        if self.config.observation_visibility == ObservationVisibility::Full {
-            return *option;
-        }
-        if self.choice_option_visible_to_player(reason, player, option) {
-            *option
-        } else {
-            ChoiceOptionRef {
-                card_id: 0,
-                zone: option.zone,
-                index: option.index,
-                target_slot: option.target_slot,
-            }
-        }
-    }
-
-    fn choice_option_visible_to_player(
-        &self,
-        reason: ChoiceReason,
-        player: u8,
-        option: &ChoiceOptionRef,
-    ) -> bool {
-        if option.card_id == 0 {
-            return true;
-        }
-        if self.config.observation_visibility == ObservationVisibility::Full {
-            return true;
         }
         let option_player = if reason == ChoiceReason::TargetSelect {
             self.state
@@ -1586,21 +1605,49 @@ impl GameEnv {
         } else {
             player
         };
-        if self.public_revealed[option_player as usize].contains(&option.card_id) {
-            return true;
+        let hide_for_viewer = match ctx.viewer {
+            Some(viewer) => viewer != option_player,
+            None => true,
+        };
+        if !hide_for_viewer {
+            return *option;
         }
-        match option.zone {
-            ChoiceZone::Hand => option_player == player,
-            ChoiceZone::DeckTop | ChoiceZone::Stock => false,
-            _ => true,
+        let hide_zone = matches!(
+            option.zone,
+            ChoiceZone::Hand
+                | ChoiceZone::DeckTop
+                | ChoiceZone::Stock
+                | ChoiceZone::Memory
+                | ChoiceZone::PriorityCounter
+        );
+        if !hide_zone {
+            return *option;
         }
+        let revealed = self.instance_revealed_to_viewer(ctx, option.instance_id);
+        ChoiceOptionRef {
+            card_id: if revealed { option.card_id } else { 0 },
+            instance_id: 0,
+            zone: option.zone,
+            index: None,
+            target_slot: option.target_slot,
+        }
+    }
+
+    fn choice_page_bounds(&self, total: usize, page_start: usize) -> (usize, usize) {
+        let start = page_start.min(total);
+        let end = total.min(start + MAX_CHOICE_OPTIONS);
+        (start, end)
+    }
+
+    fn recycle_choice_options(&mut self, options: Vec<ChoiceOptionRef>) {
+        self.scratch.choice_options = options;
     }
 
     fn start_choice(
         &mut self,
         reason: ChoiceReason,
         player: u8,
-        mut candidates: Vec<ChoiceOptionRef>,
+        candidates: Vec<ChoiceOptionRef>,
         pending_trigger: Option<PendingTrigger>,
     ) -> bool {
         let total = candidates.len();
@@ -1621,37 +1668,46 @@ impl GameEnv {
                     effect: trigger.effect,
                 });
             }
+            self.recycle_choice_options(candidates);
             return false;
         }
         if total == 1 {
             let option = candidates[0];
             if self.recording {
-                let logged = self.sanitize_choice_option_for_event(reason, player, &option);
                 self.log_event(Event::ChoiceAutopicked {
                     choice_id,
                     player,
-                    option: logged,
+                    reason,
+                    option,
                 });
             }
+            self.recycle_choice_options(candidates);
             self.apply_choice_effect(reason, player, option, pending_trigger);
             return false;
         }
-        if candidates.len() > MAX_CHOICE_OPTIONS {
-            candidates.truncate(MAX_CHOICE_OPTIONS);
-        }
-        let summaries = if self.recording {
-            self.summarize_choice_options_for_event(reason, player, &candidates)
-        } else {
-            Vec::new()
-        };
+        let page_start = 0u16;
+        let (page_start_idx, page_end_idx) = self.choice_page_bounds(total, 0);
+        let page_slice = &candidates[page_start_idx..page_end_idx];
         let total_candidates = total.min(u16::MAX as usize) as u16;
         if self.recording {
+            let mut options = Vec::with_capacity(page_slice.len());
+            for (idx, opt) in page_slice.iter().enumerate() {
+                options.push(ChoiceOptionSnapshot {
+                    option_id: self.choice_option_id(
+                        opt,
+                        choice_id,
+                        page_start as usize + idx,
+                    ),
+                    reference: *opt,
+                });
+            }
             self.log_event(Event::ChoicePresented {
                 choice_id,
                 player,
                 reason,
-                options: summaries,
+                options,
                 total_candidates,
+                page_start,
             });
         }
         self.state.turn.choice = Some(ChoiceState {
@@ -1660,6 +1716,7 @@ impl GameEnv {
             player,
             options: candidates,
             total_candidates,
+            page_start,
             pending_trigger,
         });
         true
@@ -1697,6 +1754,7 @@ impl GameEnv {
                     zone: TargetZone::WaitingRoom,
                     index,
                     card_id: option.card_id,
+                    instance_id: option.instance_id,
                 }];
                 for effect in effects {
                     self.enqueue_effect_with_targets(
@@ -1813,20 +1871,23 @@ impl GameEnv {
         self.enqueue_stack_items(vec![item]);
     }
 
-    fn enumerate_target_candidates(
-        &self,
+    fn enumerate_target_candidates_into(
+        state: &GameState,
+        db: &CardDb,
+        curriculum: &CurriculumConfig,
         controller: u8,
         spec: &TargetSpec,
         selected: &[TargetRef],
-    ) -> Vec<TargetRef> {
+        out: &mut Vec<TargetRef>,
+    ) {
         let target_player = match spec.side {
             TargetSide::SelfSide => controller,
             TargetSide::Opponent => 1 - controller,
         };
-        let mut candidates = Vec::new();
+        out.clear();
         match spec.zone {
             TargetZone::Stage => {
-                let max_slot = if self.curriculum.reduced_stage_mode {
+                let max_slot = if curriculum.reduced_stage_mode {
                     1
                 } else {
                     MAX_STAGE
@@ -1836,11 +1897,11 @@ impl GameEnv {
                     if spec.slot_filter == TargetSlotFilter::FrontRow && slot >= 3 {
                         continue;
                     }
-                    let slot_state = &self.state.players[target_player as usize].stage[slot];
+                    let slot_state = &state.players[target_player as usize].stage[slot];
                     let Some(card_inst) = slot_state.card else {
                         continue;
                     };
-                    let Some(card) = self.db.get(card_inst.id) else {
+                    let Some(card) = db.get(card_inst.id) else {
                         continue;
                     };
                     if let Some(card_type) = spec.card_type {
@@ -1856,17 +1917,18 @@ impl GameEnv {
                         continue;
                     }
                     let index = slot as u8;
-                    candidates.push(TargetRef {
+                    out.push(TargetRef {
                         player: target_player,
                         zone: TargetZone::Stage,
                         index,
                         card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
                     });
                 }
             }
             TargetZone::WaitingRoom => {
                 // Deterministic target ordering: waiting room index ascending.
-                for (idx, card_inst) in self.state.players[target_player as usize]
+                for (idx, card_inst) in state.players[target_player as usize]
                     .waiting_room
                     .iter()
                     .copied()
@@ -1875,7 +1937,7 @@ impl GameEnv {
                     if idx > u8::MAX as usize {
                         break;
                     }
-                    let Some(card) = self.db.get(card_inst.id) else {
+                    let Some(card) = db.get(card_inst.id) else {
                         continue;
                     };
                     if let Some(card_type) = spec.card_type {
@@ -1890,16 +1952,17 @@ impl GameEnv {
                     }) {
                         continue;
                     }
-                    candidates.push(TargetRef {
+                    out.push(TargetRef {
                         player: target_player,
                         zone: TargetZone::WaitingRoom,
                         index: idx as u8,
                         card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
                     });
                 }
             }
             TargetZone::Hand => {
-                for (idx, card_inst) in self.state.players[target_player as usize]
+                for (idx, card_inst) in state.players[target_player as usize]
                     .hand
                     .iter()
                     .copied()
@@ -1908,7 +1971,7 @@ impl GameEnv {
                     if idx > u8::MAX as usize {
                         break;
                     }
-                    let Some(card) = self.db.get(card_inst.id) else {
+                    let Some(card) = db.get(card_inst.id) else {
                         continue;
                     };
                     if let Some(card_type) = spec.card_type {
@@ -1923,16 +1986,17 @@ impl GameEnv {
                     }) {
                         continue;
                     }
-                    candidates.push(TargetRef {
+                    out.push(TargetRef {
                         player: target_player,
                         zone: TargetZone::Hand,
                         index: idx as u8,
                         card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
                     });
                 }
             }
             TargetZone::DeckTop => {
-                let deck = &self.state.players[target_player as usize].deck;
+                let deck = &state.players[target_player as usize].deck;
                 for offset in 0..deck.len() {
                     if offset > u8::MAX as usize {
                         break;
@@ -1942,7 +2006,7 @@ impl GameEnv {
                     let Some(card_inst) = card_inst else {
                         continue;
                     };
-                    let Some(card) = self.db.get(card_inst.id) else {
+                    let Some(card) = db.get(card_inst.id) else {
                         continue;
                     };
                     if let Some(card_type) = spec.card_type {
@@ -1957,16 +2021,17 @@ impl GameEnv {
                     }) {
                         continue;
                     }
-                    candidates.push(TargetRef {
+                    out.push(TargetRef {
                         player: target_player,
                         zone: TargetZone::DeckTop,
                         index: offset as u8,
                         card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
                     });
                 }
             }
             TargetZone::Clock => {
-                for (idx, card_inst) in self.state.players[target_player as usize]
+                for (idx, card_inst) in state.players[target_player as usize]
                     .clock
                     .iter()
                     .copied()
@@ -1975,7 +2040,7 @@ impl GameEnv {
                     if idx > u8::MAX as usize {
                         break;
                     }
-                    let Some(card) = self.db.get(card_inst.id) else {
+                    let Some(card) = db.get(card_inst.id) else {
                         continue;
                     };
                     if let Some(card_type) = spec.card_type {
@@ -1990,16 +2055,17 @@ impl GameEnv {
                     }) {
                         continue;
                     }
-                    candidates.push(TargetRef {
+                    out.push(TargetRef {
                         player: target_player,
                         zone: TargetZone::Clock,
                         index: idx as u8,
                         card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
                     });
                 }
             }
             TargetZone::Level => {
-                for (idx, card_inst) in self.state.players[target_player as usize]
+                for (idx, card_inst) in state.players[target_player as usize]
                     .level
                     .iter()
                     .copied()
@@ -2008,7 +2074,7 @@ impl GameEnv {
                     if idx > u8::MAX as usize {
                         break;
                     }
-                    let Some(card) = self.db.get(card_inst.id) else {
+                    let Some(card) = db.get(card_inst.id) else {
                         continue;
                     };
                     if let Some(card_type) = spec.card_type {
@@ -2023,16 +2089,17 @@ impl GameEnv {
                     }) {
                         continue;
                     }
-                    candidates.push(TargetRef {
+                    out.push(TargetRef {
                         player: target_player,
                         zone: TargetZone::Level,
                         index: idx as u8,
                         card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
                     });
                 }
             }
             TargetZone::Stock => {
-                for (idx, card_inst) in self.state.players[target_player as usize]
+                for (idx, card_inst) in state.players[target_player as usize]
                     .stock
                     .iter()
                     .copied()
@@ -2041,7 +2108,7 @@ impl GameEnv {
                     if idx > u8::MAX as usize {
                         break;
                     }
-                    let Some(card) = self.db.get(card_inst.id) else {
+                    let Some(card) = db.get(card_inst.id) else {
                         continue;
                     };
                     if let Some(card_type) = spec.card_type {
@@ -2056,16 +2123,17 @@ impl GameEnv {
                     }) {
                         continue;
                     }
-                    candidates.push(TargetRef {
+                    out.push(TargetRef {
                         player: target_player,
                         zone: TargetZone::Stock,
                         index: idx as u8,
                         card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
                     });
                 }
             }
             TargetZone::Memory => {
-                for (idx, card_inst) in self.state.players[target_player as usize]
+                for (idx, card_inst) in state.players[target_player as usize]
                     .memory
                     .iter()
                     .copied()
@@ -2074,7 +2142,7 @@ impl GameEnv {
                     if idx > u8::MAX as usize {
                         break;
                     }
-                    let Some(card) = self.db.get(card_inst.id) else {
+                    let Some(card) = db.get(card_inst.id) else {
                         continue;
                     };
                     if let Some(card_type) = spec.card_type {
@@ -2089,16 +2157,17 @@ impl GameEnv {
                     }) {
                         continue;
                     }
-                    candidates.push(TargetRef {
+                    out.push(TargetRef {
                         player: target_player,
                         zone: TargetZone::Memory,
                         index: idx as u8,
                         card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
                     });
                 }
             }
             TargetZone::Climax => {
-                for (idx, card_inst) in self.state.players[target_player as usize]
+                for (idx, card_inst) in state.players[target_player as usize]
                     .climax
                     .iter()
                     .copied()
@@ -2107,7 +2176,7 @@ impl GameEnv {
                     if idx > u8::MAX as usize {
                         break;
                     }
-                    let Some(card) = self.db.get(card_inst.id) else {
+                    let Some(card) = db.get(card_inst.id) else {
                         continue;
                     };
                     if let Some(card_type) = spec.card_type {
@@ -2122,38 +2191,46 @@ impl GameEnv {
                     }) {
                         continue;
                     }
-                    candidates.push(TargetRef {
+                    out.push(TargetRef {
                         player: target_player,
                         zone: TargetZone::Climax,
                         index: idx as u8,
                         card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
                     });
                 }
             }
         }
-        candidates
     }
 
     fn present_target_choice(&mut self) {
-        let Some(selection) = &self.state.turn.target_selection else {
-            return;
+        let controller = {
+            let Some(selection) = self.state.turn.target_selection.as_ref() else {
+                return;
+            };
+            Self::enumerate_target_candidates_into(
+                &self.state,
+                &self.db,
+                &self.curriculum,
+                selection.controller,
+                &selection.spec,
+                &selection.selected,
+                &mut self.scratch.targets,
+            );
+            selection.controller
         };
-        let candidates = self.enumerate_target_candidates(
-            selection.controller,
-            &selection.spec,
-            &selection.selected,
-        );
+        let candidates = self.scratch.targets.as_slice();
         if candidates.is_empty() {
             let _ = self.start_choice(
                 ChoiceReason::TargetSelect,
-                selection.controller,
+                controller,
                 Vec::new(),
                 None,
             );
             self.state.turn.target_selection = None;
             return;
         }
-        let mut options = Vec::new();
+        self.scratch.choice_options.clear();
         for target in candidates {
             let zone = match target.zone {
                 TargetZone::Stage => ChoiceZone::Stage,
@@ -2166,16 +2243,18 @@ impl GameEnv {
                 TargetZone::Memory => ChoiceZone::Memory,
                 TargetZone::Climax => ChoiceZone::Climax,
             };
-            options.push(ChoiceOptionRef {
+            self.scratch.choice_options.push(ChoiceOptionRef {
                 card_id: target.card_id,
+                instance_id: target.instance_id,
                 zone,
                 index: Some(target.index),
                 target_slot: None,
             });
         }
+        let options = std::mem::take(&mut self.scratch.choice_options);
         let _ = self.start_choice(
             ChoiceReason::TargetSelect,
-            selection.controller,
+            controller,
             options,
             None,
         );
@@ -2224,8 +2303,8 @@ impl GameEnv {
                 } else {
                     self.state.players[target_player as usize].stage[slot]
                         .card
-                        .map(|c| c.id)
-                        == Some(option.card_id)
+                        .map(|c| c.instance_id)
+                        == Some(option.instance_id)
                 }
             }
             TargetZone::WaitingRoom => {
@@ -2237,8 +2316,8 @@ impl GameEnv {
                 {
                     false
                 } else {
-                    self.state.players[target_player as usize].waiting_room[idx].id
-                        == option.card_id
+                    self.state.players[target_player as usize].waiting_room[idx].instance_id
+                        == option.instance_id
                 }
             }
             TargetZone::Hand => {
@@ -2246,7 +2325,8 @@ impl GameEnv {
                 if idx >= self.state.players[target_player as usize].hand.len() {
                     false
                 } else {
-                    self.state.players[target_player as usize].hand[idx].id == option.card_id
+                    self.state.players[target_player as usize].hand[idx].instance_id
+                        == option.instance_id
                 }
             }
             TargetZone::DeckTop => {
@@ -2256,7 +2336,7 @@ impl GameEnv {
                 if deck_idx >= deck.len() {
                     false
                 } else {
-                    deck[deck_idx].id == option.card_id
+                    deck[deck_idx].instance_id == option.instance_id
                 }
             }
             TargetZone::Clock => {
@@ -2264,7 +2344,8 @@ impl GameEnv {
                 if idx >= self.state.players[target_player as usize].clock.len() {
                     false
                 } else {
-                    self.state.players[target_player as usize].clock[idx].id == option.card_id
+                    self.state.players[target_player as usize].clock[idx].instance_id
+                        == option.instance_id
                 }
             }
             TargetZone::Level => {
@@ -2272,7 +2353,8 @@ impl GameEnv {
                 if idx >= self.state.players[target_player as usize].level.len() {
                     false
                 } else {
-                    self.state.players[target_player as usize].level[idx].id == option.card_id
+                    self.state.players[target_player as usize].level[idx].instance_id
+                        == option.instance_id
                 }
             }
             TargetZone::Stock => {
@@ -2280,7 +2362,8 @@ impl GameEnv {
                 if idx >= self.state.players[target_player as usize].stock.len() {
                     false
                 } else {
-                    self.state.players[target_player as usize].stock[idx].id == option.card_id
+                    self.state.players[target_player as usize].stock[idx].instance_id
+                        == option.instance_id
                 }
             }
             TargetZone::Memory => {
@@ -2288,7 +2371,8 @@ impl GameEnv {
                 if idx >= self.state.players[target_player as usize].memory.len() {
                     false
                 } else {
-                    self.state.players[target_player as usize].memory[idx].id == option.card_id
+                    self.state.players[target_player as usize].memory[idx].instance_id
+                        == option.instance_id
                 }
             }
             TargetZone::Climax => {
@@ -2296,7 +2380,8 @@ impl GameEnv {
                 if idx >= self.state.players[target_player as usize].climax.len() {
                     false
                 } else {
-                    self.state.players[target_player as usize].climax[idx].id == option.card_id
+                    self.state.players[target_player as usize].climax[idx].instance_id
+                        == option.instance_id
                 }
             }
         };
@@ -2309,6 +2394,7 @@ impl GameEnv {
             zone,
             index,
             card_id: option.card_id,
+            instance_id: option.instance_id,
         };
         if selection
             .selected
@@ -2365,18 +2451,18 @@ impl GameEnv {
         });
     }
 
-    fn collect_priority_actions(&self, player: u8) -> Vec<ActionDesc> {
-        let mut actions = Vec::new();
+    fn collect_priority_actions(&mut self, player: u8) {
+        self.scratch.priority_actions.clear();
         let Some(priority) = self.state.turn.priority.as_ref() else {
-            return actions;
+            return;
         };
         if priority.holder != player {
-            return actions;
+            return;
         }
         match priority.window {
             TimingWindow::MainWindow => {
                 if !self.curriculum.enable_activated_abilities {
-                    return actions;
+                    return;
                 }
                 let p = &self.state.players[player as usize];
                 let max_slot = if self.curriculum.reduced_stage_mode {
@@ -2413,7 +2499,7 @@ impl GameEnv {
                         if priority.used_act_mask & (1u32 << bit) != 0 {
                             continue;
                         }
-                        actions.push(ActionDesc::MainActivateAbility {
+                        self.scratch.priority_actions.push(ActionDesc::MainActivateAbility {
                             slot: slot as u8,
                             ability_index: idx as u8,
                         });
@@ -2422,13 +2508,13 @@ impl GameEnv {
             }
             TimingWindow::CounterWindow => {
                 let Some(ctx) = &self.state.turn.attack else {
-                    return actions;
+                    return;
                 };
                 if ctx.attack_type != AttackType::Frontal
                     || ctx.defender_slot.is_none()
                     || ctx.counter_played
                 {
-                    return actions;
+                    return;
                 }
                 if self.curriculum.enable_counters {
                     let p = &self.state.players[player as usize];
@@ -2448,7 +2534,7 @@ impl GameEnv {
                             && self.meets_color_requirement(player, card)
                             && self.meets_cost_requirement(player, card)
                         {
-                            actions.push(ActionDesc::CounterPlay {
+                            self.scratch.priority_actions.push(ActionDesc::CounterPlay {
                                 hand_index: hand_index as u8,
                             });
                         }
@@ -2462,21 +2548,21 @@ impl GameEnv {
             | TimingWindow::EncoreWindow
             | TimingWindow::EndPhaseWindow => {}
         }
-        actions
     }
 
-    fn start_priority_choice(&mut self, player: u8, actions: Vec<ActionDesc>) {
-        let mut options = Vec::new();
-        for action in actions {
-            match action {
+    fn start_priority_choice(&mut self, player: u8) {
+        self.scratch.choice_options.clear();
+        for action in self.scratch.priority_actions.iter() {
+            match *action {
                 ActionDesc::CounterPlay { hand_index } => {
-                    let card_id = self.state.players[player as usize]
+                    let (card_id, instance_id) = self.state.players[player as usize]
                         .hand
                         .get(hand_index as usize)
-                        .map(|c| c.id)
-                        .unwrap_or(0);
-                    options.push(ChoiceOptionRef {
+                        .map(|c| (c.id, c.instance_id))
+                        .unwrap_or((0, 0));
+                    self.scratch.choice_options.push(ChoiceOptionRef {
                         card_id,
+                        instance_id,
                         zone: ChoiceZone::PriorityCounter,
                         index: Some(hand_index),
                         target_slot: None,
@@ -2486,14 +2572,15 @@ impl GameEnv {
                     slot,
                     ability_index,
                 } => {
-                    let card_id = self.state.players[player as usize]
+                    let (card_id, instance_id) = self.state.players[player as usize]
                         .stage
                         .get(slot as usize)
                         .and_then(|s| s.card)
-                        .map(|c| c.id)
-                        .unwrap_or(0);
-                    options.push(ChoiceOptionRef {
+                        .map(|c| (c.id, c.instance_id))
+                        .unwrap_or((0, 0));
+                    self.scratch.choice_options.push(ChoiceOptionRef {
                         card_id,
+                        instance_id,
                         zone: ChoiceZone::PriorityAct,
                         index: Some(slot),
                         target_slot: Some(ability_index),
@@ -2502,6 +2589,7 @@ impl GameEnv {
                 _ => {}
             }
         }
+        let options = std::mem::take(&mut self.scratch.choice_options);
         self.start_choice(ChoiceReason::PriorityActionSelect, player, options, None);
     }
 
@@ -2578,8 +2666,8 @@ impl GameEnv {
                 }
             }
             ActionDesc::MainPass | ActionDesc::CounterPass => {
-                let actions = self.collect_priority_actions(player);
-                if !actions.is_empty() {
+                self.collect_priority_actions(player);
+                if !self.scratch.priority_actions.is_empty() {
                     return Err(anyhow!(
                         "Explicit pass not allowed when priority actions exist"
                     ));
@@ -2751,20 +2839,22 @@ impl GameEnv {
         let Some(order) = &self.state.turn.stack_order else {
             return;
         };
-        let mut options = Vec::new();
+        self.scratch.choice_options.clear();
         for (idx, item) in order.items.iter().enumerate() {
             let index = if idx <= u8::MAX as usize {
                 Some(idx as u8)
             } else {
                 None
             };
-            options.push(ChoiceOptionRef {
+            self.scratch.choice_options.push(ChoiceOptionRef {
                 card_id: item.source_id,
+                instance_id: 0,
                 zone: ChoiceZone::Stack,
                 index,
                 target_slot: None,
             });
         }
+        let options = std::mem::take(&mut self.scratch.choice_options);
         self.start_choice(
             ChoiceReason::StackOrderSelect,
             order.controller,
@@ -2846,12 +2936,18 @@ impl GameEnv {
                 };
                 let (amount, target_player) =
                     self.apply_replacements_to_damage(controller, target_player, *amount);
+                let refresh_penalty = payload.spec.id.source_kind == EffectSourceKind::System
+                    && payload.spec.id.source_card == 0
+                    && payload.spec.id.ability_index == 0
+                    && payload.spec.id.effect_index == 0
+                    && !*cancelable;
                 if amount > 0 {
                     let _ = self.resolve_effect_damage(
                         controller,
                         target_player,
                         amount,
                         *cancelable,
+                        refresh_penalty,
                         Some(source_id),
                     );
                 }
@@ -2870,7 +2966,11 @@ impl GameEnv {
                     if s >= self.state.players[p].stage.len() {
                         continue;
                     }
-                    if self.state.players[p].stage[s].card.map(|c| c.id) != Some(target.card_id) {
+                    if self.state.players[p].stage[s]
+                        .card
+                        .map(|c| c.instance_id)
+                        != Some(target.instance_id)
+                    {
                         continue;
                     }
                     let _ = self.add_modifier(
@@ -2890,6 +2990,7 @@ impl GameEnv {
                         TargetZone::Stage => {
                             let option = ChoiceOptionRef {
                                 card_id: target.card_id,
+                                instance_id: target.instance_id,
                                 zone: ChoiceZone::Stage,
                                 index: Some(target.index),
                                 target_slot: None,
@@ -2906,6 +3007,7 @@ impl GameEnv {
                 for target in waiting_room_targets {
                     let option = ChoiceOptionRef {
                         card_id: target.card_id,
+                        instance_id: target.instance_id,
                         zone: ChoiceZone::WaitingRoom,
                         index: Some(target.index),
                         target_slot: None,
@@ -2947,7 +3049,7 @@ impl GameEnv {
                     else {
                         continue;
                     };
-                    if card_inst.id != target.card_id {
+                    if card_inst.instance_id != target.instance_id {
                         continue;
                     }
                     self.remove_modifiers_for_slot(from_player, target.index);
@@ -2983,6 +3085,7 @@ impl GameEnv {
                 }
                 let option = ChoiceOptionRef {
                     card_id: target.card_id,
+                    instance_id: target.instance_id,
                     zone: ChoiceZone::WaitingRoom,
                     index: Some(target.index),
                     target_slot: Some(*target_slot),
@@ -2992,16 +3095,14 @@ impl GameEnv {
             EffectKind::TreasureStock { take_stock } => {
                 if *take_stock {
                     if let Some(card) = self.draw_from_deck(controller) {
-                        let p = controller as usize;
-                        self.state.players[p].stock.push(card);
-                        self.log_event(Event::ZoneMove {
-                            player: controller,
-                            card: card.id,
-                            from: Zone::Deck,
-                            to: Zone::Stock,
-                            from_slot: None,
-                            to_slot: None,
-                        });
+                        self.move_card_between_zones(
+                            controller,
+                            card,
+                            Zone::Deck,
+                            Zone::Stock,
+                            None,
+                            None,
+                        );
                     }
                 }
             }
@@ -3098,28 +3199,32 @@ impl GameEnv {
         if !self.curriculum.enable_continuous_modifiers {
             return;
         }
-        let mut indices = Vec::new();
-        let specs = self.db.iter_card_abilities_in_canonical_order(card_id);
+        let db = self.db.clone();
+        let specs = db.iter_card_abilities_in_canonical_order(card_id);
         for (idx, spec) in specs.iter().enumerate() {
-            if spec.kind == AbilityKind::Continuous {
-                indices.push(idx);
+            if spec.kind != AbilityKind::Continuous {
+                continue;
             }
-        }
-        for idx in indices {
-            let effects: Vec<EffectSpec> =
-                self.db.compiled_effects_for_ability(card_id, idx).to_vec();
+            let effects = db.compiled_effects_for_ability(card_id, idx);
             if effects.is_empty() {
                 continue;
             }
             for effect in effects {
+                let instance_id = self.state.players[player as usize]
+                    .stage
+                    .get(slot as usize)
+                    .and_then(|s| s.card)
+                    .map(|c| c.instance_id)
+                    .unwrap_or(0);
                 let targets = vec![TargetRef {
                     player,
                     zone: TargetZone::Stage,
                     index: slot,
                     card_id,
+                    instance_id,
                 }];
                 let payload = EffectPayload {
-                    spec: effect,
+                    spec: effect.clone(),
                     targets,
                 };
                 self.resolve_effect_payload(player, card_id, &payload);
@@ -3145,12 +3250,12 @@ impl GameEnv {
             .card
             .ok_or_else(|| anyhow!("No card in ability slot"))?;
         let card_id = card_inst.id;
-        if self.db.get(card_id).is_none() {
+        let db = self.db.clone();
+        if db.get(card_id).is_none() {
             return Err(anyhow!("Card missing in db"));
         }
         let idx = ability_index as usize;
-        let spec_kind = self
-            .db
+        let spec_kind = db
             .iter_card_abilities_in_canonical_order(card_id)
             .get(idx)
             .map(|spec| spec.kind);
@@ -3163,12 +3268,12 @@ impl GameEnv {
         if spec_kind != AbilityKind::Activated {
             return Err(anyhow!("Ability is not activated"));
         }
-        let effects: Vec<EffectSpec> = self.db.compiled_effects_for_ability(card_id, idx).to_vec();
+        let effects = db.compiled_effects_for_ability(card_id, idx);
         if effects.is_empty() {
             return Err(anyhow!("Activated ability has no effects"));
         }
         for effect in effects {
-            self.enqueue_effect_spec(player, card_id, effect);
+            self.enqueue_effect_spec(player, card_id, effect.clone());
         }
         Ok(())
     }
@@ -3214,37 +3319,45 @@ impl GameEnv {
         let damage_cancel = self.counter_damage_cancel(card);
         self.pay_cost(player, card.cost as usize)?;
         let card_inst = self.state.players[p].hand.remove(hi);
-        self.state.players[p].waiting_room.push(card_inst);
+        let card_id = card_inst.id;
+        self.move_card_between_zones(
+            player,
+            card_inst,
+            Zone::Hand,
+            Zone::WaitingRoom,
+            Some(hand_index),
+            None,
+        );
         if let Some(ctx) = &mut self.state.turn.attack {
             ctx.counter_played = true;
         }
         if power != 0 {
             let spec = EffectSpec {
-                id: EffectId::new(EffectSourceKind::Counter, card_inst.id, 0, 0),
+                id: EffectId::new(EffectSourceKind::Counter, card_id, 0, 0),
                 kind: EffectKind::CounterBackup { power },
                 target: None,
             };
-            self.enqueue_effect_spec(player, card_inst.id, spec);
+            self.enqueue_effect_spec(player, card_id, spec);
         }
         for (idx, reduce) in damage_reductions.into_iter().enumerate() {
             if reduce > 0 {
                 let spec = EffectSpec {
-                    id: EffectId::new(EffectSourceKind::Counter, card_inst.id, 0, idx as u8),
+                    id: EffectId::new(EffectSourceKind::Counter, card_id, 0, idx as u8),
                     kind: EffectKind::CounterDamageReduce {
                         amount: reduce as u8,
                     },
                     target: None,
                 };
-                self.enqueue_effect_spec(player, card_inst.id, spec);
+                self.enqueue_effect_spec(player, card_id, spec);
             }
         }
         if damage_cancel {
             let spec = EffectSpec {
-                id: EffectId::new(EffectSourceKind::Counter, card_inst.id, 0, 10),
+                id: EffectId::new(EffectSourceKind::Counter, card_id, 0, 10),
                 kind: EffectKind::CounterDamageCancel,
                 target: None,
             };
-            self.enqueue_effect_spec(player, card_inst.id, spec);
+            self.enqueue_effect_spec(player, card_id, spec);
         }
         Ok(())
     }
@@ -3458,12 +3571,11 @@ impl GameEnv {
                 return self.resolve_trigger_standby(trigger);
             }
             TriggerEffect::EndPhaseDraw { ability_index, .. } => {
-                let effects: Vec<EffectSpec> = self
-                    .db
-                    .compiled_effects_for_ability(trigger.source_card, ability_index as usize)
-                    .to_vec();
+                let db = self.db.clone();
+                let effects =
+                    db.compiled_effects_for_ability(trigger.source_card, ability_index as usize);
                 for effect in effects {
-                    self.enqueue_effect_spec(trigger.player, trigger.source_card, effect);
+                    self.enqueue_effect_spec(trigger.player, trigger.source_card, effect.clone());
                 }
             }
         }
@@ -3492,7 +3604,7 @@ impl GameEnv {
             .level
             .len()
             .saturating_add(1);
-        let mut candidates = Vec::new();
+        self.scratch.choice_options.clear();
         // Deterministic ordering: waiting room order, then slot order (ascending).
         for (idx, card_inst) in self.state.players[trigger.player as usize]
             .waiting_room
@@ -3515,14 +3627,16 @@ impl GameEnv {
                 None
             };
             for slot in &target_slots {
-                candidates.push(ChoiceOptionRef {
+                self.scratch.choice_options.push(ChoiceOptionRef {
                     card_id: card_inst.id,
+                    instance_id: card_inst.instance_id,
                     zone: ChoiceZone::WaitingRoom,
                     index,
                     target_slot: Some(*slot),
                 });
             }
         }
+        let candidates = std::mem::take(&mut self.scratch.choice_options);
         self.start_choice(
             ChoiceReason::TriggerStandbySelect,
             trigger.player,
@@ -3532,21 +3646,24 @@ impl GameEnv {
     }
 
     fn resolve_trigger_treasure(&mut self, trigger: PendingTrigger) -> bool {
-        let mut options = Vec::new();
+        self.scratch.choice_options.clear();
         if self.treasure_stock_available(trigger.player) {
-            options.push(ChoiceOptionRef {
+            self.scratch.choice_options.push(ChoiceOptionRef {
                 card_id: 0,
+                instance_id: 0,
                 zone: ChoiceZone::DeckTop,
                 index: Some(0),
                 target_slot: None,
             });
         }
-        options.push(ChoiceOptionRef {
+        self.scratch.choice_options.push(ChoiceOptionRef {
             card_id: 0,
+            instance_id: 0,
             zone: ChoiceZone::DeckTop,
             index: Some(1),
             target_slot: None,
         });
+        let options = std::mem::take(&mut self.scratch.choice_options);
         self.start_choice(
             ChoiceReason::TriggerTreasureSelect,
             trigger.player,
@@ -3733,7 +3850,7 @@ impl GameEnv {
     fn finish_end_phase(&mut self, player: u8) {
         let p = player as usize;
         if let Some(card) = self.state.players[p].climax.pop() {
-            self.state.players[p].waiting_room.push(card);
+            self.move_card_between_zones(player, card, Zone::Climax, Zone::WaitingRoom, None, None);
         }
         self.state.turn.pending_triggers.clear();
         self.state.turn.trigger_order = None;
@@ -3897,7 +4014,7 @@ impl GameEnv {
             ctx.trigger_card = Some(card_id);
             let _ = self.reveal_cards(
                 active as u8,
-                &[card_id],
+                &[card_inst],
                 RevealReason::TriggerCheck,
                 RevealAudience::Public,
             );
@@ -3906,7 +4023,11 @@ impl GameEnv {
                     let triggers = static_card.triggers.clone();
                     let mut effects = Vec::new();
                     for icon in triggers {
-                        self.log_replay_trigger(active as u8, icon, Some(card_id));
+                        self.log_event(Event::Trigger {
+                            player: active as u8,
+                            icon,
+                            card: Some(card_id),
+                        });
                         match icon {
                             TriggerIcon::Soul if self.curriculum.enable_trigger_soul => {
                                 effects.push(TriggerEffect::Soul)
@@ -3935,7 +4056,14 @@ impl GameEnv {
                     self.queue_trigger_group(active as u8, card_id, effects);
                 }
             }
-            self.state.players[active].stock.push(card_inst);
+            self.move_card_between_zones(
+                active as u8,
+                card_inst,
+                Zone::Deck,
+                Zone::Stock,
+                None,
+                None,
+            );
         }
     }
 
@@ -3957,6 +4085,7 @@ impl GameEnv {
                 amount: ctx.damage,
                 damage_type: DamageType::Battle,
                 cancelable: true,
+                refresh_penalty: false,
             };
             let event_id = self.resolve_damage_intent(intent, &mut ctx.damage_modifiers);
             ctx.last_damage_event_id = Some(event_id);
@@ -3969,11 +4098,11 @@ impl GameEnv {
         let attacker_slot = ctx.attacker_slot as usize;
         if let Some(card_inst) = self.state.players[attacker as usize].stage[attacker_slot].card {
             let card_id = card_inst.id;
-            if self.db.get(card_id).is_none() {
+            let db = self.db.clone();
+            if db.get(card_id).is_none() {
                 return;
             }
-            let mut indices = Vec::new();
-            let specs = self.db.iter_card_abilities_in_canonical_order(card_id);
+            let specs = db.iter_card_abilities_in_canonical_order(card_id);
             for (ability_index, spec) in specs.iter().enumerate() {
                 if spec.kind != AbilityKind::Auto {
                     continue;
@@ -3986,16 +4115,10 @@ impl GameEnv {
                     _ => None,
                 };
                 if timing == Some(crate::db::AbilityTiming::AttackDeclaration) {
-                    indices.push(ability_index);
-                }
-            }
-            for ability_index in indices {
-                let effects: Vec<EffectSpec> = self
-                    .db
-                    .compiled_effects_for_ability(card_id, ability_index)
-                    .to_vec();
-                for effect in effects {
-                    self.enqueue_effect_spec(attacker, card_id, effect);
+                    let effects = db.compiled_effects_for_ability(card_id, ability_index);
+                    for effect in effects {
+                        self.enqueue_effect_spec(attacker, card_id, effect.clone());
+                    }
                 }
             }
         }
@@ -4007,6 +4130,7 @@ impl GameEnv {
         target: u8,
         amount: i32,
         cancelable: bool,
+        refresh_penalty: bool,
         _source_card: Option<CardId>,
     ) -> bool {
         let intent = DamageIntentLocal {
@@ -4016,6 +4140,7 @@ impl GameEnv {
             amount,
             damage_type: DamageType::Effect,
             cancelable,
+            refresh_penalty,
         };
         let mut modifiers = if let Some(ctx) = &mut self.state.turn.attack {
             std::mem::take(&mut ctx.damage_modifiers)
@@ -4101,7 +4226,7 @@ impl GameEnv {
                 if let Some(card) = self.draw_from_deck(intent.target) {
                     self.reveal_card(
                         intent.target,
-                        card.id,
+                        &card,
                         RevealReason::DamageCheck,
                         RevealAudience::Public,
                     );
@@ -4139,22 +4264,39 @@ impl GameEnv {
             self.log_event(Event::DamageCancel {
                 player: intent.target,
             });
-            self.state.players[target].waiting_room.extend(revealed);
+            for card in revealed {
+                self.move_card_between_zones(
+                    intent.target,
+                    card,
+                    Zone::Deck,
+                    Zone::WaitingRoom,
+                    None,
+                    None,
+                );
+            }
             return event_id;
         }
 
         if cancelable {
             for card in revealed {
-                self.state.players[target].clock.push(card);
+                let card_id = card.id;
+                self.move_card_between_zones(
+                    intent.target,
+                    card,
+                    Zone::Deck,
+                    Zone::Clock,
+                    None,
+                    None,
+                );
                 self.log_event(Event::DamageCommitted {
                     event_id,
                     target: intent.target,
-                    card: card.id,
+                    card: card_id,
                     damage_type: intent.damage_type,
                 });
                 self.log_event(Event::Damage {
                     player: intent.target,
-                    card: card.id,
+                    card: card_id,
                 });
                 self.pending_damage_delta[target] += 1;
             }
@@ -4162,17 +4304,39 @@ impl GameEnv {
             let count = amount as usize;
             for _ in 0..count {
                 if let Some(card) = self.draw_from_deck(intent.target) {
-                    self.state.players[target].clock.push(card);
+                    let card_id = card.id;
+                    if intent.refresh_penalty {
+                        self.reveal_card(
+                            intent.target,
+                            &card,
+                            RevealReason::RefreshPenalty,
+                            RevealAudience::Public,
+                        );
+                    }
+                    self.move_card_between_zones(
+                        intent.target,
+                        card,
+                        Zone::Deck,
+                        Zone::Clock,
+                        None,
+                        None,
+                    );
                     self.log_event(Event::DamageCommitted {
                         event_id,
                         target: intent.target,
-                        card: card.id,
+                        card: card_id,
                         damage_type: intent.damage_type,
                     });
                     self.log_event(Event::Damage {
                         player: intent.target,
-                        card: card.id,
+                        card: card_id,
                     });
+                    if intent.refresh_penalty {
+                        self.log_event(Event::RefreshPenalty {
+                            player: intent.target,
+                            card: card_id,
+                        });
+                    }
                     self.pending_damage_delta[target] += 1;
                 }
             }
@@ -4293,16 +4457,21 @@ impl GameEnv {
         let cost = card.cost as usize;
         self.pay_cost(player, cost)?;
         let card_inst = self.state.players[p].hand.remove(hi);
-        let mut slot = StageSlot::empty();
-        slot.card = Some(card_inst);
-        slot.status = StageStatus::Stand;
-        self.state.players[p].stage[ss] = slot;
+        let card_id = card_inst.id;
+        self.place_card_on_stage(
+            player,
+            card_inst,
+            stage_slot,
+            StageStatus::Stand,
+            Zone::Hand,
+            Some(hand_index),
+        );
         self.log_event(Event::Play {
             player,
-            card: card_inst.id,
+            card: card_id,
             slot: stage_slot,
         });
-        self.apply_continuous_modifiers_for_slot(player, stage_slot, card_inst.id);
+        self.apply_continuous_modifiers_for_slot(player, stage_slot, card_id);
         self.resolve_on_play_abilities(player, card_id);
         Ok(())
     }
@@ -4315,8 +4484,8 @@ impl GameEnv {
         }
         let card_inst = self.state.players[p].hand[hi];
         let card_id = card_inst.id;
-        let card = self
-            .db
+        let db = self.db.clone();
+        let card = db
             .get(card_id)
             .ok_or_else(|| anyhow!("Card missing in db"))?;
         if !self.card_set_allowed(card) {
@@ -4342,23 +4511,23 @@ impl GameEnv {
             card: card_inst.id,
         });
         self.resolve_on_play_abilities(player, card_id);
-        let mut indices = Vec::new();
-        let specs = self.db.iter_card_abilities_in_canonical_order(card_id);
+        let specs = db.iter_card_abilities_in_canonical_order(card_id);
         for (ability_index, spec) in specs.iter().enumerate() {
             if matches!(spec.template, AbilityTemplate::EventDealDamage { .. }) {
-                indices.push(ability_index);
+                let effects = db.compiled_effects_for_ability(card_id, ability_index);
+                for effect in effects {
+                    self.enqueue_effect_spec(player, card_inst.id, effect.clone());
+                }
             }
         }
-        for ability_index in indices {
-            let effects: Vec<EffectSpec> = self
-                .db
-                .compiled_effects_for_ability(card_id, ability_index)
-                .to_vec();
-            for effect in effects {
-                self.enqueue_effect_spec(player, card_inst.id, effect);
-            }
-        }
-        self.state.players[p].waiting_room.push(card_inst);
+        self.move_card_between_zones(
+            player,
+            card_inst,
+            Zone::Hand,
+            Zone::WaitingRoom,
+            Some(hand_index),
+            None,
+        );
         Ok(())
     }
 
@@ -4394,10 +4563,18 @@ impl GameEnv {
         let cost = card.cost as usize;
         self.pay_cost(player, cost)?;
         let card_inst = self.state.players[p].hand.remove(hi);
-        self.state.players[p].climax.push(card_inst);
+        let card_id = card_inst.id;
+        self.move_card_between_zones(
+            player,
+            card_inst,
+            Zone::Hand,
+            Zone::Climax,
+            Some(hand_index),
+            None,
+        );
         self.log_event(Event::PlayClimax {
             player,
-            card: card_inst.id,
+            card: card_id,
         });
         Ok(())
     }
@@ -4472,10 +4649,6 @@ impl GameEnv {
         Ok(())
     }
 
-    fn play_counter(&mut self, player: u8, hand_index: u8) -> Result<()> {
-        self.queue_counter_stack_item(player, hand_index)
-    }
-
     fn resolve_level_up(&mut self, player: u8, index: u8) -> Result<()> {
         let p = player as usize;
         if self.state.players[p].clock.len() < 7 {
@@ -4494,17 +4667,24 @@ impl GameEnv {
         if top.len() != 7 {
             return Err(anyhow!("Clock underflow on level up"));
         }
-        let chosen = top[idx];
+        let chosen_id = top[idx].id;
         for (i, card) in top.into_iter().enumerate() {
             if i == idx {
-                self.state.players[p].level.push(card);
+                self.move_card_between_zones(player, card, Zone::Clock, Zone::Level, None, None);
             } else {
-                self.state.players[p].waiting_room.push(card);
+                self.move_card_between_zones(
+                    player,
+                    card,
+                    Zone::Clock,
+                    Zone::WaitingRoom,
+                    None,
+                    None,
+                );
             }
         }
         self.log_event(Event::LevelUpChoice {
             player,
-            card: chosen.id,
+            card: chosen_id,
         });
         self.state.turn.pending_level_up = None;
         if self.state.players[p].level.len() >= 4 {
@@ -4551,12 +4731,75 @@ impl GameEnv {
         Ok(())
     }
 
+    fn move_card_between_zones(
+        &mut self,
+        player: u8,
+        card: CardInstance,
+        from: Zone,
+        to: Zone,
+        from_slot: Option<u8>,
+        to_slot: Option<u8>,
+    ) {
+        let p = player as usize;
+        match to {
+            Zone::Deck => self.state.players[p].deck.push(card),
+            Zone::Hand => self.state.players[p].hand.push(card),
+            Zone::WaitingRoom => self.state.players[p].waiting_room.push(card),
+            Zone::Clock => self.state.players[p].clock.push(card),
+            Zone::Level => self.state.players[p].level.push(card),
+            Zone::Stock => self.state.players[p].stock.push(card),
+            Zone::Memory => self.state.players[p].memory.push(card),
+            Zone::Climax => self.state.players[p].climax.push(card),
+            Zone::Stage => panic!("use place_card_on_stage for stage moves"),
+        }
+        self.on_card_enter_zone(&card, to);
+        self.log_event(Event::ZoneMove {
+            player,
+            card: card.id,
+            from,
+            to,
+            from_slot,
+            to_slot,
+        });
+    }
+
+    fn place_card_on_stage(
+        &mut self,
+        player: u8,
+        card: CardInstance,
+        slot: u8,
+        status: StageStatus,
+        from: Zone,
+        from_slot: Option<u8>,
+    ) {
+        let p = player as usize;
+        let mut slot_state = StageSlot::empty();
+        slot_state.card = Some(card);
+        slot_state.status = status;
+        self.state.players[p].stage[slot as usize] = slot_state;
+        self.log_event(Event::ZoneMove {
+            player,
+            card: card.id,
+            from,
+            to: Zone::Stage,
+            from_slot,
+            to_slot: Some(slot),
+        });
+    }
+
     fn send_stage_to_waiting_room(&mut self, player: u8, slot: u8) {
         let p = player as usize;
         let s = slot as usize;
         self.remove_modifiers_for_slot(player, slot);
         if let Some(card) = self.state.players[p].stage[s].card.take() {
-            self.state.players[p].waiting_room.push(card);
+            self.move_card_between_zones(
+                player,
+                card,
+                Zone::Stage,
+                Zone::WaitingRoom,
+                Some(slot),
+                None,
+            );
         }
         self.state.players[p].stage[s] = StageSlot::empty();
     }
@@ -4574,18 +4817,17 @@ impl GameEnv {
             return;
         }
         let card = self.state.players[p].waiting_room.remove(index);
-        if card.id != option.card_id {
+        if card.instance_id != option.instance_id {
             return;
         }
-        self.state.players[p].hand.push(card);
-        self.log_event(Event::ZoneMove {
+        self.move_card_between_zones(
             player,
-            card: card.id,
-            from: Zone::WaitingRoom,
-            to: Zone::Hand,
-            from_slot: None,
-            to_slot: None,
-        });
+            card,
+            Zone::WaitingRoom,
+            Zone::Hand,
+            None,
+            None,
+        );
     }
 
     fn move_stage_to_hand(&mut self, player: u8, option: ChoiceOptionRef) {
@@ -4605,19 +4847,11 @@ impl GameEnv {
         let Some(card) = card else {
             return;
         };
-        if card.id != option.card_id {
+        if card.instance_id != option.instance_id {
             return;
         }
         self.state.players[p].stage[slot] = StageSlot::empty();
-        self.state.players[p].hand.push(card);
-        self.log_event(Event::ZoneMove {
-            player,
-            card: card.id,
-            from: Zone::Stage,
-            to: Zone::Hand,
-            from_slot: Some(idx),
-            to_slot: None,
-        });
+        self.move_card_between_zones(player, card, Zone::Stage, Zone::Hand, Some(idx), None);
     }
 
     fn move_waiting_room_to_stage_standby(&mut self, player: u8, option: ChoiceOptionRef) {
@@ -4638,37 +4872,33 @@ impl GameEnv {
         if let Some(existing) = self.state.players[p].stage[slot].card {
             self.remove_modifiers_for_slot(player, target_slot);
             self.state.players[p].stage[slot] = StageSlot::empty();
-            self.state.players[p].waiting_room.push(existing);
-            self.log_event(Event::ZoneMove {
+            self.move_card_between_zones(
                 player,
-                card: existing.id,
-                from: Zone::Stage,
-                to: Zone::WaitingRoom,
-                from_slot: Some(target_slot),
-                to_slot: None,
-            });
+                existing,
+                Zone::Stage,
+                Zone::WaitingRoom,
+                Some(target_slot),
+                None,
+            );
         }
         let index = idx as usize;
         if index >= self.state.players[p].waiting_room.len() {
             return;
         }
         let card = self.state.players[p].waiting_room.remove(index);
-        if card.id != option.card_id {
+        if card.instance_id != option.instance_id {
             return;
         }
-        let mut slot_state = StageSlot::empty();
-        slot_state.card = Some(card);
-        slot_state.status = StageStatus::Rest;
-        self.state.players[p].stage[slot] = slot_state;
-        self.apply_continuous_modifiers_for_slot(player, target_slot, card.id);
-        self.log_event(Event::ZoneMove {
+        let card_id = card.id;
+        self.place_card_on_stage(
             player,
-            card: card.id,
-            from: Zone::WaitingRoom,
-            to: Zone::Stage,
-            from_slot: None,
-            to_slot: Some(target_slot),
-        });
+            card,
+            target_slot,
+            StageStatus::Rest,
+            Zone::WaitingRoom,
+            None,
+        );
+        self.apply_continuous_modifiers_for_slot(player, target_slot, card_id);
     }
 
     fn move_trigger_card_from_stock_to_hand(&mut self, player: u8, card_id: CardId) -> bool {
@@ -4680,15 +4910,7 @@ impl GameEnv {
             .rposition(|c| c.id == card_id)
         {
             let card = self.state.players[p].stock.remove(pos);
-            self.state.players[p].hand.push(card);
-            self.log_event(Event::ZoneMove {
-                player,
-                card: card.id,
-                from: Zone::Stock,
-                to: Zone::Hand,
-                from_slot: None,
-                to_slot: None,
-            });
+            self.move_card_between_zones(player, card, Zone::Stock, Zone::Hand, None, None);
             return true;
         }
         false
@@ -4787,8 +5009,8 @@ impl GameEnv {
     }
 
     fn resolve_on_play_abilities(&mut self, player: u8, source_id: CardId) {
-        let mut indices = Vec::new();
-        let specs = self.db.iter_card_abilities_in_canonical_order(source_id);
+        let db = self.db.clone();
+        let specs = db.iter_card_abilities_in_canonical_order(source_id);
         for (ability_index, spec) in specs.iter().enumerate() {
             if spec.kind != AbilityKind::Auto {
                 continue;
@@ -4799,16 +5021,10 @@ impl GameEnv {
                 _ => None,
             };
             if timing == Some(crate::db::AbilityTiming::OnPlay) {
-                indices.push(ability_index);
-            }
-        }
-        for ability_index in indices {
-            let effects: Vec<EffectSpec> = self
-                .db
-                .compiled_effects_for_ability(source_id, ability_index)
-                .to_vec();
-            for effect in effects {
-                self.enqueue_effect_spec(player, source_id, effect);
+                let effects = db.compiled_effects_for_ability(source_id, ability_index);
+                for effect in effects {
+                    self.enqueue_effect_spec(player, source_id, effect.clone());
+                }
             }
         }
     }
@@ -4877,7 +5093,14 @@ impl GameEnv {
         }
         for _ in 0..cost {
             if let Some(card) = self.state.players[p].stock.pop() {
-                self.state.players[p].waiting_room.push(card);
+                self.move_card_between_zones(
+                    player,
+                    card,
+                    Zone::Stock,
+                    Zone::WaitingRoom,
+                    None,
+                    None,
+                );
             }
         }
         Ok(())
@@ -4933,16 +5156,30 @@ impl GameEnv {
     fn shuffle_deck(&mut self, player: u8) {
         let p = player as usize;
         self.state.rng.shuffle(&mut self.state.players[p].deck);
+        self.log_event(Event::Shuffle {
+            player,
+            zone: Zone::Deck,
+        });
+        if self.curriculum.enable_visibility_policies {
+            let instance_ids: Vec<CardInstanceId> = self.state.players[p]
+                .deck
+                .iter()
+                .map(|card| card.instance_id)
+                .collect();
+            for instance_id in instance_ids {
+                self.forget_instance_revealed(instance_id);
+            }
+        }
     }
 
     fn draw_to_hand(&mut self, player: u8, count: usize) {
         for _ in 0..count {
             if let Some(card) = self.draw_from_deck(player) {
-                let p = player as usize;
-                self.state.players[p].hand.push(card);
+                let card_id = card.id;
+                self.move_card_between_zones(player, card, Zone::Deck, Zone::Hand, None, None);
                 self.log_event(Event::Draw {
                     player,
-                    card: card.id,
+                    card: card_id,
                 });
             }
         }
@@ -4951,21 +5188,22 @@ impl GameEnv {
     fn reveal_card(
         &mut self,
         player: u8,
-        card: CardId,
+        card: &CardInstance,
         reason: RevealReason,
         audience: RevealAudience,
     ) {
         if self.curriculum.enable_visibility_policies {
-            match audience {
-                RevealAudience::Public | RevealAudience::BothPlayers => {
-                    self.public_revealed[player as usize].insert(card);
-                }
-                _ => {}
-            }
+            let viewers: Vec<u8> = match audience {
+                RevealAudience::Public | RevealAudience::BothPlayers => vec![0, 1],
+                RevealAudience::OwnerOnly => vec![card.owner],
+                RevealAudience::ControllerOnly => vec![card.controller],
+                RevealAudience::ReplayOnly => Vec::new(),
+            };
+            self.mark_instance_revealed(&viewers, card.instance_id);
         }
         self.log_event(Event::Reveal {
             player,
-            card,
+            card: card.id,
             reason,
             audience,
         });
@@ -4974,11 +5212,11 @@ impl GameEnv {
     fn reveal_cards(
         &mut self,
         player: u8,
-        cards: &[CardId],
+        cards: &[CardInstance],
         reason: RevealReason,
         audience: RevealAudience,
-    ) -> Vec<CardId> {
-        for &card in cards {
+    ) -> Vec<CardInstance> {
+        for card in cards {
             self.reveal_card(player, card, reason, audience);
         }
         cards.to_vec()
@@ -5029,330 +5267,63 @@ impl GameEnv {
                 target: None,
             };
             self.enqueue_effect_spec(player, 0, spec);
-            if let Some(card) = self.state.players[p].clock.last().copied() {
-                self.log_event(Event::RefreshPenalty {
-                    player,
-                    card: card.id,
-                });
-            }
         }
         true
     }
 
     fn log_event(&mut self, event: Event) {
         if self.recording {
-            let replay_event = match event {
-                Event::Draw { player, card } => ReplayEvent::Draw { player, card },
-                Event::Damage { player, card } => ReplayEvent::Damage { player, card },
-                Event::DamageCancel { player } => ReplayEvent::DamageCancel { player },
-                Event::DamageIntent {
-                    event_id,
-                    source_player,
-                    source_slot,
-                    target,
-                    amount,
-                    damage_type,
-                    cancelable,
-                } => ReplayEvent::DamageIntent {
-                    event_id,
-                    source_player,
-                    source_slot,
-                    target,
-                    amount,
-                    damage_type,
-                    cancelable,
-                },
-                Event::DamageModifierApplied {
-                    event_id,
-                    modifier,
-                    before_amount,
-                    after_amount,
-                    before_cancelable,
-                    after_cancelable,
-                    before_canceled,
-                    after_canceled,
-                } => ReplayEvent::DamageModifierApplied {
-                    event_id,
-                    modifier,
-                    before_amount,
-                    after_amount,
-                    before_cancelable,
-                    after_cancelable,
-                    before_canceled,
-                    after_canceled,
-                },
-                Event::DamageModified {
-                    event_id,
-                    target,
-                    original,
-                    modified,
-                    canceled,
-                    damage_type,
-                } => ReplayEvent::DamageModified {
-                    event_id,
-                    target,
-                    original,
-                    modified,
-                    canceled,
-                    damage_type,
-                },
-                Event::DamageCommitted {
-                    event_id,
-                    target,
-                    card,
-                    damage_type,
-                } => ReplayEvent::DamageCommitted {
-                    event_id,
-                    target,
-                    card,
-                    damage_type,
-                },
-                Event::ReversalCommitted {
-                    player,
-                    slot,
-                    cause_damage_event,
-                } => ReplayEvent::ReversalCommitted {
-                    player,
-                    slot,
-                    cause_damage_event,
-                },
-                Event::Reveal {
-                    player,
-                    card,
-                    reason,
-                    audience,
-                } => ReplayEvent::Reveal {
-                    player,
-                    card,
-                    reason,
-                    audience,
-                },
-                Event::TriggerQueued {
-                    trigger_id,
-                    group_id,
-                    player,
-                    source,
-                    effect,
-                } => ReplayEvent::TriggerQueued {
-                    trigger_id,
-                    group_id,
-                    player,
-                    source,
-                    effect,
-                },
-                Event::TriggerResolved {
-                    trigger_id,
-                    player,
-                    effect,
-                } => ReplayEvent::TriggerResolved {
-                    trigger_id,
-                    player,
-                    effect,
-                },
-                Event::TriggerCanceled {
-                    trigger_id,
-                    player,
-                    reason,
-                } => ReplayEvent::TriggerCanceled {
-                    trigger_id,
-                    player,
-                    reason,
-                },
-                Event::TimingWindowEntered { window, player } => {
-                    ReplayEvent::TimingWindowEntered { window, player }
-                }
-                Event::PriorityGranted { window, player } => {
-                    ReplayEvent::PriorityGranted { window, player }
-                }
-                Event::PriorityPassed {
-                    player,
-                    window,
-                    pass_count,
-                } => ReplayEvent::PriorityPassed {
-                    player,
-                    window,
-                    pass_count,
-                },
-                Event::StackGroupPresented {
-                    group_id,
-                    controller,
-                    items,
-                } => ReplayEvent::StackGroupPresented {
-                    group_id,
-                    controller,
-                    items,
-                },
-                Event::StackOrderChosen {
-                    group_id,
-                    controller,
-                    stack_id,
-                } => ReplayEvent::StackOrderChosen {
-                    group_id,
-                    controller,
-                    stack_id,
-                },
-                Event::StackPushed { item } => ReplayEvent::StackPushed { item },
-                Event::StackResolved { item } => ReplayEvent::StackResolved { item },
-                Event::AutoResolveCapExceeded {
-                    cap,
-                    stack_len,
-                    window,
-                } => ReplayEvent::AutoResolveCapExceeded {
-                    cap,
-                    stack_len,
-                    window,
-                },
-                Event::WindowAdvanced { from, to } => ReplayEvent::WindowAdvanced { from, to },
-                Event::ChoicePresented {
-                    choice_id,
-                    player,
-                    reason,
-                    options,
-                    total_candidates,
-                } => ReplayEvent::ChoicePresented {
-                    choice_id,
-                    player,
-                    reason,
-                    options,
-                    total_candidates,
-                },
-                Event::ChoiceMade {
-                    choice_id,
-                    player,
-                    option,
-                } => ReplayEvent::ChoiceMade {
-                    choice_id,
-                    player,
-                    option,
-                },
-                Event::ChoiceAutopicked {
-                    choice_id,
-                    player,
-                    option,
-                } => ReplayEvent::ChoiceAutopicked {
-                    choice_id,
-                    player,
-                    option,
-                },
-                Event::ChoiceSkipped {
-                    choice_id,
-                    player,
-                    reason,
-                    skip_reason,
-                } => ReplayEvent::ChoiceSkipped {
-                    choice_id,
-                    player,
-                    reason,
-                    skip_reason,
-                },
-                Event::ZoneMove {
-                    player,
-                    card,
-                    from,
-                    to,
-                    from_slot,
-                    to_slot,
-                } => ReplayEvent::ZoneMove {
-                    player,
-                    card,
-                    from,
-                    to,
-                    from_slot,
-                    to_slot,
-                },
-                Event::ControlChanged {
-                    card,
-                    owner,
-                    from_controller,
-                    to_controller,
-                    from_slot,
-                    to_slot,
-                } => ReplayEvent::ControlChanged {
-                    card,
-                    owner,
-                    from_controller,
-                    to_controller,
-                    from_slot,
-                    to_slot,
-                },
-                Event::ModifierAdded {
-                    id,
-                    source,
-                    target_player,
-                    target_slot,
-                    target_card,
-                    kind,
-                    magnitude,
-                    duration,
-                } => ReplayEvent::ModifierAdded {
-                    id,
-                    source,
-                    target_player,
-                    target_slot,
-                    target_card,
-                    kind,
-                    magnitude,
-                    duration,
-                },
-                Event::ModifierRemoved { id, reason } => {
-                    ReplayEvent::ModifierRemoved { id, reason }
-                }
-                Event::Play { player, card, slot } => ReplayEvent::Play { player, card, slot },
-                Event::PlayEvent { player, card } => ReplayEvent::PlayEvent { player, card },
-                Event::PlayClimax { player, card } => ReplayEvent::PlayClimax { player, card },
-                Event::Trigger { player, icon } => ReplayEvent::Trigger {
-                    player,
-                    icon,
-                    card: None,
-                },
-                Event::Attack { player, slot } => ReplayEvent::Attack { player, slot },
-                Event::AttackType {
-                    player,
-                    attacker_slot,
-                    attack_type,
-                } => ReplayEvent::AttackType {
-                    player,
-                    attacker_slot,
-                    attack_type,
-                },
-                Event::Counter {
-                    player,
-                    card,
-                    power,
-                } => ReplayEvent::Counter {
-                    player,
-                    card,
-                    power,
-                },
-                Event::Clock { player, card } => ReplayEvent::Clock { player, card },
-                Event::Refresh { player } => ReplayEvent::Refresh { player },
-                Event::RefreshPenalty { player, card } => {
-                    ReplayEvent::RefreshPenalty { player, card }
-                }
-                Event::LevelUpChoice { player, card } => {
-                    ReplayEvent::LevelUpChoice { player, card }
-                }
-                Event::Encore { player, slot, kept } => ReplayEvent::Encore { player, slot, kept },
-                Event::Stand { player } => ReplayEvent::Stand { player },
-                Event::EndTurn { player } => ReplayEvent::EndTurn { player },
-                Event::Terminal { winner } => ReplayEvent::Terminal { winner },
-            };
+            let ctx = self.replay_visibility_context();
+            self.canonical_events.push(event.clone());
+            let replay_event = self.sanitize_event_for_viewer(&event, ctx);
             self.replay_events.push(replay_event);
         }
     }
 
-    fn log_replay_trigger(&mut self, player: u8, icon: TriggerIcon, card: Option<CardId>) {
-        if self.recording {
-            let reveal = if self.replay_config.include_trigger_card_id {
-                card
-            } else {
-                None
-            };
-            self.replay_events.push(ReplayEvent::Trigger {
-                player,
-                icon,
-                card: reveal,
-            });
+    fn log_action(&mut self, actor: u8, action: ActionDesc) {
+        let ctx = self.replay_visibility_context();
+        let logged = self.sanitize_action_for_viewer(&action, actor, ctx);
+        self.replay_actions.push(logged);
+    }
+
+    fn sanitize_action_for_viewer(
+        &self,
+        action: &ActionDesc,
+        actor: u8,
+        ctx: VisibilityContext,
+    ) -> ActionDesc {
+        const UNKNOWN_INDEX: u8 = u8::MAX;
+        if !ctx.is_public() {
+            return action.clone();
+        }
+        let hide_for_viewer = match ctx.viewer {
+            Some(viewer) => viewer != actor,
+            None => true,
+        };
+        if !hide_for_viewer {
+            return action.clone();
+        }
+        match action {
+            ActionDesc::Clock { .. } => ActionDesc::Clock {
+                hand_index: UNKNOWN_INDEX,
+            },
+            ActionDesc::MainPlayCharacter { stage_slot, .. } => ActionDesc::MainPlayCharacter {
+                hand_index: UNKNOWN_INDEX,
+                stage_slot: *stage_slot,
+            },
+            ActionDesc::MainPlayEvent { .. } => ActionDesc::MainPlayEvent {
+                hand_index: UNKNOWN_INDEX,
+            },
+            ActionDesc::ClimaxPlay { .. } => ActionDesc::ClimaxPlay {
+                hand_index: UNKNOWN_INDEX,
+            },
+            ActionDesc::CounterPlay { .. } => ActionDesc::CounterPlay {
+                hand_index: UNKNOWN_INDEX,
+            },
+            ActionDesc::ChoiceSelect { .. } => ActionDesc::ChoiceSelect {
+                index: UNKNOWN_INDEX,
+            },
+            _ => action.clone(),
         }
     }
 
@@ -5458,6 +5429,559 @@ impl GameEnv {
         self.state.terminal = Some(result);
     }
 
+    fn replay_visibility_context(&self) -> VisibilityContext {
+        let policies_enabled = self.curriculum.enable_visibility_policies;
+        let mode = self.config.observation_visibility;
+        let viewer = None;
+        VisibilityContext {
+            viewer,
+            mode,
+            policies_enabled,
+        }
+    }
+
+    fn hidden_event_zone(zone: Zone) -> bool {
+        matches!(zone, Zone::Deck | Zone::Hand | Zone::Stock | Zone::Memory)
+    }
+
+    fn hidden_target_zone(zone: TargetZone) -> bool {
+        matches!(
+            zone,
+            TargetZone::Hand | TargetZone::DeckTop | TargetZone::Stock | TargetZone::Memory
+        )
+    }
+
+    fn zone_hidden_for_viewer(&self, ctx: VisibilityContext, owner: u8, zone: Zone) -> bool {
+        if !ctx.is_public() {
+            return false;
+        }
+        match ctx.viewer {
+            Some(viewer) => viewer != owner && Self::hidden_event_zone(zone),
+            None => Self::hidden_event_zone(zone),
+        }
+    }
+
+    fn instance_revealed_to_viewer(
+        &self,
+        ctx: VisibilityContext,
+        instance_id: CardInstanceId,
+    ) -> bool {
+        if instance_id == 0 {
+            return false;
+        }
+        match ctx.viewer {
+            Some(viewer) => self.revealed_to_viewer[viewer as usize].contains(&instance_id),
+            None => self.revealed_to_viewer[0].contains(&instance_id)
+                && self.revealed_to_viewer[1].contains(&instance_id),
+        }
+    }
+
+    fn mark_instance_revealed(&mut self, viewers: &[u8], instance_id: CardInstanceId) {
+        if instance_id == 0 {
+            return;
+        }
+        for &viewer in viewers {
+            if let Some(set) = self.revealed_to_viewer.get_mut(viewer as usize) {
+                set.insert(instance_id);
+            }
+        }
+    }
+
+    fn forget_instance_revealed(&mut self, instance_id: CardInstanceId) {
+        if instance_id == 0 {
+            return;
+        }
+        for set in &mut self.revealed_to_viewer {
+            set.remove(&instance_id);
+        }
+    }
+
+    fn on_card_enter_zone(&mut self, card: &CardInstance, zone: Zone) {
+        if !self.curriculum.enable_visibility_policies {
+            return;
+        }
+        if Self::hidden_event_zone(zone) {
+            self.forget_instance_revealed(card.instance_id);
+        }
+    }
+
+    fn target_hidden_for_viewer(
+        &self,
+        ctx: VisibilityContext,
+        owner: u8,
+        zone: TargetZone,
+    ) -> bool {
+        if !ctx.is_public() {
+            return false;
+        }
+        match ctx.viewer {
+            Some(viewer) => viewer != owner && Self::hidden_target_zone(zone),
+            None => Self::hidden_target_zone(zone),
+        }
+    }
+
+    fn reveal_visible_to_viewer(
+        &self,
+        ctx: VisibilityContext,
+        owner: u8,
+        audience: RevealAudience,
+    ) -> bool {
+        if !ctx.is_public() {
+            return true;
+        }
+        match audience {
+            RevealAudience::Public | RevealAudience::BothPlayers => true,
+            RevealAudience::OwnerOnly | RevealAudience::ControllerOnly => {
+                ctx.viewer.map(|viewer| viewer == owner).unwrap_or(false)
+            }
+            RevealAudience::ReplayOnly => false,
+        }
+    }
+
+    fn sanitize_target_ref(&self, ctx: VisibilityContext, target: TargetRef) -> TargetRef {
+        if !self.target_hidden_for_viewer(ctx, target.player, target.zone) {
+            return target;
+        }
+        TargetRef {
+            player: target.player,
+            zone: target.zone,
+            index: 0,
+            card_id: 0,
+            instance_id: 0,
+        }
+    }
+
+    fn sanitize_stack_item(&self, ctx: VisibilityContext, item: &StackItem) -> StackItem {
+        if !ctx.is_public() {
+            return item.clone();
+        }
+        let hide_source = match ctx.viewer {
+            Some(viewer) => viewer != item.controller,
+            None => true,
+        };
+        let source_id = if hide_source { 0 } else { item.source_id };
+        let targets = item
+            .payload
+            .targets
+            .iter()
+            .copied()
+            .map(|t| self.sanitize_target_ref(ctx, t))
+            .collect();
+        StackItem {
+            id: item.id,
+            controller: item.controller,
+            source_id,
+            effect_id: item.effect_id,
+            payload: EffectPayload {
+                spec: item.payload.spec.clone(),
+                targets,
+            },
+        }
+    }
+
+    fn sanitize_event_for_viewer(&self, event: &Event, ctx: VisibilityContext) -> ReplayEvent {
+        match event {
+            Event::Draw { player, card } => {
+                let hide = self.zone_hidden_for_viewer(ctx, *player, Zone::Deck)
+                    || self.zone_hidden_for_viewer(ctx, *player, Zone::Hand);
+                let card = if hide { 0 } else { *card };
+                ReplayEvent::Draw {
+                    player: *player,
+                    card,
+                }
+            }
+            Event::Damage { player, card } => ReplayEvent::Damage {
+                player: *player,
+                card: *card,
+            },
+            Event::DamageCancel { player } => ReplayEvent::DamageCancel { player: *player },
+            Event::DamageIntent {
+                event_id,
+                source_player,
+                source_slot,
+                target,
+                amount,
+                damage_type,
+                cancelable,
+            } => ReplayEvent::DamageIntent {
+                event_id: *event_id,
+                source_player: *source_player,
+                source_slot: *source_slot,
+                target: *target,
+                amount: *amount,
+                damage_type: *damage_type,
+                cancelable: *cancelable,
+            },
+            Event::DamageModifierApplied {
+                event_id,
+                modifier,
+                before_amount,
+                after_amount,
+                before_cancelable,
+                after_cancelable,
+                before_canceled,
+                after_canceled,
+            } => ReplayEvent::DamageModifierApplied {
+                event_id: *event_id,
+                modifier: *modifier,
+                before_amount: *before_amount,
+                after_amount: *after_amount,
+                before_cancelable: *before_cancelable,
+                after_cancelable: *after_cancelable,
+                before_canceled: *before_canceled,
+                after_canceled: *after_canceled,
+            },
+            Event::DamageModified {
+                event_id,
+                target,
+                original,
+                modified,
+                canceled,
+                damage_type,
+            } => ReplayEvent::DamageModified {
+                event_id: *event_id,
+                target: *target,
+                original: *original,
+                modified: *modified,
+                canceled: *canceled,
+                damage_type: *damage_type,
+            },
+            Event::DamageCommitted {
+                event_id,
+                target,
+                card,
+                damage_type,
+            } => ReplayEvent::DamageCommitted {
+                event_id: *event_id,
+                target: *target,
+                card: *card,
+                damage_type: *damage_type,
+            },
+            Event::ReversalCommitted {
+                player,
+                slot,
+                cause_damage_event,
+            } => ReplayEvent::ReversalCommitted {
+                player: *player,
+                slot: *slot,
+                cause_damage_event: *cause_damage_event,
+            },
+            Event::Reveal {
+                player,
+                card,
+                reason,
+                audience,
+            } => {
+                let visible = self.reveal_visible_to_viewer(ctx, *player, *audience);
+                ReplayEvent::Reveal {
+                    player: *player,
+                    card: if visible { *card } else { 0 },
+                    reason: *reason,
+                    audience: *audience,
+                }
+            }
+            Event::TriggerQueued {
+                trigger_id,
+                group_id,
+                player,
+                source,
+                effect,
+            } => ReplayEvent::TriggerQueued {
+                trigger_id: *trigger_id,
+                group_id: *group_id,
+                player: *player,
+                source: *source,
+                effect: *effect,
+            },
+            Event::TriggerResolved {
+                trigger_id,
+                player,
+                effect,
+            } => ReplayEvent::TriggerResolved {
+                trigger_id: *trigger_id,
+                player: *player,
+                effect: *effect,
+            },
+            Event::TriggerCanceled {
+                trigger_id,
+                player,
+                reason,
+            } => ReplayEvent::TriggerCanceled {
+                trigger_id: *trigger_id,
+                player: *player,
+                reason: *reason,
+            },
+            Event::TimingWindowEntered { window, player } => {
+                ReplayEvent::TimingWindowEntered {
+                    window: *window,
+                    player: *player,
+                }
+            }
+            Event::PriorityGranted { window, player } => ReplayEvent::PriorityGranted {
+                window: *window,
+                player: *player,
+            },
+            Event::PriorityPassed {
+                player,
+                window,
+                pass_count,
+            } => ReplayEvent::PriorityPassed {
+                player: *player,
+                window: *window,
+                pass_count: *pass_count,
+            },
+            Event::StackGroupPresented {
+                group_id,
+                controller,
+                items,
+            } => ReplayEvent::StackGroupPresented {
+                group_id: *group_id,
+                controller: *controller,
+                items: items
+                    .iter()
+                    .map(|item| self.sanitize_stack_item(ctx, item))
+                    .collect(),
+            },
+            Event::StackOrderChosen {
+                group_id,
+                controller,
+                stack_id,
+            } => ReplayEvent::StackOrderChosen {
+                group_id: *group_id,
+                controller: *controller,
+                stack_id: *stack_id,
+            },
+            Event::StackPushed { item } => ReplayEvent::StackPushed {
+                item: self.sanitize_stack_item(ctx, item),
+            },
+            Event::StackResolved { item } => ReplayEvent::StackResolved {
+                item: self.sanitize_stack_item(ctx, item),
+            },
+            Event::AutoResolveCapExceeded {
+                cap,
+                stack_len,
+                window,
+            } => ReplayEvent::AutoResolveCapExceeded {
+                cap: *cap,
+                stack_len: *stack_len,
+                window: *window,
+            },
+            Event::WindowAdvanced { from, to } => ReplayEvent::WindowAdvanced {
+                from: *from,
+                to: *to,
+            },
+            Event::ChoicePresented {
+                choice_id,
+                player,
+                reason,
+                options,
+                total_candidates,
+                page_start,
+            } => {
+                let summaries = self.summarize_choice_options_for_event(
+                    *reason,
+                    *player,
+                    options,
+                    *page_start,
+                    *choice_id,
+                    ctx,
+                );
+                ReplayEvent::ChoicePresented {
+                    choice_id: *choice_id,
+                    player: *player,
+                    reason: *reason,
+                    options: summaries,
+                    total_candidates: *total_candidates,
+                    page_start: *page_start,
+                }
+            }
+            Event::ChoicePageChanged {
+                choice_id,
+                player,
+                from_start,
+                to_start,
+            } => ReplayEvent::ChoicePageChanged {
+                choice_id: *choice_id,
+                player: *player,
+                from_start: *from_start,
+                to_start: *to_start,
+            },
+            Event::ChoiceMade {
+                choice_id,
+                player,
+                reason,
+                option,
+            } => {
+                let sanitized =
+                    self.sanitize_choice_option_for_event(*reason, *player, ctx, option);
+                ReplayEvent::ChoiceMade {
+                    choice_id: *choice_id,
+                    player: *player,
+                    reason: *reason,
+                    option: sanitized,
+                }
+            }
+            Event::ChoiceAutopicked {
+                choice_id,
+                player,
+                reason,
+                option,
+            } => {
+                let sanitized =
+                    self.sanitize_choice_option_for_event(*reason, *player, ctx, option);
+                ReplayEvent::ChoiceAutopicked {
+                    choice_id: *choice_id,
+                    player: *player,
+                    reason: *reason,
+                    option: sanitized,
+                }
+            }
+            Event::ChoiceSkipped {
+                choice_id,
+                player,
+                reason,
+                skip_reason,
+            } => ReplayEvent::ChoiceSkipped {
+                choice_id: *choice_id,
+                player: *player,
+                reason: *reason,
+                skip_reason: *skip_reason,
+            },
+            Event::ZoneMove {
+                player,
+                card,
+                from,
+                to,
+                from_slot,
+                to_slot,
+            } => {
+                let hide_from = self.zone_hidden_for_viewer(ctx, *player, *from);
+                let hide_to = self.zone_hidden_for_viewer(ctx, *player, *to);
+                ReplayEvent::ZoneMove {
+                    player: *player,
+                    card: if hide_from && hide_to { 0 } else { *card },
+                    from: *from,
+                    to: *to,
+                    from_slot: if hide_from { None } else { *from_slot },
+                    to_slot: if hide_to { None } else { *to_slot },
+                }
+            }
+            Event::ControlChanged {
+                card,
+                owner,
+                from_controller,
+                to_controller,
+                from_slot,
+                to_slot,
+            } => ReplayEvent::ControlChanged {
+                card: *card,
+                owner: *owner,
+                from_controller: *from_controller,
+                to_controller: *to_controller,
+                from_slot: *from_slot,
+                to_slot: *to_slot,
+            },
+            Event::ModifierAdded {
+                id,
+                source,
+                target_player,
+                target_slot,
+                target_card,
+                kind,
+                magnitude,
+                duration,
+            } => ReplayEvent::ModifierAdded {
+                id: *id,
+                source: *source,
+                target_player: *target_player,
+                target_slot: *target_slot,
+                target_card: *target_card,
+                kind: *kind,
+                magnitude: *magnitude,
+                duration: *duration,
+            },
+            Event::ModifierRemoved { id, reason } => ReplayEvent::ModifierRemoved {
+                id: *id,
+                reason: *reason,
+            },
+            Event::Play { player, card, slot } => ReplayEvent::Play {
+                player: *player,
+                card: *card,
+                slot: *slot,
+            },
+            Event::PlayEvent { player, card } => ReplayEvent::PlayEvent {
+                player: *player,
+                card: *card,
+            },
+            Event::PlayClimax { player, card } => ReplayEvent::PlayClimax {
+                player: *player,
+                card: *card,
+            },
+            Event::Trigger { player, icon, card } => {
+                let reveal = if self.replay_config.include_trigger_card_id {
+                    *card
+                } else {
+                    None
+                };
+                if ctx.is_public() && reveal.is_some() {
+                    // Trigger checks are public, so no additional masking.
+                }
+                ReplayEvent::Trigger {
+                    player: *player,
+                    icon: *icon,
+                    card: reveal,
+                }
+            }
+            Event::Attack { player, slot } => ReplayEvent::Attack {
+                player: *player,
+                slot: *slot,
+            },
+            Event::AttackType {
+                player,
+                attacker_slot,
+                attack_type,
+            } => ReplayEvent::AttackType {
+                player: *player,
+                attacker_slot: *attacker_slot,
+                attack_type: *attack_type,
+            },
+            Event::Counter {
+                player,
+                card,
+                power,
+            } => ReplayEvent::Counter {
+                player: *player,
+                card: *card,
+                power: *power,
+            },
+            Event::Clock { player, card } => ReplayEvent::Clock {
+                player: *player,
+                card: *card,
+            },
+            Event::Shuffle { player, zone } => ReplayEvent::Shuffle {
+                player: *player,
+                zone: *zone,
+            },
+            Event::Refresh { player } => ReplayEvent::Refresh { player: *player },
+            Event::RefreshPenalty { player, card } => ReplayEvent::RefreshPenalty {
+                player: *player,
+                card: *card,
+            },
+            Event::LevelUpChoice { player, card } => ReplayEvent::LevelUpChoice {
+                player: *player,
+                card: *card,
+            },
+            Event::Encore { player, slot, kept } => ReplayEvent::Encore {
+                player: *player,
+                slot: *slot,
+                kept: *kept,
+            },
+            Event::Stand { player } => ReplayEvent::Stand { player: *player },
+            Event::EndTurn { player } => ReplayEvent::EndTurn { player: *player },
+            Event::Terminal { winner } => ReplayEvent::Terminal { winner: *winner },
+        }
+    }
+
     pub fn finish_episode_replay(&mut self) {
         if !self.recording {
             return;
@@ -5486,7 +6010,8 @@ impl GameEnv {
                 starting_player: self.state.turn.starting_player,
                 deck_ids: self.config.deck_ids,
                 curriculum_id: "default".to_string(),
-                config_hash: self.config.config_hash(),
+                config_hash: self.config.config_hash(&self.curriculum),
+                fingerprint_algo: crate::fingerprint::FINGERPRINT_ALGO.to_string(),
             };
             let body = EpisodeBody {
                 actions: self.replay_actions.clone(),
@@ -5494,7 +6019,7 @@ impl GameEnv {
                 steps: self.replay_steps.clone(),
                 final_state: Some(ReplayFinal {
                     terminal: self.state.terminal,
-                    state_hash: crate::util::hash_value(&self.state),
+                    state_hash: crate::fingerprint::state_fingerprint(&self.state),
                     decision_count: self.state.turn.decision_count,
                     tick_count: self.state.turn.tick_count,
                 }),
@@ -5512,7 +6037,8 @@ mod tests {
         CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
         SimultaneousLossPolicy,
     };
-    use crate::db::{CardColor, CardDb, CardStatic, CardType};
+    use crate::db::{CardColor, CardDb, CardId, CardStatic, CardType};
+    use crate::encode::{encode_observation, OBS_LEN};
     use crate::effects::{EffectId, EffectKind, EffectSourceKind, EffectSpec};
     use crate::replay::ReplayConfig;
     use crate::replay::ReplayEvent;
@@ -5521,6 +6047,12 @@ mod tests {
         TargetSpec, TargetZone, TerminalResult,
     };
     use std::sync::Arc;
+
+    fn make_instance(id: CardId, owner: u8, next_id: &mut u32) -> CardInstance {
+        let instance = CardInstance::new(id, owner, *next_id);
+        *next_id = next_id.wrapping_add(1);
+        instance
+    }
 
     fn make_env() -> GameEnv {
         let cards = vec![
@@ -5634,6 +6166,25 @@ mod tests {
         )
     }
 
+    fn enumerate_targets_for_test(
+        env: &GameEnv,
+        controller: u8,
+        spec: &TargetSpec,
+        selected: &[TargetRef],
+    ) -> Vec<TargetRef> {
+        let mut out = Vec::new();
+        GameEnv::enumerate_target_candidates_into(
+            &env.state,
+            &env.db,
+            &env.curriculum,
+            controller,
+            spec,
+            selected,
+            &mut out,
+        );
+        out
+    }
+
     #[test]
     fn stack_group_ordering_stable() {
         let mut env = make_env();
@@ -5678,40 +6229,47 @@ mod tests {
         let mut env = make_env();
         let p = 0usize;
         let owner = p as u8;
+        let mut next_id = 1u32;
         env.state.players[p].hand = vec![
-            CardInstance::new(1, owner),
-            CardInstance::new(2, owner),
-            CardInstance::new(1, owner),
+            make_instance(1, owner, &mut next_id),
+            make_instance(2, owner, &mut next_id),
+            make_instance(1, owner, &mut next_id),
         ];
         env.state.players[p].waiting_room = vec![
-            CardInstance::new(1, owner),
-            CardInstance::new(2, owner),
-            CardInstance::new(1, owner),
+            make_instance(1, owner, &mut next_id),
+            make_instance(2, owner, &mut next_id),
+            make_instance(1, owner, &mut next_id),
         ];
-        env.state.players[p].clock = vec![CardInstance::new(1, owner), CardInstance::new(2, owner)];
-        env.state.players[p].level = vec![CardInstance::new(2, owner), CardInstance::new(1, owner)];
+        env.state.players[p].clock = vec![
+            make_instance(1, owner, &mut next_id),
+            make_instance(2, owner, &mut next_id),
+        ];
+        env.state.players[p].level = vec![
+            make_instance(2, owner, &mut next_id),
+            make_instance(1, owner, &mut next_id),
+        ];
         env.state.players[p].stock = vec![
-            CardInstance::new(1, owner),
-            CardInstance::new(2, owner),
-            CardInstance::new(1, owner),
+            make_instance(1, owner, &mut next_id),
+            make_instance(2, owner, &mut next_id),
+            make_instance(1, owner, &mut next_id),
         ];
-        env.state.players[p].memory = vec![CardInstance::new(1, owner)];
-        env.state.players[p].climax = vec![CardInstance::new(2, owner)];
+        env.state.players[p].memory = vec![make_instance(1, owner, &mut next_id)];
+        env.state.players[p].climax = vec![make_instance(2, owner, &mut next_id)];
         env.state.players[p].deck = vec![
-            CardInstance::new(1, owner),
-            CardInstance::new(2, owner),
-            CardInstance::new(1, owner),
-            CardInstance::new(2, owner),
+            make_instance(1, owner, &mut next_id),
+            make_instance(2, owner, &mut next_id),
+            make_instance(1, owner, &mut next_id),
+            make_instance(2, owner, &mut next_id),
         ];
         env.state.players[p].stage = [
             {
                 let mut s = StageSlot::empty();
-                s.card = Some(CardInstance::new(1, owner));
+                s.card = Some(make_instance(1, owner, &mut next_id));
                 s
             },
             {
                 let mut s = StageSlot::empty();
-                s.card = Some(CardInstance::new(2, owner));
+                s.card = Some(make_instance(2, owner, &mut next_id));
                 s
             },
             StageSlot::empty(),
@@ -5727,52 +6285,52 @@ mod tests {
             count: 3,
         };
 
-        let stage = env.enumerate_target_candidates(owner, &spec(TargetZone::Stage), &[]);
+        let stage = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Stage), &[]);
         assert_eq!(
             stage.iter().map(|t| t.index).collect::<Vec<_>>(),
             vec![0, 1]
         );
 
-        let waiting = env.enumerate_target_candidates(owner, &spec(TargetZone::WaitingRoom), &[]);
+        let waiting = enumerate_targets_for_test(&env, owner, &spec(TargetZone::WaitingRoom), &[]);
         assert_eq!(
             waiting.iter().map(|t| t.index).collect::<Vec<_>>(),
             vec![0, 1, 2]
         );
 
-        let hand = env.enumerate_target_candidates(owner, &spec(TargetZone::Hand), &[]);
+        let hand = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Hand), &[]);
         assert_eq!(
             hand.iter().map(|t| t.index).collect::<Vec<_>>(),
             vec![0, 1, 2]
         );
 
-        let deck = env.enumerate_target_candidates(owner, &spec(TargetZone::DeckTop), &[]);
+        let deck = enumerate_targets_for_test(&env, owner, &spec(TargetZone::DeckTop), &[]);
         assert_eq!(
             deck.iter().map(|t| t.index).collect::<Vec<_>>(),
             vec![0, 1, 2, 3]
         );
 
-        let clock = env.enumerate_target_candidates(owner, &spec(TargetZone::Clock), &[]);
+        let clock = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Clock), &[]);
         assert_eq!(
             clock.iter().map(|t| t.index).collect::<Vec<_>>(),
             vec![0, 1]
         );
 
-        let level = env.enumerate_target_candidates(owner, &spec(TargetZone::Level), &[]);
+        let level = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Level), &[]);
         assert_eq!(
             level.iter().map(|t| t.index).collect::<Vec<_>>(),
             vec![0, 1]
         );
 
-        let stock = env.enumerate_target_candidates(owner, &spec(TargetZone::Stock), &[]);
+        let stock = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Stock), &[]);
         assert_eq!(
             stock.iter().map(|t| t.index).collect::<Vec<_>>(),
             vec![0, 1, 2]
         );
 
-        let memory = env.enumerate_target_candidates(owner, &spec(TargetZone::Memory), &[]);
+        let memory = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Memory), &[]);
         assert_eq!(memory.iter().map(|t| t.index).collect::<Vec<_>>(), vec![0]);
 
-        let climax = env.enumerate_target_candidates(owner, &spec(TargetZone::Climax), &[]);
+        let climax = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Climax), &[]);
         assert_eq!(climax.iter().map(|t| t.index).collect::<Vec<_>>(), vec![0]);
     }
 
@@ -5785,7 +6343,281 @@ mod tests {
         };
         let mut env = make_env_with_replay(replay_config);
         env.curriculum.enable_visibility_policies = true;
-        env.state.players[1].hand = vec![CardInstance::new(1, 1), CardInstance::new(2, 1)];
+        let mut next_id = 1u32;
+        env.state.players[1].hand = vec![
+            make_instance(1, 1, &mut next_id),
+            make_instance(2, 1, &mut next_id),
+        ];
+
+        let spec = TargetSpec {
+            zone: TargetZone::Hand,
+            side: TargetSide::Opponent,
+            slot_filter: TargetSlotFilter::Any,
+            card_type: None,
+            count: 1,
+        };
+        let effect_spec = EffectSpec {
+            id: EffectId::new(EffectSourceKind::Activated, 1, 0, 0),
+            kind: EffectKind::MoveToHand,
+            target: Some(spec.clone()),
+        };
+        env.state.turn.target_selection = Some(TargetSelectionState {
+            controller: 0,
+            source_id: 1,
+            remaining: 1,
+            spec,
+            selected: Vec::new(),
+            effect: PendingTargetEffect::EffectPending {
+                instance_id: 1,
+                payload: EffectPayload {
+                    spec: effect_spec,
+                    targets: Vec::new(),
+                },
+            },
+        });
+        env.present_target_choice();
+
+        let (choice_id, options) = env
+            .replay_events
+            .iter()
+            .find_map(|e| {
+                if let ReplayEvent::ChoicePresented {
+                    reason: ChoiceReason::TargetSelect,
+                    choice_id,
+                    options,
+                    ..
+                } = e
+                {
+                    Some((*choice_id, options))
+                } else {
+                    None
+                }
+            })
+            .expect("choice presented");
+        assert!(options.iter().all(|opt| opt.reference.card_id == 0));
+        assert!(options.iter().all(|opt| opt.reference.index.is_none()));
+        assert!(options
+            .iter()
+            .all(|opt| opt.option_id >> 32 == choice_id as u64));
+        let mut unique = std::collections::BTreeSet::new();
+        for opt in options {
+            assert!(unique.insert(opt.option_id));
+        }
+
+        env.replay_events.clear();
+        env.state.turn.choice = None;
+        let revealed = env.state.players[1].hand[1];
+        env.reveal_card(1, &revealed, RevealReason::TriggerCheck, RevealAudience::Public);
+        env.present_target_choice();
+
+        let options = env
+            .replay_events
+            .iter()
+            .find_map(|e| {
+                if let ReplayEvent::ChoicePresented {
+                    reason: ChoiceReason::TargetSelect,
+                    options,
+                    ..
+                } = e
+                {
+                    Some(options)
+                } else {
+                    None
+                }
+            })
+            .expect("choice presented");
+        assert!(options.iter().any(|opt| opt.reference.card_id == 2));
+        assert!(options.iter().any(|opt| opt.reference.card_id == 0));
+    }
+
+    #[test]
+    fn public_replay_masks_hidden_action_params() {
+        let replay_config = ReplayConfig {
+            enabled: true,
+            sample_rate: 1.0,
+            ..Default::default()
+        };
+        let mut env = make_env_with_replay(replay_config);
+        env.curriculum.enable_visibility_policies = true;
+        env.replay_actions.clear();
+
+        env.log_action(
+            1,
+            ActionDesc::MainPlayCharacter {
+                hand_index: 3,
+                stage_slot: 2,
+            },
+        );
+
+        let last = env.replay_actions.last().expect("action logged");
+        match last {
+            ActionDesc::MainPlayCharacter {
+                hand_index,
+                stage_slot,
+            } => {
+                assert_eq!(*hand_index, u8::MAX);
+                assert_eq!(*stage_slot, 2);
+            }
+            _ => panic!("unexpected action: {last:?}"),
+        }
+    }
+
+    #[test]
+    fn public_observation_masks_opponent_last_action_params() {
+        let mut env = make_env();
+        env.curriculum.enable_visibility_policies = true;
+        env.last_action_desc = Some(ActionDesc::MainPlayCharacter {
+            hand_index: 4,
+            stage_slot: 1,
+        });
+        env.last_action_player = Some(1);
+        let mut obs = vec![0; OBS_LEN];
+        encode_observation(
+            &env.state,
+            &env.db,
+            &env.curriculum,
+            0,
+            env.decision.as_ref(),
+            env.last_action_desc.as_ref(),
+            env.last_action_player,
+            env.config.observation_visibility,
+            env.curriculum.enable_visibility_policies,
+            &mut obs,
+        );
+        assert_eq!(obs[5], 6);
+        assert_eq!(obs[6], -1);
+        assert_eq!(obs[7], 1);
+    }
+
+    #[test]
+    fn public_replay_masks_hidden_draws() {
+        let replay_config = ReplayConfig {
+            enabled: true,
+            sample_rate: 1.0,
+            ..Default::default()
+        };
+        let mut env = make_env_with_replay(replay_config);
+        env.curriculum.enable_visibility_policies = true;
+        env.recording = true;
+        env.replay_events.clear();
+
+        env.log_event(Event::Draw { player: 1, card: 99 });
+
+        let last = env.replay_events.last().expect("draw event");
+        match last {
+            ReplayEvent::Draw { card, .. } => assert_eq!(*card, 0),
+            _ => panic!("unexpected event: {last:?}"),
+        }
+    }
+
+    #[test]
+    fn public_replay_no_hidden_zone_leaks() {
+        let replay_config = ReplayConfig {
+            enabled: true,
+            sample_rate: 1.0,
+            ..Default::default()
+        };
+        let mut env = make_env_with_replay(replay_config);
+        env.curriculum.enable_visibility_policies = true;
+        env.recording = true;
+        env.replay_events.clear();
+
+        env.draw_to_hand(1, 1);
+
+        let mut next_id = 1u32;
+        env.state.players[1].hand.clear();
+        env.state.players[1]
+            .hand
+            .push(make_instance(2, 1, &mut next_id));
+
+        let spec = TargetSpec {
+            zone: TargetZone::Hand,
+            side: TargetSide::Opponent,
+            slot_filter: TargetSlotFilter::Any,
+            card_type: None,
+            count: 1,
+        };
+        let effect_spec = EffectSpec {
+            id: EffectId::new(EffectSourceKind::Activated, 1, 0, 0),
+            kind: EffectKind::MoveToHand,
+            target: Some(spec.clone()),
+        };
+        env.state.turn.target_selection = Some(TargetSelectionState {
+            controller: 0,
+            source_id: 1,
+            remaining: 1,
+            spec,
+            selected: Vec::new(),
+            effect: PendingTargetEffect::EffectPending {
+                instance_id: 1,
+                payload: EffectPayload {
+                    spec: effect_spec,
+                    targets: Vec::new(),
+                },
+            },
+        });
+        env.present_target_choice();
+
+        for event in &env.replay_events {
+            match event {
+                ReplayEvent::Draw { card, .. } => assert_eq!(*card, 0),
+                ReplayEvent::ZoneMove {
+                    card,
+                    from,
+                    to,
+                    from_slot,
+                    to_slot,
+                    ..
+                } => {
+                    let hidden_from = matches!(
+                        from,
+                        Zone::Deck | Zone::Hand | Zone::Stock | Zone::Memory
+                    );
+                    let hidden_to =
+                        matches!(to, Zone::Deck | Zone::Hand | Zone::Stock | Zone::Memory);
+                    if hidden_from && hidden_to {
+                        assert_eq!(*card, 0);
+                        assert_eq!(*from_slot, None);
+                        assert_eq!(*to_slot, None);
+                    }
+                }
+                ReplayEvent::ChoicePresented { options, .. } => {
+                    for opt in options {
+                        if matches!(
+                            opt.reference.zone,
+                            ChoiceZone::Hand
+                                | ChoiceZone::DeckTop
+                                | ChoiceZone::Stock
+                                | ChoiceZone::Memory
+                        ) {
+                            assert_eq!(opt.reference.card_id, 0);
+                            assert_eq!(opt.reference.instance_id, 0);
+                            assert!(opt.reference.index.is_none());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    #[test]
+    fn reveal_one_copy_does_not_unmask_duplicates() {
+        let replay_config = ReplayConfig {
+            enabled: true,
+            sample_rate: 1.0,
+            ..Default::default()
+        };
+        let mut env = make_env_with_replay(replay_config);
+        env.curriculum.enable_visibility_policies = true;
+        env.replay_events.clear();
+
+        let mut next_id = 1u32;
+        let first = make_instance(1, 1, &mut next_id);
+        let second = make_instance(1, 1, &mut next_id);
+        env.state.players[1].hand = vec![first, second];
+
+        env.reveal_card(1, &first, RevealReason::TriggerCheck, RevealAudience::Public);
 
         let spec = TargetSpec {
             zone: TargetZone::Hand,
@@ -5831,59 +6663,11 @@ mod tests {
                 }
             })
             .expect("choice presented");
-        assert!(options.iter().all(|opt| opt.reference.card_id == 0));
-        assert!(options.iter().all(|opt| !opt.label.contains("card")));
-        assert!(options.iter().all(|opt| opt.option_id >> 32 == 0));
-        let mut unique = std::collections::BTreeSet::new();
-        for opt in options {
-            assert!(unique.insert(opt.option_id));
-        }
-        let masked_ids: Vec<u64> = options.iter().map(|opt| opt.option_id).collect();
-
-        env.replay_events.clear();
-        env.state.turn.choice = None;
-        env.present_target_choice();
-        let options = env
-            .replay_events
-            .iter()
-            .find_map(|e| {
-                if let ReplayEvent::ChoicePresented {
-                    reason: ChoiceReason::TargetSelect,
-                    options,
-                    ..
-                } = e
-                {
-                    Some(options)
-                } else {
-                    None
-                }
-            })
-            .expect("choice presented");
-        let replayed_ids: Vec<u64> = options.iter().map(|opt| opt.option_id).collect();
-        assert_eq!(masked_ids, replayed_ids);
-        env.replay_events.clear();
-        env.state.turn.choice = None;
-        env.reveal_card(1, 2, RevealReason::TriggerCheck, RevealAudience::Public);
-        env.present_target_choice();
-
-        let options = env
-            .replay_events
-            .iter()
-            .find_map(|e| {
-                if let ReplayEvent::ChoicePresented {
-                    reason: ChoiceReason::TargetSelect,
-                    options,
-                    ..
-                } = e
-                {
-                    Some(options)
-                } else {
-                    None
-                }
-            })
-            .expect("choice presented");
-        assert!(options.iter().any(|opt| opt.reference.card_id == 2));
-        assert!(options.iter().any(|opt| opt.reference.card_id == 0));
+        let revealed = options.iter().filter(|opt| opt.reference.card_id == 1).count();
+        let hidden = options.iter().filter(|opt| opt.reference.card_id == 0).count();
+        assert_eq!(revealed, 1);
+        assert_eq!(hidden, 1);
+        assert!(options.iter().all(|opt| opt.reference.instance_id == 0));
     }
 
     #[test]

@@ -54,23 +54,8 @@ pub struct EnvConfig {
 }
 
 impl EnvConfig {
-    pub fn config_hash(&self) -> u64 {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        let mut hasher = DefaultHasher::new();
-        self.deck_lists.hash(&mut hasher);
-        self.deck_ids.hash(&mut hasher);
-        self.max_decisions.hash(&mut hasher);
-        self.max_ticks.hash(&mut hasher);
-        self.reward.terminal_win.to_bits().hash(&mut hasher);
-        self.reward.terminal_loss.to_bits().hash(&mut hasher);
-        self.reward.terminal_draw.to_bits().hash(&mut hasher);
-        self.reward.enable_shaping.hash(&mut hasher);
-        self.reward.damage_reward.to_bits().hash(&mut hasher);
-        self.error_policy.hash(&mut hasher);
-        self.observation_visibility.hash(&mut hasher);
-        self.end_condition_policy.hash(&mut hasher);
-        hasher.finish()
+    pub fn config_hash(&self, curriculum: &CurriculumConfig) -> u64 {
+        crate::fingerprint::config_fingerprint(self, curriculum)
     }
 }
 
