@@ -269,11 +269,12 @@ impl PyEnvPool {
                 for action in list {
                     let dict = PyDict::new_bound(py);
                     match action {
-                        ActionDesc::MulliganKeep => {
-                            dict.set_item("kind", "mulligan_keep")?;
+                        ActionDesc::MulliganConfirm => {
+                            dict.set_item("kind", "mulligan_confirm")?;
                         }
-                        ActionDesc::MulliganAll => {
-                            dict.set_item("kind", "mulligan_all")?;
+                        ActionDesc::MulliganSelect { hand_index } => {
+                            dict.set_item("kind", "mulligan_select")?;
+                            dict.set_item("hand_index", hand_index)?;
                         }
                         ActionDesc::ClockPass => {
                             dict.set_item("kind", "clock_pass")?;
@@ -336,11 +337,13 @@ impl PyEnvPool {
                             dict.set_item("kind", "level_up")?;
                             dict.set_item("index", index)?;
                         }
-                        ActionDesc::EncoreYes => {
-                            dict.set_item("kind", "encore_yes")?;
+                        ActionDesc::EncorePay { slot } => {
+                            dict.set_item("kind", "encore_pay")?;
+                            dict.set_item("slot", slot)?;
                         }
-                        ActionDesc::EncoreNo => {
-                            dict.set_item("kind", "encore_no")?;
+                        ActionDesc::EncoreDecline { slot } => {
+                            dict.set_item("kind", "encore_decline")?;
+                            dict.set_item("slot", slot)?;
                         }
                         ActionDesc::TriggerOrder { index } => {
                             dict.set_item("kind", "trigger_order")?;
@@ -355,6 +358,9 @@ impl PyEnvPool {
                         }
                         ActionDesc::ChoiceNextPage => {
                             dict.set_item("kind", "choice_next_page")?;
+                        }
+                        ActionDesc::Concede => {
+                            dict.set_item("kind", "concede")?;
                         }
                     }
                     py_list.push(dict.into_py(py));
@@ -393,13 +399,15 @@ impl PyEnvPool {
         compress: bool,
         include_trigger_card_id: bool,
     ) -> PyResult<()> {
-        let config = ReplayConfig {
+        let mut config = ReplayConfig {
             enabled,
             sample_rate,
             out_dir: out_dir.into(),
             compress,
             include_trigger_card_id,
+            sample_threshold: 0,
         };
+        config.rebuild_cache();
         self.pool.enable_replay_sampling(config).map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "enable_replay_sampling failed: {e}"

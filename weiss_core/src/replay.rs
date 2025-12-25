@@ -23,6 +23,10 @@ pub struct EpisodeHeader {
     pub config_hash: u64,
     #[serde(default)]
     pub fingerprint_algo: String,
+    #[serde(default)]
+    pub env_id: u32,
+    #[serde(default)]
+    pub episode_index: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -64,17 +68,34 @@ pub struct ReplayConfig {
     pub out_dir: PathBuf,
     pub compress: bool,
     pub include_trigger_card_id: bool,
+    pub sample_threshold: u32,
 }
 
 impl Default for ReplayConfig {
     fn default() -> Self {
-        Self {
+        let mut config = Self {
             enabled: false,
             sample_rate: 0.0,
             out_dir: PathBuf::from("replays"),
             compress: false,
             include_trigger_card_id: false,
-        }
+            sample_threshold: 0,
+        };
+        config.rebuild_cache();
+        config
+    }
+}
+
+impl ReplayConfig {
+    pub fn rebuild_cache(&mut self) {
+        let rate = self.sample_rate.clamp(0.0, 1.0);
+        self.sample_threshold = if rate <= 0.0 {
+            0
+        } else if rate >= 1.0 {
+            u32::MAX
+        } else {
+            (rate * (u32::MAX as f32)).round() as u32
+        };
     }
 }
 
@@ -90,8 +111,14 @@ impl ReplayWriter {
         let out_dir = config.out_dir.clone();
         let compress = config.compress;
         thread::spawn(move || {
-            for (counter, data) in (0_u64..).zip(rx.into_iter()) {
-                let filename = format!("episode_{:08}.wsr", counter);
+            for data in rx.into_iter() {
+                let header = &data.header;
+                let filename = format!(
+                    "episode_{:04}_{:08}_{:016x}.wsr",
+                    header.env_id,
+                    header.episode_index,
+                    header.seed
+                );
                 let path = out_dir.join(filename);
                 if let Err(err) = write_replay_file(&path, &data, compress) {
                     eprintln!("Replay write failed: {err}");

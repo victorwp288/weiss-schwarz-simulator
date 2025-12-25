@@ -33,8 +33,8 @@ pub struct Decision {
 /// Canonical action descriptor used as the truth representation of legal actions.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ActionDesc {
-    MulliganKeep,
-    MulliganAll,
+    MulliganConfirm,
+    MulliganSelect { hand_index: u8 },
     ClockPass,
     Clock { hand_index: u8 },
     MainPass,
@@ -49,12 +49,13 @@ pub enum ActionDesc {
     CounterPass,
     CounterPlay { hand_index: u8 },
     LevelUp { index: u8 },
-    EncoreYes,
-    EncoreNo,
+    EncorePay { slot: u8 },
+    EncoreDecline { slot: u8 },
     TriggerOrder { index: u8 },
     ChoiceSelect { index: u8 },
     ChoicePrevPage,
     ChoiceNextPage,
+    Concede,
 }
 
 pub fn can_declare_attack(
@@ -119,12 +120,11 @@ pub fn legal_attack_actions(
     player: u8,
     curriculum: &CurriculumConfig,
 ) -> Vec<ActionDesc> {
+    if state.turn.turn_number == 0 && player == state.turn.starting_player {
+        return Vec::new();
+    }
     let mut actions = Vec::new();
-    let max_slot = if curriculum.reduced_stage_mode {
-        1
-    } else {
-        MAX_STAGE
-    };
+    let max_slot = if curriculum.reduced_stage_mode { 1 } else { 3 };
     for slot in 0..max_slot {
         let slot_u8 = slot as u8;
         for attack_type in [AttackType::Frontal, AttackType::Side, AttackType::Direct] {
@@ -156,8 +156,21 @@ pub fn legal_actions_cached(
     allowed_card_sets: Option<&HashSet<String>>,
 ) -> Vec<ActionDesc> {
     let player = decision.player as usize;
-    match decision.kind {
-        DecisionKind::Mulligan => vec![ActionDesc::MulliganKeep, ActionDesc::MulliganAll],
+    let mut actions = match decision.kind {
+        DecisionKind::Mulligan => {
+            let mut actions = Vec::new();
+            let p = &state.players[player];
+            actions.push(ActionDesc::MulliganConfirm);
+            for (hand_index, _) in p.hand.iter().enumerate() {
+                if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
+                    break;
+                }
+                actions.push(ActionDesc::MulliganSelect {
+                    hand_index: hand_index as u8,
+                });
+            }
+            actions
+        }
         DecisionKind::Clock => {
             let mut actions = Vec::new();
             actions.push(ActionDesc::ClockPass);
@@ -235,9 +248,8 @@ pub fn legal_actions_cached(
                     let from_slot = &p.stage[from];
                     let to_slot = &p.stage[to];
                     if from_slot.card.is_some()
-                        && to_slot.card.is_some()
                         && is_character_slot(from_slot, db)
-                        && is_character_slot(to_slot, db)
+                        && (to_slot.card.is_none() || is_character_slot(to_slot, db))
                     {
                         actions.push(ActionDesc::MainMove {
                             from_slot: from as u8,
@@ -282,29 +294,27 @@ pub fn legal_actions_cached(
             let mut actions = Vec::new();
             let attacks = legal_attack_actions(state, decision.player, curriculum);
             actions.extend(attacks);
-            if actions.is_empty() {
-                actions.push(ActionDesc::AttackPass);
-            }
+            actions.push(ActionDesc::AttackPass);
             actions
         }
         DecisionKind::LevelUp => {
+            let mut actions = Vec::new();
             if state.players[player].clock.len() >= 7 {
-                (0..7)
-                    .map(|idx| ActionDesc::LevelUp { index: idx })
-                    .collect()
-            } else {
-                Vec::new()
+                actions.extend((0..7).map(|idx| ActionDesc::LevelUp { index: idx }));
             }
+            actions
         }
         DecisionKind::Encore => {
             let mut actions = Vec::new();
-            let slot = decision.focus_slot.unwrap_or(0) as usize;
             let p = &state.players[player];
-            if slot < p.stage.len() && p.stage[slot].card.is_some() {
-                if p.stock.len() >= 3 {
-                    actions.push(ActionDesc::EncoreYes);
+            let can_pay = p.stock.len() >= 3;
+            for slot in 0..p.stage.len() {
+                if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
+                    if can_pay {
+                        actions.push(ActionDesc::EncorePay { slot: slot as u8 });
+                    }
+                    actions.push(ActionDesc::EncoreDecline { slot: slot as u8 });
                 }
-                actions.push(ActionDesc::EncoreNo);
             }
             actions
         }
@@ -324,26 +334,27 @@ pub fn legal_actions_cached(
         }
         DecisionKind::Choice => {
             let mut actions = Vec::new();
-            let Some(choice) = state.turn.choice.as_ref() else {
-                return actions;
-            };
-            let total = choice.total_candidates as usize;
-            let page_size = crate::encode::CHOICE_COUNT;
-            let page_start = choice.page_start as usize;
-            let safe_start = page_start.min(total);
-            let page_end = total.min(safe_start + page_size);
-            for idx in 0..(page_end - safe_start) {
-                actions.push(ActionDesc::ChoiceSelect { index: idx as u8 });
-            }
-            if page_start >= page_size {
-                actions.push(ActionDesc::ChoicePrevPage);
-            }
-            if page_start + page_size < total {
-                actions.push(ActionDesc::ChoiceNextPage);
+            if let Some(choice) = state.turn.choice.as_ref() {
+                let total = choice.total_candidates as usize;
+                let page_size = crate::encode::CHOICE_COUNT;
+                let page_start = choice.page_start as usize;
+                let safe_start = page_start.min(total);
+                let page_end = total.min(safe_start + page_size);
+                for idx in 0..(page_end - safe_start) {
+                    actions.push(ActionDesc::ChoiceSelect { index: idx as u8 });
+                }
+                if page_start >= page_size {
+                    actions.push(ActionDesc::ChoicePrevPage);
+                }
+                if page_start + page_size < total {
+                    actions.push(ActionDesc::ChoiceNextPage);
+                }
             }
             actions
         }
-    }
+    };
+    actions.push(ActionDesc::Concede);
+    actions
 }
 
 fn card_set_allowed(

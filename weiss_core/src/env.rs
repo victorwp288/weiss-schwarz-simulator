@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use crate::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
-use crate::db::{CardDb, CardId, CardStatic};
+use crate::db::{CardDb, CardId, CardStatic, CardType};
 use crate::encode::{
     encode_observation, fill_action_mask, ACTION_ENCODING_VERSION, OBS_ENCODING_VERSION, OBS_LEN,
 };
@@ -62,6 +62,8 @@ pub struct GameEnv {
     pub config: EnvConfig,
     pub curriculum: CurriculumConfig,
     pub state: GameState,
+    pub env_id: u32,
+    pub episode_index: u32,
     pub decision: Option<Decision>,
     pub last_action_lookup: Vec<Option<ActionDesc>>,
     pub last_action_mask: Vec<u8>,
@@ -116,6 +118,7 @@ impl EnvScratch {
 
 const MAX_CHOICE_OPTIONS: usize = crate::encode::CHOICE_COUNT;
 pub const STACK_AUTO_RESOLVE_CAP: u32 = 256;
+pub const HAND_LIMIT: usize = 7;
 
 const TRIGGER_EFFECT_SOUL: u8 = 0;
 const TRIGGER_EFFECT_DRAW: u8 = 1;
@@ -140,6 +143,32 @@ mod movement;
 mod modifiers;
 
 impl GameEnv {
+    fn validate_deck_lists(db: &CardDb, deck_lists: &[Vec<CardId>; 2]) {
+        for (player, deck) in deck_lists.iter().enumerate() {
+            let mut climax_count = 0usize;
+            let mut counts: std::collections::HashMap<CardId, usize> = std::collections::HashMap::new();
+            for &card_id in deck {
+                let card = db.get(card_id).unwrap_or_else(|| {
+                    panic!("Deck {player} contains unknown card id {card_id}")
+                });
+                if card.card_type == CardType::Climax {
+                    climax_count += 1;
+                }
+                *counts.entry(card_id).or_insert(0) += 1;
+            }
+            assert!(
+                climax_count <= 8,
+                "Deck {player} has {climax_count} climax cards (max 8)"
+            );
+            for (card_id, count) in counts {
+                assert!(
+                    count <= 4,
+                    "Deck {player} has {count} copies of card {card_id} (max 4)"
+                );
+            }
+        }
+    }
+
     pub fn add_modifier(
         &mut self,
         source: CardId,
@@ -166,7 +195,9 @@ impl GameEnv {
         seed: u64,
         replay_config: ReplayConfig,
         replay_writer: Option<ReplayWriter>,
+        env_id: u32,
     ) -> Self {
+        Self::validate_deck_lists(&db, &config.deck_lists);
         let starting_player = (seed as u8) & 1;
         let state = GameState::new(
             config.deck_lists[0].clone(),
@@ -176,11 +207,15 @@ impl GameEnv {
         );
         let mut curriculum = curriculum;
         curriculum.rebuild_cache();
+        let mut replay_config = replay_config;
+        replay_config.rebuild_cache();
         let mut env = Self {
             db,
             config,
             curriculum,
             state,
+            env_id,
+            episode_index: 0,
             decision: None,
             last_action_lookup: vec![None; crate::encode::ACTION_SPACE_SIZE],
             last_action_mask: vec![0u8; crate::encode::ACTION_SPACE_SIZE],
@@ -225,6 +260,8 @@ impl GameEnv {
         let episode_seed = self.meta_rng.next_u64();
         let starting_player = if (episode_seed & 1) == 1 { 1 } else { 0 };
         self.episode_seed = episode_seed;
+        self.episode_index = self.episode_index.wrapping_add(1);
+        Self::validate_deck_lists(&self.db, &self.config.deck_lists);
         self.state = GameState::new(
             self.config.deck_lists[0].clone(),
             self.config.deck_lists[1].clone(),
@@ -262,7 +299,7 @@ impl GameEnv {
             set.clear();
         }
         self.recording = self.replay_config.enabled
-            && self.meta_rng.next_u32() as f32 / u32::MAX as f32 <= self.replay_config.sample_rate;
+            && self.meta_rng.next_u32() <= self.replay_config.sample_threshold;
         self.scratch_replacement_indices.clear();
 
         for player in 0..2 {
@@ -396,17 +433,64 @@ impl GameEnv {
 
         let mut reward = 0.0f32;
 
+        if action == ActionDesc::Concede {
+            self.log_event(Event::Concede {
+                player: decision.player,
+            });
+            self.state.terminal = Some(TerminalResult::Win {
+                winner: 1 - decision.player,
+            });
+            self.decision = None;
+            self.state.turn.decision_count += 1;
+            self.update_action_cache();
+            self.maybe_validate_state("post_concede");
+            reward += self.compute_reward(decision.player, &self.pending_damage_delta);
+            return Ok(self.build_outcome_with_obs(reward, copy_obs));
+        }
+
         match decision.kind {
             DecisionKind::Mulligan => match action {
-                ActionDesc::MulliganKeep => {
-                    self.state.turn.mulligan_done[decision.player as usize] = true;
+                ActionDesc::MulliganSelect { hand_index } => {
+                    let p = decision.player as usize;
+                    let hi = hand_index as usize;
+                    if hi >= self.state.players[p].hand.len() {
+                        return self.handle_illegal_action(
+                            decision.player,
+                            "Mulligan hand index out of range",
+                            copy_obs,
+                        );
+                    }
+                    if hi >= crate::encode::MAX_HAND {
+                        return self.handle_illegal_action(
+                            decision.player,
+                            "Mulligan hand index exceeds encoding",
+                            copy_obs,
+                        );
+                    }
+                    let bit = 1u16 << hi;
+                    let current = &mut self.state.turn.mulligan_selected[p];
+                    if *current & bit != 0 {
+                        *current &= !bit;
+                    } else {
+                        *current |= bit;
+                    }
                 }
-                ActionDesc::MulliganAll => {
+                ActionDesc::MulliganConfirm => {
                     let p = decision.player as usize;
                     let hand_len = self.state.players[p].hand.len();
-                    let mut discarded: Vec<CardInstance> = Vec::new();
-                    std::mem::swap(&mut discarded, &mut self.state.players[p].hand);
-                    for (idx, card) in discarded.iter().enumerate() {
+                    let mut indices: Vec<usize> = Vec::new();
+                    let mask = self.state.turn.mulligan_selected[p];
+                    for idx in 0..hand_len.min(crate::encode::MAX_HAND) {
+                        if mask & (1u16 << idx) != 0 {
+                            indices.push(idx);
+                        }
+                    }
+                    indices.sort_by(|a, b| b.cmp(a));
+                    for idx in indices.iter().copied() {
+                        if idx >= self.state.players[p].hand.len() {
+                            continue;
+                        }
+                        let card = self.state.players[p].hand.remove(idx);
                         let from_slot = if idx <= u8::MAX as usize {
                             Some(idx as u8)
                         } else {
@@ -414,16 +498,19 @@ impl GameEnv {
                         };
                         self.move_card_between_zones(
                             p as u8,
-                            *card,
+                            card,
                             Zone::Hand,
                             Zone::WaitingRoom,
                             from_slot,
                             None,
                         );
                     }
-                    self.draw_to_hand(p as u8, hand_len);
-                    self.shuffle_deck(p as u8);
+                    let draw_count = indices.len();
+                    if draw_count > 0 {
+                        self.draw_to_hand(p as u8, draw_count);
+                    }
                     self.state.turn.mulligan_done[p] = true;
+                    self.state.turn.mulligan_selected[p] = 0;
                 }
                 _ => {
                     return self.handle_illegal_action(
@@ -476,7 +563,7 @@ impl GameEnv {
                         )
                     }
                 }
-                self.state.turn.phase = Phase::Main;
+                self.state.turn.phase_step = 2;
             }
             DecisionKind::Main => match action {
                 ActionDesc::MainPass => {
@@ -520,12 +607,10 @@ impl GameEnv {
                             copy_obs,
                         );
                     }
-                    if self.state.players[p].stage[fs].card.is_none()
-                        || self.state.players[p].stage[ts].card.is_none()
-                    {
+                    if self.state.players[p].stage[fs].card.is_none() {
                         return self.handle_illegal_action(
                             decision.player,
-                            "Move requires two occupied slots",
+                            "Move requires a source slot with a card",
                             copy_obs,
                         );
                     }
@@ -564,10 +649,9 @@ impl GameEnv {
             },
             DecisionKind::Climax => match action {
                 ActionDesc::ClimaxPass => {
+                    self.state.turn.phase_step = 2;
                     if self.curriculum.enable_priority_windows {
                         self.enter_timing_window(TimingWindow::ClimaxWindow, decision.player);
-                    } else {
-                        self.state.turn.phase = Phase::Attack;
                     }
                 }
                 ActionDesc::ClimaxPlay { hand_index } => {
@@ -578,10 +662,9 @@ impl GameEnv {
                             copy_obs,
                         );
                     }
+                    self.state.turn.phase_step = 2;
                     if self.curriculum.enable_priority_windows {
                         self.enter_timing_window(TimingWindow::ClimaxWindow, decision.player);
-                    } else {
-                        self.state.turn.phase = Phase::Attack;
                     }
                 }
                 _ => {
@@ -594,19 +677,15 @@ impl GameEnv {
             },
             DecisionKind::AttackDeclaration => match action {
                 ActionDesc::AttackPass => {
-                    if self.has_attackers(decision.player) {
-                        return self.handle_illegal_action(
-                            decision.player,
-                            "Attack pass not allowed",
-                            copy_obs,
-                        );
-                    }
                     if self.curriculum.enable_encore {
                         self.queue_encore_requests();
                     } else {
                         self.cleanup_reversed_to_waiting_room();
                     }
                     self.state.turn.phase = Phase::End;
+                    self.state.turn.phase_step = 0;
+                    self.state.turn.attack_phase_begin_done = false;
+                    self.state.turn.attack_decl_check_done = false;
                 }
                 ActionDesc::Attack { slot, attack_type } => {
                     if let Err(err) = self.declare_attack(decision.player, slot, attack_type) {
@@ -651,8 +730,8 @@ impl GameEnv {
                 }
             },
             DecisionKind::Encore => match action {
-                ActionDesc::EncoreYes => {
-                    if let Err(err) = self.resolve_encore(decision.player, true) {
+                ActionDesc::EncorePay { slot } => {
+                    if let Err(err) = self.resolve_encore(decision.player, slot, true) {
                         return self.handle_illegal_action(
                             decision.player,
                             &err.to_string(),
@@ -660,8 +739,8 @@ impl GameEnv {
                         );
                     }
                 }
-                ActionDesc::EncoreNo => {
-                    if let Err(err) = self.resolve_encore(decision.player, false) {
+                ActionDesc::EncoreDecline { slot } => {
+                    if let Err(err) = self.resolve_encore(decision.player, slot, false) {
                         return self.handle_illegal_action(
                             decision.player,
                             &err.to_string(),
@@ -1031,6 +1110,21 @@ impl GameEnv {
                 consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} climax"));
                 check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} climax"));
             }
+            for card in &p.resolution {
+                consume(
+                    &mut counts,
+                    &mut errors,
+                    card.owner,
+                    card.id,
+                    &format!("p{zone_player} resolution"),
+                );
+                check_instance(
+                    &mut instance_ids,
+                    &mut errors,
+                    card,
+                    &format!("p{zone_player} resolution"),
+                );
+            }
             for (slot_idx, slot) in p.stage.iter().enumerate() {
                 if let Some(card) = slot.card {
                     consume(
@@ -1078,8 +1172,14 @@ impl GameEnv {
                     }
                 }
                 DecisionKind::Encore => {
-                    if self.state.turn.encore_queue.is_empty() {
-                        errors.push("Encore decision without encore request".to_string());
+                    let has = self
+                        .state
+                        .turn
+                        .encore_queue
+                        .iter()
+                        .any(|r| r.player == decision.player);
+                    if !has {
+                        errors.push("Encore decision without reversed options".to_string());
                     }
                 }
                 DecisionKind::TriggerOrder => {
@@ -1270,7 +1370,21 @@ impl GameEnv {
                 }
             }
 
-            if let Some(req) = self.state.turn.encore_queue.first().copied() {
+            if self.state.turn.stack.is_empty()
+                && self.state.turn.pending_triggers.is_empty()
+                && self.state.turn.choice.is_none()
+                && self.state.turn.priority.is_none()
+                && self.state.turn.stack_order.is_none()
+            {
+                self.cleanup_pending_resolution_cards();
+            }
+
+            if !self.state.turn.encore_queue.is_empty() {
+                if !self.state.turn.encore_begin_done {
+                    self.run_check_timing(crate::db::AbilityTiming::BeginEncoreStep);
+                    self.state.turn.encore_begin_done = true;
+                    continue;
+                }
                 if self.curriculum.enable_priority_windows && !self.state.turn.encore_window_done {
                     self.state.turn.encore_window_done = true;
                     if self.state.turn.priority.is_none() {
@@ -1281,18 +1395,49 @@ impl GameEnv {
                     }
                     break;
                 }
-                self.decision = Some(Decision {
-                    player: req.player,
-                    kind: DecisionKind::Encore,
-                    focus_slot: Some(req.slot),
-                });
-                break;
+                if self.state.turn.encore_step_player.is_none() {
+                    self.state.turn.encore_step_player = Some(self.state.turn.active_player);
+                }
+                let current = self.state.turn.encore_step_player.unwrap();
+                let has_current = self
+                    .state
+                    .turn
+                    .encore_queue
+                    .iter()
+                    .any(|r| r.player == current);
+                let next_player = if has_current {
+                    Some(current)
+                } else {
+                    let other = 1 - current;
+                    if self
+                        .state
+                        .turn
+                        .encore_queue
+                        .iter()
+                        .any(|r| r.player == other)
+                    {
+                        self.state.turn.encore_step_player = Some(other);
+                        Some(other)
+                    } else {
+                        self.state.turn.encore_step_player = None;
+                        None
+                    }
+                };
+                if let Some(player) = next_player {
+                    self.decision = Some(Decision {
+                        player,
+                        kind: DecisionKind::Encore,
+                        focus_slot: None,
+                    });
+                    break;
+                }
             }
 
             match self.state.turn.phase {
                 Phase::Mulligan => {
                     if self.state.turn.mulligan_done[0] && self.state.turn.mulligan_done[1] {
                         self.state.turn.phase = Phase::Stand;
+                        self.state.turn.phase_step = 0;
                         self.state.turn.active_player = self.state.turn.starting_player;
                         continue;
                     }
@@ -1311,33 +1456,119 @@ impl GameEnv {
                 }
                 Phase::Stand => {
                     let p = self.state.turn.active_player;
-                    self.resolve_stand_phase(p);
-                    self.state.turn.phase = Phase::Draw;
+                    match self.state.turn.phase_step {
+                        0 => {
+                            self.run_check_timing(crate::db::AbilityTiming::BeginTurn);
+                            if self.state.turn.pending_level_up.is_some()
+                                || !self.state.turn.pending_triggers.is_empty()
+                            {
+                                continue;
+                            }
+                            self.run_check_timing(crate::db::AbilityTiming::BeginStandPhase);
+                            self.state.turn.phase_step = 1;
+                            continue;
+                        }
+                        1 => {
+                            self.resolve_stand_phase(p);
+                            self.state.turn.phase_step = 2;
+                            continue;
+                        }
+                        2 => {
+                            self.run_check_timing(crate::db::AbilityTiming::AfterStandPhase);
+                            self.state.turn.phase_step = 3;
+                            continue;
+                        }
+                        _ => {
+                            if self.state.turn.pending_level_up.is_some()
+                                || !self.state.turn.pending_triggers.is_empty()
+                            {
+                                continue;
+                            }
+                            self.state.turn.phase = Phase::Draw;
+                            self.state.turn.phase_step = 0;
+                            continue;
+                        }
+                    }
                 }
                 Phase::Draw => {
                     let p = self.state.turn.active_player;
-                    self.draw_to_hand(p, 1);
-                    self.state.turn.phase = if self.curriculum.enable_clock_phase {
-                        Phase::Clock
-                    } else {
-                        Phase::Main
-                    };
+                    match self.state.turn.phase_step {
+                        0 => {
+                            self.run_check_timing(crate::db::AbilityTiming::BeginDrawPhase);
+                            self.state.turn.phase_step = 1;
+                            continue;
+                        }
+                        1 => {
+                            self.draw_to_hand(p, 1);
+                            self.state.turn.phase_step = 2;
+                            continue;
+                        }
+                        2 => {
+                            self.run_check_timing(crate::db::AbilityTiming::AfterDrawPhase);
+                            self.state.turn.phase_step = 3;
+                            continue;
+                        }
+                        _ => {
+                            if self.state.turn.pending_level_up.is_some()
+                                || !self.state.turn.pending_triggers.is_empty()
+                            {
+                                continue;
+                            }
+                            self.state.turn.phase = if self.curriculum.enable_clock_phase {
+                                Phase::Clock
+                            } else {
+                                Phase::Main
+                            };
+                            self.state.turn.phase_step = 0;
+                            continue;
+                        }
+                    }
                 }
                 Phase::Clock => {
                     if !self.curriculum.enable_clock_phase {
                         self.state.turn.phase = Phase::Main;
+                        self.state.turn.phase_step = 0;
                         continue;
                     }
                     let p = self.state.turn.active_player;
-                    self.decision = Some(Decision {
-                        player: p,
-                        kind: DecisionKind::Clock,
-                        focus_slot: None,
-                    });
-                    break;
+                    match self.state.turn.phase_step {
+                        0 => {
+                            self.run_check_timing(crate::db::AbilityTiming::BeginClockPhase);
+                            self.state.turn.phase_step = 1;
+                            continue;
+                        }
+                        1 => {
+                            self.decision = Some(Decision {
+                                player: p,
+                                kind: DecisionKind::Clock,
+                                focus_slot: None,
+                            });
+                            break;
+                        }
+                        2 => {
+                            self.run_check_timing(crate::db::AbilityTiming::AfterClockPhase);
+                            self.state.turn.phase_step = 3;
+                            continue;
+                        }
+                        _ => {
+                            if self.state.turn.pending_level_up.is_some()
+                                || !self.state.turn.pending_triggers.is_empty()
+                            {
+                                continue;
+                            }
+                            self.state.turn.phase = Phase::Main;
+                            self.state.turn.phase_step = 0;
+                            continue;
+                        }
+                    }
                 }
                 Phase::Main => {
                     let p = self.state.turn.active_player;
+                    if self.state.turn.phase_step == 0 {
+                        self.run_check_timing(crate::db::AbilityTiming::BeginMainPhase);
+                        self.state.turn.phase_step = 1;
+                        continue;
+                    }
                     self.decision = Some(Decision {
                         player: p,
                         kind: DecisionKind::Main,
@@ -1348,18 +1579,59 @@ impl GameEnv {
                 Phase::Climax => {
                     if !self.curriculum.enable_climax_phase {
                         self.state.turn.phase = Phase::Attack;
+                        self.state.turn.phase_step = 0;
+                        self.state.turn.attack_phase_begin_done = false;
+                        self.state.turn.attack_decl_check_done = false;
                         continue;
                     }
                     let p = self.state.turn.active_player;
-                    self.decision = Some(Decision {
-                        player: p,
-                        kind: DecisionKind::Climax,
-                        focus_slot: None,
-                    });
-                    break;
+                    match self.state.turn.phase_step {
+                        0 => {
+                            self.run_check_timing(crate::db::AbilityTiming::BeginClimaxPhase);
+                            self.state.turn.phase_step = 1;
+                            continue;
+                        }
+                        1 => {
+                            self.decision = Some(Decision {
+                                player: p,
+                                kind: DecisionKind::Climax,
+                                focus_slot: None,
+                            });
+                            break;
+                        }
+                        2 => {
+                            self.run_check_timing(crate::db::AbilityTiming::AfterClimaxPhase);
+                            self.state.turn.phase_step = 3;
+                            continue;
+                        }
+                        _ => {
+                            if self.state.turn.pending_level_up.is_some()
+                                || !self.state.turn.pending_triggers.is_empty()
+                            {
+                                continue;
+                            }
+                            self.state.turn.phase = Phase::Attack;
+                            self.state.turn.phase_step = 0;
+                            self.state.turn.attack_phase_begin_done = false;
+                            self.state.turn.attack_decl_check_done = false;
+                            continue;
+                        }
+                    }
                 }
                 Phase::Attack => {
+                    if !self.state.turn.attack_phase_begin_done {
+                        self.run_check_timing(crate::db::AbilityTiming::BeginAttackPhase);
+                        self.state.turn.attack_phase_begin_done = true;
+                        continue;
+                    }
                     if self.state.turn.attack.is_none() {
+                        if !self.state.turn.attack_decl_check_done {
+                            self.run_check_timing(
+                                crate::db::AbilityTiming::BeginAttackDeclarationStep,
+                            );
+                            self.state.turn.attack_decl_check_done = true;
+                            continue;
+                        }
                         let p = self.state.turn.active_player;
                         self.recompute_derived_attack();
                         self.decision = Some(Decision {
@@ -1376,6 +1648,7 @@ impl GameEnv {
                     if self.resolve_end_phase(p) {
                         self.state.turn.active_player = 1 - p;
                         self.state.turn.phase = Phase::Stand;
+                        self.state.turn.phase_step = 0;
                     }
                 }
             }

@@ -10,6 +10,7 @@ pub enum RevealReason {
     TriggerCheck,
     DamageCheck,
     RefreshPenalty,
+    Play,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -42,6 +43,7 @@ pub enum Zone {
     Stock,
     Memory,
     Climax,
+    Resolution,
     Stage,
 }
 
@@ -224,6 +226,9 @@ pub enum Event {
     ModifierRemoved {
         id: u32,
         reason: ModifierRemoveReason,
+    },
+    Concede {
+        player: u8,
     },
     Play {
         player: u8,

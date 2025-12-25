@@ -2,6 +2,7 @@ use crate::db::CardId;
 use crate::effects::{EffectId, EffectPayload, ReplacementSpec};
 use crate::util::Rng64;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 
 pub type CardInstanceId = u32;
 
@@ -133,7 +134,7 @@ pub enum TriggerEffect {
     Treasure,
     Gate,
     Standby,
-    EndPhaseDraw { count: u8, ability_index: u8 },
+    AutoAbility { ability_index: u8 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -147,6 +148,7 @@ pub enum TargetZone {
     Memory,
     WaitingRoom,
     Climax,
+    Resolution,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -228,6 +230,7 @@ pub enum ChoiceReason {
     StackOrderSelect,
     PriorityActionSelect,
     TargetSelect,
+    EndPhaseDiscard,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -241,6 +244,7 @@ pub enum ChoiceZone {
     Stock,
     Memory,
     Climax,
+    Resolution,
     Stack,
     PriorityCounter,
     PriorityAct,
@@ -361,6 +365,7 @@ pub struct PlayerState {
     pub stock: Vec<CardInstance>,
     pub memory: Vec<CardInstance>,
     pub climax: Vec<CardInstance>,
+    pub resolution: Vec<CardInstance>,
     pub stage: [StageSlot; 5],
 }
 
@@ -375,6 +380,7 @@ impl PlayerState {
             stock: Vec::new(),
             memory: Vec::new(),
             climax: Vec::new(),
+            resolution: Vec::new(),
             stage: [
                 StageSlot::empty(),
                 StageSlot::empty(),
@@ -416,25 +422,39 @@ pub struct ModifierInstance {
 pub struct TurnState {
     pub active_player: u8,
     pub starting_player: u8,
+    pub turn_number: u32,
     pub phase: Phase,
     pub mulligan_done: [bool; 2],
+    pub mulligan_selected: [u16; 2],
     pub main_passed: bool,
     pub decision_count: u32,
     pub tick_count: u32,
     pub attack: Option<AttackContext>,
+    pub attack_subphase_count: u8,
     pub pending_level_up: Option<u8>,
     pub encore_queue: Vec<EncoreRequest>,
+    pub encore_step_player: Option<u8>,
     pub pending_triggers: Vec<PendingTrigger>,
     pub active_window: Option<TimingWindow>,
     pub end_phase_window_done: bool,
+    pub end_phase_discard_done: bool,
+    pub end_phase_climax_done: bool,
+    pub end_phase_cleanup_done: bool,
     pub encore_window_done: bool,
     pub pending_losses: [bool; 2],
+    pub damage_resolution_target: Option<u8>,
+    pub cost_payment_depth: u8,
+    pub pending_resolution_cleanup: Vec<(u8, CardInstanceId)>,
+    pub phase_step: u8,
+    pub attack_phase_begin_done: bool,
+    pub attack_decl_check_done: bool,
+    pub encore_begin_done: bool,
     pub trigger_order: Option<TriggerOrderState>,
     pub choice: Option<ChoiceState>,
     pub target_selection: Option<TargetSelectionState>,
     pub priority: Option<PriorityState>,
     pub stack: Vec<StackItem>,
-    pub pending_stack_groups: Vec<StackOrderState>,
+    pub pending_stack_groups: VecDeque<StackOrderState>,
     pub stack_order: Option<StackOrderState>,
     pub derived_attack: Option<DerivedAttackState>,
     pub next_trigger_id: u32,
@@ -460,6 +480,16 @@ pub struct GameState {
 
 impl GameState {
     pub fn new(deck_a: Vec<CardId>, deck_b: Vec<CardId>, seed: u64, starting_player: u8) -> Self {
+        assert!(
+            deck_a.len() == crate::encode::MAX_DECK,
+            "Deck A must contain exactly {} cards",
+            crate::encode::MAX_DECK
+        );
+        assert!(
+            deck_b.len() == crate::encode::MAX_DECK,
+            "Deck B must contain exactly {} cards",
+            crate::encode::MAX_DECK
+        );
         let rng = Rng64::new(seed);
         let mut next_instance_id: CardInstanceId = 1;
         let deck_a = Self::build_deck(deck_a, 0, &mut next_instance_id);
@@ -469,21 +499,25 @@ impl GameState {
             turn: TurnState {
                 active_player: starting_player,
                 starting_player,
+                turn_number: 0,
                 phase: Phase::Mulligan,
                 mulligan_done: [false; 2],
+                mulligan_selected: [0; 2],
                 main_passed: false,
                 decision_count: 0,
                 tick_count: 0,
                 attack: None,
+                attack_subphase_count: 0,
                 pending_level_up: None,
                 encore_queue: Vec::new(),
+                encore_step_player: None,
                 pending_triggers: Vec::new(),
                 trigger_order: None,
                 choice: None,
                 target_selection: None,
                 priority: None,
                 stack: Vec::new(),
-                pending_stack_groups: Vec::new(),
+                pending_stack_groups: VecDeque::new(),
                 stack_order: None,
                 derived_attack: None,
                 next_trigger_id: 1,
@@ -494,8 +528,18 @@ impl GameState {
                 next_effect_instance_id: 1,
                 active_window: None,
                 end_phase_window_done: false,
+                end_phase_discard_done: false,
+                end_phase_climax_done: false,
+                end_phase_cleanup_done: false,
                 encore_window_done: false,
                 pending_losses: [false; 2],
+                damage_resolution_target: None,
+                cost_payment_depth: 0,
+                pending_resolution_cleanup: Vec::new(),
+                phase_step: 0,
+                attack_phase_begin_done: false,
+                attack_decl_check_done: false,
+                encore_begin_done: false,
                 end_phase_pending: false,
             },
             rng,

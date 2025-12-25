@@ -99,12 +99,7 @@ impl GameEnv {
             if spec.kind != AbilityKind::Auto {
                 continue;
             }
-            let timing = match &spec.template {
-                AbilityTemplate::AutoOnPlayDraw { .. } => Some(crate::db::AbilityTiming::OnPlay),
-                AbilityTemplate::AbilityDef(def) => def.timing,
-                _ => None,
-            };
-            if timing == Some(crate::db::AbilityTiming::OnPlay) {
+            if spec.timing() == Some(crate::db::AbilityTiming::OnPlay) {
                 let effects = db.compiled_effects_for_ability(source_id, ability_index);
                 for effect in effects {
                     self.enqueue_effect_spec(player, source_id, effect.clone());

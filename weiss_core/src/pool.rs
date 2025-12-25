@@ -57,6 +57,7 @@ impl EnvPool {
                 env_seed,
                 replay_config.clone(),
                 None,
+                i as u32,
             ));
         }
         debug_assert!(envs
@@ -226,9 +227,21 @@ impl EnvPool {
             state.players[p1].hand.len(),
             state.players[p1].deck.len()
         ));
+        fn format_stage(stage: &[crate::state::StageSlot; 5]) -> String {
+            let mut parts = Vec::with_capacity(stage.len());
+            for slot in stage {
+                if let Some(card) = slot.card {
+                    parts.push(format!("{}:{:?}", card.id, slot.status));
+                } else {
+                    parts.push("Empty".to_string());
+                }
+            }
+            format!("[{}]", parts.join(", "))
+        }
+
         out.push_str("Stage:\n");
-        out.push_str(&format!(" P{}: {:?}\n", p0, state.players[p0].stage));
-        out.push_str(&format!(" P{}: {:?}\n", p1, state.players[p1].stage));
+        out.push_str(&format!(" P{}: {}\n", p0, format_stage(&state.players[p0].stage)));
+        out.push_str(&format!(" P{}: {}\n", p1, format_stage(&state.players[p1].stage)));
         if let Some(action) = &env.last_action_desc {
             let hide_action = env.curriculum.enable_visibility_policies
                 && env.config.observation_visibility == crate::config::ObservationVisibility::Public
@@ -249,6 +262,8 @@ impl EnvPool {
     }
 
     pub fn enable_replay_sampling(&mut self, config: ReplayConfig) -> Result<()> {
+        let mut config = config;
+        config.rebuild_cache();
         let writer = if config.enabled {
             Some(ReplayWriter::new(&config)?)
         } else {

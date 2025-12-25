@@ -39,9 +39,10 @@ impl GameEnv {
             ChoiceZone::Stock => 7u64,
             ChoiceZone::Memory => 8u64,
             ChoiceZone::Climax => 9u64,
-            ChoiceZone::Stack => 10u64,
-            ChoiceZone::PriorityCounter => 11u64,
-            ChoiceZone::PriorityAct => 12u64,
+            ChoiceZone::Resolution => 10u64,
+            ChoiceZone::Stack => 11u64,
+            ChoiceZone::PriorityCounter => 12u64,
+            ChoiceZone::PriorityAct => 13u64,
         };
         let index = option.index.unwrap_or(0) as u64;
         let target = option.target_slot.unwrap_or(0) as u64;
@@ -291,6 +292,37 @@ impl GameEnv {
             }
             ChoiceReason::TargetSelect => {
                 self.apply_target_choice(player, option);
+            }
+            ChoiceReason::EndPhaseDiscard => {
+                if option.zone != ChoiceZone::Hand {
+                    return;
+                }
+                let Some(index) = option.index else {
+                    return;
+                };
+                let p = player as usize;
+                let idx = index as usize;
+                if idx >= self.state.players[p].hand.len() {
+                    return;
+                }
+                let card = self.state.players[p].hand[idx];
+                if card.instance_id != option.instance_id {
+                    return;
+                }
+                let card = self.state.players[p].hand.remove(idx);
+                self.move_card_between_zones(
+                    player,
+                    card,
+                    Zone::Hand,
+                    Zone::WaitingRoom,
+                    Some(index),
+                    None,
+                );
+                if self.state.players[p].hand.len() > super::HAND_LIMIT {
+                    let _ = self.start_end_phase_discard_choice(player);
+                } else {
+                    self.state.turn.end_phase_discard_done = true;
+                }
             }
         }
         if let Some(trigger) = pending_trigger {
@@ -706,6 +738,40 @@ impl GameEnv {
                     });
                 }
             }
+            TargetZone::Resolution => {
+                for (idx, card_inst) in state.players[target_player as usize]
+                    .resolution
+                    .iter()
+                    .copied()
+                    .enumerate()
+                {
+                    if idx > u8::MAX as usize {
+                        break;
+                    }
+                    let Some(card) = db.get(card_inst.id) else {
+                        continue;
+                    };
+                    if let Some(card_type) = spec.card_type {
+                        if card.card_type != card_type {
+                            continue;
+                        }
+                    }
+                    if selected.iter().any(|t| {
+                        t.player == target_player
+                            && t.zone == TargetZone::Resolution
+                            && t.index as usize == idx
+                    }) {
+                        continue;
+                    }
+                    out.push(TargetRef {
+                        player: target_player,
+                        zone: TargetZone::Resolution,
+                        index: idx as u8,
+                        card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
+                    });
+                }
+            }
         }
     }
 
@@ -748,6 +814,7 @@ impl GameEnv {
                 TargetZone::Stock => ChoiceZone::Stock,
                 TargetZone::Memory => ChoiceZone::Memory,
                 TargetZone::Climax => ChoiceZone::Climax,
+                TargetZone::Resolution => ChoiceZone::Resolution,
             };
             self.scratch.choice_options.push(ChoiceOptionRef {
                 card_id: target.card_id,
@@ -788,6 +855,7 @@ impl GameEnv {
             ChoiceZone::Stock => TargetZone::Stock,
             ChoiceZone::Memory => TargetZone::Memory,
             ChoiceZone::Climax => TargetZone::Climax,
+            ChoiceZone::Resolution => TargetZone::Resolution,
             _ => {
                 self.state.turn.target_selection = Some(selection);
                 return;
@@ -887,6 +955,15 @@ impl GameEnv {
                     false
                 } else {
                     self.state.players[target_player as usize].climax[idx].instance_id
+                        == option.instance_id
+                }
+            }
+            TargetZone::Resolution => {
+                let idx = index as usize;
+                if idx >= self.state.players[target_player as usize].resolution.len() {
+                    false
+                } else {
+                    self.state.players[target_player as usize].resolution[idx].instance_id
                         == option.instance_id
                 }
             }
@@ -1244,6 +1321,7 @@ impl GameEnv {
                 if self.state.turn.main_passed {
                     self.state.turn.main_passed = false;
                     self.state.turn.phase = Phase::Climax;
+                    self.state.turn.phase_step = 0;
                 }
             }
             TimingWindow::CounterWindow => {
@@ -1252,7 +1330,7 @@ impl GameEnv {
                 }
             }
             TimingWindow::ClimaxWindow => {
-                self.state.turn.phase = Phase::Attack;
+                self.state.turn.phase_step = 2;
             }
             TimingWindow::AttackDeclarationWindow => {}
             TimingWindow::TriggerResolutionWindow => {}
@@ -1313,7 +1391,7 @@ impl GameEnv {
                 controller,
                 items,
             };
-            self.state.turn.pending_stack_groups.push(group);
+            self.state.turn.pending_stack_groups.push_back(group);
         }
         self.process_next_stack_group();
     }
@@ -1325,7 +1403,9 @@ impl GameEnv {
         if self.state.turn.pending_stack_groups.is_empty() {
             return;
         }
-        let group = self.state.turn.pending_stack_groups.remove(0);
+        let Some(group) = self.state.turn.pending_stack_groups.pop_front() else {
+            return;
+        };
         if group.items.len() == 1 {
             let item = group.items.into_iter().next().expect("group item");
             self.push_stack_item(item);
@@ -1789,14 +1869,19 @@ impl GameEnv {
         self.pay_cost(player, card.cost as usize)?;
         let card_inst = self.state.players[p].hand.remove(hi);
         let card_id = card_inst.id;
+        self.reveal_card(player, &card_inst, RevealReason::Play, RevealAudience::Public);
         self.move_card_between_zones(
             player,
             card_inst,
             Zone::Hand,
-            Zone::WaitingRoom,
+            Zone::Resolution,
             Some(hand_index),
             None,
         );
+        self.state
+            .turn
+            .pending_resolution_cleanup
+            .push((player, card_inst.instance_id));
         if let Some(ctx) = &mut self.state.turn.attack {
             ctx.counter_played = true;
         }

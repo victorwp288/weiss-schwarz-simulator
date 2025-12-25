@@ -13,7 +13,12 @@
         CardInstance, ChoiceReason, ChoiceZone, PendingTargetEffect, StackItem, StageSlot,
         TargetSelectionState, TargetSide, TargetSlotFilter, TargetSpec, TargetZone, TerminalResult,
     };
+    use std::collections::HashMap;
     use std::sync::Arc;
+
+    const CLONE_OFFSET: u32 = 1000;
+    const CLONE_GROUPS: usize = 12;
+    const MAX_COPIES: usize = 4;
 
     fn make_instance(id: CardId, owner: u8, next_id: &mut u32) -> CardInstance {
         let instance = CardInstance::new(id, owner, *next_id);
@@ -21,8 +26,69 @@
         instance
     }
 
+    fn add_clone_cards(cards: &mut Vec<CardStatic>) {
+        let base_cards = cards.clone();
+        for base in base_cards {
+            for idx in 1..=CLONE_GROUPS {
+                let mut clone = base.clone();
+                clone.id = base.id + CLONE_OFFSET * idx as u32;
+                cards.push(clone);
+            }
+        }
+    }
+
+    fn legalize_deck(mut deck: Vec<u32>, filler_pool: &[u32]) -> Vec<u32> {
+        let max_deck = crate::encode::MAX_DECK;
+        if deck.len() > max_deck {
+            panic!("deck length {} exceeds MAX_DECK {}", deck.len(), max_deck);
+        }
+        if filler_pool.is_empty() {
+            panic!("filler pool empty");
+        }
+        let mut counts: HashMap<u32, usize> = HashMap::new();
+        let mut next_clone: HashMap<u32, u32> = HashMap::new();
+        for card_id in &mut deck {
+            *card_id = assign_id(*card_id, &mut counts, &mut next_clone);
+        }
+        let mut filler_iter = filler_pool.iter().copied().cycle();
+        while deck.len() < max_deck {
+            let base = filler_iter.next().expect("filler");
+            let card_id = assign_id(base, &mut counts, &mut next_clone);
+            deck.push(card_id);
+        }
+        deck
+    }
+
+    fn assign_id(
+        base_id: u32,
+        counts: &mut HashMap<u32, usize>,
+        next_clone: &mut HashMap<u32, u32>,
+    ) -> u32 {
+        let count = counts.entry(base_id).or_insert(0);
+        if *count < MAX_COPIES {
+            *count += 1;
+            return base_id;
+        }
+        loop {
+            let idx = next_clone.entry(base_id).or_insert(1);
+            if *idx > CLONE_GROUPS as u32 {
+                panic!(
+                    "not enough clone ids for base {} (needed clone group {})",
+                    base_id, idx
+                );
+            }
+            let clone_id = base_id + CLONE_OFFSET * *idx;
+            let clone_count = counts.entry(clone_id).or_insert(0);
+            if *clone_count < MAX_COPIES {
+                *clone_count += 1;
+                return clone_id;
+            }
+            *idx += 1;
+        }
+    }
+
     fn make_env() -> GameEnv {
-        let cards = vec![
+        let mut cards = vec![
             CardStatic {
                 id: 1,
                 card_set: None,
@@ -56,9 +122,13 @@
                 raw_text: None,
             },
         ];
+        add_clone_cards(&mut cards);
         let db = Arc::new(CardDb::new(cards).expect("db"));
         let config = EnvConfig {
-            deck_lists: [vec![1; 10], vec![2; 10]],
+            deck_lists: [
+                legalize_deck(vec![1; 50], &[1]),
+                legalize_deck(vec![2; 50], &[2]),
+            ],
             deck_ids: [1, 2],
             max_decisions: 100,
             max_ticks: 1000,
@@ -74,11 +144,12 @@
             1,
             Default::default(),
             None,
+            0,
         )
     }
 
     fn make_env_with_replay(replay_config: ReplayConfig) -> GameEnv {
-        let cards = vec![
+        let mut cards = vec![
             CardStatic {
                 id: 1,
                 card_set: None,
@@ -112,9 +183,13 @@
                 raw_text: None,
             },
         ];
+        add_clone_cards(&mut cards);
         let db = Arc::new(CardDb::new(cards).expect("db"));
         let config = EnvConfig {
-            deck_lists: [vec![1; 10], vec![2; 10]],
+            deck_lists: [
+                legalize_deck(vec![1; 50], &[1]),
+                legalize_deck(vec![2; 50], &[2]),
+            ],
             deck_ids: [1, 2],
             max_decisions: 100,
             max_ticks: 1000,
@@ -130,6 +205,7 @@
             2,
             replay_config,
             None,
+            0,
         )
     }
 
@@ -222,6 +298,10 @@
         ];
         env.state.players[p].memory = vec![make_instance(1, owner, &mut next_id)];
         env.state.players[p].climax = vec![make_instance(2, owner, &mut next_id)];
+        env.state.players[p].resolution = vec![
+            make_instance(1, owner, &mut next_id),
+            make_instance(2, owner, &mut next_id),
+        ];
         env.state.players[p].deck = vec![
             make_instance(1, owner, &mut next_id),
             make_instance(2, owner, &mut next_id),
@@ -299,6 +379,12 @@
 
         let climax = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Climax), &[]);
         assert_eq!(climax.iter().map(|t| t.index).collect::<Vec<_>>(), vec![0]);
+
+        let resolution = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Resolution), &[]);
+        assert_eq!(
+            resolution.iter().map(|t| t.index).collect::<Vec<_>>(),
+            vec![0, 1]
+        );
     }
 
     #[test]

@@ -60,6 +60,7 @@ fn bench_advance_until_decision(c: &mut Criterion) {
                 42,
                 Default::default(),
                 None,
+                0,
             );
             for _ in 0..50 {
                 if let Some(decision) = env.decision.clone() {
@@ -158,7 +159,7 @@ fn bench_legal_actions(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(db.clone(), config, curriculum, 9, Default::default(), None);
+    let env = GameEnv::new(db.clone(), config, curriculum, 9, Default::default(), None, 0);
     c.bench_function("legal_actions", |b| {
         b.iter(|| {
             if let Some(decision) = env.decision.clone() {
@@ -177,7 +178,7 @@ fn bench_observation_encode(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(db.clone(), config, curriculum, 11, Default::default(), None);
+    let env = GameEnv::new(db.clone(), config, curriculum, 11, Default::default(), None, 0);
     c.bench_function("observation_encode", |b| {
         b.iter(|| {
             let mut buf = vec![0i32; weiss_core::encode::OBS_LEN];
@@ -201,7 +202,7 @@ fn bench_mask_construction(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(db.clone(), config, curriculum, 13, Default::default(), None);
+    let env = GameEnv::new(db.clone(), config, curriculum, 13, Default::default(), None, 0);
     c.bench_function("mask_construction", |b| {
         b.iter(|| {
             if let Some(decision) = env.decision.clone() {

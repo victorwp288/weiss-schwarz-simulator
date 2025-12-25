@@ -7,7 +7,7 @@ pub const OBS_ENCODING_VERSION: u32 = 1;
 pub const ACTION_ENCODING_VERSION: u32 = 1;
 
 pub const MAX_HAND: usize = 10;
-pub const MAX_DECK: usize = 60;
+pub const MAX_DECK: usize = 50;
 pub const MAX_STAGE: usize = 5;
 pub const MAX_ABILITIES_PER_CARD: usize = 4;
 pub const ATTACK_SLOT_COUNT: usize = 3;
@@ -15,8 +15,13 @@ pub const MAX_LEVEL: usize = 4;
 pub const TOP_CLOCK: usize = 7;
 pub const TOP_WAITING_ROOM: usize = 5;
 pub const TOP_STOCK: usize = 5;
+pub const TOP_RESOLUTION: usize = 5;
 
-pub const CLOCK_PASS_ID: usize = 2;
+pub const MULLIGAN_CONFIRM_ID: usize = 0;
+pub const MULLIGAN_SELECT_BASE: usize = MULLIGAN_CONFIRM_ID + 1;
+pub const MULLIGAN_SELECT_COUNT: usize = MAX_HAND;
+
+pub const CLOCK_PASS_ID: usize = MULLIGAN_SELECT_BASE + MULLIGAN_SELECT_COUNT;
 pub const CLOCK_HAND_BASE: usize = CLOCK_PASS_ID + 1;
 pub const CLOCK_HAND_COUNT: usize = MAX_HAND;
 
@@ -39,10 +44,12 @@ pub const ATTACK_COUNT: usize = ATTACK_SLOT_COUNT * 3;
 pub const LEVEL_UP_BASE: usize = ATTACK_BASE + ATTACK_COUNT;
 pub const LEVEL_UP_COUNT: usize = 7;
 
-pub const ENCORE_YES_ID: usize = LEVEL_UP_BASE + LEVEL_UP_COUNT;
-pub const ENCORE_NO_ID: usize = ENCORE_YES_ID + 1;
+pub const ENCORE_PAY_BASE: usize = LEVEL_UP_BASE + LEVEL_UP_COUNT;
+pub const ENCORE_PAY_COUNT: usize = MAX_STAGE;
+pub const ENCORE_DECLINE_BASE: usize = ENCORE_PAY_BASE + ENCORE_PAY_COUNT;
+pub const ENCORE_DECLINE_COUNT: usize = MAX_STAGE;
 
-pub const TRIGGER_ORDER_BASE: usize = ENCORE_NO_ID + 1;
+pub const TRIGGER_ORDER_BASE: usize = ENCORE_DECLINE_BASE + ENCORE_DECLINE_COUNT;
 pub const TRIGGER_ORDER_COUNT: usize = 10;
 
 pub const CHOICE_BASE: usize = TRIGGER_ORDER_BASE + TRIGGER_ORDER_COUNT;
@@ -50,16 +57,18 @@ pub const CHOICE_COUNT: usize = 16;
 pub const CHOICE_PREV_ID: usize = CHOICE_BASE + CHOICE_COUNT;
 pub const CHOICE_NEXT_ID: usize = CHOICE_PREV_ID + 1;
 
-pub const ACTION_SPACE_SIZE: usize = CHOICE_NEXT_ID + 1;
+pub const CONCEDE_ID: usize = CHOICE_NEXT_ID + 1;
+pub const ACTION_SPACE_SIZE: usize = CONCEDE_ID + 1;
 
 pub const OBS_HEADER_LEN: usize = 16;
-pub const PER_PLAYER_COUNTS: usize = 8;
+pub const PER_PLAYER_COUNTS: usize = 9;
 pub const PER_STAGE_SLOT: usize = 5;
 pub const PER_PLAYER_STAGE: usize = MAX_STAGE * PER_STAGE_SLOT;
 pub const PER_PLAYER_CLIMAX_TOP: usize = 1;
 pub const PER_PLAYER_LEVEL: usize = MAX_LEVEL;
 pub const PER_PLAYER_CLOCK_TOP: usize = TOP_CLOCK;
 pub const PER_PLAYER_WAITING_TOP: usize = TOP_WAITING_ROOM;
+pub const PER_PLAYER_RESOLUTION_TOP: usize = TOP_RESOLUTION;
 pub const PER_PLAYER_STOCK_TOP: usize = TOP_STOCK;
 pub const PER_PLAYER_HAND: usize = MAX_HAND;
 pub const PER_PLAYER_DECK: usize = MAX_DECK;
@@ -69,6 +78,7 @@ pub const PER_PLAYER_BLOCK_LEN: usize = PER_PLAYER_COUNTS
     + PER_PLAYER_LEVEL
     + PER_PLAYER_CLOCK_TOP
     + PER_PLAYER_WAITING_TOP
+    + PER_PLAYER_RESOLUTION_TOP
     + PER_PLAYER_STOCK_TOP
     + PER_PLAYER_HAND
     + PER_PLAYER_DECK;
@@ -150,6 +160,7 @@ pub fn encode_observation(
         out[offset + 5] = p.waiting_room.len() as i32;
         out[offset + 6] = p.memory.len() as i32;
         out[offset + 7] = p.climax.len() as i32;
+        out[offset + 8] = p.resolution.len() as i32;
         offset += PER_PLAYER_COUNTS;
 
         for slot in 0..MAX_STAGE {
@@ -222,6 +233,17 @@ pub fn encode_observation(
             out[offset + i] = value;
         }
         offset += PER_PLAYER_WAITING_TOP;
+
+        for i in 0..TOP_RESOLUTION {
+            let idx = p.resolution.len().saturating_sub(1 + i);
+            let value = if idx < p.resolution.len() {
+                p.resolution[idx].id as i32
+            } else {
+                0
+            };
+            out[offset + i] = value;
+        }
+        offset += PER_PLAYER_RESOLUTION_TOP;
 
         for i in 0..TOP_STOCK {
             let value = if visibility == ObservationVisibility::Full {
@@ -336,8 +358,11 @@ fn last_action_to_fields(
         && actor.map(|p| p != perspective).unwrap_or(false);
     match action {
         None => (0, -1, -1),
-        Some(ActionDesc::MulliganKeep) => (1, -1, -1),
-        Some(ActionDesc::MulliganAll) => (2, -1, -1),
+        Some(ActionDesc::MulliganConfirm) => (1, -1, -1),
+        Some(ActionDesc::MulliganSelect { hand_index }) => {
+            let idx = if mask { -1 } else { *hand_index as i32 };
+            (2, idx, -1)
+        }
         Some(ActionDesc::ClockPass) => (3, -1, -1),
         Some(ActionDesc::Clock { hand_index }) => {
             let idx = if mask { -1 } else { *hand_index as i32 };
@@ -377,22 +402,30 @@ fn last_action_to_fields(
             (15, idx, -1)
         }
         Some(ActionDesc::LevelUp { index }) => (16, *index as i32, -1),
-        Some(ActionDesc::EncoreYes) => (17, -1, -1),
-        Some(ActionDesc::EncoreNo) => (18, -1, -1),
-        Some(ActionDesc::TriggerOrder { index }) => (19, *index as i32, -1),
+        Some(ActionDesc::EncorePay { slot }) => (17, *slot as i32, -1),
+        Some(ActionDesc::EncoreDecline { slot }) => (22, *slot as i32, -1),
+        Some(ActionDesc::TriggerOrder { index }) => (18, *index as i32, -1),
         Some(ActionDesc::ChoiceSelect { index }) => {
             let idx = if mask { -1 } else { *index as i32 };
-            (20, idx, -1)
+            (19, idx, -1)
         }
-        Some(ActionDesc::ChoicePrevPage) => (21, -1, -1),
-        Some(ActionDesc::ChoiceNextPage) => (22, -1, -1),
+        Some(ActionDesc::ChoicePrevPage) => (20, -1, -1),
+        Some(ActionDesc::ChoiceNextPage) => (21, -1, -1),
+        Some(ActionDesc::Concede) => (23, -1, -1),
     }
 }
 
 pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
     match action {
-        ActionDesc::MulliganKeep => Some(0),
-        ActionDesc::MulliganAll => Some(1),
+        ActionDesc::MulliganConfirm => Some(MULLIGAN_CONFIRM_ID),
+        ActionDesc::MulliganSelect { hand_index } => {
+            let hi = *hand_index as usize;
+            if hi < MULLIGAN_SELECT_COUNT {
+                Some(MULLIGAN_SELECT_BASE + hi)
+            } else {
+                None
+            }
+        }
         ActionDesc::ClockPass => Some(CLOCK_PASS_ID),
         ActionDesc::Clock { hand_index } => {
             let hi = *hand_index as usize;
@@ -472,8 +505,22 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
                 None
             }
         }
-        ActionDesc::EncoreYes => Some(ENCORE_YES_ID),
-        ActionDesc::EncoreNo => Some(ENCORE_NO_ID),
+        ActionDesc::EncorePay { slot } => {
+            let s = *slot as usize;
+            if s < ENCORE_PAY_COUNT {
+                Some(ENCORE_PAY_BASE + s)
+            } else {
+                None
+            }
+        }
+        ActionDesc::EncoreDecline { slot } => {
+            let s = *slot as usize;
+            if s < ENCORE_DECLINE_COUNT {
+                Some(ENCORE_DECLINE_BASE + s)
+            } else {
+                None
+            }
+        }
         ActionDesc::TriggerOrder { index } => {
             let idx = *index as usize;
             if idx < TRIGGER_ORDER_COUNT {
@@ -492,6 +539,7 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
         }
         ActionDesc::ChoicePrevPage => Some(CHOICE_PREV_ID),
         ActionDesc::ChoiceNextPage => Some(CHOICE_NEXT_ID),
+        ActionDesc::Concede => Some(CONCEDE_ID),
     }
 }
 

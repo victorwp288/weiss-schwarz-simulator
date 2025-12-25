@@ -82,14 +82,27 @@ impl AbilityDef {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum AbilityTiming {
-    MainPhase,
-    ClimaxPhase,
+    BeginTurn,
+    BeginStandPhase,
+    AfterStandPhase,
+    BeginDrawPhase,
+    AfterDrawPhase,
+    BeginClockPhase,
+    AfterClockPhase,
+    BeginMainPhase,
+    BeginClimaxPhase,
+    AfterClimaxPhase,
+    BeginAttackPhase,
+    BeginAttackDeclarationStep,
+    BeginEncoreStep,
+    EndPhase,
+    EndPhaseCleanup,
+    EndOfAttack,
     AttackDeclaration,
     TriggerResolution,
     Counter,
     DamageResolution,
     Encore,
-    EndPhase,
     OnPlay,
 }
 
@@ -229,6 +242,24 @@ impl AbilitySpec {
             kind,
             template: template.clone(),
         }
+    }
+
+    pub fn timing(&self) -> Option<AbilityTiming> {
+        match &self.template {
+            AbilityTemplate::AutoOnPlayDraw { .. } => Some(AbilityTiming::OnPlay),
+            AbilityTemplate::AutoOnAttackDealDamage { .. } => Some(AbilityTiming::AttackDeclaration),
+            AbilityTemplate::AutoEndPhaseDraw { .. } => Some(AbilityTiming::EndPhase),
+            AbilityTemplate::CounterBackup { .. }
+            | AbilityTemplate::CounterDamageReduce { .. }
+            | AbilityTemplate::CounterDamageCancel => Some(AbilityTiming::Counter),
+            AbilityTemplate::EventDealDamage { .. } => Some(AbilityTiming::OnPlay),
+            AbilityTemplate::AbilityDef(def) => def.timing,
+            _ => None,
+        }
+    }
+
+    pub fn is_event_play(&self) -> bool {
+        matches!(self.template, AbilityTemplate::EventDealDamage { .. })
     }
 }
 
@@ -381,6 +412,13 @@ impl CardDb {
                         def.clone(),
                     )));
                 }
+                specs.sort_by_cached_key(|spec| {
+                    let tag = spec.template.tag() as u8;
+                    let bytes = postcard::to_allocvec(&spec.template).expect(
+                        "AbilityTemplate postcard serialization failed (ordering key)",
+                    );
+                    (tag, bytes)
+                });
                 specs
             })
             .collect();

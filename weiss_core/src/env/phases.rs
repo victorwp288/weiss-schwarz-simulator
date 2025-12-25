@@ -12,6 +12,169 @@ use crate::legal::*;
 use crate::state::*;
 
 impl GameEnv {
+    pub(super) fn resolve_rule_actions_until_stable(&mut self) {
+        loop {
+            if self.state.terminal.is_some() {
+                return;
+            }
+            if self.state.turn.pending_level_up.is_some() {
+                return;
+            }
+            let mut progressed = false;
+            for player in 0..2u8 {
+                let p = player as usize;
+                if self.state.players[p].deck.is_empty()
+                    && self.state.turn.cost_payment_depth == 0
+                {
+                    if self.state.players[p].waiting_room.is_empty() {
+                        self.register_loss(player);
+                        progressed = true;
+                    } else {
+                        self.refresh_deck(player);
+                        progressed = true;
+                    }
+                }
+                if self.state.players[p].clock.len() >= 7 {
+                    if self.curriculum.enable_level_up_choice {
+                        if self.state.turn.pending_level_up.is_none() {
+                            self.state.turn.pending_level_up = Some(player);
+                            return;
+                        }
+                    } else if self.resolve_level_up(player, 0).is_ok() {
+                        progressed = true;
+                    }
+                }
+
+                let mut slot_idx = 0usize;
+                while slot_idx < self.state.players[p].stage.len() {
+                    let card = self.state.players[p].stage[slot_idx].card;
+                    if let Some(card) = card {
+                        let is_character = self
+                            .db
+                            .get(card.id)
+                            .map(|c| c.card_type == CardType::Character)
+                            .unwrap_or(false);
+                        if !is_character {
+                            self.send_stage_to_waiting_room(player, slot_idx as u8);
+                            progressed = true;
+                        }
+                    }
+                    slot_idx += 1;
+                }
+
+                let mut idx = 0usize;
+                while idx < self.state.players[p].climax.len() {
+                    let card = self.state.players[p].climax[idx];
+                    let is_climax = self
+                        .db
+                        .get(card.id)
+                        .map(|c| c.card_type == CardType::Climax)
+                        .unwrap_or(false);
+                    if !is_climax {
+                        let card = self.state.players[p].climax.remove(idx);
+                        self.move_card_between_zones(
+                            player,
+                            card,
+                            Zone::Climax,
+                            Zone::WaitingRoom,
+                            None,
+                            None,
+                        );
+                        progressed = true;
+                    } else {
+                        idx += 1;
+                    }
+                }
+                if self.state.players[p].climax.len() > 1 {
+                    let extra = self.state.players[p].climax.split_off(1);
+                    for card in extra {
+                        self.move_card_between_zones(
+                            player,
+                            card,
+                            Zone::Climax,
+                            Zone::WaitingRoom,
+                            None,
+                            None,
+                        );
+                    }
+                    progressed = true;
+                }
+            }
+            if !progressed {
+                break;
+            }
+        }
+    }
+
+    pub(super) fn queue_timing_triggers(&mut self, timing: AbilityTiming) {
+        if !self.curriculum.enable_triggers {
+            return;
+        }
+        let mut pending: Vec<(u8, CardId, TriggerEffect)> = Vec::new();
+        for player in 0..2u8 {
+            for slot in &self.state.players[player as usize].stage {
+                let Some(card_inst) = slot.card else {
+                    continue;
+                };
+                let card_id = card_inst.id;
+                if self.db.get(card_id).is_none() {
+                    continue;
+                }
+                let specs = self.db.iter_card_abilities_in_canonical_order(card_id);
+                for (ability_index, spec) in specs.iter().enumerate() {
+                    if spec.kind != AbilityKind::Auto {
+                        continue;
+                    }
+                    if spec.timing() == Some(timing) {
+                        pending.push((
+                            player,
+                            card_id,
+                            TriggerEffect::AutoAbility {
+                                ability_index: ability_index as u8,
+                            },
+                        ));
+                    }
+                }
+            }
+            for card_inst in &self.state.players[player as usize].climax {
+                let card_id = card_inst.id;
+                if self.db.get(card_id).is_none() {
+                    continue;
+                }
+                let specs = self.db.iter_card_abilities_in_canonical_order(card_id);
+                for (ability_index, spec) in specs.iter().enumerate() {
+                    if spec.kind != AbilityKind::Auto {
+                        continue;
+                    }
+                    if spec.timing() == Some(timing) {
+                        pending.push((
+                            player,
+                            card_id,
+                            TriggerEffect::AutoAbility {
+                                ability_index: ability_index as u8,
+                            },
+                        ));
+                    }
+                }
+            }
+        }
+        if pending.is_empty() {
+            return;
+        }
+        let group_id = self.allocate_trigger_group();
+        for (player, source, effect) in pending {
+            self.queue_trigger_group_with_group(group_id, player, source, vec![effect]);
+        }
+        self.maybe_validate_state("check_timing_triggers");
+    }
+
+    pub(super) fn run_check_timing(&mut self, timing: AbilityTiming) {
+        self.resolve_rule_actions_until_stable();
+        if self.state.turn.pending_level_up.is_some() {
+            return;
+        }
+        self.queue_timing_triggers(timing);
+    }
     pub(super) fn handle_trigger_pipeline(&mut self) -> bool {
         if let Some(choice) = &self.state.turn.choice {
             self.decision = Some(Decision {
@@ -311,7 +474,7 @@ impl GameEnv {
             TriggerEffect::Standby => {
                 return self.resolve_trigger_standby(trigger);
             }
-            TriggerEffect::EndPhaseDraw { ability_index, .. } => {
+            TriggerEffect::AutoAbility { ability_index } => {
                 let db = self.db.clone();
                 let effects =
                     db.compiled_effects_for_ability(trigger.source_card, ability_index as usize);
@@ -427,10 +590,15 @@ impl GameEnv {
 
     pub(super) fn resolve_end_phase(&mut self, player: u8) -> bool {
         if !self.state.turn.end_phase_pending {
-            self.expire_end_of_turn_effects();
-            self.queue_end_phase_triggers();
+            self.run_check_timing(crate::db::AbilityTiming::EndPhase);
             self.state.turn.end_phase_pending = true;
             self.state.turn.end_phase_window_done = false;
+            self.state.turn.end_phase_discard_done = false;
+            self.state.turn.end_phase_climax_done = false;
+            self.state.turn.end_phase_cleanup_done = false;
+        }
+        if self.state.turn.pending_level_up.is_some() {
+            return false;
         }
         if !self.state.turn.pending_triggers.is_empty() {
             return false;
@@ -442,9 +610,50 @@ impl GameEnv {
             }
             return false;
         }
+        if !self.state.turn.end_phase_discard_done {
+            let hand_len = self.state.players[player as usize].hand.len();
+            if hand_len > super::HAND_LIMIT {
+                return self.start_end_phase_discard_choice(player);
+            }
+            self.state.turn.end_phase_discard_done = true;
+        }
+        if !self.state.turn.end_phase_climax_done {
+            let p = player as usize;
+            if let Some(card) = self.state.players[p].climax.pop() {
+                self.move_card_between_zones(player, card, Zone::Climax, Zone::WaitingRoom, None, None);
+            }
+            self.state.turn.end_phase_climax_done = true;
+        }
+        if !self.state.turn.end_phase_cleanup_done {
+            self.run_check_timing(crate::db::AbilityTiming::EndPhaseCleanup);
+            if self.state.turn.pending_level_up.is_some() {
+                return false;
+            }
+            if !self.state.turn.pending_triggers.is_empty() {
+                return false;
+            }
+            self.state.turn.end_phase_cleanup_done = true;
+        }
+        self.expire_end_of_turn_effects();
         self.finish_end_phase(player);
         self.state.turn.end_phase_pending = false;
         true
+    }
+
+    pub(super) fn start_end_phase_discard_choice(&mut self, player: u8) -> bool {
+        self.scratch.choice_options.clear();
+        for (idx, card) in self.state.players[player as usize].hand.iter().enumerate() {
+            let index = if idx <= u8::MAX as usize { Some(idx as u8) } else { None };
+            self.scratch.choice_options.push(ChoiceOptionRef {
+                card_id: card.id,
+                instance_id: card.instance_id,
+                zone: ChoiceZone::Hand,
+                index,
+                target_slot: None,
+            });
+        }
+        let options = std::mem::take(&mut self.scratch.choice_options);
+        self.start_choice(ChoiceReason::EndPhaseDiscard, player, options, None)
     }
 
     pub(super) fn expire_end_of_turn_effects(&mut self) {
@@ -526,73 +735,7 @@ impl GameEnv {
         self.maybe_validate_state("derived_attack_recompute");
     }
 
-    pub(super) fn queue_end_phase_triggers(&mut self) {
-        if !self.curriculum.enable_triggers {
-            return;
-        }
-        let mut pending: Vec<(u8, CardId, TriggerEffect)> = Vec::new();
-        for player in 0..2 {
-            for slot in &self.state.players[player].stage {
-                let Some(card_inst) = slot.card else {
-                    continue;
-                };
-                let card_id = card_inst.id;
-                if self.db.get(card_id).is_none() {
-                    continue;
-                }
-                let specs = self.db.iter_card_abilities_in_canonical_order(card_id);
-                for (ability_index, spec) in specs.iter().enumerate() {
-                    match &spec.template {
-                        AbilityTemplate::AutoEndPhaseDraw { count } => {
-                            pending.push((
-                                player as u8,
-                                card_id,
-                                TriggerEffect::EndPhaseDraw {
-                                    count: *count,
-                                    ability_index: ability_index as u8,
-                                },
-                            ));
-                        }
-                        AbilityTemplate::AbilityDef(def) => {
-                            if def.kind != AbilityKind::Auto {
-                                continue;
-                            }
-                            if def.timing != Some(crate::db::AbilityTiming::EndPhase) {
-                                continue;
-                            }
-                            for effect in &def.effects {
-                                if let crate::db::EffectTemplate::Draw { count } = effect {
-                                    pending.push((
-                                        player as u8,
-                                        card_id,
-                                        TriggerEffect::EndPhaseDraw {
-                                            count: *count,
-                                            ability_index: ability_index as u8,
-                                        },
-                                    ));
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-        if pending.is_empty() {
-            return;
-        }
-        let group_id = self.allocate_trigger_group();
-        for (player, source, effect) in pending {
-            self.queue_trigger_group_with_group(group_id, player, source, vec![effect]);
-        }
-        self.maybe_validate_state("end_phase_triggers");
-    }
-
     pub(super) fn finish_end_phase(&mut self, player: u8) {
-        let p = player as usize;
-        if let Some(card) = self.state.players[p].climax.pop() {
-            self.move_card_between_zones(player, card, Zone::Climax, Zone::WaitingRoom, None, None);
-        }
         self.state.turn.pending_triggers.clear();
         self.state.turn.trigger_order = None;
         self.state.turn.choice = None;
@@ -603,18 +746,25 @@ impl GameEnv {
         self.state.turn.derived_attack = None;
         self.state.turn.attack = None;
         self.state.turn.encore_queue.clear();
+        self.state.turn.encore_step_player = None;
         self.state.turn.pending_level_up = None;
         self.state.turn.main_passed = false;
         self.state.turn.active_window = None;
         self.state.turn.end_phase_window_done = false;
+        self.state.turn.end_phase_discard_done = false;
+        self.state.turn.end_phase_climax_done = false;
+        self.state.turn.end_phase_cleanup_done = false;
         self.state.turn.encore_window_done = false;
         self.state.turn.pending_losses = [false; 2];
+        self.state.turn.attack_subphase_count = 0;
+        self.state.turn.phase_step = 0;
+        self.state.turn.attack_phase_begin_done = false;
+        self.state.turn.attack_decl_check_done = false;
+        self.state.turn.encore_begin_done = false;
+        self.state.turn.pending_resolution_cleanup.clear();
+        self.state.turn.turn_number = self.state.turn.turn_number.saturating_add(1);
         self.log_event(Event::EndTurn { player });
         self.maybe_validate_state("end_phase_finish");
-    }
-
-    pub(super) fn has_attackers(&self, player: u8) -> bool {
-        !crate::legal::legal_attack_actions(&self.state, player, &self.curriculum).is_empty()
     }
 
     pub(super) fn resolve_attack_pipeline(&mut self) {
@@ -702,6 +852,13 @@ impl GameEnv {
                     if ctx.attack_type == AttackType::Direct {
                         self.clear_battle_mods();
                         self.state.turn.attack = None;
+                        self.state.turn.attack_decl_check_done = false;
+                        self.run_check_timing(crate::db::AbilityTiming::EndOfAttack);
+                        if self.state.turn.pending_level_up.is_some()
+                            || !self.state.turn.pending_triggers.is_empty()
+                        {
+                            break;
+                        }
                         self.maybe_validate_state("attack_direct_done");
                         break;
                     }
@@ -734,6 +891,13 @@ impl GameEnv {
                     self.resolve_battle_step(&ctx);
                     self.clear_battle_mods();
                     self.state.turn.attack = None;
+                    self.state.turn.attack_decl_check_done = false;
+                    self.run_check_timing(crate::db::AbilityTiming::EndOfAttack);
+                    if self.state.turn.pending_level_up.is_some()
+                        || !self.state.turn.pending_triggers.is_empty()
+                    {
+                        break;
+                    }
                     self.maybe_validate_state("attack_battle_done");
                     break;
                 }
@@ -752,12 +916,21 @@ impl GameEnv {
         let card = self.draw_from_deck(active as u8);
         if let Some(card_inst) = card {
             let card_id = card_inst.id;
+            let instance_id = card_inst.instance_id;
             ctx.trigger_card = Some(card_id);
             let _ = self.reveal_cards(
                 active as u8,
                 &[card_inst],
                 RevealReason::TriggerCheck,
                 RevealAudience::Public,
+            );
+            self.move_card_between_zones(
+                active as u8,
+                card_inst,
+                Zone::Deck,
+                Zone::Resolution,
+                None,
+                None,
             );
             if self.curriculum.enable_triggers {
                 if let Some(static_card) = self.db.get(card_id) {
@@ -797,14 +970,16 @@ impl GameEnv {
                     self.queue_trigger_group(active as u8, card_id, effects);
                 }
             }
-            self.move_card_between_zones(
-                active as u8,
-                card_inst,
-                Zone::Deck,
-                Zone::Stock,
-                None,
-                None,
-            );
+            if let Some(resolved) = self.take_resolution_card(active as u8, instance_id) {
+                self.move_card_between_zones(
+                    active as u8,
+                    resolved,
+                    Zone::Resolution,
+                    Zone::Stock,
+                    None,
+                    None,
+                );
+            }
         }
     }
 
@@ -848,14 +1023,7 @@ impl GameEnv {
                 if spec.kind != AbilityKind::Auto {
                     continue;
                 }
-                let timing = match &spec.template {
-                    AbilityTemplate::AutoOnAttackDealDamage { .. } => {
-                        Some(crate::db::AbilityTiming::AttackDeclaration)
-                    }
-                    AbilityTemplate::AbilityDef(def) => def.timing,
-                    _ => None,
-                };
-                if timing == Some(crate::db::AbilityTiming::AttackDeclaration) {
+                if spec.timing() == Some(crate::db::AbilityTiming::AttackDeclaration) {
                     let effects = db.compiled_effects_for_ability(card_id, ability_index);
                     for effect in effects {
                         self.enqueue_effect_spec(attacker, card_id, effect.clone());
@@ -912,6 +1080,9 @@ impl GameEnv {
             cancelable: intent.cancelable,
         });
 
+        let prev_damage_target = self.state.turn.damage_resolution_target;
+        self.state.turn.damage_resolution_target = Some(intent.target);
+
         let mut amount = intent.amount.max(0);
         let mut cancelable = intent.cancelable;
         let mut canceled = false;
@@ -962,20 +1133,30 @@ impl GameEnv {
         }
 
         let mut revealed: Vec<CardInstance> = Vec::new();
-        if cancelable && !canceled && amount > 0 {
+        if amount > 0 && !canceled {
             for _ in 0..amount {
                 if let Some(card) = self.draw_from_deck(intent.target) {
-                    self.reveal_card(
+                    let reason = if intent.refresh_penalty {
+                        RevealReason::RefreshPenalty
+                    } else {
+                        RevealReason::DamageCheck
+                    };
+                    self.reveal_card(intent.target, &card, reason, RevealAudience::Public);
+                    self.move_card_between_zones(
                         intent.target,
-                        &card,
-                        RevealReason::DamageCheck,
-                        RevealAudience::Public,
+                        card,
+                        Zone::Deck,
+                        Zone::Resolution,
+                        None,
+                        None,
                     );
                     revealed.push(card);
-                    if let Some(static_card) = self.db.get(card.id) {
-                        if static_card.card_type == CardType::Climax {
-                            canceled = true;
-                            break;
+                    if cancelable {
+                        if let Some(static_card) = self.db.get(card.id) {
+                            if static_card.card_type == CardType::Climax {
+                                canceled = true;
+                                break;
+                            }
                         }
                     }
                 } else {
@@ -984,13 +1165,7 @@ impl GameEnv {
             }
         }
 
-        let committed = if canceled {
-            0
-        } else if cancelable {
-            revealed.len() as i32
-        } else {
-            amount
-        };
+        let committed = if canceled { 0 } else { revealed.len() as i32 };
         self.log_event(Event::DamageModified {
             event_id,
             target: intent.target,
@@ -1001,34 +1176,40 @@ impl GameEnv {
         });
 
         let target = intent.target as usize;
+        let mut check_level = false;
         if canceled {
             self.log_event(Event::DamageCancel {
                 player: intent.target,
             });
             for card in revealed {
-                self.move_card_between_zones(
-                    intent.target,
-                    card,
-                    Zone::Deck,
-                    Zone::WaitingRoom,
-                    None,
-                    None,
-                );
+                if let Some(resolved) =
+                    self.take_resolution_card(intent.target, card.instance_id)
+                {
+                    self.move_card_between_zones(
+                        intent.target,
+                        resolved,
+                        Zone::Resolution,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                }
             }
-            return event_id;
-        }
-
-        if cancelable {
+        } else {
             for card in revealed {
                 let card_id = card.id;
-                self.move_card_between_zones(
-                    intent.target,
-                    card,
-                    Zone::Deck,
-                    Zone::Clock,
-                    None,
-                    None,
-                );
+                if let Some(resolved) =
+                    self.take_resolution_card(intent.target, card.instance_id)
+                {
+                    self.move_card_between_zones(
+                        intent.target,
+                        resolved,
+                        Zone::Resolution,
+                        Zone::Clock,
+                        None,
+                        None,
+                    );
+                }
                 self.log_event(Event::DamageCommitted {
                     event_id,
                     target: intent.target,
@@ -1041,48 +1222,12 @@ impl GameEnv {
                 });
                 self.pending_damage_delta[target] += 1;
             }
-        } else {
-            let count = amount as usize;
-            for _ in 0..count {
-                if let Some(card) = self.draw_from_deck(intent.target) {
-                    let card_id = card.id;
-                    if intent.refresh_penalty {
-                        self.reveal_card(
-                            intent.target,
-                            &card,
-                            RevealReason::RefreshPenalty,
-                            RevealAudience::Public,
-                        );
-                    }
-                    self.move_card_between_zones(
-                        intent.target,
-                        card,
-                        Zone::Deck,
-                        Zone::Clock,
-                        None,
-                        None,
-                    );
-                    self.log_event(Event::DamageCommitted {
-                        event_id,
-                        target: intent.target,
-                        card: card_id,
-                        damage_type: intent.damage_type,
-                    });
-                    self.log_event(Event::Damage {
-                        player: intent.target,
-                        card: card_id,
-                    });
-                    if intent.refresh_penalty {
-                        self.log_event(Event::RefreshPenalty {
-                            player: intent.target,
-                            card: card_id,
-                        });
-                    }
-                    self.pending_damage_delta[target] += 1;
-                }
-            }
+            check_level = true;
         }
-        self.check_level_up(intent.target);
+        if check_level {
+            self.check_level_up(intent.target);
+        }
+        self.state.turn.damage_resolution_target = prev_damage_target;
         event_id
     }
 
@@ -1141,6 +1286,12 @@ impl GameEnv {
         }
         self.state.turn.encore_queue = queue;
         self.state.turn.encore_window_done = false;
+        self.state.turn.encore_begin_done = false;
+        self.state.turn.encore_step_player = if self.state.turn.encore_queue.is_empty() {
+            None
+        } else {
+            Some(self.state.turn.active_player)
+        };
     }
 
     pub(super) fn cleanup_reversed_to_waiting_room(&mut self) {
