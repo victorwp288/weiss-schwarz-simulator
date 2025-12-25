@@ -104,7 +104,7 @@ db_path = fixture_dir / "cards.wsdb"
 pool = weiss_sim.EnvPool(
     1,
     str(db_path),
-    deck_lists=[[1] * 20, [2] * 20],
+    deck_lists=[[1] * 50, [2] * 50],
     deck_ids=[1, 2],
     max_decisions=200,
     max_ticks=10_000,
@@ -212,7 +212,7 @@ use weiss_core::{CardDb, CurriculumConfig, EnvConfig, EnvPool, RewardConfig, Err
 
 let db = Arc::new(CardDb::load("cards.wsdb")?);
 let config = EnvConfig {
-    deck_lists: [vec![1; 20], vec![2; 20]],
+    deck_lists: [vec![1; 50], vec![2; 50]],
     deck_ids: [1, 2],
     max_decisions: 10_000,
     max_ticks: 100_000,
@@ -285,6 +285,7 @@ Actions are fixed to `ACTION_SPACE_SIZE` (`pool.action_space`). The exact id lay
 - level_up(index)
 - encore yes/no
 - trigger_order(index)
+- concede (always legal; id is `ACTION_SPACE_SIZE - 1`)
 
 The legal-action **mask** is derived from the canonical `ActionDesc` list, and the mapping is versioned by `ACTION_ENCODING_VERSION`.
 
