@@ -1,5 +1,8 @@
 use std::sync::{Arc, OnceLock};
 
+#[path = "deck_support.rs"]
+mod deck_support;
+
 use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
@@ -34,11 +37,12 @@ fn replay_config() -> ReplayConfig {
         out_dir: std::env::temp_dir(),
         compress: false,
         include_trigger_card_id: true,
+        ..Default::default()
     }
 }
 
 fn make_db() -> Arc<CardDb> {
-    let cards = vec![
+    let mut cards = vec![
         CardStatic {
             id: CARD_BASIC,
             card_set: None,
@@ -91,12 +95,17 @@ fn make_db() -> Arc<CardDb> {
             raw_text: None,
         },
     ];
+    deck_support::add_clone_cards(&mut cards);
     Arc::new(CardDb::new(cards).expect("db build"))
 }
 
 fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
+    let pool = [CARD_BASIC];
     EnvConfig {
-        deck_lists: [deck_a, deck_b],
+        deck_lists: [
+            deck_support::legalize_deck(deck_a, &pool),
+            deck_support::legalize_deck(deck_b, &pool),
+        ],
         deck_ids: [400, 401],
         max_decisions: 500,
         max_ticks: 100_000,
@@ -112,7 +121,12 @@ fn build_deck_list(size: usize, extras: &[u32]) -> Vec<u32> {
     while deck.len() < size {
         deck.push(CARD_BASIC);
     }
-    deck
+    pad_deck(deck, CARD_BASIC)
+}
+
+fn pad_deck(deck: Vec<u32>, filler: u32) -> Vec<u32> {
+    let pool = [filler];
+    deck_support::legalize_deck(deck, &pool)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -246,6 +260,8 @@ fn force_main_decision(env: &mut GameEnv, player: u8) {
     env.state.turn.phase = Phase::Main;
     env.state.turn.active_player = player;
     env.state.turn.starting_player = player;
+    env.state.turn.turn_number = 1;
+    env.state.turn.attack_subphase_count = 0;
     env.state.turn.mulligan_done = [true, true];
     env.state.turn.attack = None;
     env.state.turn.pending_level_up = None;
@@ -272,6 +288,8 @@ fn force_attack_decision(env: &mut GameEnv, player: u8) {
     env.state.turn.phase = Phase::Attack;
     env.state.turn.active_player = player;
     env.state.turn.starting_player = player;
+    env.state.turn.turn_number = 1;
+    env.state.turn.attack_subphase_count = 0;
     env.state.turn.mulligan_done = [true, true];
     env.state.turn.attack = None;
     env.state.turn.pending_level_up = None;
@@ -302,7 +320,7 @@ fn control_change_allows_attack() {
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(db, config, curriculum, 130, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 130, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -363,7 +381,7 @@ fn control_persists_after_leaving_stage() {
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(db, config, curriculum, 131, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 131, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,

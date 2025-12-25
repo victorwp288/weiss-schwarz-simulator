@@ -1,5 +1,8 @@
 use std::sync::{Arc, OnceLock};
 
+#[path = "deck_support.rs"]
+mod deck_support;
+
 use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
@@ -30,7 +33,7 @@ fn enable_validate() {
 }
 
 fn make_db() -> Arc<CardDb> {
-    let cards = vec![
+    let mut cards = vec![
         CardStatic {
             id: CARD_DAMAGE_ACT,
             card_set: None,
@@ -72,12 +75,17 @@ fn make_db() -> Arc<CardDb> {
             raw_text: None,
         },
     ];
+    deck_support::add_clone_cards(&mut cards);
     Arc::new(CardDb::new(cards).expect("db build"))
 }
 
 fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
+    let pool = [CARD_BASIC, CARD_DAMAGE_ACT];
     EnvConfig {
-        deck_lists: [deck_a, deck_b],
+        deck_lists: [
+            deck_support::legalize_deck(deck_a, &pool),
+            deck_support::legalize_deck(deck_b, &pool),
+        ],
         deck_ids: [900, 901],
         max_decisions: 200,
         max_ticks: 10_000,
@@ -97,8 +105,11 @@ fn setup_player_state(
 ) {
     let owner = player as u8;
     let p = &mut env.state.players[player];
-    p.deck = (0..deck_count)
-        .map(|idx| make_instance(deck_fill, owner, 8, idx))
+    let mut deck: Vec<CardInstance> = env.config.deck_lists[player]
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(idx, id)| make_instance(id, owner, 8, idx))
         .collect();
     p.hand.clear();
     p.waiting_room.clear();
@@ -107,6 +118,7 @@ fn setup_player_state(
     p.stock.clear();
     p.memory.clear();
     p.climax.clear();
+    p.resolution.clear();
     p.stage = [
         StageSlot::empty(),
         StageSlot::empty(),
@@ -116,18 +128,30 @@ fn setup_player_state(
     ];
     if let Some(stage_card) = stage_card {
         let mut slot_state = StageSlot::empty();
-        slot_state.card = Some(make_instance(stage_card, owner, 4, 0));
+        if let Some(pos) = deck.iter().position(|card| card.id == stage_card) {
+            slot_state.card = Some(deck.remove(pos));
+        } else {
+            slot_state.card = Some(make_instance(stage_card, owner, 4, 0));
+        }
         slot_state.status = StageStatus::Stand;
         p.stage[0] = slot_state;
     }
+    while deck.len() > deck_count {
+        if let Some(pos) = deck.iter().position(|card| card.id == deck_fill) {
+            deck.remove(pos);
+        } else {
+            deck.pop();
+        }
+    }
+    p.deck = deck;
 }
 
 #[test]
 fn replacements_apply_in_priority_order() {
     enable_validate();
     let db = make_db();
-    let deck_a = vec![CARD_DAMAGE_ACT; 20];
-    let deck_b = vec![CARD_BASIC; 20];
+    let deck_a = vec![CARD_DAMAGE_ACT; 50];
+    let deck_b = vec![CARD_BASIC; 50];
     let curriculum = CurriculumConfig {
         allow_character: true,
         ..Default::default()
@@ -138,10 +162,10 @@ fn replacements_apply_in_priority_order() {
         sample_rate: 1.0,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 77, replay_config, None);
+    let mut env = GameEnv::new(db, config, curriculum, 77, replay_config, None, 0);
 
-    setup_player_state(&mut env, 0, None, CARD_DAMAGE_ACT, 19);
-    setup_player_state(&mut env, 1, None, CARD_BASIC, 20);
+    setup_player_state(&mut env, 0, None, CARD_DAMAGE_ACT, 49);
+    setup_player_state(&mut env, 1, None, CARD_BASIC, 50);
     env.state.players[0]
         .hand
         .push(make_instance(CARD_DAMAGE_ACT, 0, 3, 0));

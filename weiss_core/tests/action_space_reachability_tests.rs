@@ -72,7 +72,12 @@ fn build_db() -> Arc<CardDb> {
 }
 
 fn base_state(seed: u64) -> GameState {
-    let mut state = GameState::new(vec![CARD_CHAR; 1], vec![CARD_CHAR; 1], seed, 0);
+    let mut state = GameState::new(
+        vec![CARD_CHAR; weiss_core::encode::MAX_DECK],
+        vec![CARD_CHAR; weiss_core::encode::MAX_DECK],
+        seed,
+        0,
+    );
     for player in 0..2 {
         let p = &mut state.players[player];
         p.deck.clear();
@@ -83,6 +88,7 @@ fn base_state(seed: u64) -> GameState {
         p.stock.clear();
         p.memory.clear();
         p.climax.clear();
+        p.resolution.clear();
         p.stage = [
             StageSlot::empty(),
             StageSlot::empty(),
@@ -91,6 +97,8 @@ fn base_state(seed: u64) -> GameState {
             StageSlot::empty(),
         ];
     }
+    state.turn.turn_number = 1;
+    state.turn.attack_subphase_count = 0;
     state
 }
 
@@ -171,8 +179,9 @@ fn action_space_ids_are_reachable() {
 
     for seed in seeds {
         for curriculum in &curricula {
-            // Mulligan keep/all.
-            let state = base_state(seed);
+            // Mulligan confirm + all select indices.
+            let mut state = base_state(seed);
+            set_hand(&mut state, 0, CARD_CHAR, MAX_HAND);
             let decision = Decision {
                 player: 0,
                 kind: DecisionKind::Mulligan,
@@ -270,14 +279,29 @@ fn action_space_ids_are_reachable() {
             };
             record_mask(&state, &decision, &db, curriculum, &mut seen);
 
-            // Encore yes/no.
+            // Encore select per reversed slot.
             let mut state = base_state(seed);
-            set_stage_front_row(&mut state, 0, CARD_CHAR);
+            let max_slot = if curriculum.reduced_stage_mode {
+                1
+            } else {
+                MAX_STAGE
+            };
+            for slot in 0..max_slot {
+                state.players[0].stage[slot] = StageSlot {
+                    card: Some(make_instance(CARD_CHAR, 0, 9, slot)),
+                    status: StageStatus::Reverse,
+                    power_mod_battle: 0,
+                    power_mod_turn: 0,
+                    has_attacked: false,
+                    cannot_attack: false,
+                    attack_cost: 0,
+                };
+            }
             set_stock(&mut state, 0, CARD_CHAR, 3);
             let decision = Decision {
                 player: 0,
                 kind: DecisionKind::Encore,
-                focus_slot: Some(0),
+                focus_slot: None,
             };
             record_mask(&state, &decision, &db, curriculum, &mut seen);
 

@@ -21,6 +21,7 @@ fn end_of_turn_expirations_remove_modifiers() {
         24,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -62,7 +63,7 @@ fn modifier_until_end_of_turn_expires() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 40, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 40, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -145,7 +146,7 @@ fn modifier_while_on_stage_removed_on_leave() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 41, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 41, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,

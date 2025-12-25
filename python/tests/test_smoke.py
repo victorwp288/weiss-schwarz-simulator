@@ -22,10 +22,11 @@ def test_envpool_smoke(tmp_path):
 def test_envpool_step_shapes_and_turn_cycle():
     fixture_dir = Path(__file__).parent / "fixtures"
     db_path = fixture_dir / "cards.wsdb"
+    legal_deck = (list(range(1, 14)) * 4)[:50]
     pool = weiss_sim.EnvPool(
         1,
         str(db_path),
-        deck_lists=[[1] * 20, [2] * 20],
+        deck_lists=[legal_deck, legal_deck],
         deck_ids=[1, 2],
         max_decisions=200,
         max_ticks=10_000,
@@ -61,10 +62,11 @@ def test_envpool_step_shapes_and_turn_cycle():
 def test_action_mask_legality_alignment():
     fixture_dir = Path(__file__).parent / "fixtures"
     db_path = fixture_dir / "cards.wsdb"
+    legal_deck = (list(range(1, 14)) * 4)[:50]
     pool = weiss_sim.EnvPool(
         1,
         str(db_path),
-        deck_lists=[[1] * 20, [2] * 20],
+        deck_lists=[legal_deck, legal_deck],
         deck_ids=[1, 2],
         max_decisions=200,
         max_ticks=10_000,
@@ -77,3 +79,68 @@ def test_action_mask_legality_alignment():
         actions = _first_legal_actions(masks)
         assert masks[0, actions[0]] == 1
         pool.step_batch_fast(actions)
+
+
+def test_envpool_determinism_across_pools():
+    fixture_dir = Path(__file__).parent / "fixtures"
+    db_path = fixture_dir / "cards.wsdb"
+    legal_deck = (list(range(1, 14)) * 4)[:50]
+    pool_a = weiss_sim.EnvPool(
+        1,
+        str(db_path),
+        deck_lists=[legal_deck, legal_deck],
+        deck_ids=[1, 2],
+        max_decisions=200,
+        max_ticks=10_000,
+        seed=999,
+        observation_visibility="public",
+    )
+    pool_b = weiss_sim.EnvPool(
+        1,
+        str(db_path),
+        deck_lists=[legal_deck, legal_deck],
+        deck_ids=[1, 2],
+        max_decisions=200,
+        max_ticks=10_000,
+        seed=999,
+        observation_visibility="public",
+    )
+    obs_a = pool_a.reset_all()
+    obs_b = pool_b.reset_all()
+    assert np.array_equal(obs_a, obs_b)
+    for _ in range(30):
+        masks_a = pool_a.action_masks_batch()
+        masks_b = pool_b.action_masks_batch()
+        assert np.array_equal(masks_a, masks_b)
+        actions = _first_legal_actions(masks_a)
+        out_a = pool_a.step_batch_fast(actions)
+        out_b = pool_b.step_batch_fast(actions)
+        for left, right in zip(out_a, out_b):
+            assert np.array_equal(left, right)
+        terminated = bool(out_a[2][0])
+        truncated = bool(out_a[3][0])
+        if terminated or truncated:
+            break
+
+
+def test_concede_action_mask_bit():
+    fixture_dir = Path(__file__).parent / "fixtures"
+    db_path = fixture_dir / "cards.wsdb"
+    legal_deck = (list(range(1, 14)) * 4)[:50]
+    pool = weiss_sim.EnvPool(
+        1,
+        str(db_path),
+        deck_lists=[legal_deck, legal_deck],
+        deck_ids=[1, 2],
+        max_decisions=200,
+        max_ticks=10_000,
+        seed=321,
+        observation_visibility="public",
+    )
+    pool.reset_all()
+    masks = pool.action_masks_batch()
+    legal = pool.legal_actions_batch()
+    concede_id = pool.action_space - 1
+    assert masks.shape[1] == pool.action_space
+    assert masks[0, concede_id] == 1
+    assert any(action.get("kind") == "concede" for action in legal[0])

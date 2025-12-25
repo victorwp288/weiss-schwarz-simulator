@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+#[path = "deck_support.rs"]
+mod deck_support;
+
 use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
@@ -12,7 +15,7 @@ use weiss_core::fingerprint::{events_fingerprint, state_fingerprint};
 const CARD_BASIC: u32 = 1;
 
 fn make_db() -> Arc<CardDb> {
-    let cards = vec![CardStatic {
+    let mut cards = vec![CardStatic {
         id: CARD_BASIC,
         card_set: None,
         card_type: CardType::Character,
@@ -28,12 +31,17 @@ fn make_db() -> Arc<CardDb> {
         counter_timing: false,
         raw_text: None,
     }];
+    deck_support::add_clone_cards(&mut cards);
     Arc::new(CardDb::new(cards).expect("db build"))
 }
 
 fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
+    let pool = [CARD_BASIC];
     EnvConfig {
-        deck_lists: [deck_a, deck_b],
+        deck_lists: [
+            deck_support::legalize_deck(deck_a, &pool),
+            deck_support::legalize_deck(deck_b, &pool),
+        ],
         deck_ids: [100, 101],
         max_decisions: 100,
         max_ticks: 5000,
@@ -69,8 +77,8 @@ fn run_episode(env: &mut GameEnv, max_steps: usize) -> (Vec<DecisionKind>, Vec<V
 #[test]
 fn determinism_default_config() {
     let db = make_db();
-    let deck_a = vec![CARD_BASIC; 20];
-    let deck_b = vec![CARD_BASIC; 20];
+    let deck_a = vec![CARD_BASIC; 50];
+    let deck_b = vec![CARD_BASIC; 50];
     let config = make_config(deck_a, deck_b);
     let replay_config = ReplayConfig {
         enabled: true,
@@ -85,6 +93,7 @@ fn determinism_default_config() {
         123,
         replay_config.clone(),
         None,
+        0,
     );
     let mut env_b = GameEnv::new(
         db,
@@ -93,6 +102,7 @@ fn determinism_default_config() {
         123,
         replay_config,
         None,
+        0,
     );
 
     let (kinds_a, masks_a, hash_a, replay_hash_a) = run_episode(&mut env_a, 40);
@@ -107,8 +117,8 @@ fn determinism_default_config() {
 #[test]
 fn determinism_with_flags_enabled_and_window_events_gated() {
     let db = make_db();
-    let deck_a = vec![CARD_BASIC; 20];
-    let deck_b = vec![CARD_BASIC; 20];
+    let deck_a = vec![CARD_BASIC; 50];
+    let deck_b = vec![CARD_BASIC; 50];
     let config = make_config(deck_a, deck_b);
     let replay_config = ReplayConfig {
         enabled: true,
@@ -127,6 +137,7 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
         456,
         replay_config.clone(),
         None,
+        0,
     );
     let (_kinds_off, _masks_off, _hash_off, _replay_hash_off) = run_episode(&mut env_off, 40);
     let off_has_climax_window = env_off.replay_events.iter().any(|e| {
@@ -152,8 +163,9 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
         456,
         replay_config.clone(),
         None,
+        0,
     );
-    let mut env_on_b = GameEnv::new(db, config, curriculum_on, 456, replay_config, None);
+    let mut env_on_b = GameEnv::new(db, config, curriculum_on, 456, replay_config, None, 0);
 
     let (kinds_a, masks_a, hash_a, replay_hash_a) = run_episode(&mut env_on_a, 40);
     let (kinds_b, masks_b, hash_b, replay_hash_b) = run_episode(&mut env_on_b, 40);

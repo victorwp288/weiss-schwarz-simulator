@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+#[path = "deck_support.rs"]
+mod deck_support;
+
 use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
@@ -11,7 +14,7 @@ use weiss_core::replay::{ReplayConfig, ReplayEvent};
 use weiss_core::state::{StackItem, TerminalResult};
 
 fn make_db() -> Arc<CardDb> {
-    let cards = vec![CardStatic {
+    let mut cards = vec![CardStatic {
         id: 1,
         card_set: None,
         card_type: CardType::Character,
@@ -27,12 +30,17 @@ fn make_db() -> Arc<CardDb> {
         counter_timing: false,
         raw_text: None,
     }];
+    deck_support::add_clone_cards(&mut cards);
     Arc::new(CardDb::new(cards).expect("db build"))
 }
 
 fn make_config() -> EnvConfig {
+    let pool = [1];
     EnvConfig {
-        deck_lists: [vec![1; 10], vec![1; 10]],
+        deck_lists: [
+            deck_support::legalize_deck(vec![1; 50], &pool),
+            deck_support::legalize_deck(vec![1; 50], &pool),
+        ],
         deck_ids: [10, 11],
         max_decisions: 10,
         max_ticks: 10_000,
@@ -61,6 +69,7 @@ fn auto_resolve_cap_exceeded_sets_engine_error() {
         99,
         replay_config(),
         None,
+        0,
     );
 
     let spec = EffectSpec {
@@ -88,7 +97,7 @@ fn auto_resolve_cap_exceeded_sets_engine_error() {
     }
     env.state.turn.stack = stack;
 
-    env.apply_action(ActionDesc::MulliganKeep).unwrap();
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
 
     assert!(env.last_engine_error);
     assert!(matches!(env.state.terminal, Some(TerminalResult::Timeout)));

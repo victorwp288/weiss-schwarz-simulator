@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+#[path = "deck_support.rs"]
+mod deck_support;
+
 use weiss_core::config::{CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig};
 use weiss_core::db::{CardColor, CardDb, CardStatic, CardType};
 use weiss_core::encode::{action_id_for, build_action_mask, CHOICE_COUNT};
@@ -9,7 +12,7 @@ use weiss_core::replay::{ReplayConfig, ReplayEvent};
 use weiss_core::state::{ChoiceOptionRef, ChoiceReason, ChoiceState, ChoiceZone};
 
 fn build_db(card_count: u32) -> Arc<CardDb> {
-    let cards = (1..=card_count)
+    let mut cards = (1..=card_count)
         .map(|id| CardStatic {
             id,
             card_set: None,
@@ -27,12 +30,17 @@ fn build_db(card_count: u32) -> Arc<CardDb> {
             raw_text: None,
         })
         .collect();
+    deck_support::add_clone_cards(&mut cards);
     Arc::new(CardDb::new(cards).expect("db build"))
 }
 
 fn make_config() -> EnvConfig {
+    let pool = [1];
     EnvConfig {
-        deck_lists: [vec![1; 10], vec![1; 10]],
+        deck_lists: [
+            deck_support::legalize_deck(vec![1; 50], &pool),
+            deck_support::legalize_deck(vec![1; 50], &pool),
+        ],
         deck_ids: [1, 2],
         max_decisions: 50,
         max_ticks: 10_000,
@@ -93,6 +101,7 @@ fn choice_paging_navigates_and_selects_deterministically() {
         777,
         replay_config.clone(),
         None,
+        0,
     );
     let mut env_b = GameEnv::new(
         db,
@@ -101,6 +110,7 @@ fn choice_paging_navigates_and_selects_deterministically() {
         777,
         replay_config,
         None,
+        0,
     );
 
     let total = CHOICE_COUNT + 4;

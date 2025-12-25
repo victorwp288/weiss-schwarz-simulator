@@ -1,4 +1,7 @@
 use std::sync::Arc;
+
+#[path = "deck_support.rs"]
+mod deck_support;
 use weiss_core::db::{
     AbilityDef, AbilityKind, AbilityTemplate, AbilityTiming, CardColor, CardDb, CardStatic,
     CardType, EffectTemplate,
@@ -13,7 +16,7 @@ use weiss_core::state::{CardInstance, Phase, StageSlot, StageStatus};
 fn ability_index_ordering_matches_specs() {
     let ability_def = AbilityDef {
         kind: AbilityKind::Activated,
-        timing: Some(AbilityTiming::MainPhase),
+        timing: Some(AbilityTiming::BeginMainPhase),
         effects: vec![EffectTemplate::Draw { count: 1 }],
         targets: Vec::new(),
     };
@@ -33,7 +36,9 @@ fn ability_index_ordering_matches_specs() {
         counter_timing: false,
         raw_text: None,
     };
-    let db = Arc::new(CardDb::new(vec![card]).expect("db"));
+    let mut cards = vec![card];
+    deck_support::add_clone_cards(&mut cards);
+    let db = Arc::new(CardDb::new(cards).expect("db"));
     let specs = db.iter_card_abilities_in_canonical_order(1);
     assert_eq!(specs.len(), 2);
     assert!(matches!(
@@ -56,7 +61,7 @@ fn ability_index_ordering_matches_specs() {
 fn priority_actions_and_replays_use_canonical_ability_indices() {
     let ability_def = AbilityDef {
         kind: AbilityKind::Activated,
-        timing: Some(AbilityTiming::MainPhase),
+        timing: Some(AbilityTiming::BeginMainPhase),
         effects: vec![EffectTemplate::Draw { count: 1 }],
         targets: Vec::new(),
     };
@@ -76,15 +81,21 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
         counter_timing: false,
         raw_text: None,
     };
-    let db = Arc::new(CardDb::new(vec![card]).expect("db"));
+    let mut cards = vec![card];
+    deck_support::add_clone_cards(&mut cards);
+    let db = Arc::new(CardDb::new(cards).expect("db"));
 
     let curriculum = weiss_core::config::CurriculumConfig {
         enable_priority_windows: true,
         priority_autopick_single_action: false,
         ..Default::default()
     };
+    let pool = [1];
     let config = weiss_core::config::EnvConfig {
-        deck_lists: [vec![1; 10], vec![1; 10]],
+        deck_lists: [
+            deck_support::legalize_deck(vec![1; 50], &pool),
+            deck_support::legalize_deck(vec![1; 50], &pool),
+        ],
         deck_ids: [1, 2],
         max_decisions: 50,
         max_ticks: 10_000,
@@ -98,7 +109,7 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
         sample_rate: 1.0,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db.clone(), config, curriculum, 33, replay_config, None);
+    let mut env = GameEnv::new(db.clone(), config, curriculum, 33, replay_config, None, 0);
     env.config.deck_lists[0] = vec![1];
     env.config.deck_lists[1] = Vec::new();
     for player in 0..2 {
@@ -110,6 +121,7 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
         env.state.players[player].stock.clear();
         env.state.players[player].memory.clear();
         env.state.players[player].climax.clear();
+        env.state.players[player].resolution.clear();
         env.state.players[player].stage = [
             StageSlot::empty(),
             StageSlot::empty(),

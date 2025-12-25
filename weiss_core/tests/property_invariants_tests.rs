@@ -1,17 +1,21 @@
 use std::sync::{Arc, OnceLock};
 
+#[path = "deck_support.rs"]
+mod deck_support;
+
 use proptest::prelude::*;
 
 use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
 use weiss_core::db::{CardColor, CardDb, CardStatic, CardType};
+use weiss_core::encode::MAX_DECK;
 use weiss_core::env::GameEnv;
-use weiss_core::fingerprint::state_fingerprint;
+use weiss_core::fingerprint::{events_fingerprint, state_fingerprint};
 use weiss_core::util::Rng64;
 
 fn make_db() -> Arc<CardDb> {
-    let cards = vec![
+    let mut cards = vec![
         CardStatic {
             id: 1,
             card_set: None,
@@ -45,13 +49,15 @@ fn make_db() -> Arc<CardDb> {
             raw_text: None,
         },
     ];
+    deck_support::add_clone_cards(&mut cards);
     Arc::new(CardDb::new(cards).expect("db build"))
 }
 
 fn make_env(seed: u64) -> GameEnv {
     let db = make_db();
-    let deck_a = vec![1; 20];
-    let deck_b = vec![1; 20];
+    let pool = [1];
+    let deck_a = deck_support::legalize_deck(vec![1; 50], &pool);
+    let deck_b = deck_support::legalize_deck(vec![1; 50], &pool);
     let config = EnvConfig {
         deck_lists: [deck_a, deck_b],
         deck_ids: [1, 2],
@@ -69,6 +75,7 @@ fn make_env(seed: u64) -> GameEnv {
         seed,
         Default::default(),
         None,
+        0,
     )
 }
 
@@ -108,8 +115,8 @@ proptest! {
             let idx = rng.gen_range(actions.len());
             env.apply_action(actions[idx].clone()).unwrap();
             env.validate_state().unwrap();
-            prop_assert_eq!(total_cards(&env, 0), 20);
-            prop_assert_eq!(total_cards(&env, 1), 20);
+            prop_assert_eq!(total_cards(&env, 0), MAX_DECK);
+            prop_assert_eq!(total_cards(&env, 1), MAX_DECK);
         }
     }
 
@@ -151,4 +158,30 @@ fn fuzz_invariants_fixed_seed() {
         env.apply_action(actions[idx].clone()).unwrap();
         env.validate_state().unwrap();
     }
+}
+
+#[test]
+fn determinism_events_fixed_seed() {
+    enable_validate();
+    let seed = 4242;
+    let mut env_a = make_env(seed);
+    let mut env_b = make_env(seed);
+    let mut rng = Rng64::new(seed ^ 0xA11C_EE55);
+    for _ in 0..200 {
+        if env_a.state.terminal.is_some() || env_b.state.terminal.is_some() {
+            break;
+        }
+        let decision = env_a.decision.clone().expect("decision should exist");
+        let actions =
+            weiss_core::legal::legal_actions(&env_a.state, &decision, &env_a.db, &env_a.curriculum);
+        let idx = rng.gen_range(actions.len());
+        let action = actions[idx].clone();
+        env_a.apply_action(action.clone()).unwrap();
+        env_b.apply_action(action).unwrap();
+        assert_eq!(state_fingerprint(&env_a.state), state_fingerprint(&env_b.state));
+    }
+    assert_eq!(
+        events_fingerprint(env_a.canonical_events()),
+        events_fingerprint(env_b.canonical_events())
+    );
 }

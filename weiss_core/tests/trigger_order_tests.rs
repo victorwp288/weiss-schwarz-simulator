@@ -21,6 +21,7 @@ fn trigger_orders_when_both_players_trigger() {
         20,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -58,7 +59,7 @@ fn trigger_orders_when_both_players_trigger() {
         .iter()
         .filter_map(|e| {
             if let ReplayEvent::TriggerResolved { player, effect, .. } = e {
-                if matches!(effect, TriggerEffect::EndPhaseDraw { .. }) {
+                if matches!(effect, TriggerEffect::AutoAbility { .. }) {
                     return Some(*player);
                 }
             }
@@ -83,6 +84,7 @@ fn trigger_order_active_resolves_before_opponent_order() {
         23,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -183,7 +185,7 @@ fn player_orders_own_simultaneous_triggers_decision() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 21, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 21, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -256,6 +258,7 @@ fn trigger_source_leaves_play_last_known_info() {
         22,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -296,10 +299,7 @@ fn trigger_source_leaves_play_last_known_info() {
         group_id: 1,
         player: 0,
         source_card: CARD_END_DRAW_DOUBLE,
-        effect: TriggerEffect::EndPhaseDraw {
-            count: 2,
-            ability_index: 0,
-        },
+        effect: TriggerEffect::AutoAbility { ability_index: 0 },
         effect_id: None,
     });
     env.state.turn.next_trigger_id = 2;

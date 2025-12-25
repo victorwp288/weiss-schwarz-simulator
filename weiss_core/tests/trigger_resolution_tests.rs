@@ -22,6 +22,7 @@ fn trigger_gate_choice_skipped_no_candidates() {
         30,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -86,6 +87,7 @@ fn trigger_gate_choice_autopicked_single_candidate() {
         31,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -147,6 +149,7 @@ fn trigger_gate_choice_manual_multiple_candidates() {
         32,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -214,6 +217,7 @@ fn trigger_bounce_choice_moves_stage_card() {
         33,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -275,6 +279,7 @@ fn trigger_standby_choice_skipped_no_candidates() {
         34,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -346,6 +351,7 @@ fn trigger_standby_autopick_single_candidate() {
         35,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -418,24 +424,33 @@ fn trigger_standby_choice_orders_candidates_and_replaces_when_full() {
         36,
         replay_config(),
         None,
+        0,
     );
 
+    let mut fillers: Vec<u32> = env
+        .config
+        .deck_lists[0]
+        .iter()
+        .copied()
+        .filter(|id| *id != CARD_TRIGGER_STANDBY && *id != CARD_LEVEL_ONE && *id != CARD_HIGH_POWER)
+        .collect();
+    fillers.resize(6, CARD_BASIC);
     setup_player_state(
         &mut env,
         0,
         vec![],
         vec![],
         vec![
-            (0, CARD_BASIC),
+            (0, fillers[0]),
             (1, CARD_HIGH_POWER),
-            (2, CARD_BASIC),
-            (3, CARD_BASIC),
-            (4, CARD_BASIC),
+            (2, fillers[1]),
+            (3, fillers[2]),
+            (4, fillers[3]),
         ],
         vec![CARD_TRIGGER_STANDBY],
         vec![],
         vec![],
-        vec![CARD_BASIC, CARD_LEVEL_ONE],
+        vec![fillers[4], CARD_LEVEL_ONE],
         vec![],
         vec![],
     );
@@ -479,12 +494,12 @@ fn trigger_standby_choice_orders_candidates_and_replaces_when_full() {
         .expect("standby choice presented");
     assert_eq!(*presented.1, 10);
     let option0 = &presented.0[0].reference;
-    assert_eq!(option0.card_id, CARD_BASIC);
+    assert_eq!(option0.card_id % 1000, CARD_BASIC);
     assert_eq!(option0.zone, ChoiceZone::WaitingRoom);
     assert_eq!(option0.index, Some(0));
     assert_eq!(option0.target_slot, Some(0));
     let option5 = &presented.0[5].reference;
-    assert_eq!(option5.card_id, CARD_LEVEL_ONE);
+    assert_eq!(option5.card_id % 1000, CARD_LEVEL_ONE);
     assert_eq!(option5.zone, ChoiceZone::WaitingRoom);
     assert_eq!(option5.index, Some(1));
     assert_eq!(option5.target_slot, Some(0));
@@ -492,7 +507,10 @@ fn trigger_standby_choice_orders_candidates_and_replaces_when_full() {
     env.apply_action(ActionDesc::ChoiceSelect { index: 6 })
         .unwrap();
     assert_eq!(
-        env.state.players[0].stage[1].card.map(|c| c.id),
+        env.state.players[0]
+            .stage[1]
+            .card
+            .map(|c| c.id % 1000),
         Some(CARD_LEVEL_ONE)
     );
     assert_eq!(env.state.players[0].stage[1].status, StageStatus::Rest);
@@ -521,6 +539,7 @@ fn trigger_treasure_choice_stock_top_card() {
         37,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -621,6 +640,7 @@ fn trigger_treasure_choice_skip() {
         38,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -709,7 +729,7 @@ fn reveal_then_move_zone_is_logged_and_correct() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 23, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 23, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,

@@ -1,5 +1,8 @@
 use std::sync::{Arc, OnceLock};
 
+#[path = "deck_support.rs"]
+mod deck_support;
+
 use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
@@ -33,11 +36,12 @@ fn replay_config() -> ReplayConfig {
         out_dir: std::env::temp_dir(),
         compress: false,
         include_trigger_card_id: true,
+        ..Default::default()
     }
 }
 
 fn make_db() -> Arc<CardDb> {
-    let cards = vec![
+    let mut cards = vec![
         CardStatic {
             id: CARD_BASIC,
             card_set: None,
@@ -113,12 +117,17 @@ fn make_db() -> Arc<CardDb> {
             raw_text: None,
         },
     ];
+    deck_support::add_clone_cards(&mut cards);
     Arc::new(CardDb::new(cards).expect("db build"))
 }
 
 fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
+    let pool = [CARD_BASIC];
     EnvConfig {
-        deck_lists: [deck_a, deck_b],
+        deck_lists: [
+            deck_support::legalize_deck(deck_a, &pool),
+            deck_support::legalize_deck(deck_b, &pool),
+        ],
         deck_ids: [200, 201],
         max_decisions: 500,
         max_ticks: 100_000,
@@ -134,7 +143,12 @@ fn build_deck_list(size: usize, extras: &[u32]) -> Vec<u32> {
     while deck.len() < size {
         deck.push(CARD_BASIC);
     }
-    deck
+    pad_deck(deck, CARD_BASIC)
+}
+
+fn pad_deck(deck: Vec<u32>, filler: u32) -> Vec<u32> {
+    let pool = [filler];
+    deck_support::legalize_deck(deck, &pool)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -298,7 +312,7 @@ fn target_opponent_front_row_ordering() {
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(db, config, curriculum, 99, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 99, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -379,7 +393,7 @@ fn multi_target_selection_no_duplicates() {
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(db, config, curriculum, 100, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 100, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -449,9 +463,14 @@ fn target_choice_truncation_metadata() {
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(db, config, curriculum, 101, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 101, replay_config(), None, 0);
 
-    let waiting_room = vec![CARD_BASIC; 18];
+    let waiting_room: Vec<u32> = env.config.deck_lists[0]
+        .iter()
+        .copied()
+        .filter(|id| *id != CARD_TARGET_WR_TRUNC)
+        .take(18)
+        .collect();
     setup_player_state(
         &mut env,
         0,

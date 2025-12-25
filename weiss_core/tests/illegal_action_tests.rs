@@ -8,8 +8,8 @@ use weiss_core::legal::ActionDesc;
 #[test]
 fn illegal_mainplay_lenient_noop_no_hand_leak() {
     let db = make_db();
-    let deck_a = vec![9; 20];
-    let deck_b = vec![9; 20];
+    let deck_a = vec![9; 50];
+    let deck_b = vec![9; 50];
     let mut config = make_config(deck_a, deck_b);
     config.error_policy = ErrorPolicy::LenientNoop;
     let mut env = GameEnv::new(
@@ -19,9 +19,10 @@ fn illegal_mainplay_lenient_noop_no_hand_leak() {
         7,
         Default::default(),
         None,
+        0,
     );
-    env.apply_action(ActionDesc::MulliganKeep).unwrap();
-    env.apply_action(ActionDesc::MulliganKeep).unwrap();
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::ClockPass).unwrap();
     let hand_len = env.state.players[env.state.turn.active_player as usize]
         .hand
@@ -41,8 +42,8 @@ fn illegal_mainplay_lenient_noop_no_hand_leak() {
 #[test]
 fn illegal_mainplay_lenient_terminate_no_hand_leak() {
     let db = make_db();
-    let deck_a = vec![9; 20];
-    let deck_b = vec![9; 20];
+    let deck_a = vec![9; 50];
+    let deck_b = vec![9; 50];
     let mut config = make_config(deck_a, deck_b);
     config.error_policy = ErrorPolicy::LenientTerminate;
     let mut env = GameEnv::new(
@@ -52,9 +53,10 @@ fn illegal_mainplay_lenient_terminate_no_hand_leak() {
         9,
         Default::default(),
         None,
+        0,
     );
-    env.apply_action(ActionDesc::MulliganKeep).unwrap();
-    env.apply_action(ActionDesc::MulliganKeep).unwrap();
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::ClockPass).unwrap();
     let hand_len = env.state.players[env.state.turn.active_player as usize]
         .hand

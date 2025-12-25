@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+#[path = "deck_support.rs"]
+mod deck_support;
+
 use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
@@ -27,11 +30,11 @@ fn make_instance(card_id: u32, owner: u8, zone_tag: u32, index: usize) -> CardIn
 fn make_db() -> Arc<CardDb> {
     let activated = AbilityDef {
         kind: AbilityKind::Activated,
-        timing: Some(AbilityTiming::MainPhase),
+        timing: Some(AbilityTiming::BeginMainPhase),
         effects: vec![EffectTemplate::Draw { count: 1 }],
         targets: Vec::new(),
     };
-    let cards = vec![
+    let mut cards = vec![
         CardStatic {
             id: CARD_TRIGGER_DRAW,
             card_set: None,
@@ -113,12 +116,13 @@ fn make_db() -> Arc<CardDb> {
             raw_text: None,
         },
     ];
+    deck_support::add_clone_cards(&mut cards);
     Arc::new(CardDb::new(cards).expect("db build"))
 }
 
 fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
     EnvConfig {
-        deck_lists: [deck_a, deck_b],
+        deck_lists: [pad_deck(deck_a), pad_deck(deck_b)],
         deck_ids: [1, 2],
         max_decisions: 200,
         max_ticks: 10_000,
@@ -127,6 +131,11 @@ fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
         observation_visibility: ObservationVisibility::Public,
         end_condition_policy: Default::default(),
     }
+}
+
+fn pad_deck(deck: Vec<u32>) -> Vec<u32> {
+    let pool = [CARD_FILLER];
+    deck_support::legalize_deck(deck, &pool)
 }
 
 fn replay_config() -> ReplayConfig {
@@ -156,6 +165,7 @@ fn clear_player_state(env: &mut GameEnv, player: usize) {
     env.state.players[player].level.clear();
     env.state.players[player].memory.clear();
     env.state.players[player].climax.clear();
+    env.state.players[player].resolution.clear();
     env.state.players[player].stage = [
         StageSlot::empty(),
         StageSlot::empty(),
@@ -177,6 +187,7 @@ fn unified_effects_pipeline_coverage() {
         10,
         replay_config(),
         None,
+        0,
     );
     clear_player_state(&mut env, 0);
     clear_player_state(&mut env, 1);
@@ -195,6 +206,8 @@ fn unified_effects_pipeline_coverage() {
     env.state.turn.phase = Phase::Attack;
     env.state.turn.active_player = 0;
     env.state.turn.starting_player = 0;
+    env.state.turn.turn_number = 1;
+    env.state.turn.attack_subphase_count = 0;
     env.state.turn.mulligan_done = [true, true];
     env.state.turn.attack = None;
     env.state.turn.pending_level_up = None;
@@ -236,6 +249,7 @@ fn unified_effects_pipeline_coverage() {
         11,
         replay_config(),
         None,
+        0,
     );
     clear_player_state(&mut env, 0);
     clear_player_state(&mut env, 1);
@@ -275,6 +289,7 @@ fn unified_effects_pipeline_coverage() {
         12,
         replay_config(),
         None,
+        0,
     );
     clear_player_state(&mut env, 0);
     clear_player_state(&mut env, 1);
@@ -300,7 +315,7 @@ fn unified_effects_pipeline_coverage() {
         EffectSourceKind::Activated
     ));
 
-    // Refresh penalty (system effect) -> stack push.
+    // Refresh penalty logs a direct system event (no stack push).
     let mut env = GameEnv::new(
         db.clone(),
         make_config(vec![CARD_FILLER; 10], vec![CARD_FILLER; 10]),
@@ -308,6 +323,7 @@ fn unified_effects_pipeline_coverage() {
         13,
         replay_config(),
         None,
+        0,
     );
     clear_player_state(&mut env, 0);
     clear_player_state(&mut env, 1);
@@ -320,10 +336,10 @@ fn unified_effects_pipeline_coverage() {
     ];
     env.state.players[1 - active].deck =
         vec![make_instance(CARD_FILLER, (1 - active) as u8, 8, 0)];
-    env.apply_action(ActionDesc::MulliganKeep).unwrap();
-    env.apply_action(ActionDesc::MulliganKeep).unwrap();
-    assert!(stack_pushed_with_source(
-        &env.replay_events,
-        EffectSourceKind::System
-    ));
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
+    assert!(env
+        .replay_events
+        .iter()
+        .any(|e| matches!(e, ReplayEvent::RefreshPenalty { .. })));
 }

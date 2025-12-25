@@ -19,7 +19,7 @@ fn counter_priority_autoplays_single_counter() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 40, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 40, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -87,7 +87,7 @@ fn counter_priority_choice_orders_by_hand_index() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 41, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 41, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -154,8 +154,8 @@ fn counter_priority_choice_orders_by_hand_index() {
     } else {
         ref1.card_id
     };
-    let option_id_0 = (id0 as u64) << 32 | (11u64 << 24);
-    let option_id_1 = (id1 as u64) << 32 | (11u64 << 24) | (1u64 << 8);
+    let option_id_0 = (id0 as u64) << 32 | (12u64 << 24);
+    let option_id_1 = (id1 as u64) << 32 | (12u64 << 24) | (1u64 << 8);
     assert_eq!(options[0].option_id, option_id_0);
     assert_eq!(options[1].option_id, option_id_1);
 
@@ -182,6 +182,7 @@ fn main_priority_act_ability_pushes_and_resolves() {
         42,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -263,6 +264,7 @@ fn main_priority_double_pass_ends_window() {
         43,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(

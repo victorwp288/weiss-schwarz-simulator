@@ -19,6 +19,7 @@ fn end_of_turn_triggers_fire_then_state_stabilizes() {
         25,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(

@@ -7,8 +7,8 @@ use weiss_core::env::GameEnv;
 
 #[test]
 fn config_hash_stable() {
-    let deck_a = vec![1; 20];
-    let deck_b = vec![1; 20];
+    let deck_a = vec![1; 50];
+    let deck_b = vec![1; 50];
     let config = make_config(deck_a, deck_b);
     let curriculum_a = CurriculumConfig {
         allowed_card_sets: vec!["A".to_string(), "B".to_string()],
@@ -27,12 +27,12 @@ fn config_hash_stable() {
 #[test]
 fn state_hash_stable_across_runs() {
     let db = make_db();
-    let deck_a = vec![1; 20];
-    let deck_b = vec![1; 20];
+    let deck_a = vec![1; 50];
+    let deck_b = vec![1; 50];
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig::default();
-    let mut env_a = GameEnv::new(db.clone(), config.clone(), curriculum.clone(), 99, Default::default(), None);
-    let mut env_b = GameEnv::new(db, config, curriculum, 99, Default::default(), None);
+    let mut env_a = GameEnv::new(db.clone(), config.clone(), curriculum.clone(), 99, Default::default(), None, 0);
+    let mut env_b = GameEnv::new(db, config, curriculum, 99, Default::default(), None, 0);
 
     for _ in 0..6 {
         let action = env_a

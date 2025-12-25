@@ -1,5 +1,8 @@
 use std::sync::{Arc, OnceLock};
 
+#[path = "deck_support.rs"]
+mod deck_support;
+
 use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
@@ -10,6 +13,7 @@ use weiss_core::replay::{ReplayConfig, ReplayEvent};
 use weiss_core::state::{
     CardInstance, ChoiceReason, ModifierDuration, Phase, StageSlot, StageStatus, TargetZone,
 };
+use weiss_core::encode::MAX_DECK;
 
 const CARD_BASIC: u32 = 1;
 const CARD_ACT_TARGET_POWER: u32 = 40;
@@ -34,11 +38,12 @@ fn replay_config() -> ReplayConfig {
         out_dir: std::env::temp_dir(),
         compress: false,
         include_trigger_card_id: true,
+        ..Default::default()
     }
 }
 
 fn make_db() -> Arc<CardDb> {
-    let cards = vec![
+    let mut cards = vec![
         CardStatic {
             id: CARD_BASIC,
             card_set: None,
@@ -98,6 +103,7 @@ fn make_db() -> Arc<CardDb> {
             raw_text: None,
         },
     ];
+    deck_support::add_clone_cards(&mut cards);
     Arc::new(CardDb::new(cards).expect("db build"))
 }
 
@@ -116,10 +122,53 @@ fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
 
 fn build_deck_list(size: usize, extras: &[u32]) -> Vec<u32> {
     let mut deck = extras.to_vec();
-    while deck.len() < size {
-        deck.push(CARD_BASIC);
+    if deck.len() > size {
+        deck.truncate(size);
     }
+    extend_with_filler(&mut deck, CARD_BASIC, size);
+    extend_with_filler(&mut deck, CARD_BASIC, MAX_DECK);
     deck
+}
+
+fn extend_with_filler(deck: &mut Vec<u32>, base_id: u32, target_len: usize) {
+    use std::collections::HashMap;
+    let mut counts: HashMap<u32, usize> = HashMap::new();
+    let mut next_clone: HashMap<u32, u32> = HashMap::new();
+    for &card_id in deck.iter() {
+        *counts.entry(card_id).or_insert(0) += 1;
+    }
+    while deck.len() < target_len {
+        let card_id = assign_id(base_id, &mut counts, &mut next_clone);
+        deck.push(card_id);
+    }
+}
+
+fn assign_id(
+    base_id: u32,
+    counts: &mut std::collections::HashMap<u32, usize>,
+    next_clone: &mut std::collections::HashMap<u32, u32>,
+) -> u32 {
+    let count = counts.entry(base_id).or_insert(0);
+    if *count < 4 {
+        *count += 1;
+        return base_id;
+    }
+    loop {
+        let idx = next_clone.entry(base_id).or_insert(1);
+        if *idx > deck_support::CLONE_GROUPS as u32 {
+            panic!(
+                "not enough clone ids for base {} (needed clone group {})",
+                base_id, idx
+            );
+        }
+        let clone_id = base_id + deck_support::CLONE_OFFSET * *idx;
+        let clone_count = counts.entry(clone_id).or_insert(0);
+        if *clone_count < 4 {
+            *clone_count += 1;
+            return clone_id;
+        }
+        *idx += 1;
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -283,7 +332,7 @@ fn activated_targeting_resolves_via_stack() {
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(db, config, curriculum, 120, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 120, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -357,7 +406,7 @@ fn continuous_modifier_applies_and_clears_on_leave() {
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(db, config, curriculum, 121, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 121, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,

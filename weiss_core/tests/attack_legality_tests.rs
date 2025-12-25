@@ -20,6 +20,7 @@ fn cannot_attack_when_rested() {
         15,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -61,6 +62,7 @@ fn cannot_attack_with_cannot_attack_status() {
         160,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -102,6 +104,7 @@ fn cannot_attack_from_ability_template() {
         16,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -173,6 +176,7 @@ fn attack_target_must_be_legal_lane() {
         17,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -226,6 +230,7 @@ fn attack_cost_must_be_payable() {
         18,
         replay_config(),
         None,
+        0,
     );
 
     setup_player_state(
@@ -279,7 +284,7 @@ fn cannot_declare_attack_twice_if_once_per_turn() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 19, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 19, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,

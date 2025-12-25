@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+#[path = "deck_support.rs"]
+mod deck_support;
+
 use std::sync::{Arc, OnceLock};
 
 use weiss_core::config::{EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig};
@@ -51,11 +54,12 @@ pub fn replay_config() -> ReplayConfig {
         out_dir: std::env::temp_dir(),
         compress: false,
         include_trigger_card_id: true,
+        ..Default::default()
     }
 }
 
 pub fn make_db() -> Arc<CardDb> {
-    let cards = vec![
+    let mut cards = vec![
         CardStatic {
             id: CARD_BASIC,
             card_set: None,
@@ -399,12 +403,17 @@ pub fn make_db() -> Arc<CardDb> {
             raw_text: None,
         },
     ];
+    deck_support::add_clone_cards(&mut cards);
     Arc::new(CardDb::new(cards).expect("db build"))
 }
 
 pub fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
+    let pool = [CARD_BASIC];
     EnvConfig {
-        deck_lists: [deck_a, deck_b],
+        deck_lists: [
+            deck_support::legalize_deck(deck_a, &pool),
+            deck_support::legalize_deck(deck_b, &pool),
+        ],
         deck_ids: [100, 101],
         max_decisions: 500,
         max_ticks: 100_000,
@@ -420,7 +429,12 @@ pub fn build_deck_list(size: usize, extras: &[u32]) -> Vec<u32> {
     while deck.len() < size {
         deck.push(CARD_BASIC);
     }
-    deck
+    pad_deck(deck, CARD_BASIC)
+}
+
+fn pad_deck(deck: Vec<u32>, filler: u32) -> Vec<u32> {
+    let pool = [filler];
+    deck_support::legalize_deck(deck, &pool)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -554,6 +568,8 @@ pub fn force_attack_decision(env: &mut GameEnv, player: u8) {
     env.state.turn.phase = Phase::Attack;
     env.state.turn.active_player = player;
     env.state.turn.starting_player = player;
+    env.state.turn.turn_number = 1;
+    env.state.turn.attack_subphase_count = 0;
     env.state.turn.mulligan_done = [true, true];
     env.state.turn.attack = None;
     env.state.turn.pending_level_up = None;

@@ -18,7 +18,7 @@ fn effect_damage_from_event_uses_pipeline() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 26, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 26, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,

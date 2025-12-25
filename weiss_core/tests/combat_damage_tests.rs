@@ -18,7 +18,7 @@ fn effect_damage_canceled_by_counter() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 10, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 10, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -92,7 +92,7 @@ fn effect_damage_reduced_then_applied() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 11, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 11, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -170,7 +170,7 @@ fn effect_damage_multiple_reductions_apply_in_order() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 27, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 27, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -259,7 +259,7 @@ fn battle_damage_vs_effect_damage_flags() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 12, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 12, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -322,7 +322,7 @@ fn reversal_cause_is_recorded_correctly() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 13, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 13, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -407,7 +407,7 @@ fn multiple_instances_damage_same_step_ordering() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 14, replay_config(), None);
+    let mut env = GameEnv::new(db, config, curriculum, 14, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
