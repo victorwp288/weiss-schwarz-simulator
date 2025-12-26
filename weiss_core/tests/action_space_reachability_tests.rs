@@ -169,8 +169,13 @@ fn record_mask(
 #[test]
 fn action_space_ids_are_reachable() {
     let db = build_db();
-    let mut curricula = vec![CurriculumConfig::default()];
+    let base = CurriculumConfig {
+        allow_concede: true,
+        ..Default::default()
+    };
+    let mut curricula = vec![base];
     curricula.push(CurriculumConfig {
+        allow_concede: true,
         reduced_stage_mode: true,
         ..Default::default()
     });
@@ -310,9 +315,7 @@ fn action_space_ids_are_reachable() {
             state.turn.trigger_order = Some(TriggerOrderState {
                 group_id: 1,
                 player: 0,
-                choices: (0..TRIGGER_ORDER_COUNT)
-                    .map(|idx| idx as u32)
-                    .collect(),
+                choices: (0..TRIGGER_ORDER_COUNT).map(|idx| idx as u32).collect(),
             });
             let decision = Decision {
                 player: 0,
@@ -369,9 +372,5 @@ fn action_space_ids_are_reachable() {
             missing.push(id);
         }
     }
-    assert!(
-        missing.is_empty(),
-        "unreachable action ids: {:?}",
-        missing
-    );
+    assert!(missing.is_empty(), "unreachable action ids: {:?}", missing);
 }

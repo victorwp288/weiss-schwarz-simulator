@@ -23,28 +23,28 @@ fn full_turn_cycle_golden() {
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Clock);
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Main);
-    env.apply_action(ActionDesc::MainPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Climax);
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     assert_eq!(
         env.decision.as_ref().unwrap().kind,
         DecisionKind::AttackDeclaration
     );
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     assert_eq!(env.state.turn.active_player, 1);
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Clock);
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Main);
     env.apply_action(ActionDesc::MainPlayCharacter {
         hand_index: 0,
         stage_slot: 0,
     })
     .unwrap();
-    env.apply_action(ActionDesc::MainPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Climax);
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     assert_eq!(
         env.decision.as_ref().unwrap().kind,
         DecisionKind::AttackDeclaration
@@ -58,6 +58,6 @@ fn full_turn_cycle_golden() {
         env.decision.as_ref().unwrap().kind,
         DecisionKind::AttackDeclaration
     );
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     assert_eq!(env.state.turn.active_player, 0);
 }

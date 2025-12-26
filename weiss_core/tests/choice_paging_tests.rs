@@ -3,7 +3,9 @@ use std::sync::Arc;
 #[path = "deck_support.rs"]
 mod deck_support;
 
-use weiss_core::config::{CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig};
+use weiss_core::config::{
+    CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
+};
 use weiss_core::db::{CardColor, CardDb, CardStatic, CardType};
 use weiss_core::encode::{action_id_for, build_action_mask, CHOICE_COUNT};
 use weiss_core::env::GameEnv;
@@ -125,27 +127,17 @@ fn choice_paging_navigates_and_selects_deterministically() {
 
     env_a.apply_action(ActionDesc::ChoiceNextPage).unwrap();
     env_b.apply_action(ActionDesc::ChoiceNextPage).unwrap();
-    let page_changed = env_a.replay_events.iter().any(|e| matches!(
-        e,
-        ReplayEvent::ChoicePageChanged { from_start, to_start, .. }
-            if *from_start == 0 && *to_start == CHOICE_COUNT as u16
-    ));
+    let page_changed = env_a.replay_events.iter().any(|e| {
+        matches!(
+            e,
+            ReplayEvent::ChoicePageChanged { from_start, to_start, .. }
+                if *from_start == 0 && *to_start == CHOICE_COUNT as u16
+        )
+    });
     assert!(page_changed);
 
-    let page_start_a = env_a
-        .state
-        .turn
-        .choice
-        .as_ref()
-        .expect("choice")
-        .page_start;
-    let page_start_b = env_b
-        .state
-        .turn
-        .choice
-        .as_ref()
-        .expect("choice")
-        .page_start;
+    let page_start_a = env_a.state.turn.choice.as_ref().expect("choice").page_start;
+    let page_start_b = env_b.state.turn.choice.as_ref().expect("choice").page_start;
     assert_eq!(page_start_a, CHOICE_COUNT as u16);
     assert_eq!(page_start_a, page_start_b);
     let mask = action_mask_for_choice(&env_a);

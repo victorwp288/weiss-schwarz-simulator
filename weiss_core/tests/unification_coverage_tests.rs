@@ -7,14 +7,14 @@ use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
 use weiss_core::db::{
-    AbilityDef, AbilityKind, AbilityTemplate, AbilityTiming, CardColor, CardDb, CardStatic,
-    CardType, EffectTemplate, TriggerIcon,
+    AbilityCost, AbilityDef, AbilityKind, AbilityTemplate, AbilityTiming, CardColor, CardDb,
+    CardStatic, CardType, EffectTemplate, TriggerIcon,
 };
 use weiss_core::effects::{EffectKind, EffectSourceKind};
 use weiss_core::env::GameEnv;
 use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
 use weiss_core::replay::{ReplayConfig, ReplayEvent};
-use weiss_core::state::{AttackType, CardInstance, Phase, StageSlot, StageStatus};
+use weiss_core::state::{AttackType, CardInstance, ChoiceZone, Phase, StageSlot, StageStatus};
 
 const CARD_TRIGGER_DRAW: u32 = 100;
 const CARD_ATTACKER: u32 = 101;
@@ -33,6 +33,12 @@ fn make_db() -> Arc<CardDb> {
         timing: Some(AbilityTiming::BeginMainPhase),
         effects: vec![EffectTemplate::Draw { count: 1 }],
         targets: Vec::new(),
+        cost: AbilityCost::default(),
+        target_card_type: None,
+        target_trait: None,
+        target_level_max: None,
+        target_cost_max: None,
+        target_limit: None,
     };
     let mut cards = vec![
         CardStatic {
@@ -191,8 +197,7 @@ fn unified_effects_pipeline_coverage() {
     );
     clear_player_state(&mut env, 0);
     clear_player_state(&mut env, 1);
-    env.config.deck_lists[0] =
-        vec![CARD_ATTACKER, CARD_ATTACKER, CARD_TRIGGER_DRAW];
+    env.config.deck_lists[0] = vec![CARD_ATTACKER, CARD_ATTACKER, CARD_TRIGGER_DRAW];
     env.config.deck_lists[1] = vec![CARD_ATTACKER];
     let mut slot = StageSlot::empty();
     slot.card = Some(make_instance(CARD_ATTACKER, 0, 4, 0));
@@ -309,7 +314,15 @@ fn unified_effects_pipeline_coverage() {
         kind: DecisionKind::Main,
         focus_slot: None,
     });
-    env.apply_action(ActionDesc::MainPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    let choice = env.state.turn.choice.as_ref().expect("priority choice");
+    let idx = choice
+        .options
+        .iter()
+        .position(|opt| opt.zone == ChoiceZone::PriorityAct)
+        .expect("priority activation");
+    env.apply_action(ActionDesc::ChoiceSelect { index: idx as u8 })
+        .unwrap();
     assert!(stack_pushed_with_source(
         &env.replay_events,
         EffectSourceKind::Activated
@@ -334,8 +347,7 @@ fn unified_effects_pipeline_coverage() {
         make_instance(CARD_FILLER, active as u8, 5, 0),
         make_instance(CARD_FILLER, active as u8, 5, 1),
     ];
-    env.state.players[1 - active].deck =
-        vec![make_instance(CARD_FILLER, (1 - active) as u8, 8, 0)];
+    env.state.players[1 - active].deck = vec![make_instance(CARD_FILLER, (1 - active) as u8, 8, 0)];
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     assert!(env

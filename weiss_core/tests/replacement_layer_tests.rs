@@ -7,7 +7,8 @@ use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
 use weiss_core::db::{
-    AbilityDef, AbilityKind, AbilityTiming, CardColor, CardDb, CardStatic, CardType, EffectTemplate,
+    AbilityCost, AbilityDef, AbilityKind, AbilityTiming, CardColor, CardDb, CardStatic, CardType,
+    EffectTemplate,
 };
 use weiss_core::effects::{
     EffectId, EffectSourceKind, ReplacementHook, ReplacementKind, ReplacementSpec,
@@ -54,6 +55,12 @@ fn make_db() -> Arc<CardDb> {
                     cancelable: true,
                 }],
                 targets: vec![],
+                cost: AbilityCost::default(),
+                target_card_type: None,
+                target_trait: None,
+                target_level_max: None,
+                target_cost_max: None,
+                target_limit: None,
             }],
             counter_timing: false,
             raw_text: None,

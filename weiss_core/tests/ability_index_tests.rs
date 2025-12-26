@@ -3,14 +3,14 @@ use std::sync::Arc;
 #[path = "deck_support.rs"]
 mod deck_support;
 use weiss_core::db::{
-    AbilityDef, AbilityKind, AbilityTemplate, AbilityTiming, CardColor, CardDb, CardStatic,
-    CardType, EffectTemplate,
+    AbilityCost, AbilityDef, AbilityKind, AbilityTemplate, AbilityTiming, CardColor, CardDb,
+    CardStatic, CardType, EffectTemplate,
 };
 use weiss_core::effects::{EffectKind, EffectSourceKind};
 use weiss_core::env::GameEnv;
-use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
+use weiss_core::legal::{ActionDesc, DecisionKind};
 use weiss_core::replay::ReplayConfig;
-use weiss_core::state::{CardInstance, Phase, StageSlot, StageStatus};
+use weiss_core::state::ChoiceZone;
 
 #[test]
 fn ability_index_ordering_matches_specs() {
@@ -19,6 +19,12 @@ fn ability_index_ordering_matches_specs() {
         timing: Some(AbilityTiming::BeginMainPhase),
         effects: vec![EffectTemplate::Draw { count: 1 }],
         targets: Vec::new(),
+        cost: AbilityCost::default(),
+        target_card_type: None,
+        target_trait: None,
+        target_level_max: None,
+        target_cost_max: None,
+        target_limit: None,
     };
     let card = CardStatic {
         id: 1,
@@ -27,11 +33,15 @@ fn ability_index_ordering_matches_specs() {
         color: CardColor::Red,
         level: 0,
         cost: 0,
-        power: 0,
+        power: 500,
         soul: 1,
         triggers: Vec::new(),
         traits: Vec::new(),
-        abilities: vec![AbilityTemplate::ActivatedPlaceholder],
+        abilities: vec![AbilityTemplate::ActivatedTargetedPower {
+            amount: 1000,
+            count: 1,
+            target: weiss_core::db::TargetTemplate::SelfStage,
+        }],
         ability_defs: vec![ability_def.clone()],
         counter_timing: false,
         raw_text: None,
@@ -43,7 +53,7 @@ fn ability_index_ordering_matches_specs() {
     assert_eq!(specs.len(), 2);
     assert!(matches!(
         specs[0].template,
-        AbilityTemplate::ActivatedPlaceholder
+        AbilityTemplate::ActivatedTargetedPower { .. }
     ));
     assert!(matches!(specs[1].template, AbilityTemplate::AbilityDef(_)));
 
@@ -64,6 +74,12 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
         timing: Some(AbilityTiming::BeginMainPhase),
         effects: vec![EffectTemplate::Draw { count: 1 }],
         targets: Vec::new(),
+        cost: AbilityCost::default(),
+        target_card_type: None,
+        target_trait: None,
+        target_level_max: None,
+        target_cost_max: None,
+        target_limit: None,
     };
     let card = CardStatic {
         id: 1,
@@ -72,11 +88,15 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
         color: CardColor::Red,
         level: 0,
         cost: 0,
-        power: 0,
+        power: 500,
         soul: 1,
         triggers: Vec::new(),
         traits: Vec::new(),
-        abilities: vec![AbilityTemplate::ActivatedPlaceholder],
+        abilities: vec![AbilityTemplate::ActivatedTargetedPower {
+            amount: 1000,
+            count: 1,
+            target: weiss_core::db::TargetTemplate::SelfStage,
+        }],
         ability_defs: vec![ability_def],
         counter_timing: false,
         raw_text: None,
@@ -109,47 +129,31 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
         sample_rate: 1.0,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db.clone(), config, curriculum, 33, replay_config, None, 0);
-    env.config.deck_lists[0] = vec![1];
-    env.config.deck_lists[1] = Vec::new();
-    for player in 0..2 {
-        env.state.players[player].deck.clear();
-        env.state.players[player].hand.clear();
-        env.state.players[player].waiting_room.clear();
-        env.state.players[player].clock.clear();
-        env.state.players[player].level.clear();
-        env.state.players[player].stock.clear();
-        env.state.players[player].memory.clear();
-        env.state.players[player].climax.clear();
-        env.state.players[player].resolution.clear();
-        env.state.players[player].stage = [
-            StageSlot::empty(),
-            StageSlot::empty(),
-            StageSlot::empty(),
-            StageSlot::empty(),
-            StageSlot::empty(),
-        ];
-    }
-    let mut slot = StageSlot::empty();
-    slot.card = Some(CardInstance::new(1, 0, 1));
-    slot.status = StageStatus::Stand;
-    env.state.players[0].stage[0] = slot;
-    env.state.turn.phase = Phase::Main;
-    env.state.turn.active_player = 0;
-    env.state.turn.starting_player = 0;
-    env.state.turn.mulligan_done = [true, true];
-    env.decision = Some(Decision {
-        player: 0,
-        kind: DecisionKind::Main,
-        focus_slot: None,
-    });
-
-    env.apply_action(ActionDesc::MainPass).unwrap();
+    let mut env = GameEnv::new(db.clone(), config, curriculum, 0, replay_config, None, 0);
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    assert!(matches!(
+        env.decision.as_ref().map(|d| d.kind),
+        Some(DecisionKind::Main)
+    ));
+    env.apply_action(ActionDesc::MainPlayCharacter {
+        hand_index: 0,
+        stage_slot: 0,
+    })
+    .unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
 
     let choice = env.state.turn.choice.as_ref().expect("priority choice");
-    assert_eq!(choice.options.len(), 2);
-    assert_eq!(choice.options[0].target_slot, Some(0));
-    assert_eq!(choice.options[1].target_slot, Some(1));
+    let mut ability_options = choice
+        .options
+        .iter()
+        .filter(|opt| opt.zone == ChoiceZone::PriorityAct)
+        .collect::<Vec<_>>();
+    assert_eq!(ability_options.len(), 2);
+    ability_options.sort_by_key(|opt| opt.target_slot);
+    assert_eq!(ability_options[0].target_slot, Some(0));
+    assert_eq!(ability_options[1].target_slot, Some(1));
 
     env.apply_action(ActionDesc::ChoiceSelect { index: 1 })
         .unwrap();

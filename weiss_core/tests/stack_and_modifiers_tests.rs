@@ -7,13 +7,14 @@ use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
 use weiss_core::db::{AbilityTemplate, CardColor, CardDb, CardStatic, CardType, TargetTemplate};
+use weiss_core::encode::MAX_DECK;
 use weiss_core::env::GameEnv;
 use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
 use weiss_core::replay::{ReplayConfig, ReplayEvent};
 use weiss_core::state::{
-    CardInstance, ChoiceReason, ModifierDuration, Phase, StageSlot, StageStatus, TargetZone,
+    CardInstance, ChoiceReason, ChoiceZone, ModifierDuration, Phase, StageSlot, StageStatus,
+    TargetZone,
 };
-use weiss_core::encode::MAX_DECK;
 
 const CARD_BASIC: u32 = 1;
 const CARD_ACT_TARGET_POWER: u32 = 40;
@@ -324,6 +325,28 @@ fn force_main_decision(env: &mut GameEnv, player: u8) {
     });
 }
 
+fn choose_priority_activation(env: &mut GameEnv) {
+    if let Some(choice) = env.state.turn.choice.as_ref() {
+        if choice.reason == ChoiceReason::PriorityActionSelect {
+            let idx = choice
+                .options
+                .iter()
+                .enumerate()
+                .filter(|(_, opt)| opt.zone == ChoiceZone::PriorityAct)
+                .min_by_key(|(_, opt)| {
+                    (
+                        opt.index.unwrap_or(u8::MAX),
+                        opt.target_slot.unwrap_or(u8::MAX),
+                    )
+                })
+                .map(|(idx, _)| idx)
+                .expect("priority activation");
+            env.apply_action(ActionDesc::ChoiceSelect { index: idx as u8 })
+                .unwrap();
+        }
+    }
+}
+
 #[test]
 fn activated_targeting_resolves_via_stack() {
     enable_validate();
@@ -331,7 +354,10 @@ fn activated_targeting_resolves_via_stack() {
     let deck_a = build_deck_list(20, &[CARD_ACT_TARGET_POWER]);
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
-    let curriculum = CurriculumConfig::default();
+    let curriculum = CurriculumConfig {
+        enable_priority_windows: true,
+        ..Default::default()
+    };
     let mut env = GameEnv::new(db, config, curriculum, 120, replay_config(), None, 0);
 
     setup_player_state(
@@ -363,7 +389,8 @@ fn activated_targeting_resolves_via_stack() {
     force_main_decision(&mut env, 0);
     env.validate_state().unwrap();
 
-    env.apply_action(ActionDesc::MainPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    choose_priority_activation(&mut env);
 
     let presented = env
         .replay_events
@@ -405,7 +432,10 @@ fn continuous_modifier_applies_and_clears_on_leave() {
     let deck_a = build_deck_list(20, &[CARD_CONTINUOUS_SELF_BOUNCE]);
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
-    let curriculum = CurriculumConfig::default();
+    let curriculum = CurriculumConfig {
+        enable_priority_windows: true,
+        ..Default::default()
+    };
     let mut env = GameEnv::new(db, config, curriculum, 121, replay_config(), None, 0);
 
     setup_player_state(
@@ -449,7 +479,8 @@ fn continuous_modifier_applies_and_clears_on_leave() {
     ));
     assert!(modifier_added);
 
-    env.apply_action(ActionDesc::MainPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    choose_priority_activation(&mut env);
 
     let modifier_removed = env.replay_events.iter().any(|e| matches!(e,
         ReplayEvent::ModifierRemoved { reason, .. } if matches!(reason, weiss_core::events::ModifierRemoveReason::TargetLeftStage)

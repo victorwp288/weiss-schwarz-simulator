@@ -18,14 +18,14 @@ fn direct_attack_adds_soul() {
     let mut env = GameEnv::new(db, config, curriculum, 11, Default::default(), None, 0);
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.apply_action(ActionDesc::MainPlayCharacter {
         hand_index: 0,
         stage_slot: 0,
     })
     .unwrap();
-    env.apply_action(ActionDesc::MainPass).unwrap();
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.state.turn.turn_number = 1;
     let defender = 1 - env.state.turn.active_player as usize;
     let clock_before = env.state.players[defender].clock.len();
@@ -51,14 +51,14 @@ fn side_attack_reduces_damage() {
     let mut env = GameEnv::new(db, config, curriculum, 12, Default::default(), None, 0);
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.apply_action(ActionDesc::MainPlayCharacter {
         hand_index: 0,
         stage_slot: 0,
     })
     .unwrap();
-    env.apply_action(ActionDesc::MainPass).unwrap();
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.state.turn.turn_number = 1;
     let defender = 1 - env.state.turn.active_player as usize;
     let defender_state = &mut env.state.players[defender];
@@ -75,40 +75,25 @@ fn side_attack_reduces_damage() {
         .map(|card| is_level_one(card.id))
         .unwrap_or(false);
     if !stage_has_level_one {
-        let replacement = if let Some(pos) = defender_state
-            .deck
-            .iter()
-            .position(|c| is_level_one(c.id))
-        {
-            Some(defender_state.deck.remove(pos))
-        } else if let Some(pos) = defender_state
-            .hand
-            .iter()
-            .position(|c| is_level_one(c.id))
-        {
-            Some(defender_state.hand.remove(pos))
-        } else if let Some(pos) = defender_state
-            .waiting_room
-            .iter()
-            .position(|c| is_level_one(c.id))
-        {
-            Some(defender_state.waiting_room.remove(pos))
-        } else if let Some(pos) = defender_state
-            .clock
-            .iter()
-            .position(|c| is_level_one(c.id))
-        {
-            Some(defender_state.clock.remove(pos))
-        } else if let Some(pos) = defender_state
-            .stock
-            .iter()
-            .position(|c| is_level_one(c.id))
-        {
-            Some(defender_state.stock.remove(pos))
-        } else {
-            None
-        }
-        .expect("missing level 1 defender for side attack test");
+        let replacement =
+            if let Some(pos) = defender_state.deck.iter().position(|c| is_level_one(c.id)) {
+                Some(defender_state.deck.remove(pos))
+            } else if let Some(pos) = defender_state.hand.iter().position(|c| is_level_one(c.id)) {
+                Some(defender_state.hand.remove(pos))
+            } else if let Some(pos) = defender_state
+                .waiting_room
+                .iter()
+                .position(|c| is_level_one(c.id))
+            {
+                Some(defender_state.waiting_room.remove(pos))
+            } else if let Some(pos) = defender_state.clock.iter().position(|c| is_level_one(c.id)) {
+                Some(defender_state.clock.remove(pos))
+            } else if let Some(pos) = defender_state.stock.iter().position(|c| is_level_one(c.id)) {
+                Some(defender_state.stock.remove(pos))
+            } else {
+                None
+            }
+            .expect("missing level 1 defender for side attack test");
         let previous = defender_state.stage[0].card.replace(replacement);
         if let Some(card) = previous {
             defender_state.deck.push(card);
@@ -136,14 +121,14 @@ fn damage_cancel_on_climax() {
     let mut env = GameEnv::new(db, config, curriculum, 15, Default::default(), None, 0);
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.apply_action(ActionDesc::MainPlayCharacter {
         hand_index: 0,
         stage_slot: 0,
     })
     .unwrap();
-    env.apply_action(ActionDesc::MainPass).unwrap();
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.state.turn.turn_number = 1;
     let defender = 1 - env.state.turn.active_player as usize;
     let clock_before = env.state.players[defender].clock.len();

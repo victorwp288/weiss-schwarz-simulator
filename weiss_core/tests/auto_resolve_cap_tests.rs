@@ -78,6 +78,7 @@ fn auto_resolve_cap_exceeded_sets_engine_error() {
             icon: TriggerIcon::Soul,
         },
         target: None,
+        optional: false,
     };
     let payload = EffectPayload {
         spec,

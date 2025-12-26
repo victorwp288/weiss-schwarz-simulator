@@ -2,8 +2,8 @@ mod engine_support;
 
 use engine_support::*;
 use weiss_core::config::CurriculumConfig;
-use weiss_core::fingerprint::{config_fingerprint, state_fingerprint, FINGERPRINT_ALGO};
 use weiss_core::env::GameEnv;
+use weiss_core::fingerprint::{config_fingerprint, state_fingerprint, FINGERPRINT_ALGO};
 
 #[test]
 fn config_hash_stable() {
@@ -31,12 +31,20 @@ fn state_hash_stable_across_runs() {
     let deck_b = vec![1; 50];
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig::default();
-    let mut env_a = GameEnv::new(db.clone(), config.clone(), curriculum.clone(), 99, Default::default(), None, 0);
+    let mut env_a = GameEnv::new(
+        db.clone(),
+        config.clone(),
+        curriculum.clone(),
+        99,
+        Default::default(),
+        None,
+        0,
+    );
     let mut env_b = GameEnv::new(db, config, curriculum, 99, Default::default(), None, 0);
 
     for _ in 0..6 {
         let action = env_a
-            .last_legal_actions
+            .legal_actions()
             .first()
             .cloned()
             .expect("legal action");
@@ -44,7 +52,10 @@ fn state_hash_stable_across_runs() {
         env_b.apply_action(action).unwrap();
     }
 
-    assert_eq!(state_fingerprint(&env_a.state), state_fingerprint(&env_b.state));
+    assert_eq!(
+        state_fingerprint(&env_a.state),
+        state_fingerprint(&env_b.state)
+    );
 }
 
 #[test]

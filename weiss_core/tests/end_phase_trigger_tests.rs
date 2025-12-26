@@ -51,7 +51,7 @@ fn end_of_turn_triggers_fire_then_state_stabilizes() {
     force_attack_decision(&mut env, 0);
 
     let hand_before = env.state.players[0].hand.len();
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
 
     let hand_after = env.state.players[0].hand.len();
     assert_eq!(hand_after, hand_before + 1);

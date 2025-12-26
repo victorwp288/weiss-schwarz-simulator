@@ -4,7 +4,9 @@ use std::path::PathBuf;
 
 use weiss_core::config::{CurriculumConfig, ObservationVisibility};
 use weiss_core::db::WSDB_SCHEMA_VERSION;
-use weiss_core::encode::{ACTION_ENCODING_VERSION, ACTION_SPACE_SIZE, CHOICE_COUNT, OBS_ENCODING_VERSION};
+use weiss_core::encode::{
+    ACTION_ENCODING_VERSION, ACTION_SPACE_SIZE, CHOICE_COUNT, OBS_ENCODING_VERSION,
+};
 use weiss_core::fingerprint::FINGERPRINT_ALGO;
 use weiss_core::replay::REPLAY_SCHEMA_VERSION;
 
@@ -58,10 +60,7 @@ fn invariants_doc_matches_code() {
         inv.get("action_space_size"),
         Some(&ACTION_SPACE_SIZE.to_string())
     );
-    assert_eq!(
-        inv.get("choice_page_size"),
-        Some(&CHOICE_COUNT.to_string())
-    );
+    assert_eq!(inv.get("choice_page_size"), Some(&CHOICE_COUNT.to_string()));
     assert_eq!(
         inv.get("action_encoding_version"),
         Some(&ACTION_ENCODING_VERSION.to_string())

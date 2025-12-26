@@ -46,14 +46,14 @@ fn level_up_decision_changes_level_card() {
         );
         env.apply_action(ActionDesc::MulliganConfirm).unwrap();
         env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-        env.apply_action(ActionDesc::ClockPass).unwrap();
+        env.apply_action(ActionDesc::Pass).unwrap();
         env.apply_action(ActionDesc::MainPlayCharacter {
             hand_index: 0,
             stage_slot: 0,
         })
         .unwrap();
-        env.apply_action(ActionDesc::MainPass).unwrap();
-        env.apply_action(ActionDesc::ClimaxPass).unwrap();
+        env.apply_action(ActionDesc::Pass).unwrap();
+        env.apply_action(ActionDesc::Pass).unwrap();
         env.state.turn.turn_number = 1;
         let defender = 1 - env.state.turn.active_player as usize;
         env.state.players[defender].clock.clear();
@@ -116,14 +116,14 @@ fn encore_with_and_without_stock() {
     let mut env = GameEnv::new(db, config, curriculum, 17, Default::default(), None, 0);
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.apply_action(ActionDesc::MainPlayCharacter {
         hand_index: 0,
         stage_slot: 0,
     })
     .unwrap();
-    env.apply_action(ActionDesc::MainPass).unwrap();
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.state.turn.turn_number = 1;
     let defender = 1 - env.state.turn.active_player as usize;
     if let Some(card) = env.state.players[defender].deck.pop() {
@@ -142,7 +142,7 @@ fn encore_with_and_without_stock() {
     if env.state.players[defender].stage[0].status != StageStatus::Reverse {
         env.state.players[defender].stage[0].status = StageStatus::Reverse;
     }
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Encore);
     while let Some(decision) = env.decision.clone() {
         if decision.kind != DecisionKind::Encore {
@@ -167,17 +167,25 @@ fn encore_with_and_without_stock() {
     let mut curriculum = default_curriculum();
     curriculum.enable_triggers = false;
     curriculum.enable_counters = false;
-    let mut env = GameEnv::new(make_db(), config, curriculum, 18, Default::default(), None, 0);
+    let mut env = GameEnv::new(
+        make_db(),
+        config,
+        curriculum,
+        18,
+        Default::default(),
+        None,
+        0,
+    );
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.apply_action(ActionDesc::MainPlayCharacter {
         hand_index: 0,
         stage_slot: 0,
     })
     .unwrap();
-    env.apply_action(ActionDesc::MainPass).unwrap();
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.state.turn.turn_number = 1;
     let defender = 1 - env.state.turn.active_player as usize;
     if let Some(card) = env.state.players[defender].deck.pop() {
@@ -201,7 +209,7 @@ fn encore_with_and_without_stock() {
     if env.state.players[defender].stage[0].status != StageStatus::Reverse {
         env.state.players[defender].stage[0].status = StageStatus::Reverse;
     }
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     while let Some(decision) = env.decision.clone() {
         if decision.kind != DecisionKind::Encore {
             break;

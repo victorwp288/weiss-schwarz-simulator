@@ -1,8 +1,8 @@
 mod engine_support;
 
 use engine_support::*;
-use weiss_core::events::{RevealReason, Zone};
 use weiss_core::env::GameEnv;
+use weiss_core::events::{RevealReason, Zone};
 use weiss_core::legal::ActionDesc;
 use weiss_core::replay::{ReplayConfig, ReplayEvent, ReplayWriter};
 use weiss_core::state::AttackType;
@@ -28,14 +28,14 @@ fn trigger_moves_card_to_stock_and_logs() {
     let mut env = GameEnv::new(db, config, curriculum, 13, replay_config.clone(), writer, 0);
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.apply_action(ActionDesc::MainPlayCharacter {
         hand_index: 0,
         stage_slot: 0,
     })
     .unwrap();
-    env.apply_action(ActionDesc::MainPass).unwrap();
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.state.turn.turn_number = 1;
     let attacker = env.state.turn.active_player as usize;
     let stock_before = env.state.players[attacker].stock.len();
@@ -78,7 +78,7 @@ fn refresh_penalty_applied() {
             break;
         }
         let action = env
-            .last_legal_actions
+            .legal_actions()
             .first()
             .cloned()
             .expect("legal action");
@@ -168,7 +168,15 @@ fn refresh_empty_waiting_room_outside_damage_causes_loss() {
     let deck_a = vec![1; 50];
     let deck_b = vec![1; 50];
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, default_curriculum(), 31, Default::default(), None, 0);
+    let mut env = GameEnv::new(
+        db,
+        config,
+        default_curriculum(),
+        31,
+        Default::default(),
+        None,
+        0,
+    );
     let active = env.state.turn.starting_player as usize;
     let mut deck = Vec::new();
     std::mem::swap(&mut deck, &mut env.state.players[active].deck);
@@ -192,7 +200,15 @@ fn refresh_empty_waiting_room_during_damage_causes_loss() {
     let deck_a = vec![1; 50];
     let deck_b = vec![1; 50];
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, default_curriculum(), 32, Default::default(), None, 0);
+    let mut env = GameEnv::new(
+        db,
+        config,
+        default_curriculum(),
+        32,
+        Default::default(),
+        None,
+        0,
+    );
     let defender = 1 - env.state.turn.starting_player as usize;
     let mut deck = Vec::new();
     std::mem::swap(&mut deck, &mut env.state.players[defender].deck);
@@ -203,14 +219,14 @@ fn refresh_empty_waiting_room_during_damage_causes_loss() {
 
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.apply_action(ActionDesc::MainPlayCharacter {
         hand_index: 0,
         stage_slot: 0,
     })
     .unwrap();
-    env.apply_action(ActionDesc::MainPass).unwrap();
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.state.turn.turn_number = 1;
     env.apply_action(ActionDesc::Attack {
         slot: 0,
@@ -254,9 +270,10 @@ fn refresh_penalty_public_reveal_visible() {
             }
         )
     });
-    let penalty = env.replay_events.iter().find(|event| {
-        matches!(event, ReplayEvent::RefreshPenalty { .. })
-    });
+    let penalty = env
+        .replay_events
+        .iter()
+        .find(|event| matches!(event, ReplayEvent::RefreshPenalty { .. }));
 
     match reveal {
         Some(ReplayEvent::Reveal { card, .. }) => assert_ne!(*card, 0),

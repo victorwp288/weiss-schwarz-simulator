@@ -23,7 +23,7 @@ fn illegal_mainplay_lenient_noop_no_hand_leak() {
     );
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     let hand_len = env.state.players[env.state.turn.active_player as usize]
         .hand
         .len();
@@ -57,7 +57,7 @@ fn illegal_mainplay_lenient_terminate_no_hand_leak() {
     );
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-    env.apply_action(ActionDesc::ClockPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     let hand_len = env.state.players[env.state.turn.active_player as usize]
         .hand
         .len();

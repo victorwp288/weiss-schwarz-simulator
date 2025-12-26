@@ -55,7 +55,7 @@ fn reversed_stage_cleanup_emits_zone_move() {
         attack_type: AttackType::Frontal,
     })
     .unwrap();
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
 
     let moved = env.replay_events.iter().any(|event| {
         matches!(

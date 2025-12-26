@@ -37,10 +37,10 @@ fn replay_roundtrip_headers() {
     );
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
-    env.apply_action(ActionDesc::ClockPass).unwrap();
-    env.apply_action(ActionDesc::MainPass).unwrap();
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.finish_episode_replay();
     sleep(Duration::from_millis(50));
 
@@ -88,7 +88,7 @@ fn replay_actions_reproduce_state_and_events() {
             break;
         }
         let action = env_a
-            .last_legal_actions
+            .legal_actions()
             .first()
             .cloned()
             .expect("legal action");
@@ -99,15 +99,7 @@ fn replay_actions_reproduce_state_and_events() {
     let expected_state = state_fingerprint(&env_a.state);
     let expected_events = events_fingerprint(env_a.canonical_events());
 
-    let mut env_b = GameEnv::new(
-        db,
-        config,
-        default_curriculum(),
-        99,
-        replay_config,
-        None,
-        0,
-    );
+    let mut env_b = GameEnv::new(db, config, default_curriculum(), 99, replay_config, None, 0);
     for action in actions {
         if env_b.state.terminal.is_some() {
             break;
@@ -116,5 +108,8 @@ fn replay_actions_reproduce_state_and_events() {
     }
 
     assert_eq!(state_fingerprint(&env_b.state), expected_state);
-    assert_eq!(events_fingerprint(env_b.canonical_events()), expected_events);
+    assert_eq!(
+        events_fingerprint(env_b.canonical_events()),
+        expected_events
+    );
 }

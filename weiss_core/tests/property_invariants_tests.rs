@@ -2,6 +2,8 @@ use std::sync::{Arc, OnceLock};
 
 #[path = "deck_support.rs"]
 mod deck_support;
+#[path = "replay_bundle_support.rs"]
+mod replay_bundle_support;
 
 use proptest::prelude::*;
 
@@ -9,7 +11,7 @@ use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
 use weiss_core::db::{CardColor, CardDb, CardStatic, CardType};
-use weiss_core::encode::MAX_DECK;
+use weiss_core::encode::{action_id_for, MAX_DECK};
 use weiss_core::env::GameEnv;
 use weiss_core::fingerprint::{events_fingerprint, state_fingerprint};
 use weiss_core::util::Rng64;
@@ -106,6 +108,7 @@ proptest! {
         enable_validate();
         let mut env = make_env(seed);
         let mut rng = Rng64::new(seed ^ 0x1234_5678);
+        let mut action_ids = Vec::new();
         for _ in 0..80 {
             if env.state.terminal.is_some() {
                 break;
@@ -113,10 +116,28 @@ proptest! {
             let decision = env.decision.clone().expect("decision should exist");
             let actions = weiss_core::legal::legal_actions(&env.state, &decision, &env.db, &env.curriculum);
             let idx = rng.gen_range(actions.len());
+            if let Some(action_id) = action_id_for(&actions[idx]) {
+                action_ids.push(action_id as u32);
+            }
             env.apply_action(actions[idx].clone()).unwrap();
             env.validate_state().unwrap();
-            prop_assert_eq!(total_cards(&env, 0), MAX_DECK);
-            prop_assert_eq!(total_cards(&env, 1), MAX_DECK);
+            let total_a = total_cards(&env, 0);
+            let total_b = total_cards(&env, 1);
+            if total_a != MAX_DECK || total_b != MAX_DECK {
+                let state_hash = state_fingerprint(&env.state);
+                let events_hash = events_fingerprint(env.canonical_events());
+                replay_bundle_support::maybe_dump_failure_bundle(
+                    "proptest_invariants",
+                    seed,
+                    &env.config,
+                    &env.curriculum,
+                    &action_ids,
+                    state_hash,
+                    events_hash,
+                );
+            }
+            prop_assert_eq!(total_a, MAX_DECK);
+            prop_assert_eq!(total_b, MAX_DECK);
         }
     }
 
@@ -126,6 +147,7 @@ proptest! {
         let mut env_a = make_env(seed);
         let mut env_b = make_env(seed);
         let mut rng = Rng64::new(seed ^ 0xBEEF_BEEF);
+        let mut action_ids = Vec::new();
         for _ in 0..80 {
             if env_a.state.terminal.is_some() || env_b.state.terminal.is_some() {
                 break;
@@ -134,9 +156,36 @@ proptest! {
             let actions = weiss_core::legal::legal_actions(&env_a.state, &decision, &env_a.db, &env_a.curriculum);
             let idx = rng.gen_range(actions.len());
             let action = actions[idx].clone();
+            if let Some(action_id) = action_id_for(&action) {
+                action_ids.push(action_id as u32);
+            }
             env_a.apply_action(action.clone()).unwrap();
             env_b.apply_action(action).unwrap();
-            prop_assert_eq!(state_fingerprint(&env_a.state), state_fingerprint(&env_b.state));
+            let hash_a = state_fingerprint(&env_a.state);
+            let hash_b = state_fingerprint(&env_b.state);
+            if hash_a != hash_b {
+                let events_hash_a = events_fingerprint(env_a.canonical_events());
+                let events_hash_b = events_fingerprint(env_b.canonical_events());
+                replay_bundle_support::maybe_dump_failure_bundle(
+                    "proptest_determinism_a",
+                    seed,
+                    &env_a.config,
+                    &env_a.curriculum,
+                    &action_ids,
+                    hash_a,
+                    events_hash_a,
+                );
+                replay_bundle_support::maybe_dump_failure_bundle(
+                    "proptest_determinism_b",
+                    seed,
+                    &env_b.config,
+                    &env_b.curriculum,
+                    &action_ids,
+                    hash_b,
+                    events_hash_b,
+                );
+            }
+            prop_assert_eq!(hash_a, hash_b);
         }
     }
 }
@@ -167,6 +216,7 @@ fn determinism_events_fixed_seed() {
     let mut env_a = make_env(seed);
     let mut env_b = make_env(seed);
     let mut rng = Rng64::new(seed ^ 0xA11C_EE55);
+    let mut action_ids = Vec::new();
     for _ in 0..200 {
         if env_a.state.terminal.is_some() || env_b.state.terminal.is_some() {
             break;
@@ -176,12 +226,58 @@ fn determinism_events_fixed_seed() {
             weiss_core::legal::legal_actions(&env_a.state, &decision, &env_a.db, &env_a.curriculum);
         let idx = rng.gen_range(actions.len());
         let action = actions[idx].clone();
+        if let Some(action_id) = action_id_for(&action) {
+            action_ids.push(action_id as u32);
+        }
         env_a.apply_action(action.clone()).unwrap();
         env_b.apply_action(action).unwrap();
-        assert_eq!(state_fingerprint(&env_a.state), state_fingerprint(&env_b.state));
+        let hash_a = state_fingerprint(&env_a.state);
+        let hash_b = state_fingerprint(&env_b.state);
+        if hash_a != hash_b {
+            let events_hash_a = events_fingerprint(env_a.canonical_events());
+            let events_hash_b = events_fingerprint(env_b.canonical_events());
+            replay_bundle_support::maybe_dump_failure_bundle(
+                "determinism_events_a",
+                seed,
+                &env_a.config,
+                &env_a.curriculum,
+                &action_ids,
+                hash_a,
+                events_hash_a,
+            );
+            replay_bundle_support::maybe_dump_failure_bundle(
+                "determinism_events_b",
+                seed,
+                &env_b.config,
+                &env_b.curriculum,
+                &action_ids,
+                hash_b,
+                events_hash_b,
+            );
+        }
+        assert_eq!(hash_a, hash_b);
     }
-    assert_eq!(
-        events_fingerprint(env_a.canonical_events()),
-        events_fingerprint(env_b.canonical_events())
-    );
+    let events_hash_a = events_fingerprint(env_a.canonical_events());
+    let events_hash_b = events_fingerprint(env_b.canonical_events());
+    if events_hash_a != events_hash_b {
+        replay_bundle_support::maybe_dump_failure_bundle(
+            "determinism_events_final_a",
+            seed,
+            &env_a.config,
+            &env_a.curriculum,
+            &action_ids,
+            state_fingerprint(&env_a.state),
+            events_hash_a,
+        );
+        replay_bundle_support::maybe_dump_failure_bundle(
+            "determinism_events_final_b",
+            seed,
+            &env_b.config,
+            &env_b.curriculum,
+            &action_ids,
+            state_fingerprint(&env_b.state),
+            events_hash_b,
+        );
+    }
+    assert_eq!(events_hash_a, events_hash_b);
 }

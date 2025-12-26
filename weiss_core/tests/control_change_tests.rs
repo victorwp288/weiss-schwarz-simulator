@@ -12,7 +12,9 @@ use weiss_core::db::{
 use weiss_core::env::GameEnv;
 use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
 use weiss_core::replay::{ReplayConfig, ReplayEvent};
-use weiss_core::state::{AttackType, CardInstance, Phase, StageSlot, StageStatus};
+use weiss_core::state::{
+    AttackType, CardInstance, ChoiceReason, ChoiceZone, Phase, StageSlot, StageStatus,
+};
 
 const CARD_BASIC: u32 = 1;
 const CARD_CONTROL_CHANGE: u32 = 50;
@@ -113,6 +115,28 @@ fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
         error_policy: ErrorPolicy::Strict,
         observation_visibility: ObservationVisibility::Public,
         end_condition_policy: Default::default(),
+    }
+}
+
+fn choose_priority_activation(env: &mut GameEnv) {
+    if let Some(choice) = env.state.turn.choice.as_ref() {
+        if choice.reason == ChoiceReason::PriorityActionSelect {
+            let idx = choice
+                .options
+                .iter()
+                .enumerate()
+                .filter(|(_, opt)| opt.zone == ChoiceZone::PriorityAct)
+                .min_by_key(|(_, opt)| {
+                    (
+                        opt.index.unwrap_or(u8::MAX),
+                        opt.target_slot.unwrap_or(u8::MAX),
+                    )
+                })
+                .map(|(idx, _)| idx)
+                .expect("priority activation");
+            env.apply_action(ActionDesc::ChoiceSelect { index: idx as u8 })
+                .unwrap();
+        }
     }
 }
 
@@ -319,7 +343,10 @@ fn control_change_allows_attack() {
     let deck_a = build_deck_list(20, &[CARD_CONTROL_CHANGE]);
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
-    let curriculum = CurriculumConfig::default();
+    let curriculum = CurriculumConfig {
+        enable_priority_windows: true,
+        ..Default::default()
+    };
     let mut env = GameEnv::new(db, config, curriculum, 130, replay_config(), None, 0);
 
     setup_player_state(
@@ -351,7 +378,8 @@ fn control_change_allows_attack() {
     force_main_decision(&mut env, 0);
     env.validate_state().unwrap();
 
-    env.apply_action(ActionDesc::MainPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    choose_priority_activation(&mut env);
 
     let moved = env.state.players[0].stage[0].card.expect("controlled card");
     assert_eq!(moved.id, CARD_BASIC);
@@ -380,7 +408,10 @@ fn control_persists_after_leaving_stage() {
     let deck_a = build_deck_list(20, &[CARD_CONTROL_CHANGE, CARD_BOUNCE]);
     let deck_b = build_deck_list(20, &[]);
     let config = make_config(deck_a, deck_b);
-    let curriculum = CurriculumConfig::default();
+    let curriculum = CurriculumConfig {
+        enable_priority_windows: true,
+        ..Default::default()
+    };
     let mut env = GameEnv::new(db, config, curriculum, 131, replay_config(), None, 0);
 
     setup_player_state(
@@ -412,9 +443,10 @@ fn control_persists_after_leaving_stage() {
     force_main_decision(&mut env, 0);
     env.validate_state().unwrap();
 
-    env.apply_action(ActionDesc::MainPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    choose_priority_activation(&mut env);
     assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Climax);
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     env.apply_action(ActionDesc::Attack {
         slot: 2,
         attack_type: AttackType::Direct,

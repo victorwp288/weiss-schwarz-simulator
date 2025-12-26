@@ -2,15 +2,17 @@ use std::sync::Arc;
 
 #[path = "deck_support.rs"]
 mod deck_support;
+#[path = "replay_bundle_support.rs"]
+mod replay_bundle_support;
 
 use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
 use weiss_core::db::{CardColor, CardDb, CardStatic, CardType};
 use weiss_core::env::GameEnv;
+use weiss_core::fingerprint::{events_fingerprint, state_fingerprint};
 use weiss_core::legal::DecisionKind;
 use weiss_core::replay::{ReplayConfig, ReplayEvent};
-use weiss_core::fingerprint::{events_fingerprint, state_fingerprint};
 
 const CARD_BASIC: u32 = 1;
 
@@ -52,26 +54,31 @@ fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
     }
 }
 
-fn run_episode(env: &mut GameEnv, max_steps: usize) -> (Vec<DecisionKind>, Vec<Vec<u8>>, u64, u64) {
+fn run_episode(
+    env: &mut GameEnv,
+    max_steps: usize,
+) -> (Vec<DecisionKind>, Vec<Vec<u8>>, Vec<u32>, u64, u64) {
     let mut kinds = Vec::new();
     let mut masks = Vec::new();
+    let mut action_ids = Vec::new();
     for _ in 0..max_steps {
         if env.state.terminal.is_some() {
             break;
         }
         let decision = env.decision.as_ref().expect("decision");
         kinds.push(decision.kind);
-        masks.push(env.last_action_mask.clone());
-        let action_id = env
-            .last_action_mask
+        let mask = env.action_mask();
+        masks.push(mask.to_vec());
+        let action_id = mask
             .iter()
             .position(|v| *v == 1)
             .expect("legal action");
+        action_ids.push(action_id as u32);
         env.apply_action_id(action_id).expect("apply action");
     }
     let state_hash = state_fingerprint(&env.state);
     let replay_hash = events_fingerprint(env.canonical_events());
-    (kinds, masks, state_hash, replay_hash)
+    (kinds, masks, action_ids, state_hash, replay_hash)
 }
 
 #[test]
@@ -105,8 +112,30 @@ fn determinism_default_config() {
         0,
     );
 
-    let (kinds_a, masks_a, hash_a, replay_hash_a) = run_episode(&mut env_a, 40);
-    let (kinds_b, masks_b, hash_b, replay_hash_b) = run_episode(&mut env_b, 40);
+    let (kinds_a, masks_a, actions_a, hash_a, replay_hash_a) = run_episode(&mut env_a, 40);
+    let (kinds_b, masks_b, actions_b, hash_b, replay_hash_b) = run_episode(&mut env_b, 40);
+
+    if kinds_a != kinds_b || masks_a != masks_b || hash_a != hash_b || replay_hash_a != replay_hash_b
+    {
+        replay_bundle_support::maybe_dump_failure_bundle(
+            "determinism_default_a",
+            123,
+            &env_a.config,
+            &env_a.curriculum,
+            &actions_a,
+            hash_a,
+            replay_hash_a,
+        );
+        replay_bundle_support::maybe_dump_failure_bundle(
+            "determinism_default_b",
+            123,
+            &env_b.config,
+            &env_b.curriculum,
+            &actions_b,
+            hash_b,
+            replay_hash_b,
+        );
+    }
 
     assert_eq!(kinds_a, kinds_b);
     assert_eq!(masks_a, masks_b);
@@ -139,7 +168,8 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
         None,
         0,
     );
-    let (_kinds_off, _masks_off, _hash_off, _replay_hash_off) = run_episode(&mut env_off, 40);
+    let (_kinds_off, _masks_off, _actions_off, _hash_off, _replay_hash_off) =
+        run_episode(&mut env_off, 40);
     let off_has_climax_window = env_off.replay_events.iter().any(|e| {
         matches!(
             e,
@@ -167,8 +197,30 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
     );
     let mut env_on_b = GameEnv::new(db, config, curriculum_on, 456, replay_config, None, 0);
 
-    let (kinds_a, masks_a, hash_a, replay_hash_a) = run_episode(&mut env_on_a, 40);
-    let (kinds_b, masks_b, hash_b, replay_hash_b) = run_episode(&mut env_on_b, 40);
+    let (kinds_a, masks_a, actions_a, hash_a, replay_hash_a) = run_episode(&mut env_on_a, 40);
+    let (kinds_b, masks_b, actions_b, hash_b, replay_hash_b) = run_episode(&mut env_on_b, 40);
+
+    if kinds_a != kinds_b || masks_a != masks_b || hash_a != hash_b || replay_hash_a != replay_hash_b
+    {
+        replay_bundle_support::maybe_dump_failure_bundle(
+            "determinism_flags_a",
+            456,
+            &env_on_a.config,
+            &env_on_a.curriculum,
+            &actions_a,
+            hash_a,
+            replay_hash_a,
+        );
+        replay_bundle_support::maybe_dump_failure_bundle(
+            "determinism_flags_b",
+            456,
+            &env_on_b.config,
+            &env_on_b.curriculum,
+            &actions_b,
+            hash_b,
+            replay_hash_b,
+        );
+    }
 
     assert_eq!(kinds_a, kinds_b);
     assert_eq!(masks_a, masks_b);

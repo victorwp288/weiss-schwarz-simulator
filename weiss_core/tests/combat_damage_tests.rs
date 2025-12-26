@@ -5,7 +5,21 @@ use weiss_core::config::CurriculumConfig;
 use weiss_core::env::GameEnv;
 use weiss_core::legal::ActionDesc;
 use weiss_core::replay::ReplayEvent;
-use weiss_core::state::{AttackType, DamageType};
+use weiss_core::state::{AttackType, ChoiceReason, ChoiceZone, DamageType};
+
+fn choose_counter(env: &mut GameEnv) {
+    if let Some(choice) = env.state.turn.choice.as_ref() {
+        if choice.reason == ChoiceReason::PriorityActionSelect {
+            let idx = choice
+                .options
+                .iter()
+                .position(|opt| opt.zone == ChoiceZone::PriorityCounter)
+                .expect("counter option");
+            env.apply_action(ActionDesc::ChoiceSelect { index: idx as u8 })
+                .unwrap();
+        }
+    }
+}
 
 #[test]
 fn effect_damage_canceled_by_counter() {
@@ -54,6 +68,7 @@ fn effect_damage_canceled_by_counter() {
         attack_type: AttackType::Frontal,
     })
     .unwrap();
+    choose_counter(&mut env);
 
     let effect_modified = env.replay_events.iter().any(|e| {
         matches!(
@@ -128,6 +143,7 @@ fn effect_damage_reduced_then_applied() {
         attack_type: AttackType::Frontal,
     })
     .unwrap();
+    choose_counter(&mut env);
 
     let effect_modified = env.replay_events.iter().any(|e| {
         matches!(
@@ -205,6 +221,7 @@ fn effect_damage_multiple_reductions_apply_in_order() {
         attack_type: AttackType::Frontal,
     })
     .unwrap();
+    choose_counter(&mut env);
 
     let effect_event_id = env
         .replay_events

@@ -52,7 +52,7 @@ fn trigger_orders_when_both_players_trigger() {
     );
     force_attack_decision(&mut env, 0);
 
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
 
     let triggers: Vec<u8> = env
         .replay_events
@@ -145,7 +145,7 @@ fn trigger_order_active_resolves_before_opponent_order() {
     env.state.turn.next_trigger_group_id = 43;
     env.state.turn.trigger_order = None;
 
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
 
     assert_eq!(
         env.decision.as_ref().unwrap().kind,
@@ -289,6 +289,7 @@ fn trigger_source_leaves_play_last_known_info() {
     );
     force_attack_decision(&mut env, 0);
     env.state.turn.pending_triggers.clear();
+    env.state.turn.pending_triggers_sorted = true;
     env.state.turn.trigger_order = Some(weiss_core::state::TriggerOrderState {
         group_id: 1,
         player: 0,
@@ -302,6 +303,7 @@ fn trigger_source_leaves_play_last_known_info() {
         effect: TriggerEffect::AutoAbility { ability_index: 0 },
         effect_id: None,
     });
+    env.state.turn.pending_triggers_sorted = false;
     env.state.turn.next_trigger_id = 2;
     env.decision = Some(weiss_core::legal::Decision {
         player: 0,

@@ -18,10 +18,12 @@ fn concede_is_always_legal_and_ends_immediately() {
         sample_rate: 1.0,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, default_curriculum(), 77, replay_config, None, 0);
+    let mut curriculum = default_curriculum();
+    curriculum.allow_concede = true;
+    let mut env = GameEnv::new(db, config, curriculum, 77, replay_config, None, 0);
 
     assert!(env
-        .last_legal_actions
+        .legal_actions()
         .iter()
         .any(|a| matches!(a, ActionDesc::Concede)));
 

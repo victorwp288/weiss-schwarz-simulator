@@ -146,10 +146,10 @@ fn cannot_attack_from_ability_template() {
         stage_slot: 0,
     })
     .unwrap();
-    env.apply_action(ActionDesc::MainPass).unwrap();
-    env.apply_action(ActionDesc::ClimaxPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
     let has_attack = env
-        .last_legal_actions
+        .legal_actions()
         .iter()
         .any(|a| matches!(a, ActionDesc::Attack { slot: 0, .. }));
     assert!(!has_attack);

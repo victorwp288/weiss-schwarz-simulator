@@ -54,6 +54,37 @@ fn counter_priority_autoplays_single_counter() {
         attack_type: AttackType::Frontal,
     })
     .unwrap();
+    assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Choice);
+
+    let presented = env
+        .replay_events
+        .iter()
+        .find_map(|e| {
+            if let ReplayEvent::ChoicePresented {
+                reason: ChoiceReason::PriorityActionSelect,
+                options,
+                total_candidates,
+                ..
+            } = e
+            {
+                Some((options, total_candidates))
+            } else {
+                None
+            }
+        })
+        .expect("priority choice presented");
+    assert_eq!(*presented.1, 2);
+    assert_eq!(
+        presented.0[0].reference.zone,
+        weiss_core::state::ChoiceZone::PriorityCounter
+    );
+    assert_eq!(
+        presented.0[1].reference.zone,
+        weiss_core::state::ChoiceZone::PriorityPass
+    );
+
+    env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
+        .unwrap();
 
     let pushed = env.replay_events.iter().any(|e| matches!(e,
         ReplayEvent::StackPushed { item } if matches!(item.payload.spec.kind, EffectKind::CounterDamageReduce { .. }) && item.source_id == CARD_COUNTER_REDUCE
@@ -61,18 +92,8 @@ fn counter_priority_autoplays_single_counter() {
     let resolved = env.replay_events.iter().any(|e| matches!(e,
         ReplayEvent::StackResolved { item } if matches!(item.payload.spec.kind, EffectKind::CounterDamageReduce { .. }) && item.source_id == CARD_COUNTER_REDUCE
     ));
-    let choice_presented = env.replay_events.iter().any(|e| {
-        matches!(
-            e,
-            ReplayEvent::ChoicePresented {
-                reason: ChoiceReason::PriorityActionSelect,
-                ..
-            }
-        )
-    });
     assert!(pushed);
     assert!(resolved);
-    assert!(!choice_presented);
     env.validate_state().unwrap();
 }
 
@@ -138,12 +159,13 @@ fn counter_priority_choice_orders_by_hand_index() {
                 Some((options, total_candidates))
             } else {
                 None
-    }
+            }
         })
         .expect("priority choice presented");
-    assert_eq!(*total, 2);
+    assert_eq!(*total, 3);
     let ref0 = &options[0].reference;
     let ref1 = &options[1].reference;
+    let ref2 = &options[2].reference;
     let id0 = if ref0.instance_id != 0 {
         ref0.instance_id
     } else {
@@ -158,6 +180,7 @@ fn counter_priority_choice_orders_by_hand_index() {
     let option_id_1 = (id1 as u64) << 32 | (12u64 << 24) | (1u64 << 8);
     assert_eq!(options[0].option_id, option_id_0);
     assert_eq!(options[1].option_id, option_id_1);
+    assert_eq!(ref2.zone, weiss_core::state::ChoiceZone::PriorityPass);
 
     env.apply_action(ActionDesc::ChoiceSelect { index: 1 })
         .unwrap();
@@ -178,7 +201,10 @@ fn main_priority_act_ability_pushes_and_resolves() {
     let mut env = GameEnv::new(
         db,
         config,
-        CurriculumConfig::default(),
+        CurriculumConfig {
+            enable_priority_windows: true,
+            ..Default::default()
+        },
         42,
         replay_config(),
         None,
@@ -221,7 +247,22 @@ fn main_priority_act_ability_pushes_and_resolves() {
         focus_slot: None,
     });
 
-    env.apply_action(ActionDesc::MainPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Choice);
+
+    let presented = env.replay_events.iter().any(|e| {
+        matches!(
+            e,
+            ReplayEvent::ChoicePresented {
+                reason: ChoiceReason::PriorityActionSelect,
+                ..
+            }
+        )
+    });
+    assert!(presented);
+
+    env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
+        .unwrap();
 
     let entered = env.replay_events.iter().any(|e| {
         matches!(
@@ -260,7 +301,10 @@ fn main_priority_double_pass_ends_window() {
     let mut env = GameEnv::new(
         db,
         config,
-        CurriculumConfig::default(),
+        CurriculumConfig {
+            enable_priority_windows: true,
+            ..Default::default()
+        },
         43,
         replay_config(),
         None,
@@ -303,7 +347,7 @@ fn main_priority_double_pass_ends_window() {
         focus_slot: None,
     });
 
-    env.apply_action(ActionDesc::MainPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
 
     let passes: Vec<u8> = env
         .replay_events

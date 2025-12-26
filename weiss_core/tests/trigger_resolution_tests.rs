@@ -12,7 +12,7 @@ use weiss_core::state::{AttackType, ChoiceReason, ChoiceZone, StageStatus};
 fn trigger_gate_choice_skipped_no_candidates() {
     enable_validate();
     let db = make_db();
-    let deck_a = build_deck_list(20, &[CARD_TRIGGER_GATE, CARD_HIGH_POWER]);
+    let deck_a = build_deck_list(20, &[CARD_TRIGGER_GATE, CARD_HIGH_POWER, CARD_CLIMAX]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new(
@@ -77,7 +77,10 @@ fn trigger_gate_choice_skipped_no_candidates() {
 fn trigger_gate_choice_autopicked_single_candidate() {
     enable_validate();
     let db = make_db();
-    let deck_a = build_deck_list(20, &[CARD_TRIGGER_GATE, CARD_HIGH_POWER]);
+    let deck_a = build_deck_list(
+        20,
+        &[CARD_TRIGGER_GATE, CARD_HIGH_POWER, CARD_CLIMAX, CARD_CLIMAX],
+    );
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new(
@@ -99,7 +102,7 @@ fn trigger_gate_choice_autopicked_single_candidate() {
         vec![CARD_TRIGGER_GATE],
         vec![],
         vec![],
-        vec![CARD_BASIC],
+        vec![CARD_CLIMAX],
         vec![],
         vec![],
     );
@@ -124,14 +127,23 @@ fn trigger_gate_choice_autopicked_single_candidate() {
     })
     .unwrap();
 
-    let autopicked = env.replay_events.iter().any(|e| {
-        matches!(e,
-            ReplayEvent::ChoiceAutopicked { option, .. } if option.card_id == CARD_BASIC
-        )
-    });
-    assert!(autopicked);
+    let presented = env.replay_events.iter().any(|e| matches!(e,
+        ReplayEvent::ChoicePresented { reason: ChoiceReason::TargetSelect, total_candidates, .. } if *total_candidates == 2
+    ));
+    let autopicked = env
+        .replay_events
+        .iter()
+        .any(|e| matches!(e, ReplayEvent::ChoiceAutopicked { .. }));
+    assert!(presented);
+    assert!(!autopicked);
+
+    env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
+        .unwrap();
     assert_eq!(env.state.players[0].hand.len(), 1);
-    assert!(env.state.players[0].hand.iter().any(|c| c.id == CARD_BASIC));
+    assert!(env.state.players[0]
+        .hand
+        .iter()
+        .any(|c| c.id == CARD_CLIMAX));
     env.validate_state().unwrap();
 }
 
@@ -139,7 +151,10 @@ fn trigger_gate_choice_autopicked_single_candidate() {
 fn trigger_gate_choice_manual_multiple_candidates() {
     enable_validate();
     let db = make_db();
-    let deck_a = build_deck_list(20, &[CARD_TRIGGER_GATE, CARD_HIGH_POWER]);
+    let deck_a = build_deck_list(
+        20,
+        &[CARD_TRIGGER_GATE, CARD_HIGH_POWER, CARD_CLIMAX, CARD_CLIMAX],
+    );
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new(
@@ -161,7 +176,7 @@ fn trigger_gate_choice_manual_multiple_candidates() {
         vec![CARD_TRIGGER_GATE],
         vec![],
         vec![],
-        vec![CARD_BASIC, CARD_HIGH_POWER],
+        vec![CARD_CLIMAX, CARD_CLIMAX],
         vec![],
         vec![],
     );
@@ -191,7 +206,7 @@ fn trigger_gate_choice_manual_multiple_candidates() {
         .unwrap();
 
     let presented = env.replay_events.iter().any(|e| matches!(e,
-        ReplayEvent::ChoicePresented { reason: ChoiceReason::TargetSelect, total_candidates, .. } if *total_candidates == 2
+        ReplayEvent::ChoicePresented { reason: ChoiceReason::TargetSelect, total_candidates, .. } if *total_candidates == 3
     ));
     let made = env
         .replay_events
@@ -199,7 +214,10 @@ fn trigger_gate_choice_manual_multiple_candidates() {
         .any(|e| matches!(e, ReplayEvent::ChoiceMade { .. }));
     assert!(presented);
     assert!(made);
-    assert!(env.state.players[0].hand.iter().any(|c| c.id == CARD_BASIC));
+    assert!(env.state.players[0]
+        .hand
+        .iter()
+        .any(|c| c.id == CARD_CLIMAX));
     env.validate_state().unwrap();
 }
 
@@ -393,14 +411,19 @@ fn trigger_standby_autopick_single_candidate() {
     })
     .unwrap();
 
-    let autopicked = env
+    let presented = env
         .replay_events
         .iter()
-        .any(|e| matches!(e, ReplayEvent::ChoiceAutopicked { .. }));
+        .any(|e| matches!(e,
+            ReplayEvent::ChoicePresented { reason: ChoiceReason::TriggerStandbySelect, total_candidates, .. } if *total_candidates == 6
+        ));
+    assert!(presented);
+
+    env.apply_action(ActionDesc::ChoiceSelect { index: 4 })
+        .unwrap();
     let moved = env.replay_events.iter().any(|e| matches!(e,
         ReplayEvent::ZoneMove { card, from: weiss_core::events::Zone::WaitingRoom, to: weiss_core::events::Zone::Stage, to_slot: Some(4), .. } if *card == CARD_LEVEL_ONE
     ));
-    assert!(autopicked);
     assert!(moved);
     assert_eq!(
         env.state.players[0].stage[4].card.map(|c| c.id),
@@ -427,9 +450,7 @@ fn trigger_standby_choice_orders_candidates_and_replaces_when_full() {
         0,
     );
 
-    let mut fillers: Vec<u32> = env
-        .config
-        .deck_lists[0]
+    let mut fillers: Vec<u32> = env.config.deck_lists[0]
         .iter()
         .copied()
         .filter(|id| *id != CARD_TRIGGER_STANDBY && *id != CARD_LEVEL_ONE && *id != CARD_HIGH_POWER)
@@ -492,7 +513,7 @@ fn trigger_standby_choice_orders_candidates_and_replaces_when_full() {
             }
         })
         .expect("standby choice presented");
-    assert_eq!(*presented.1, 10);
+    assert_eq!(*presented.1, 11);
     let option0 = &presented.0[0].reference;
     assert_eq!(option0.card_id % 1000, CARD_BASIC);
     assert_eq!(option0.zone, ChoiceZone::WaitingRoom);
@@ -504,13 +525,13 @@ fn trigger_standby_choice_orders_candidates_and_replaces_when_full() {
     assert_eq!(option5.index, Some(1));
     assert_eq!(option5.target_slot, Some(0));
 
+    let last_option = &presented.0[presented.0.len() - 1].reference;
+    assert_eq!(last_option.zone, ChoiceZone::Skip);
+
     env.apply_action(ActionDesc::ChoiceSelect { index: 6 })
         .unwrap();
     assert_eq!(
-        env.state.players[0]
-            .stage[1]
-            .card
-            .map(|c| c.id % 1000),
+        env.state.players[0].stage[1].card.map(|c| c.id % 1000),
         Some(CARD_LEVEL_ONE)
     );
     assert_eq!(env.state.players[0].stage[1].status, StageStatus::Rest);
@@ -596,7 +617,7 @@ fn trigger_treasure_choice_stock_top_card() {
                 Some((options, total_candidates))
             } else {
                 None
-    }
+            }
         })
         .expect("treasure choice presented");
     assert_eq!(options.len(), 2);
@@ -616,7 +637,7 @@ fn trigger_treasure_choice_stock_top_card() {
         .iter()
         .any(|c| c.id == CARD_BASIC));
     let moved_to_hand = env.replay_events.iter().any(|e| matches!(e,
-        ReplayEvent::ZoneMove { card, from: weiss_core::events::Zone::Stock, to: weiss_core::events::Zone::Hand, .. } if *card == CARD_TRIGGER_TREASURE
+        ReplayEvent::ZoneMove { card, from: weiss_core::events::Zone::Resolution, to: weiss_core::events::Zone::Hand, .. } if *card == CARD_TRIGGER_TREASURE
     ));
     let moved_to_stock = env.replay_events.iter().any(|e| matches!(e,
         ReplayEvent::ZoneMove { card, from: weiss_core::events::Zone::Deck, to: weiss_core::events::Zone::Stock, .. } if *card == CARD_BASIC
@@ -682,17 +703,13 @@ fn trigger_treasure_choice_skip() {
         .choice
         .as_ref()
         .and_then(|choice| {
-            choice
-                .options
-                .iter()
-                .enumerate()
-                .find_map(|(idx, opt)| {
-                    if opt.index == Some(1) {
-                        Some(idx as u8)
-                    } else {
-                        None
-                    }
-                })
+            choice.options.iter().enumerate().find_map(|(idx, opt)| {
+                if opt.index == Some(1) {
+                    Some(idx as u8)
+                } else {
+                    None
+                }
+            })
         })
         .expect("treasure skip option");
     env.apply_action(ActionDesc::ChoiceSelect { index: skip_index })

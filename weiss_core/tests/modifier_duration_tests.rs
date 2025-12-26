@@ -42,7 +42,7 @@ fn end_of_turn_expirations_remove_modifiers() {
     env.state.players[0].stage[3].attack_cost = 2;
     force_attack_decision(&mut env, 0);
 
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
 
     let slot = &env.state.players[0].stage[3];
     assert_eq!(slot.power_mod_turn, 0);
@@ -110,7 +110,6 @@ fn modifier_until_end_of_turn_expires() {
         env.last_action_desc.as_ref(),
         env.last_action_player,
         env.config.observation_visibility,
-        env.curriculum.enable_visibility_policies,
         &mut obs,
     );
     assert_eq!(slot_power_from_obs(&obs, 0, 0), 1500);
@@ -121,7 +120,7 @@ fn modifier_until_end_of_turn_expires() {
         attack_type: AttackType::Direct,
     })
     .unwrap();
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
 
     assert!(env.state.modifiers.is_empty());
     let removed = env
@@ -189,7 +188,7 @@ fn modifier_while_on_stage_removed_on_leave() {
         attack_type: AttackType::Frontal,
     })
     .unwrap();
-    env.apply_action(ActionDesc::AttackPass).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
 
     assert!(env.state.modifiers.is_empty());
     let removed = env
