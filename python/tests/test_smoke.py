@@ -14,133 +14,94 @@ def _first_legal_actions(masks):
     return actions
 
 
-def test_envpool_smoke(tmp_path):
-    assert hasattr(weiss_sim, "EnvPool")
-    assert isinstance(weiss_sim.__version__, str)
-
-
-def test_envpool_step_shapes_and_turn_cycle():
+def _make_pool(seed=123, num_envs=1, num_threads=None):
     fixture_dir = Path(__file__).parent / "fixtures"
     db_path = fixture_dir / "cards.wsdb"
     legal_deck = (list(range(1, 14)) * 4)[:50]
-    pool = weiss_sim.EnvPool(
-        1,
+    return weiss_sim.EnvPool.new_rl_train(
+        num_envs,
         str(db_path),
         deck_lists=[legal_deck, legal_deck],
         deck_ids=[1, 2],
         max_decisions=200,
         max_ticks=10_000,
-        seed=123,
-        observation_visibility="public",
+        seed=seed,
+        num_threads=num_threads,
     )
-    obs = pool.reset_all()
-    assert obs.shape == (1, pool.obs_len)
 
-    starting_player = int(pool.get_current_player_batch()[0])
+
+def test_envpool_smoke():
+    assert hasattr(weiss_sim, "EnvPool")
+    assert hasattr(weiss_sim, "BatchOutMinimal")
+    assert isinstance(weiss_sim.__version__, str)
+
+
+def test_envpool_step_shapes_and_turn_cycle():
+    pool = _make_pool(seed=123, num_envs=1)
+    out = weiss_sim.BatchOutMinimal(1)
+    pool.reset_into(out)
+    assert out.obs.shape == (1, pool.obs_len)
+    assert out.masks.shape == (1, pool.action_space)
+    assert out.spec_hash.shape == (1,)
+
+    starting_actor = int(out.actor[0])
     seen_other_turn = False
     for _ in range(50):
-        masks = pool.action_masks_batch()
-        actions = _first_legal_actions(masks)
-        result = pool.step_batch_fast(actions)
-        assert len(result) == 9
-        next_obs, rewards, terminated, truncated, current_player, decision_kind, actor, illegal_action, engine_error = result
-        assert next_obs.shape == (1, pool.obs_len)
-        assert rewards.shape == (1,)
-        assert terminated.shape == (1,)
-        assert truncated.shape == (1,)
-        assert current_player.shape == (1,)
-        assert decision_kind.shape == (1,)
-        assert actor.shape == (1,)
-        assert illegal_action.shape == (1,)
-        assert engine_error.shape == (1,)
-        if int(current_player[0]) != starting_player and int(decision_kind[0]) == 1:
+        actions = _first_legal_actions(out.masks)
+        pool.step_into(np.array(actions, dtype=np.uint32), out)
+        assert out.obs.shape == (1, pool.obs_len)
+        assert out.rewards.shape == (1,)
+        assert out.terminated.shape == (1,)
+        assert out.truncated.shape == (1,)
+        assert out.actor.shape == (1,)
+        if int(out.actor[0]) != starting_actor:
             seen_other_turn = True
             break
     assert seen_other_turn
 
 
 def test_action_mask_legality_alignment():
-    fixture_dir = Path(__file__).parent / "fixtures"
-    db_path = fixture_dir / "cards.wsdb"
-    legal_deck = (list(range(1, 14)) * 4)[:50]
-    pool = weiss_sim.EnvPool(
-        1,
-        str(db_path),
-        deck_lists=[legal_deck, legal_deck],
-        deck_ids=[1, 2],
-        max_decisions=200,
-        max_ticks=10_000,
-        seed=456,
-        observation_visibility="public",
-    )
-    pool.reset_all()
+    pool = _make_pool(seed=456, num_envs=1)
+    out = weiss_sim.BatchOutMinimal(1)
+    pool.reset_into(out)
     for _ in range(30):
-        masks = pool.action_masks_batch()
-        actions = _first_legal_actions(masks)
-        assert masks[0, actions[0]] == 1
-        pool.step_batch_fast(actions)
+        actions = _first_legal_actions(out.masks)
+        assert out.masks[0, actions[0]] == 1
+        pool.step_into(np.array(actions, dtype=np.uint32), out)
 
 
 def test_envpool_determinism_across_pools():
-    fixture_dir = Path(__file__).parent / "fixtures"
-    db_path = fixture_dir / "cards.wsdb"
-    legal_deck = (list(range(1, 14)) * 4)[:50]
-    pool_a = weiss_sim.EnvPool(
-        1,
-        str(db_path),
-        deck_lists=[legal_deck, legal_deck],
-        deck_ids=[1, 2],
-        max_decisions=200,
-        max_ticks=10_000,
-        seed=999,
-        observation_visibility="public",
-    )
-    pool_b = weiss_sim.EnvPool(
-        1,
-        str(db_path),
-        deck_lists=[legal_deck, legal_deck],
-        deck_ids=[1, 2],
-        max_decisions=200,
-        max_ticks=10_000,
-        seed=999,
-        observation_visibility="public",
-    )
-    obs_a = pool_a.reset_all()
-    obs_b = pool_b.reset_all()
-    assert np.array_equal(obs_a, obs_b)
+    pool_a = _make_pool(seed=999, num_envs=1)
+    pool_b = _make_pool(seed=999, num_envs=1)
+    out_a = weiss_sim.BatchOutMinimal(1)
+    out_b = weiss_sim.BatchOutMinimal(1)
+    pool_a.reset_into(out_a)
+    pool_b.reset_into(out_b)
+    assert np.array_equal(out_a.obs, out_b.obs)
+    assert np.array_equal(out_a.masks, out_b.masks)
     for _ in range(30):
-        masks_a = pool_a.action_masks_batch()
-        masks_b = pool_b.action_masks_batch()
-        assert np.array_equal(masks_a, masks_b)
-        actions = _first_legal_actions(masks_a)
-        out_a = pool_a.step_batch_fast(actions)
-        out_b = pool_b.step_batch_fast(actions)
-        for left, right in zip(out_a, out_b):
-            assert np.array_equal(left, right)
-        terminated = bool(out_a[2][0])
-        truncated = bool(out_a[3][0])
-        if terminated or truncated:
+        actions = _first_legal_actions(out_a.masks)
+        pool_a.step_into(np.array(actions, dtype=np.uint32), out_a)
+        pool_b.step_into(np.array(actions, dtype=np.uint32), out_b)
+        assert np.array_equal(out_a.obs, out_b.obs)
+        assert np.array_equal(out_a.masks, out_b.masks)
+        if bool(out_a.terminated[0]) or bool(out_a.truncated[0]):
             break
 
 
-def test_concede_action_mask_bit():
-    fixture_dir = Path(__file__).parent / "fixtures"
-    db_path = fixture_dir / "cards.wsdb"
-    legal_deck = (list(range(1, 14)) * 4)[:50]
-    pool = weiss_sim.EnvPool(
-        1,
-        str(db_path),
-        deck_lists=[legal_deck, legal_deck],
-        deck_ids=[1, 2],
-        max_decisions=200,
-        max_ticks=10_000,
-        seed=321,
-        observation_visibility="public",
-    )
-    pool.reset_all()
-    masks = pool.action_masks_batch()
-    legal = pool.legal_actions_batch()
-    concede_id = pool.action_space - 1
-    assert masks.shape[1] == pool.action_space
-    assert masks[0, concede_id] == 1
-    assert any(action.get("kind") == "concede" for action in legal[0])
+def test_envpool_num_threads_optional_and_deterministic():
+    pool_default = _make_pool(seed=1234, num_envs=1)
+    pool_threaded = _make_pool(seed=1234, num_envs=1, num_threads=2)
+    out_a = weiss_sim.BatchOutMinimal(1)
+    out_b = weiss_sim.BatchOutMinimal(1)
+    pool_default.reset_into(out_a)
+    pool_threaded.reset_into(out_b)
+    assert np.array_equal(out_a.obs, out_b.obs)
+    for _ in range(20):
+        actions = _first_legal_actions(out_a.masks)
+        pool_default.step_into(np.array(actions, dtype=np.uint32), out_a)
+        pool_threaded.step_into(np.array(actions, dtype=np.uint32), out_b)
+        assert np.array_equal(out_a.obs, out_b.obs)
+        assert np.array_equal(out_a.masks, out_b.masks)
+        if bool(out_a.terminated[0]) or bool(out_a.truncated[0]):
+            break

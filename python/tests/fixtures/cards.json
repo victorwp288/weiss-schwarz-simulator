@@ -10,7 +10,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -24,7 +26,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -38,7 +42,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -52,7 +58,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -66,7 +74,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -80,7 +90,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -94,7 +106,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -108,7 +122,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -122,7 +138,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -136,7 +154,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -150,7 +170,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -164,7 +186,9 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
     "raw_text": null
   },
   {
@@ -178,7 +202,96 @@
     "soul": 1,
     "triggers": [],
     "traits": [],
-    "abilities": ["Vanilla"],
+    "abilities": [
+      "Vanilla"
+    ],
+    "raw_text": null
+  },
+  {
+    "id": 14,
+    "card_set": "TEST",
+    "card_type": "Character",
+    "color": "Blue",
+    "level": 0,
+    "cost": 0,
+    "power": 500,
+    "soul": 1,
+    "triggers": [],
+    "traits": [],
+    "abilities": [
+      {
+        "ActivatedTargetedPower": {
+          "amount": 1000,
+          "count": 1,
+          "target": "SelfStage"
+        }
+      }
+    ],
+    "raw_text": null
+  },
+  {
+    "id": 15,
+    "card_set": "TEST",
+    "card_type": "Character",
+    "color": "Green",
+    "level": 0,
+    "cost": 0,
+    "power": 500,
+    "soul": 1,
+    "triggers": [],
+    "traits": [
+      100
+    ],
+    "abilities": [],
+    "ability_defs": [
+      {
+        "kind": "Auto",
+        "timing": "OnPlay",
+        "effects": [
+          "MoveToHand"
+        ],
+        "targets": [
+          "SelfDeckTop"
+        ],
+        "target_card_type": "Character",
+        "target_trait": 100,
+        "target_level_max": 1,
+        "target_cost_max": 1,
+        "target_limit": 2
+      }
+    ],
+    "raw_text": null
+  },
+  {
+    "id": 16,
+    "card_set": "TEST",
+    "card_type": "Character",
+    "color": "Red",
+    "level": 0,
+    "cost": 0,
+    "power": 500,
+    "soul": 1,
+    "triggers": [],
+    "traits": [
+      200
+    ],
+    "abilities": [],
+    "ability_defs": [
+      {
+        "kind": "Activated",
+        "timing": "BeginMainPhase",
+        "effects": [
+          "RestTarget"
+        ],
+        "targets": [
+          "OppStage"
+        ],
+        "target_card_type": "Character",
+        "target_trait": 200,
+        "target_level_max": 3,
+        "target_cost_max": 2
+      }
+    ],
     "raw_text": null
   }
 ]
