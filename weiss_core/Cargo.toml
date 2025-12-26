@@ -38,3 +38,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [[bench]]
 name = "core_benches"
 harness = false
+
+[[bench]]
+name = "alloc_benches"
+harness = false

@@ -1,12 +1,17 @@
 use super::GameEnv;
-use anyhow::{anyhow, Result};
 use crate::db::*;
 use crate::encode::*;
 use crate::events::*;
 use crate::state::*;
+use anyhow::{anyhow, Result};
 
 impl GameEnv {
-    pub(super) fn play_character(&mut self, player: u8, hand_index: u8, stage_slot: u8) -> Result<()> {
+    pub(super) fn play_character(
+        &mut self,
+        player: u8,
+        hand_index: u8,
+        stage_slot: u8,
+    ) -> Result<()> {
         let p = player as usize;
         let hi = hand_index as usize;
         let ss = stage_slot as usize;
@@ -44,7 +49,12 @@ impl GameEnv {
         }
         let card_inst = self.state.players[p].hand.remove(hi);
         let card_id = card_inst.id;
-        self.reveal_card(player, &card_inst, RevealReason::Play, RevealAudience::Public);
+        self.reveal_card(
+            player,
+            &card_inst,
+            RevealReason::Play,
+            RevealAudience::Public,
+        );
         self.place_card_on_stage(
             player,
             card_inst,
@@ -59,7 +69,14 @@ impl GameEnv {
             slot: stage_slot,
         });
         self.apply_continuous_modifiers_for_slot(player, stage_slot, card_id);
-        self.resolve_on_play_abilities(player, card_id);
+        let source_ref = TargetRef {
+            player,
+            zone: TargetZone::Stage,
+            index: stage_slot,
+            card_id,
+            instance_id: card_inst.instance_id,
+        };
+        self.resolve_on_play_abilities(player, card_id, Some(source_ref));
         Ok(())
     }
 
@@ -93,7 +110,12 @@ impl GameEnv {
         let cost = card.cost as usize;
         self.pay_cost(player, cost)?;
         let card_inst = self.state.players[p].hand.remove(hi);
-        self.reveal_card(player, &card_inst, RevealReason::Play, RevealAudience::Public);
+        self.reveal_card(
+            player,
+            &card_inst,
+            RevealReason::Play,
+            RevealAudience::Public,
+        );
         self.move_card_between_zones(
             player,
             card_inst,
@@ -106,7 +128,19 @@ impl GameEnv {
             player,
             card: card_inst.id,
         });
-        self.resolve_on_play_abilities(player, card_id);
+        let resolution_index = self.state.players[p]
+            .resolution
+            .iter()
+            .position(|card| card.instance_id == card_inst.instance_id)
+            .and_then(|idx| if idx <= u8::MAX as usize { Some(idx as u8) } else { None });
+        let source_ref = resolution_index.map(|index| TargetRef {
+            player,
+            zone: TargetZone::Resolution,
+            index,
+            card_id,
+            instance_id: card_inst.instance_id,
+        });
+        self.resolve_on_play_abilities(player, card_id, source_ref);
         self.state
             .turn
             .pending_resolution_cleanup
@@ -146,7 +180,12 @@ impl GameEnv {
         let cost = card.cost as usize;
         self.pay_cost(player, cost)?;
         let card_inst = self.state.players[p].hand.remove(hi);
-        self.reveal_card(player, &card_inst, RevealReason::Play, RevealAudience::Public);
+        self.reveal_card(
+            player,
+            &card_inst,
+            RevealReason::Play,
+            RevealAudience::Public,
+        );
         let card_id = card_inst.id;
         self.move_card_between_zones(
             player,
@@ -163,7 +202,12 @@ impl GameEnv {
         Ok(())
     }
 
-    pub(super) fn declare_attack(&mut self, player: u8, slot: u8, attack_type: AttackType) -> Result<()> {
+    pub(super) fn declare_attack(
+        &mut self,
+        player: u8,
+        slot: u8,
+        attack_type: AttackType,
+    ) -> Result<()> {
         if let Err(reason) = crate::legal::can_declare_attack(
             &self.state,
             player,
@@ -223,6 +267,7 @@ impl GameEnv {
             defender_slot: if defender_slot { Some(slot) } else { None },
             attack_type,
             trigger_card: None,
+            trigger_instance_id: None,
             damage,
             counter_allowed: attack_type == AttackType::Frontal,
             counter_played: false,
@@ -250,8 +295,7 @@ impl GameEnv {
         if idx >= 7 {
             return Err(anyhow!("Level up index out of range"));
         }
-        let bottom: Vec<CardInstance> =
-            self.state.players[p].clock.drain(0..7).collect();
+        let bottom: Vec<CardInstance> = self.state.players[p].clock.drain(0..7).collect();
         if bottom.len() != 7 {
             return Err(anyhow!("Clock underflow on level up"));
         }
@@ -298,8 +342,8 @@ impl GameEnv {
             .state
             .turn
             .encore_queue
-        .iter()
-        .position(|r| r.player == player && r.slot == slot)
+            .iter()
+            .position(|r| r.player == player && r.slot == slot)
         else {
             return Err(anyhow!("Encore slot not pending"));
         };
@@ -309,7 +353,14 @@ impl GameEnv {
             }
             for _ in 0..3 {
                 if let Some(card) = self.state.players[p].stock.pop() {
-                    self.move_card_between_zones(player, card, Zone::Stock, Zone::WaitingRoom, None, None);
+                    self.move_card_between_zones(
+                        player,
+                        card,
+                        Zone::Stock,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
                 }
             }
             if let Some(slot_state) = self.state.players[p].stage.get_mut(s) {
@@ -355,6 +406,8 @@ impl GameEnv {
             Zone::Stage => panic!("use place_card_on_stage for stage moves"),
         }
         self.on_card_enter_zone(&card, to);
+        self.mark_rule_actions_dirty();
+        self.mark_continuous_modifiers_dirty();
         self.log_event(Event::ZoneMove {
             player,
             card: card.id,
@@ -414,6 +467,9 @@ impl GameEnv {
         slot_state.card = Some(card);
         slot_state.status = status;
         self.state.players[p].stage[slot as usize] = slot_state;
+        self.mark_slot_power_dirty(player, slot);
+        self.mark_rule_actions_dirty();
+        self.mark_continuous_modifiers_dirty();
         self.log_event(Event::ZoneMove {
             player,
             card: card.id,
@@ -439,6 +495,29 @@ impl GameEnv {
             );
         }
         self.state.players[p].stage[s] = StageSlot::empty();
+        self.mark_slot_power_dirty(player, slot);
+    }
+
+    pub(super) fn swap_stage_slots(&mut self, player: u8, from_slot: u8, to_slot: u8) {
+        if from_slot == to_slot {
+            return;
+        }
+        let p = player as usize;
+        let fs = from_slot as usize;
+        let ts = to_slot as usize;
+        if fs >= self.state.players[p].stage.len() || ts >= self.state.players[p].stage.len() {
+            return;
+        }
+        if self.state.players[p].stage[fs].card.is_none() {
+            return;
+        }
+        self.state.players[p].stage.swap(fs, ts);
+        self.remove_modifiers_for_slot(player, from_slot);
+        self.remove_modifiers_for_slot(player, to_slot);
+        self.mark_slot_power_dirty(player, from_slot);
+        self.mark_slot_power_dirty(player, to_slot);
+        self.mark_rule_actions_dirty();
+        self.mark_continuous_modifiers_dirty();
     }
 
     pub(super) fn move_waiting_room_to_hand(&mut self, player: u8, option: ChoiceOptionRef) {
@@ -457,14 +536,7 @@ impl GameEnv {
         if card.instance_id != option.instance_id {
             return;
         }
-        self.move_card_between_zones(
-            player,
-            card,
-            Zone::WaitingRoom,
-            Zone::Hand,
-            None,
-            None,
-        );
+        self.move_card_between_zones(player, card, Zone::WaitingRoom, Zone::Hand, None, None);
     }
 
     pub(super) fn move_stage_to_hand(&mut self, player: u8, option: ChoiceOptionRef) {
@@ -488,10 +560,15 @@ impl GameEnv {
             return;
         }
         self.state.players[p].stage[slot] = StageSlot::empty();
+        self.mark_slot_power_dirty(player, idx);
         self.move_card_between_zones(player, card, Zone::Stage, Zone::Hand, Some(idx), None);
     }
 
-    pub(super) fn move_waiting_room_to_stage_standby(&mut self, player: u8, option: ChoiceOptionRef) {
+    pub(super) fn move_waiting_room_to_stage_standby(
+        &mut self,
+        player: u8,
+        option: ChoiceOptionRef,
+    ) {
         if option.zone != ChoiceZone::WaitingRoom {
             return;
         }
@@ -518,6 +595,7 @@ impl GameEnv {
                 None,
             );
         }
+        self.mark_slot_power_dirty(player, target_slot);
         let index = idx as usize;
         if index >= self.state.players[p].waiting_room.len() {
             return;
@@ -538,9 +616,46 @@ impl GameEnv {
         self.apply_continuous_modifiers_for_slot(player, target_slot, card_id);
     }
 
-    pub(super) fn move_trigger_card_from_stock_to_hand(&mut self, player: u8, card_id: CardId) -> bool {
+    pub(super) fn move_trigger_card_from_stock_to_hand(
+        &mut self,
+        player: u8,
+        card_id: CardId,
+    ) -> bool {
         let p = player as usize;
-        // Deterministic removal: take the most recent matching card from stock.
+        if let Some(instance_id) = self
+            .state
+            .turn
+            .attack
+            .as_ref()
+            .and_then(|ctx| ctx.trigger_instance_id)
+        {
+            if let Some(pos) = self.state.players[p]
+                .resolution
+                .iter()
+                .position(|c| c.instance_id == instance_id)
+            {
+                let card = self.state.players[p].resolution.remove(pos);
+                self.move_card_between_zones(
+                    player,
+                    card,
+                    Zone::Resolution,
+                    Zone::Hand,
+                    None,
+                    None,
+                );
+                return true;
+            }
+            if let Some(pos) = self.state.players[p]
+                .stock
+                .iter()
+                .position(|c| c.instance_id == instance_id)
+            {
+                let card = self.state.players[p].stock.remove(pos);
+                self.move_card_between_zones(player, card, Zone::Stock, Zone::Hand, None, None);
+                return true;
+            }
+        }
+        // Deterministic fallback: take the most recent matching card from stock.
         if let Some(pos) = self.state.players[p]
             .stock
             .iter()
@@ -558,7 +673,76 @@ impl GameEnv {
         !self.state.players[p].deck.is_empty() || !self.state.players[p].waiting_room.is_empty()
     }
 
-    pub(super) fn compute_slot_power(&self, player: usize, slot: usize) -> i32 {
+    pub(super) fn compute_slot_power(&mut self, player: usize, slot: usize) -> i32 {
+        self.slot_power_cached(player, slot)
+    }
+
+    pub(super) fn refresh_slot_power_cache(&mut self) {
+        for player in 0..2usize {
+            for slot in 0..crate::encode::MAX_STAGE {
+                if self.slot_power_dirty[player][slot] {
+                    self.recompute_slot_power_cache(player, slot);
+                }
+            }
+        }
+    }
+
+    pub(super) fn mark_slot_power_dirty(&mut self, player: u8, slot: u8) {
+        let p = player as usize;
+        let s = slot as usize;
+        if p < 2 && s < crate::encode::MAX_STAGE {
+            self.slot_power_dirty[p][s] = true;
+        }
+    }
+
+    pub(super) fn mark_player_slot_power_dirty(&mut self, player: u8) {
+        let p = player as usize;
+        if p >= 2 {
+            return;
+        }
+        for slot in 0..crate::encode::MAX_STAGE {
+            self.slot_power_dirty[p][slot] = true;
+        }
+    }
+
+    pub(super) fn mark_all_slot_power_dirty(&mut self) {
+        for player in 0..2usize {
+            for slot in 0..crate::encode::MAX_STAGE {
+                self.slot_power_dirty[player][slot] = true;
+            }
+        }
+    }
+
+    fn slot_power_cached(&mut self, player: usize, slot: usize) -> i32 {
+        if player >= 2 || slot >= crate::encode::MAX_STAGE {
+            return 0;
+        }
+        let slot_state = &self.state.players[player].stage[slot];
+        let current_card = slot_state.card.map(|c| c.id).unwrap_or(0);
+        if current_card != self.slot_power_cache_card[player][slot]
+            || slot_state.power_mod_turn != self.slot_power_cache_mod_turn[player][slot]
+            || slot_state.power_mod_battle != self.slot_power_cache_mod_battle[player][slot]
+        {
+            self.slot_power_dirty[player][slot] = true;
+        }
+        if self.slot_power_dirty[player][slot] {
+            return self.recompute_slot_power_cache(player, slot);
+        }
+        self.slot_power_cache[player][slot]
+    }
+
+    fn recompute_slot_power_cache(&mut self, player: usize, slot: usize) -> i32 {
+        let power = self.compute_slot_power_uncached(player, slot);
+        let slot_state = &self.state.players[player].stage[slot];
+        self.slot_power_cache_card[player][slot] = slot_state.card.map(|c| c.id).unwrap_or(0);
+        self.slot_power_cache_mod_turn[player][slot] = slot_state.power_mod_turn;
+        self.slot_power_cache_mod_battle[player][slot] = slot_state.power_mod_battle;
+        self.slot_power_cache[player][slot] = power;
+        self.slot_power_dirty[player][slot] = false;
+        power
+    }
+
+    fn compute_slot_power_uncached(&self, player: usize, slot: usize) -> i32 {
         let slot_state = &self.state.players[player].stage[slot];
         let Some(card_inst) = slot_state.card else {
             return 0;
@@ -620,8 +804,7 @@ impl GameEnv {
         if self.state.players[p].stock.len() < cost {
             return Err(anyhow!("Insufficient stock"));
         }
-        self.state.turn.cost_payment_depth =
-            self.state.turn.cost_payment_depth.saturating_add(1);
+        self.state.turn.cost_payment_depth = self.state.turn.cost_payment_depth.saturating_add(1);
         for _ in 0..cost {
             if let Some(card) = self.state.players[p].stock.pop() {
                 self.move_card_between_zones(
@@ -634,8 +817,7 @@ impl GameEnv {
                 );
             }
         }
-        self.state.turn.cost_payment_depth =
-            self.state.turn.cost_payment_depth.saturating_sub(1);
+        self.state.turn.cost_payment_depth = self.state.turn.cost_payment_depth.saturating_sub(1);
         Ok(())
     }
 
@@ -749,6 +931,18 @@ impl GameEnv {
     pub(super) fn refresh_deck(&mut self, player: u8) -> bool {
         let p = player as usize;
         if self.state.players[p].waiting_room.is_empty() {
+            let in_damage = self.state.turn.damage_resolution_target == Some(player);
+            if in_damage {
+                let has_climax = self.state.players[p].resolution.iter().any(|card| {
+                    self.db
+                        .get(card.id)
+                        .map(|c| c.card_type == CardType::Climax)
+                        .unwrap_or(false)
+                });
+                if has_climax {
+                    return false;
+                }
+            }
             self.register_loss(player);
             return false;
         }
@@ -759,16 +953,14 @@ impl GameEnv {
         self.log_event(Event::Refresh { player });
         if self.curriculum.enable_refresh_penalty {
             if let Some(card) = self.state.players[p].deck.pop() {
-                self.reveal_card(player, &card, RevealReason::RefreshPenalty, RevealAudience::Public);
-                let card_id = card.id;
-                self.move_card_between_zones(
+                self.reveal_card(
                     player,
-                    card,
-                    Zone::Deck,
-                    Zone::Clock,
-                    None,
-                    None,
+                    &card,
+                    RevealReason::RefreshPenalty,
+                    RevealAudience::Public,
                 );
+                let card_id = card.id;
+                self.move_card_between_zones(player, card, Zone::Deck, Zone::Clock, None, None);
                 self.log_event(Event::RefreshPenalty {
                     player,
                     card: card_id,
@@ -777,5 +969,101 @@ impl GameEnv {
             }
         }
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{
+        CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
+    };
+    use crate::db::{CardColor, CardDb, CardStatic, CardType};
+    use crate::env::GameEnv;
+    use crate::events::Zone;
+    use crate::replay::ReplayConfig;
+    use crate::state::CardInstance;
+    use crate::state::StageStatus;
+    use std::sync::Arc;
+
+    fn make_db() -> Arc<CardDb> {
+        let mut cards = Vec::new();
+        for id in 1..=13u32 {
+            cards.push(CardStatic {
+                id,
+                card_set: None,
+                card_type: CardType::Character,
+                color: CardColor::Red,
+                level: 0,
+                cost: 0,
+                power: 500,
+                soul: 1,
+                triggers: vec![],
+                traits: vec![],
+                abilities: vec![],
+                ability_defs: vec![],
+                counter_timing: false,
+                raw_text: None,
+            });
+        }
+        Arc::new(CardDb::new(cards).expect("db build"))
+    }
+
+    fn make_deck() -> Vec<u32> {
+        let mut deck = Vec::new();
+        for id in 1..=12u32 {
+            deck.extend(std::iter::repeat_n(id, 4));
+        }
+        deck.extend(std::iter::repeat_n(13u32, 2));
+        assert_eq!(deck.len(), 50);
+        deck
+    }
+
+    fn make_env() -> GameEnv {
+        let db = make_db();
+        let deck = make_deck();
+        let config = EnvConfig {
+            deck_lists: [deck.clone(), deck],
+            deck_ids: [12, 13],
+            max_decisions: 10,
+            max_ticks: 100,
+            reward: RewardConfig::default(),
+            error_policy: ErrorPolicy::Strict,
+            observation_visibility: ObservationVisibility::Public,
+            end_condition_policy: Default::default(),
+        };
+        GameEnv::new(
+            db,
+            config,
+            CurriculumConfig::default(),
+            11,
+            ReplayConfig::default(),
+            None,
+            0,
+        )
+    }
+
+    #[test]
+    fn cached_slot_power_matches_uncached() {
+        let mut env = make_env();
+        let card = CardInstance::new(1, 0, 1);
+        env.place_card_on_stage(0, card, 0, StageStatus::Stand, Zone::Hand, None);
+        env.add_modifier(
+            1,
+            0,
+            0,
+            ModifierKind::Power,
+            1000,
+            ModifierDuration::UntilEndOfTurn,
+        );
+
+        let cached = env.compute_slot_power(0, 0);
+        let uncached = env.compute_slot_power_uncached(0, 0);
+        assert_eq!(cached, uncached);
+
+        env.remove_modifiers_for_slot(0, 0);
+        let cached_after = env.compute_slot_power(0, 0);
+        let uncached_after = env.compute_slot_power_uncached(0, 0);
+        assert_eq!(cached_after, uncached_after);
     }
 }

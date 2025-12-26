@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::db::{CardId, TriggerIcon};
+use crate::events::RevealAudience;
 use crate::state::{
     DamageType, ModifierDuration, ModifierKind, TargetSide, TargetSpec, TargetZone,
 };
@@ -46,6 +47,7 @@ pub struct EffectSpec {
     pub id: EffectId,
     pub kind: EffectKind,
     pub target: Option<TargetSpec>,
+    pub optional: bool,
 }
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
@@ -64,6 +66,37 @@ pub enum EffectKind {
         duration: ModifierDuration,
     },
     MoveToHand,
+    MoveToWaitingRoom,
+    MoveToStock,
+    MoveToClock,
+    Heal,
+    RestTarget,
+    StandTarget,
+    StockCharge {
+        count: u8,
+    },
+    MillTop {
+        target: TargetSide,
+        count: u8,
+    },
+    MoveStageSlot {
+        slot: u8,
+    },
+    SwapStageSlots,
+    RandomDiscardFromHand {
+        target: TargetSide,
+        count: u8,
+    },
+    RandomMill {
+        target: TargetSide,
+        count: u8,
+    },
+    RevealZoneTop {
+        target: TargetSide,
+        zone: TargetZone,
+        count: u8,
+        audience: RevealAudience,
+    },
     MoveTriggerCardToHand,
     ChangeController {
         new_controller: TargetSide,
@@ -80,6 +113,10 @@ pub enum EffectKind {
     TriggerIcon {
         icon: TriggerIcon,
     },
+    RevealDeckTop {
+        count: u8,
+        audience: RevealAudience,
+    },
     CounterBackup {
         power: i32,
     },
@@ -95,6 +132,14 @@ impl EffectKind {
             self,
             EffectKind::AddModifier { .. }
                 | EffectKind::MoveToHand
+                | EffectKind::MoveToWaitingRoom
+                | EffectKind::MoveToStock
+                | EffectKind::MoveToClock
+                | EffectKind::Heal
+                | EffectKind::RestTarget
+                | EffectKind::StandTarget
+                | EffectKind::MoveStageSlot { .. }
+                | EffectKind::SwapStageSlots
                 | EffectKind::ChangeController { .. }
                 | EffectKind::Standby { .. }
         )
@@ -102,10 +147,55 @@ impl EffectKind {
 
     pub fn requires_target_zone(&self, zone: TargetZone) -> bool {
         match self {
-            EffectKind::MoveToHand => matches!(zone, TargetZone::Stage | TargetZone::WaitingRoom),
+            EffectKind::MoveToHand => {
+                matches!(zone, TargetZone::Stage | TargetZone::WaitingRoom | TargetZone::DeckTop)
+            }
+            EffectKind::MoveToWaitingRoom => matches!(
+                zone,
+                TargetZone::Stage
+                    | TargetZone::Hand
+                    | TargetZone::DeckTop
+                    | TargetZone::Clock
+                    | TargetZone::Level
+                    | TargetZone::Stock
+                    | TargetZone::Memory
+                    | TargetZone::Climax
+                    | TargetZone::Resolution
+                    | TargetZone::WaitingRoom
+            ),
+            EffectKind::MoveToStock => matches!(
+                zone,
+                TargetZone::Stage
+                    | TargetZone::Hand
+                    | TargetZone::DeckTop
+                    | TargetZone::Clock
+                    | TargetZone::Level
+                    | TargetZone::WaitingRoom
+                    | TargetZone::Memory
+                    | TargetZone::Climax
+                    | TargetZone::Resolution
+                    | TargetZone::Stock
+            ),
+            EffectKind::MoveToClock => matches!(
+                zone,
+                TargetZone::Stage
+                    | TargetZone::Hand
+                    | TargetZone::DeckTop
+                    | TargetZone::WaitingRoom
+                    | TargetZone::Resolution
+                    | TargetZone::Clock
+            ),
+            EffectKind::Heal => matches!(zone, TargetZone::Clock),
             EffectKind::ChangeController { .. } => matches!(zone, TargetZone::Stage),
             EffectKind::AddModifier { .. } => matches!(zone, TargetZone::Stage),
+            EffectKind::RestTarget
+            | EffectKind::StandTarget
+            | EffectKind::MoveStageSlot { .. }
+            | EffectKind::SwapStageSlots => matches!(zone, TargetZone::Stage),
             EffectKind::Standby { .. } => matches!(zone, TargetZone::WaitingRoom),
+            EffectKind::RandomDiscardFromHand { .. } => matches!(zone, TargetZone::Hand),
+            EffectKind::RandomMill { .. } => matches!(zone, TargetZone::DeckTop),
+            EffectKind::RevealZoneTop { zone: reveal_zone, .. } => zone == *reveal_zone,
             _ => true,
         }
     }

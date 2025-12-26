@@ -1,5 +1,4 @@
 use super::{GameEnv, TriggerCompileContext, VisibilityContext, MAX_CHOICE_OPTIONS};
-use anyhow::{anyhow, Result};
 use crate::config::*;
 use crate::db::*;
 use crate::effects::*;
@@ -7,6 +6,7 @@ use crate::encode::*;
 use crate::events::*;
 use crate::legal::*;
 use crate::state::*;
+use anyhow::{anyhow, Result};
 
 impl GameEnv {
     pub(super) fn allocate_trigger_group(&mut self) -> u32 {
@@ -28,7 +28,12 @@ impl GameEnv {
         group_id
     }
 
-    pub(super) fn choice_option_id(&self, option: &ChoiceOptionRef, choice_id: u32, global_index: usize) -> u64 {
+    pub(super) fn choice_option_id(
+        &self,
+        option: &ChoiceOptionRef,
+        choice_id: u32,
+        global_index: usize,
+    ) -> u64 {
         let zone_id = match option.zone {
             ChoiceZone::WaitingRoom => 1u64,
             ChoiceZone::Stage => 2u64,
@@ -43,6 +48,8 @@ impl GameEnv {
             ChoiceZone::Stack => 11u64,
             ChoiceZone::PriorityCounter => 12u64,
             ChoiceZone::PriorityAct => 13u64,
+            ChoiceZone::PriorityPass => 14u64,
+            ChoiceZone::Skip => 15u64,
         };
         let index = option.index.unwrap_or(0) as u64;
         let target = option.target_slot.unwrap_or(0) as u64;
@@ -51,9 +58,9 @@ impl GameEnv {
             ChoiceZone::Hand
                 | ChoiceZone::DeckTop
                 | ChoiceZone::Stock
-                | ChoiceZone::Memory
                 | ChoiceZone::PriorityCounter
-        );
+        ) || (option.zone == ChoiceZone::Memory
+            && !self.curriculum.memory_is_public);
         if option.instance_id != 0 {
             (option.instance_id as u64) << 32 | (zone_id << 24) | (index << 8) | target
         } else if option.card_id != 0 && !hidden_zone {
@@ -99,6 +106,7 @@ impl GameEnv {
         if !ctx.is_public() {
             return *option;
         }
+        let sanitize_instance = ctx.viewer.is_none();
         let option_player = if reason == ChoiceReason::TargetSelect {
             self.state
                 .turn
@@ -117,6 +125,11 @@ impl GameEnv {
             None => true,
         };
         if !hide_for_viewer {
+            if sanitize_instance && option.instance_id != 0 {
+                let mut sanitized = *option;
+                sanitized.instance_id = 0;
+                return sanitized;
+            }
             return *option;
         }
         let hide_zone = matches!(
@@ -124,10 +137,15 @@ impl GameEnv {
             ChoiceZone::Hand
                 | ChoiceZone::DeckTop
                 | ChoiceZone::Stock
-                | ChoiceZone::Memory
                 | ChoiceZone::PriorityCounter
-        );
+        ) || (option.zone == ChoiceZone::Memory
+            && !self.curriculum.memory_is_public);
         if !hide_zone {
+            if sanitize_instance && option.instance_id != 0 {
+                let mut sanitized = *option;
+                sanitized.instance_id = 0;
+                return sanitized;
+            }
             return *option;
         }
         let revealed = self.instance_revealed_to_viewer(ctx, option.instance_id);
@@ -200,11 +218,7 @@ impl GameEnv {
             let mut options = Vec::with_capacity(page_slice.len());
             for (idx, opt) in page_slice.iter().enumerate() {
                 options.push(ChoiceOptionSnapshot {
-                    option_id: self.choice_option_id(
-                        opt,
-                        choice_id,
-                        page_start as usize + idx,
-                    ),
+                    option_id: self.choice_option_id(opt, choice_id, page_start as usize + idx),
                     reference: *opt,
                 });
             }
@@ -238,38 +252,40 @@ impl GameEnv {
     ) {
         match reason {
             ChoiceReason::TriggerStandbySelect => {
-                let Some(target_slot) = option.target_slot else {
-                    return;
-                };
-                let ctx = TriggerCompileContext {
-                    source_card: pending_trigger
-                        .as_ref()
-                        .map(|t| t.source_card)
-                        .unwrap_or(option.card_id),
-                    standby_slot: Some(target_slot),
-                    treasure_take_stock: None,
-                };
-                let effects = self.compile_trigger_icon_effects(TriggerIcon::Standby, ctx);
-                if effects.is_empty() {
-                    return;
-                }
-                let Some(index) = option.index else {
-                    return;
-                };
-                let targets = vec![TargetRef {
-                    player,
-                    zone: TargetZone::WaitingRoom,
-                    index,
-                    card_id: option.card_id,
-                    instance_id: option.instance_id,
-                }];
-                for effect in effects {
-                    self.enqueue_effect_with_targets(
+                if option.zone != ChoiceZone::Skip {
+                    let Some(target_slot) = option.target_slot else {
+                        return;
+                    };
+                    let ctx = TriggerCompileContext {
+                        source_card: pending_trigger
+                            .as_ref()
+                            .map(|t| t.source_card)
+                            .unwrap_or(option.card_id),
+                        standby_slot: Some(target_slot),
+                        treasure_take_stock: None,
+                    };
+                    let effects = self.compile_trigger_icon_effects(TriggerIcon::Standby, ctx);
+                    if effects.is_empty() {
+                        return;
+                    }
+                    let Some(index) = option.index else {
+                        return;
+                    };
+                    let targets = vec![TargetRef {
                         player,
-                        ctx.source_card,
-                        effect,
-                        targets.clone(),
-                    );
+                        zone: TargetZone::WaitingRoom,
+                        index,
+                        card_id: option.card_id,
+                        instance_id: option.instance_id,
+                    }];
+                    for effect in effects {
+                        self.enqueue_effect_with_targets(
+                            player,
+                            ctx.source_card,
+                            effect,
+                            targets.clone(),
+                        );
+                    }
                 }
             }
             ChoiceReason::TriggerTreasureSelect => {
@@ -289,6 +305,9 @@ impl GameEnv {
             }
             ChoiceReason::PriorityActionSelect => {
                 self.apply_priority_action_choice(player, option);
+            }
+            ChoiceReason::CostPayment => {
+                self.apply_cost_payment_choice(player, option);
             }
             ChoiceReason::TargetSelect => {
                 self.apply_target_choice(player, option);
@@ -340,14 +359,46 @@ impl GameEnv {
         source_id: CardId,
         spec: TargetSpec,
         effect: PendingTargetEffect,
+        allow_skip: bool,
     ) {
+        Self::enumerate_target_candidates_into(
+            &self.state,
+            &self.db,
+            &self.curriculum,
+            controller,
+            &spec,
+            &[],
+            &mut self.scratch.targets,
+        );
+        let candidates = self.scratch.targets.to_vec();
+        if spec.reveal_to_controller {
+            for target in candidates.iter().copied() {
+                if target.zone != TargetZone::DeckTop {
+                    continue;
+                }
+                let card = CardInstance {
+                    id: target.card_id,
+                    instance_id: target.instance_id,
+                    owner: target.player,
+                    controller: target.player,
+                };
+                self.reveal_card(
+                    controller,
+                    &card,
+                    RevealReason::AbilityEffect,
+                    RevealAudience::ControllerOnly,
+                );
+            }
+        }
         self.state.turn.target_selection = Some(TargetSelectionState {
             controller,
             source_id,
             remaining: spec.count,
             spec,
             selected: Vec::new(),
+            candidates,
             effect,
+            allow_skip,
         });
         self.present_target_choice();
     }
@@ -359,10 +410,39 @@ impl GameEnv {
         id
     }
 
-    pub(super) fn enqueue_effect_spec(&mut self, controller: u8, source_id: CardId, spec: EffectSpec) {
+    pub(super) fn enqueue_effect_spec(
+        &mut self,
+        controller: u8,
+        source_id: CardId,
+        spec: EffectSpec,
+    ) {
+        self.enqueue_effect_spec_with_source(controller, source_id, spec, None);
+    }
+
+    pub(super) fn enqueue_effect_spec_with_source(
+        &mut self,
+        controller: u8,
+        source_id: CardId,
+        spec: EffectSpec,
+        source: Option<TargetRef>,
+    ) {
         let instance_id = self.allocate_effect_instance_id();
         if spec.kind.expects_target() {
             if let Some(target_spec) = spec.target.clone() {
+                if target_spec.source_only {
+                    if let Some(source_ref) = source {
+                        if self.source_ref_matches_spec(controller, &target_spec, &source_ref) {
+                            self.enqueue_effect_with_targets(
+                                controller,
+                                source_id,
+                                spec,
+                                vec![source_ref],
+                            );
+                        }
+                    }
+                    return;
+                }
+                let allow_skip = spec.optional;
                 self.start_target_selection(
                     controller,
                     source_id,
@@ -374,6 +454,7 @@ impl GameEnv {
                             targets: Vec::new(),
                         },
                     },
+                    allow_skip,
                 );
                 return;
             }
@@ -418,6 +499,10 @@ impl GameEnv {
         selected: &[TargetRef],
         out: &mut Vec<TargetRef>,
     ) {
+        if spec.source_only {
+            out.clear();
+            return;
+        }
         let target_player = match spec.side {
             TargetSide::SelfSide => controller,
             TargetSide::Opponent => 1 - controller,
@@ -432,8 +517,11 @@ impl GameEnv {
                 };
                 // Deterministic target ordering: stage slot ascending (front row is slots 0..2, then back row).
                 for slot in 0..max_slot {
-                    if spec.slot_filter == TargetSlotFilter::FrontRow && slot >= 3 {
-                        continue;
+                    match spec.slot_filter {
+                        TargetSlotFilter::FrontRow if slot >= 3 => continue,
+                        TargetSlotFilter::BackRow if slot < 3 => continue,
+                        TargetSlotFilter::SpecificSlot(target_slot) if slot != target_slot as usize => continue,
+                        _ => {}
                     }
                     let slot_state = &state.players[target_player as usize].stage[slot];
                     let Some(card_inst) = slot_state.card else {
@@ -444,6 +532,21 @@ impl GameEnv {
                     };
                     if let Some(card_type) = spec.card_type {
                         if card.card_type != card_type {
+                            continue;
+                        }
+                    }
+                    if let Some(trait_id) = spec.card_trait {
+                        if !card.traits.contains(&trait_id) {
+                            continue;
+                        }
+                    }
+                    if let Some(level_max) = spec.level_max {
+                        if card.level > level_max {
+                            continue;
+                        }
+                    }
+                    if let Some(cost_max) = spec.cost_max {
+                        if card.cost > cost_max {
                             continue;
                         }
                     }
@@ -483,6 +586,21 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if let Some(trait_id) = spec.card_trait {
+                        if !card.traits.contains(&trait_id) {
+                            continue;
+                        }
+                    }
+                    if let Some(level_max) = spec.level_max {
+                        if card.level > level_max {
+                            continue;
+                        }
+                    }
+                    if let Some(cost_max) = spec.cost_max {
+                        if card.cost > cost_max {
+                            continue;
+                        }
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::WaitingRoom
@@ -517,6 +635,21 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if let Some(trait_id) = spec.card_trait {
+                        if !card.traits.contains(&trait_id) {
+                            continue;
+                        }
+                    }
+                    if let Some(level_max) = spec.level_max {
+                        if card.level > level_max {
+                            continue;
+                        }
+                    }
+                    if let Some(cost_max) = spec.cost_max {
+                        if card.cost > cost_max {
+                            continue;
+                        }
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::Hand
@@ -535,7 +668,11 @@ impl GameEnv {
             }
             TargetZone::DeckTop => {
                 let deck = &state.players[target_player as usize].deck;
-                for offset in 0..deck.len() {
+                let max_offset = match spec.limit {
+                    Some(limit) => std::cmp::min(deck.len(), limit as usize),
+                    None => deck.len(),
+                };
+                for offset in 0..max_offset {
                     if offset > u8::MAX as usize {
                         break;
                     }
@@ -549,6 +686,21 @@ impl GameEnv {
                     };
                     if let Some(card_type) = spec.card_type {
                         if card.card_type != card_type {
+                            continue;
+                        }
+                    }
+                    if let Some(trait_id) = spec.card_trait {
+                        if !card.traits.contains(&trait_id) {
+                            continue;
+                        }
+                    }
+                    if let Some(level_max) = spec.level_max {
+                        if card.level > level_max {
+                            continue;
+                        }
+                    }
+                    if let Some(cost_max) = spec.cost_max {
+                        if card.cost > cost_max {
                             continue;
                         }
                     }
@@ -586,6 +738,21 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if let Some(trait_id) = spec.card_trait {
+                        if !card.traits.contains(&trait_id) {
+                            continue;
+                        }
+                    }
+                    if let Some(level_max) = spec.level_max {
+                        if card.level > level_max {
+                            continue;
+                        }
+                    }
+                    if let Some(cost_max) = spec.cost_max {
+                        if card.cost > cost_max {
+                            continue;
+                        }
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::Clock
@@ -617,6 +784,21 @@ impl GameEnv {
                     };
                     if let Some(card_type) = spec.card_type {
                         if card.card_type != card_type {
+                            continue;
+                        }
+                    }
+                    if let Some(trait_id) = spec.card_trait {
+                        if !card.traits.contains(&trait_id) {
+                            continue;
+                        }
+                    }
+                    if let Some(level_max) = spec.level_max {
+                        if card.level > level_max {
+                            continue;
+                        }
+                    }
+                    if let Some(cost_max) = spec.cost_max {
+                        if card.cost > cost_max {
                             continue;
                         }
                     }
@@ -654,6 +836,21 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if let Some(trait_id) = spec.card_trait {
+                        if !card.traits.contains(&trait_id) {
+                            continue;
+                        }
+                    }
+                    if let Some(level_max) = spec.level_max {
+                        if card.level > level_max {
+                            continue;
+                        }
+                    }
+                    if let Some(cost_max) = spec.cost_max {
+                        if card.cost > cost_max {
+                            continue;
+                        }
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::Stock
@@ -685,6 +882,21 @@ impl GameEnv {
                     };
                     if let Some(card_type) = spec.card_type {
                         if card.card_type != card_type {
+                            continue;
+                        }
+                    }
+                    if let Some(trait_id) = spec.card_trait {
+                        if !card.traits.contains(&trait_id) {
+                            continue;
+                        }
+                    }
+                    if let Some(level_max) = spec.level_max {
+                        if card.level > level_max {
+                            continue;
+                        }
+                    }
+                    if let Some(cost_max) = spec.cost_max {
+                        if card.cost > cost_max {
                             continue;
                         }
                     }
@@ -722,6 +934,21 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if let Some(trait_id) = spec.card_trait {
+                        if !card.traits.contains(&trait_id) {
+                            continue;
+                        }
+                    }
+                    if let Some(level_max) = spec.level_max {
+                        if card.level > level_max {
+                            continue;
+                        }
+                    }
+                    if let Some(cost_max) = spec.cost_max {
+                        if card.cost > cost_max {
+                            continue;
+                        }
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::Climax
@@ -756,6 +983,21 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if let Some(trait_id) = spec.card_trait {
+                        if !card.traits.contains(&trait_id) {
+                            continue;
+                        }
+                    }
+                    if let Some(level_max) = spec.level_max {
+                        if card.level > level_max {
+                            continue;
+                        }
+                    }
+                    if let Some(cost_max) = spec.cost_max {
+                        if card.cost > cost_max {
+                            continue;
+                        }
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::Resolution
@@ -780,25 +1022,25 @@ impl GameEnv {
             let Some(selection) = self.state.turn.target_selection.as_ref() else {
                 return;
             };
-            Self::enumerate_target_candidates_into(
-                &self.state,
-                &self.db,
-                &self.curriculum,
-                selection.controller,
-                &selection.spec,
-                &selection.selected,
-                &mut self.scratch.targets,
-            );
+            self.scratch.targets.clear();
+            for candidate in selection.candidates.iter().copied() {
+                if selection.selected.iter().any(|t| t == &candidate) {
+                    continue;
+                }
+                self.scratch.targets.push(candidate);
+            }
             selection.controller
         };
         let candidates = self.scratch.targets.as_slice();
+        let allow_skip = self
+            .state
+            .turn
+            .target_selection
+            .as_ref()
+            .map(|s| s.allow_skip)
+            .unwrap_or(false);
         if candidates.is_empty() {
-            let _ = self.start_choice(
-                ChoiceReason::TargetSelect,
-                controller,
-                Vec::new(),
-                None,
-            );
+            let _ = self.start_choice(ChoiceReason::TargetSelect, controller, Vec::new(), None);
             self.state.turn.target_selection = None;
             return;
         }
@@ -824,13 +1066,17 @@ impl GameEnv {
                 target_slot: None,
             });
         }
+        if allow_skip {
+            self.scratch.choice_options.push(ChoiceOptionRef {
+                card_id: 0,
+                instance_id: 0,
+                zone: ChoiceZone::Skip,
+                index: None,
+                target_slot: None,
+            });
+        }
         let options = std::mem::take(&mut self.scratch.choice_options);
-        let _ = self.start_choice(
-            ChoiceReason::TargetSelect,
-            controller,
-            options,
-            None,
-        );
+        let _ = self.start_choice(ChoiceReason::TargetSelect, controller, options, None);
     }
 
     pub(super) fn apply_target_choice(&mut self, player: u8, option: ChoiceOptionRef) {
@@ -839,6 +1085,9 @@ impl GameEnv {
         };
         if selection.controller != player {
             self.state.turn.target_selection = Some(selection);
+            return;
+        }
+        if option.zone == ChoiceZone::Skip {
             return;
         }
         let Some(index) = option.index else {
@@ -869,115 +1118,15 @@ impl GameEnv {
             TargetSide::SelfSide => selection.controller,
             TargetSide::Opponent => 1 - selection.controller,
         };
-        let valid = match zone {
-            TargetZone::Stage => {
-                let slot = index as usize;
-                if slot >= self.state.players[target_player as usize].stage.len() {
-                    false
-                } else {
-                    self.state.players[target_player as usize].stage[slot]
-                        .card
-                        .map(|c| c.instance_id)
-                        == Some(option.instance_id)
-                }
-            }
-            TargetZone::WaitingRoom => {
-                let idx = index as usize;
-                if idx
-                    >= self.state.players[target_player as usize]
-                        .waiting_room
-                        .len()
-                {
-                    false
-                } else {
-                    self.state.players[target_player as usize].waiting_room[idx].instance_id
-                        == option.instance_id
-                }
-            }
-            TargetZone::Hand => {
-                let idx = index as usize;
-                if idx >= self.state.players[target_player as usize].hand.len() {
-                    false
-                } else {
-                    self.state.players[target_player as usize].hand[idx].instance_id
-                        == option.instance_id
-                }
-            }
-            TargetZone::DeckTop => {
-                let offset = index as usize;
-                let deck = &self.state.players[target_player as usize].deck;
-                let deck_idx = deck.len().saturating_sub(1 + offset);
-                if deck_idx >= deck.len() {
-                    false
-                } else {
-                    deck[deck_idx].instance_id == option.instance_id
-                }
-            }
-            TargetZone::Clock => {
-                let idx = index as usize;
-                if idx >= self.state.players[target_player as usize].clock.len() {
-                    false
-                } else {
-                    self.state.players[target_player as usize].clock[idx].instance_id
-                        == option.instance_id
-                }
-            }
-            TargetZone::Level => {
-                let idx = index as usize;
-                if idx >= self.state.players[target_player as usize].level.len() {
-                    false
-                } else {
-                    self.state.players[target_player as usize].level[idx].instance_id
-                        == option.instance_id
-                }
-            }
-            TargetZone::Stock => {
-                let idx = index as usize;
-                if idx >= self.state.players[target_player as usize].stock.len() {
-                    false
-                } else {
-                    self.state.players[target_player as usize].stock[idx].instance_id
-                        == option.instance_id
-                }
-            }
-            TargetZone::Memory => {
-                let idx = index as usize;
-                if idx >= self.state.players[target_player as usize].memory.len() {
-                    false
-                } else {
-                    self.state.players[target_player as usize].memory[idx].instance_id
-                        == option.instance_id
-                }
-            }
-            TargetZone::Climax => {
-                let idx = index as usize;
-                if idx >= self.state.players[target_player as usize].climax.len() {
-                    false
-                } else {
-                    self.state.players[target_player as usize].climax[idx].instance_id
-                        == option.instance_id
-                }
-            }
-            TargetZone::Resolution => {
-                let idx = index as usize;
-                if idx >= self.state.players[target_player as usize].resolution.len() {
-                    false
-                } else {
-                    self.state.players[target_player as usize].resolution[idx].instance_id
-                        == option.instance_id
-                }
-            }
-        };
-        if !valid {
+        let Some(target) = selection.candidates.iter().copied().find(|candidate| {
+            candidate.player == target_player
+                && candidate.zone == zone
+                && candidate.index == index
+                && candidate.instance_id == option.instance_id
+                && candidate.card_id == option.card_id
+        }) else {
             self.state.turn.target_selection = Some(selection);
             return;
-        }
-        let target = TargetRef {
-            player: target_player,
-            zone,
-            index,
-            card_id: option.card_id,
-            instance_id: option.instance_id,
         };
         if selection
             .selected
@@ -1071,6 +1220,10 @@ impl GameEnv {
                         if spec.kind != AbilityKind::Activated {
                             continue;
                         }
+                        let cost = spec.template.activation_cost_spec();
+                        if !self.can_pay_ability_cost(player, slot as u8, card_inst, cost) {
+                            continue;
+                        }
                         if self
                             .db
                             .compiled_effects_for_ability(card_id, idx)
@@ -1082,10 +1235,12 @@ impl GameEnv {
                         if priority.used_act_mask & (1u32 << bit) != 0 {
                             continue;
                         }
-                        self.scratch.priority_actions.push(ActionDesc::MainActivateAbility {
-                            slot: slot as u8,
-                            ability_index: idx as u8,
-                        });
+                        self.scratch
+                            .priority_actions
+                            .push(ActionDesc::MainActivateAbility {
+                                slot: slot as u8,
+                                ability_index: idx as u8,
+                            });
                     }
                 }
             }
@@ -1133,7 +1288,7 @@ impl GameEnv {
         }
     }
 
-    pub(super) fn start_priority_choice(&mut self, player: u8) {
+    pub(super) fn start_priority_choice(&mut self, player: u8) -> bool {
         self.scratch.choice_options.clear();
         for action in self.scratch.priority_actions.iter() {
             match *action {
@@ -1169,11 +1324,20 @@ impl GameEnv {
                         target_slot: Some(ability_index),
                     });
                 }
+                ActionDesc::Pass => {
+                    self.scratch.choice_options.push(ChoiceOptionRef {
+                        card_id: 0,
+                        instance_id: 0,
+                        zone: ChoiceZone::PriorityPass,
+                        index: None,
+                        target_slot: None,
+                    });
+                }
                 _ => {}
             }
         }
         let options = std::mem::take(&mut self.scratch.choice_options);
-        self.start_choice(ChoiceReason::PriorityActionSelect, player, options, None);
+        self.start_choice(ChoiceReason::PriorityActionSelect, player, options, None)
     }
 
     pub(super) fn apply_priority_action_choice(&mut self, player: u8, option: ChoiceOptionRef) {
@@ -1190,6 +1354,10 @@ impl GameEnv {
                 } else {
                     None
                 }
+            }
+            ChoiceZone::PriorityPass => {
+                self.priority_pass(player);
+                None
             }
             _ => None,
         };
@@ -1214,14 +1382,17 @@ impl GameEnv {
                 if window != TimingWindow::MainWindow {
                     return Err(anyhow!("Activated abilities not allowed in this window"));
                 }
-                self.queue_activated_ability_stack_item(player, slot, ability_index)?;
+                let pending_cost =
+                    self.queue_activated_ability_stack_item(player, slot, ability_index)?;
                 let bit = slot as u32 * MAX_ABILITIES_PER_CARD as u32 + ability_index as u32;
                 let mut new_holder = None;
                 if let Some(priority) = &mut self.state.turn.priority {
                     priority.used_act_mask |= 1u32 << bit;
-                    priority.holder = 1 - player;
-                    priority.passes = 0;
-                    new_holder = Some(priority.holder);
+                    if !pending_cost {
+                        priority.holder = 1 - player;
+                        priority.passes = 0;
+                        new_holder = Some(priority.holder);
+                    }
                 }
                 if let Some(holder) = new_holder {
                     self.log_event(Event::PriorityGranted {
@@ -1248,12 +1419,14 @@ impl GameEnv {
                     });
                 }
             }
-            ActionDesc::MainPass | ActionDesc::CounterPass => {
-                self.collect_priority_actions(player);
-                if !self.scratch.priority_actions.is_empty() {
-                    return Err(anyhow!(
-                        "Explicit pass not allowed when priority actions exist"
-                    ));
+            ActionDesc::Pass => {
+                if self.curriculum.strict_priority_mode || !self.curriculum.priority_allow_pass {
+                    self.collect_priority_actions(player);
+                    if !self.scratch.priority_actions.is_empty() {
+                        return Err(anyhow!(
+                            "Explicit pass not allowed when priority actions exist"
+                        ));
+                    }
                 }
                 self.priority_pass(player);
             }
@@ -1358,7 +1531,21 @@ impl GameEnv {
             EffectKind::ModifyPendingAttackDamage { .. } => 9,
             EffectKind::Damage { .. } => 10,
             EffectKind::Draw { .. } => 11,
-            EffectKind::TriggerIcon { .. } => 12,
+            EffectKind::RevealDeckTop { .. } => 12,
+            EffectKind::TriggerIcon { .. } => 13,
+            EffectKind::MoveToWaitingRoom => 14,
+            EffectKind::MoveToStock => 15,
+            EffectKind::MoveToClock => 16,
+            EffectKind::Heal => 17,
+            EffectKind::RestTarget => 18,
+            EffectKind::StandTarget => 19,
+            EffectKind::StockCharge { .. } => 20,
+            EffectKind::MillTop { .. } => 21,
+            EffectKind::MoveStageSlot { .. } => 22,
+            EffectKind::SwapStageSlots => 23,
+            EffectKind::RandomDiscardFromHand { .. } => 24,
+            EffectKind::RandomMill { .. } => 25,
+            EffectKind::RevealZoneTop { .. } => 26,
         }
     }
 
@@ -1503,6 +1690,260 @@ impl GameEnv {
             EffectKind::Draw { count } => {
                 self.draw_to_hand(controller, *count as usize);
             }
+            EffectKind::RandomDiscardFromHand { target, count } => {
+                let target_player = match target {
+                    TargetSide::SelfSide => controller,
+                    TargetSide::Opponent => 1 - controller,
+                };
+                let p = target_player as usize;
+                for _ in 0..*count {
+                    let hand_len = self.state.players[p].hand.len();
+                    if hand_len == 0 {
+                        break;
+                    }
+                    let idx = self.state.rng.gen_range(hand_len);
+                    if idx >= self.state.players[p].hand.len() {
+                        break;
+                    }
+                    let card = self.state.players[p].hand.remove(idx);
+                    let from_slot = if idx <= u8::MAX as usize {
+                        Some(idx as u8)
+                    } else {
+                        None
+                    };
+                    self.move_card_between_zones(
+                        target_player,
+                        card,
+                        Zone::Hand,
+                        Zone::WaitingRoom,
+                        from_slot,
+                        None,
+                    );
+                }
+            }
+            EffectKind::RandomMill { target, count } => {
+                let target_player = match target {
+                    TargetSide::SelfSide => controller,
+                    TargetSide::Opponent => 1 - controller,
+                };
+                for _ in 0..*count {
+                    let Some(card) = self.draw_from_deck(target_player) else {
+                        break;
+                    };
+                    self.move_card_between_zones(
+                        target_player,
+                        card,
+                        Zone::Deck,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                }
+            }
+            EffectKind::RevealDeckTop { count, audience } => {
+                let p = controller as usize;
+                let deck_len = self.state.players[p].deck.len();
+                let reveal_count = std::cmp::min(deck_len, *count as usize);
+                for offset in 0..reveal_count {
+                    let deck_idx = deck_len.saturating_sub(1 + offset);
+                    let Some(card) = self.state.players[p].deck.get(deck_idx).copied() else {
+                        continue;
+                    };
+                    self.reveal_card(controller, &card, RevealReason::AbilityEffect, *audience);
+                }
+            }
+            EffectKind::RevealZoneTop {
+                target,
+                zone,
+                count,
+                audience,
+            } => {
+                let target_player = match target {
+                    TargetSide::SelfSide => controller,
+                    TargetSide::Opponent => 1 - controller,
+                };
+                match zone {
+                    TargetZone::DeckTop => {
+                        let p = target_player as usize;
+                        let deck_len = self.state.players[p].deck.len();
+                        let reveal_count = std::cmp::min(deck_len, *count as usize);
+                        for offset in 0..reveal_count {
+                            let deck_idx = deck_len.saturating_sub(1 + offset);
+                            let Some(card) =
+                                self.state.players[p].deck.get(deck_idx).copied()
+                            else {
+                                continue;
+                            };
+                            self.reveal_card(
+                                target_player,
+                                &card,
+                                RevealReason::AbilityEffect,
+                                *audience,
+                            );
+                        }
+                    }
+                    TargetZone::Hand => {
+                        let p = target_player as usize;
+                        let reveal_count =
+                            std::cmp::min(self.state.players[p].hand.len(), *count as usize);
+                        for idx in 0..reveal_count {
+                            let Some(card) = self.state.players[p].hand.get(idx).copied() else {
+                                continue;
+                            };
+                            self.reveal_card(
+                                target_player,
+                                &card,
+                                RevealReason::AbilityEffect,
+                                *audience,
+                            );
+                        }
+                    }
+                    TargetZone::WaitingRoom => {
+                        let p = target_player as usize;
+                        let reveal_count = std::cmp::min(
+                            self.state.players[p].waiting_room.len(),
+                            *count as usize,
+                        );
+                        for idx in 0..reveal_count {
+                            let Some(card) =
+                                self.state.players[p].waiting_room.get(idx).copied()
+                            else {
+                                continue;
+                            };
+                            self.reveal_card(
+                                target_player,
+                                &card,
+                                RevealReason::AbilityEffect,
+                                *audience,
+                            );
+                        }
+                    }
+                    TargetZone::Clock => {
+                        let p = target_player as usize;
+                        let reveal_count =
+                            std::cmp::min(self.state.players[p].clock.len(), *count as usize);
+                        for idx in 0..reveal_count {
+                            let Some(card) = self.state.players[p].clock.get(idx).copied() else {
+                                continue;
+                            };
+                            self.reveal_card(
+                                target_player,
+                                &card,
+                                RevealReason::AbilityEffect,
+                                *audience,
+                            );
+                        }
+                    }
+                    TargetZone::Level => {
+                        let p = target_player as usize;
+                        let reveal_count =
+                            std::cmp::min(self.state.players[p].level.len(), *count as usize);
+                        for idx in 0..reveal_count {
+                            let Some(card) = self.state.players[p].level.get(idx).copied() else {
+                                continue;
+                            };
+                            self.reveal_card(
+                                target_player,
+                                &card,
+                                RevealReason::AbilityEffect,
+                                *audience,
+                            );
+                        }
+                    }
+                    TargetZone::Stock => {
+                        let p = target_player as usize;
+                        let reveal_count =
+                            std::cmp::min(self.state.players[p].stock.len(), *count as usize);
+                        for idx in 0..reveal_count {
+                            let Some(card) = self.state.players[p].stock.get(idx).copied() else {
+                                continue;
+                            };
+                            self.reveal_card(
+                                target_player,
+                                &card,
+                                RevealReason::AbilityEffect,
+                                *audience,
+                            );
+                        }
+                    }
+                    TargetZone::Memory => {
+                        let p = target_player as usize;
+                        let reveal_count =
+                            std::cmp::min(self.state.players[p].memory.len(), *count as usize);
+                        for idx in 0..reveal_count {
+                            let Some(card) = self.state.players[p].memory.get(idx).copied() else {
+                                continue;
+                            };
+                            self.reveal_card(
+                                target_player,
+                                &card,
+                                RevealReason::AbilityEffect,
+                                *audience,
+                            );
+                        }
+                    }
+                    TargetZone::Climax => {
+                        let p = target_player as usize;
+                        let reveal_count =
+                            std::cmp::min(self.state.players[p].climax.len(), *count as usize);
+                        for idx in 0..reveal_count {
+                            let Some(card) = self.state.players[p].climax.get(idx).copied() else {
+                                continue;
+                            };
+                            self.reveal_card(
+                                target_player,
+                                &card,
+                                RevealReason::AbilityEffect,
+                                *audience,
+                            );
+                        }
+                    }
+                    TargetZone::Resolution => {
+                        let p = target_player as usize;
+                        let reveal_count = std::cmp::min(
+                            self.state.players[p].resolution.len(),
+                            *count as usize,
+                        );
+                        for idx in 0..reveal_count {
+                            let Some(card) =
+                                self.state.players[p].resolution.get(idx).copied()
+                            else {
+                                continue;
+                            };
+                            self.reveal_card(
+                                target_player,
+                                &card,
+                                RevealReason::AbilityEffect,
+                                *audience,
+                            );
+                        }
+                    }
+                    TargetZone::Stage => {
+                        let p = target_player as usize;
+                        let reveal_count = if self.curriculum.reduced_stage_mode {
+                            1
+                        } else {
+                            MAX_STAGE
+                        };
+                        let mut revealed = 0usize;
+                        for slot in 0..reveal_count {
+                            if revealed >= *count as usize {
+                                break;
+                            }
+                            let Some(card) = self.state.players[p].stage[slot].card else {
+                                continue;
+                            };
+                            self.reveal_card(
+                                target_player,
+                                &card,
+                                RevealReason::AbilityEffect,
+                                *audience,
+                            );
+                            revealed = revealed.saturating_add(1);
+                        }
+                    }
+                }
+            }
             EffectKind::Damage {
                 amount,
                 cancelable,
@@ -1552,9 +1993,7 @@ impl GameEnv {
                     if s >= self.state.players[p].stage.len() {
                         continue;
                     }
-                    if self.state.players[p].stage[s]
-                        .card
-                        .map(|c| c.instance_id)
+                    if self.state.players[p].stage[s].card.map(|c| c.instance_id)
                         != Some(target.instance_id)
                     {
                         continue;
@@ -1571,6 +2010,7 @@ impl GameEnv {
             }
             EffectKind::MoveToHand => {
                 let mut waiting_room_targets: Vec<TargetRef> = Vec::new();
+                let mut deck_targets: Vec<TargetRef> = Vec::new();
                 for target in &payload.targets {
                     match target.zone {
                         TargetZone::Stage => {
@@ -1586,6 +2026,9 @@ impl GameEnv {
                         TargetZone::WaitingRoom => {
                             waiting_room_targets.push(*target);
                         }
+                        TargetZone::DeckTop => {
+                            deck_targets.push(*target);
+                        }
                         _ => {}
                     }
                 }
@@ -1600,9 +2043,724 @@ impl GameEnv {
                     };
                     self.move_waiting_room_to_hand(target.player, option);
                 }
+                deck_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in deck_targets {
+                    let p = target.player as usize;
+                    let offset = target.index as usize;
+                    if offset >= self.state.players[p].deck.len() {
+                        continue;
+                    }
+                    let deck_idx = self.state.players[p]
+                        .deck
+                        .len()
+                        .saturating_sub(1 + offset);
+                    if deck_idx >= self.state.players[p].deck.len() {
+                        continue;
+                    }
+                    if self.state.players[p].deck[deck_idx].instance_id != target.instance_id {
+                        continue;
+                    }
+                    let card = self.state.players[p].deck.remove(deck_idx);
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Deck,
+                        Zone::Hand,
+                        None,
+                        None,
+                    );
+                }
+            }
+            EffectKind::MoveToWaitingRoom => {
+                let mut stage_targets: Vec<TargetRef> = Vec::new();
+                let mut hand_targets: Vec<TargetRef> = Vec::new();
+                let mut deck_targets: Vec<TargetRef> = Vec::new();
+                let mut clock_targets: Vec<TargetRef> = Vec::new();
+                let mut level_targets: Vec<TargetRef> = Vec::new();
+                let mut stock_targets: Vec<TargetRef> = Vec::new();
+                let mut memory_targets: Vec<TargetRef> = Vec::new();
+                let mut climax_targets: Vec<TargetRef> = Vec::new();
+                let mut resolution_targets: Vec<TargetRef> = Vec::new();
+                let mut waiting_targets: Vec<TargetRef> = Vec::new();
+                for target in &payload.targets {
+                    match target.zone {
+                        TargetZone::Stage => stage_targets.push(*target),
+                        TargetZone::Hand => hand_targets.push(*target),
+                        TargetZone::DeckTop => deck_targets.push(*target),
+                        TargetZone::Clock => clock_targets.push(*target),
+                        TargetZone::Level => level_targets.push(*target),
+                        TargetZone::Stock => stock_targets.push(*target),
+                        TargetZone::Memory => memory_targets.push(*target),
+                        TargetZone::Climax => climax_targets.push(*target),
+                        TargetZone::Resolution => resolution_targets.push(*target),
+                        TargetZone::WaitingRoom => waiting_targets.push(*target),
+                    }
+                }
+                for target in stage_targets {
+                    let p = target.player as usize;
+                    let slot = target.index as usize;
+                    if slot >= self.state.players[p].stage.len() {
+                        continue;
+                    }
+                    let Some(card_inst) = self.state.players[p].stage[slot].card else {
+                        continue;
+                    };
+                    if card_inst.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.remove_modifiers_for_slot(target.player, target.index);
+                    self.state.players[p].stage[slot] = StageSlot::empty();
+                    self.mark_slot_power_dirty(target.player, target.index);
+                    self.move_card_between_zones(
+                        target.player,
+                        card_inst,
+                        Zone::Stage,
+                        Zone::WaitingRoom,
+                        Some(target.index),
+                        None,
+                    );
+                }
+                hand_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in hand_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].hand.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].hand.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Hand,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                }
+                clock_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in clock_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].clock.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].clock.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Clock,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                    self.check_level_up(target.player);
+                }
+                level_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in level_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].level.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].level.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Level,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                }
+                stock_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in stock_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].stock.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].stock.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Stock,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                }
+                memory_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in memory_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].memory.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].memory.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Memory,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                }
+                climax_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in climax_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].climax.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].climax.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Climax,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                }
+                resolution_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in resolution_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].resolution.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].resolution.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Resolution,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                }
+                waiting_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in waiting_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].waiting_room.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].waiting_room.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::WaitingRoom,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                }
+                deck_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in deck_targets {
+                    let p = target.player as usize;
+                    let offset = target.index as usize;
+                    if offset >= self.state.players[p].deck.len() {
+                        continue;
+                    }
+                    let deck_idx = self.state.players[p]
+                        .deck
+                        .len()
+                        .saturating_sub(1 + offset);
+                    if deck_idx >= self.state.players[p].deck.len() {
+                        continue;
+                    }
+                    if self.state.players[p].deck[deck_idx].instance_id != target.instance_id {
+                        continue;
+                    }
+                    let card = self.state.players[p].deck.remove(deck_idx);
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Deck,
+                        Zone::WaitingRoom,
+                        None,
+                        None,
+                    );
+                }
+            }
+            EffectKind::MoveToStock => {
+                let mut stage_targets: Vec<TargetRef> = Vec::new();
+                let mut hand_targets: Vec<TargetRef> = Vec::new();
+                let mut deck_targets: Vec<TargetRef> = Vec::new();
+                let mut clock_targets: Vec<TargetRef> = Vec::new();
+                let mut level_targets: Vec<TargetRef> = Vec::new();
+                let mut waiting_targets: Vec<TargetRef> = Vec::new();
+                let mut memory_targets: Vec<TargetRef> = Vec::new();
+                let mut climax_targets: Vec<TargetRef> = Vec::new();
+                let mut resolution_targets: Vec<TargetRef> = Vec::new();
+                for target in &payload.targets {
+                    match target.zone {
+                        TargetZone::Stage => stage_targets.push(*target),
+                        TargetZone::Hand => hand_targets.push(*target),
+                        TargetZone::DeckTop => deck_targets.push(*target),
+                        TargetZone::Clock => clock_targets.push(*target),
+                        TargetZone::Level => level_targets.push(*target),
+                        TargetZone::WaitingRoom => waiting_targets.push(*target),
+                        TargetZone::Memory => memory_targets.push(*target),
+                        TargetZone::Climax => climax_targets.push(*target),
+                        TargetZone::Resolution => resolution_targets.push(*target),
+                        TargetZone::Stock => {}
+                    }
+                }
+                for target in stage_targets {
+                    let p = target.player as usize;
+                    let slot = target.index as usize;
+                    if slot >= self.state.players[p].stage.len() {
+                        continue;
+                    }
+                    let Some(card_inst) = self.state.players[p].stage[slot].card else {
+                        continue;
+                    };
+                    if card_inst.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.remove_modifiers_for_slot(target.player, target.index);
+                    self.state.players[p].stage[slot] = StageSlot::empty();
+                    self.mark_slot_power_dirty(target.player, target.index);
+                    self.move_card_between_zones(
+                        target.player,
+                        card_inst,
+                        Zone::Stage,
+                        Zone::Stock,
+                        Some(target.index),
+                        None,
+                    );
+                }
+                hand_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in hand_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].hand.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].hand.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Hand,
+                        Zone::Stock,
+                        None,
+                        None,
+                    );
+                }
+                clock_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in clock_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].clock.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].clock.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Clock,
+                        Zone::Stock,
+                        None,
+                        None,
+                    );
+                    self.check_level_up(target.player);
+                }
+                level_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in level_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].level.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].level.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Level,
+                        Zone::Stock,
+                        None,
+                        None,
+                    );
+                }
+                waiting_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in waiting_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].waiting_room.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].waiting_room.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::WaitingRoom,
+                        Zone::Stock,
+                        None,
+                        None,
+                    );
+                }
+                memory_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in memory_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].memory.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].memory.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Memory,
+                        Zone::Stock,
+                        None,
+                        None,
+                    );
+                }
+                climax_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in climax_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].climax.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].climax.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Climax,
+                        Zone::Stock,
+                        None,
+                        None,
+                    );
+                }
+                resolution_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in resolution_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].resolution.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].resolution.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Resolution,
+                        Zone::Stock,
+                        None,
+                        None,
+                    );
+                }
+                deck_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in deck_targets {
+                    let p = target.player as usize;
+                    let offset = target.index as usize;
+                    if offset >= self.state.players[p].deck.len() {
+                        continue;
+                    }
+                    let deck_idx = self.state.players[p]
+                        .deck
+                        .len()
+                        .saturating_sub(1 + offset);
+                    if deck_idx >= self.state.players[p].deck.len() {
+                        continue;
+                    }
+                    if self.state.players[p].deck[deck_idx].instance_id != target.instance_id {
+                        continue;
+                    }
+                    let card = self.state.players[p].deck.remove(deck_idx);
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Deck,
+                        Zone::Stock,
+                        None,
+                        None,
+                    );
+                }
+            }
+            EffectKind::MoveToClock => {
+                let mut stage_targets: Vec<TargetRef> = Vec::new();
+                let mut hand_targets: Vec<TargetRef> = Vec::new();
+                let mut deck_targets: Vec<TargetRef> = Vec::new();
+                let mut waiting_targets: Vec<TargetRef> = Vec::new();
+                let mut resolution_targets: Vec<TargetRef> = Vec::new();
+                for target in &payload.targets {
+                    match target.zone {
+                        TargetZone::Stage => stage_targets.push(*target),
+                        TargetZone::Hand => hand_targets.push(*target),
+                        TargetZone::DeckTop => deck_targets.push(*target),
+                        TargetZone::WaitingRoom => waiting_targets.push(*target),
+                        TargetZone::Resolution => resolution_targets.push(*target),
+                        TargetZone::Clock => {}
+                        TargetZone::Level => {}
+                        TargetZone::Stock => {}
+                        TargetZone::Memory => {}
+                        TargetZone::Climax => {}
+                    }
+                }
+                for target in stage_targets {
+                    let p = target.player as usize;
+                    let slot = target.index as usize;
+                    if slot >= self.state.players[p].stage.len() {
+                        continue;
+                    }
+                    let Some(card_inst) = self.state.players[p].stage[slot].card else {
+                        continue;
+                    };
+                    if card_inst.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.remove_modifiers_for_slot(target.player, target.index);
+                    self.state.players[p].stage[slot] = StageSlot::empty();
+                    self.mark_slot_power_dirty(target.player, target.index);
+                    self.move_card_between_zones(
+                        target.player,
+                        card_inst,
+                        Zone::Stage,
+                        Zone::Clock,
+                        Some(target.index),
+                        None,
+                    );
+                    self.check_level_up(target.player);
+                }
+                hand_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in hand_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].hand.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].hand.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Hand,
+                        Zone::Clock,
+                        None,
+                        None,
+                    );
+                    self.check_level_up(target.player);
+                }
+                waiting_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in waiting_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].waiting_room.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].waiting_room.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::WaitingRoom,
+                        Zone::Clock,
+                        None,
+                        None,
+                    );
+                    self.check_level_up(target.player);
+                }
+                resolution_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in resolution_targets {
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].resolution.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].resolution.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Resolution,
+                        Zone::Clock,
+                        None,
+                        None,
+                    );
+                    self.check_level_up(target.player);
+                }
+                deck_targets.sort_by_key(|t| std::cmp::Reverse(t.index));
+                for target in deck_targets {
+                    let p = target.player as usize;
+                    let offset = target.index as usize;
+                    if offset >= self.state.players[p].deck.len() {
+                        continue;
+                    }
+                    let deck_idx = self.state.players[p]
+                        .deck
+                        .len()
+                        .saturating_sub(1 + offset);
+                    if deck_idx >= self.state.players[p].deck.len() {
+                        continue;
+                    }
+                    if self.state.players[p].deck[deck_idx].instance_id != target.instance_id {
+                        continue;
+                    }
+                    let card = self.state.players[p].deck.remove(deck_idx);
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Deck,
+                        Zone::Clock,
+                        None,
+                        None,
+                    );
+                    self.check_level_up(target.player);
+                }
+            }
+            EffectKind::Heal => {
+                for target in &payload.targets {
+                    if target.zone != TargetZone::Clock {
+                        continue;
+                    }
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].clock.len() {
+                        continue;
+                    }
+                    let card = self.state.players[p].clock.remove(idx);
+                    if card.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.move_card_between_zones(
+                        target.player,
+                        card,
+                        Zone::Clock,
+                        Zone::WaitingRoom,
+                        Some(target.index),
+                        None,
+                    );
+                }
             }
             EffectKind::MoveTriggerCardToHand => {
                 let _ = self.move_trigger_card_from_stock_to_hand(controller, source_id);
+            }
+            EffectKind::MillTop { target, count } => {
+                let target_player = match target {
+                    TargetSide::SelfSide => controller,
+                    TargetSide::Opponent => 1 - controller,
+                };
+                for _ in 0..*count {
+                    if let Some(card) = self.draw_from_deck(target_player) {
+                        self.move_card_between_zones(
+                            target_player,
+                            card,
+                            Zone::Deck,
+                            Zone::WaitingRoom,
+                            None,
+                            None,
+                        );
+                    }
+                }
+            }
+            EffectKind::MoveStageSlot { slot } => {
+                for target in &payload.targets {
+                    if target.zone != TargetZone::Stage {
+                        continue;
+                    }
+                    let p = target.player as usize;
+                    let idx = target.index as usize;
+                    if idx >= self.state.players[p].stage.len() {
+                        continue;
+                    }
+                    let Some(card_inst) = self.state.players[p].stage[idx].card else {
+                        continue;
+                    };
+                    if card_inst.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.swap_stage_slots(target.player, target.index, *slot);
+                }
+            }
+            EffectKind::SwapStageSlots => {
+                let mut stage_targets: Vec<TargetRef> = payload
+                    .targets
+                    .iter()
+                    .copied()
+                    .filter(|t| t.zone == TargetZone::Stage)
+                    .collect();
+                if stage_targets.len() < 2 {
+                    return;
+                }
+                stage_targets.sort_by_key(|t| (t.player, t.index, t.instance_id));
+                let first = stage_targets[0];
+                let second = stage_targets[1];
+                if first.player != second.player {
+                    return;
+                }
+                let p = first.player as usize;
+                let f_idx = first.index as usize;
+                let s_idx = second.index as usize;
+                if f_idx >= self.state.players[p].stage.len()
+                    || s_idx >= self.state.players[p].stage.len()
+                {
+                    return;
+                }
+                let Some(f_card) = self.state.players[p].stage[f_idx].card else {
+                    return;
+                };
+                let Some(s_card) = self.state.players[p].stage[s_idx].card else {
+                    return;
+                };
+                if f_card.instance_id != first.instance_id || s_card.instance_id != second.instance_id {
+                    return;
+                }
+                self.swap_stage_slots(first.player, first.index, second.index);
             }
             EffectKind::ChangeController { new_controller } => {
                 let to_player = match new_controller {
@@ -1647,11 +2805,10 @@ impl GameEnv {
                     moved_card.controller = to_player;
                     moved_slot.card = Some(moved_card);
                     self.state.players[to_player as usize].stage[to_slot] = moved_slot;
-                    self.apply_continuous_modifiers_for_slot(
-                        to_player,
-                        target.index,
-                        moved_card.id,
-                    );
+                    self.mark_slot_power_dirty(from_player, target.index);
+                    self.mark_slot_power_dirty(to_player, target.index);
+                    self.mark_rule_actions_dirty();
+                    self.mark_continuous_modifiers_dirty();
                     self.log_event(Event::ControlChanged {
                         card: moved_card.id,
                         owner: moved_card.owner,
@@ -1697,15 +2854,76 @@ impl GameEnv {
                     ctx.damage = ctx.damage.saturating_add(*delta);
                 }
             }
+            EffectKind::RestTarget => {
+                for target in &payload.targets {
+                    if target.zone != TargetZone::Stage {
+                        continue;
+                    }
+                    let p = target.player as usize;
+                    let slot = target.index as usize;
+                    if slot >= self.state.players[p].stage.len() {
+                        continue;
+                    }
+                    let Some(card_inst) = self.state.players[p].stage[slot].card else {
+                        continue;
+                    };
+                    if card_inst.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.state.players[p].stage[slot].status = StageStatus::Rest;
+                    self.mark_slot_power_dirty(target.player, target.index);
+                    self.mark_continuous_modifiers_dirty();
+                }
+            }
+            EffectKind::StandTarget => {
+                for target in &payload.targets {
+                    if target.zone != TargetZone::Stage {
+                        continue;
+                    }
+                    let p = target.player as usize;
+                    let slot = target.index as usize;
+                    if slot >= self.state.players[p].stage.len() {
+                        continue;
+                    }
+                    let Some(card_inst) = self.state.players[p].stage[slot].card else {
+                        continue;
+                    };
+                    if card_inst.instance_id != target.instance_id {
+                        continue;
+                    }
+                    self.state.players[p].stage[slot].status = StageStatus::Stand;
+                    self.mark_slot_power_dirty(target.player, target.index);
+                    self.mark_continuous_modifiers_dirty();
+                }
+            }
+            EffectKind::StockCharge { count } => {
+                for _ in 0..*count {
+                    if let Some(card) = self.draw_from_deck(controller) {
+                        self.move_card_between_zones(
+                            controller,
+                            card,
+                            Zone::Deck,
+                            Zone::Stock,
+                            None,
+                            None,
+                        );
+                    }
+                }
+            }
             EffectKind::TriggerIcon { .. } => {}
             EffectKind::CounterBackup { power } => {
+                let mut dirty_slot = None;
                 if let Some(ctx) = &mut self.state.turn.attack {
                     if let Some(def_slot) = ctx.defender_slot {
                         let slot_state =
                             &mut self.state.players[controller as usize].stage[def_slot as usize];
                         slot_state.power_mod_battle += *power;
                         ctx.counter_power += *power;
+                        dirty_slot = Some(def_slot);
                     }
+                }
+                if let Some(def_slot) = dirty_slot {
+                    self.mark_slot_power_dirty(controller, def_slot);
                 }
                 self.log_event(Event::Counter {
                     player: controller,
@@ -1781,12 +2999,449 @@ impl GameEnv {
         (amount, target)
     }
 
+    fn ability_cost_for_spec(&self, spec: &AbilitySpec) -> AbilityCost {
+        spec.template.activation_cost_spec()
+    }
+
+    fn source_ref_matches_spec(
+        &self,
+        controller: u8,
+        spec: &TargetSpec,
+        source: &TargetRef,
+    ) -> bool {
+        let target_player = match spec.side {
+            TargetSide::SelfSide => controller,
+            TargetSide::Opponent => 1 - controller,
+        };
+        if source.player != target_player {
+            return false;
+        }
+        if source.zone != spec.zone {
+            return false;
+        }
+        match spec.slot_filter {
+            TargetSlotFilter::FrontRow if source.index >= 3 => return false,
+            TargetSlotFilter::BackRow if source.index < 3 => return false,
+            TargetSlotFilter::SpecificSlot(slot) if source.index != slot => return false,
+            _ => {}
+        }
+        if let Some(card_type) = spec.card_type {
+            let Some(card) = self.db.get(source.card_id) else {
+                return false;
+            };
+            if card.card_type != card_type {
+                return false;
+            }
+        }
+        if let Some(trait_id) = spec.card_trait {
+            let Some(card) = self.db.get(source.card_id) else {
+                return false;
+            };
+            if !card.traits.contains(&trait_id) {
+                return false;
+            }
+        }
+        if let Some(level_max) = spec.level_max {
+            let Some(card) = self.db.get(source.card_id) else {
+                return false;
+            };
+            if card.level > level_max {
+                return false;
+            }
+        }
+        if let Some(cost_max) = spec.cost_max {
+            let Some(card) = self.db.get(source.card_id) else {
+                return false;
+            };
+            if card.cost > cost_max {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn can_pay_ability_cost(
+        &self,
+        player: u8,
+        slot: u8,
+        source: CardInstance,
+        cost: AbilityCost,
+    ) -> bool {
+        let p = player as usize;
+        if cost.rest_self {
+            let slot_idx = slot as usize;
+            if slot_idx >= self.state.players[p].stage.len() {
+                return false;
+            }
+            let slot_state = &self.state.players[p].stage[slot_idx];
+            if slot_state.card.map(|c| c.instance_id) != Some(source.instance_id) {
+                return false;
+            }
+            if slot_state.status != StageStatus::Stand {
+                return false;
+            }
+        }
+        if cost.rest_other > 0 {
+            let mut available = 0usize;
+            for (idx, slot_state) in self.state.players[p].stage.iter().enumerate() {
+                if idx == slot as usize {
+                    continue;
+                }
+                if slot_state.card.is_some() && slot_state.status == StageStatus::Stand {
+                    available += 1;
+                }
+            }
+            if available < cost.rest_other as usize {
+                return false;
+            }
+        }
+        if cost.stock > 0
+            && self.curriculum.enforce_cost_requirement
+            && self.state.players[p].stock.len() < cost.stock as usize
+        {
+            return false;
+        }
+        let required_hand = cost.discard_from_hand as usize
+            + cost.clock_from_hand as usize
+            + cost.reveal_from_hand as usize;
+        if required_hand > self.state.players[p].hand.len() {
+            return false;
+        }
+        if cost.clock_from_deck_top > 0
+            && self.state.players[p].deck.len() < cost.clock_from_deck_top as usize
+        {
+            return false;
+        }
+        true
+    }
+
+    fn pay_ability_cost_immediate(
+        &mut self,
+        player: u8,
+        slot: u8,
+        source: CardInstance,
+        cost: &mut AbilityCost,
+    ) -> Result<()> {
+        let p = player as usize;
+        if cost.rest_self {
+            let slot_idx = slot as usize;
+            if slot_idx >= self.state.players[p].stage.len() {
+                return Err(anyhow!("Cost rest slot out of range"));
+            }
+            let slot_state = &mut self.state.players[p].stage[slot_idx];
+            if slot_state.card.map(|c| c.instance_id) != Some(source.instance_id) {
+                return Err(anyhow!("Cost rest target mismatch"));
+            }
+            if slot_state.status != StageStatus::Stand {
+                return Err(anyhow!("Cost rest requires stand"));
+            }
+            slot_state.status = StageStatus::Rest;
+            self.mark_slot_power_dirty(player, slot);
+            cost.rest_self = false;
+        }
+        if cost.stock > 0 && self.curriculum.enforce_cost_requirement {
+            self.pay_cost(player, cost.stock as usize)?;
+            cost.stock = 0;
+        } else {
+            cost.stock = 0;
+        }
+        Ok(())
+    }
+
+    fn next_cost_step(cost: &AbilityCost) -> Option<CostStepKind> {
+        if cost.rest_other > 0 {
+            Some(CostStepKind::RestOther)
+        } else if cost.discard_from_hand > 0 {
+            Some(CostStepKind::DiscardFromHand)
+        } else if cost.clock_from_hand > 0 {
+            Some(CostStepKind::ClockFromHand)
+        } else if cost.clock_from_deck_top > 0 {
+            Some(CostStepKind::ClockFromDeckTop)
+        } else if cost.reveal_from_hand > 0 {
+            Some(CostStepKind::RevealFromHand)
+        } else {
+            None
+        }
+    }
+
+    fn start_cost_choice(&mut self) {
+        let Some(cost_state) = self.state.turn.pending_cost.as_mut() else {
+            return;
+        };
+        let Some(step) = Self::next_cost_step(&cost_state.remaining) else {
+            let cost_state = self.state.turn.pending_cost.take();
+            if let Some(cost_state) = cost_state {
+                self.finish_cost_payment(cost_state);
+            }
+            return;
+        };
+        cost_state.current_step = Some(step);
+        let player = cost_state.controller;
+        match step {
+            CostStepKind::RestOther => {
+                self.scratch.choice_options.clear();
+                let source_slot = cost_state.source_slot;
+                let p = player as usize;
+                for (idx, slot_state) in self.state.players[p].stage.iter().enumerate() {
+                    if Some(idx as u8) == source_slot {
+                        continue;
+                    }
+                    let Some(card_inst) = slot_state.card else {
+                        continue;
+                    };
+                    if slot_state.status != StageStatus::Stand {
+                        continue;
+                    }
+                    if idx > u8::MAX as usize {
+                        break;
+                    }
+                    self.scratch.choice_options.push(ChoiceOptionRef {
+                        card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
+                        zone: ChoiceZone::Stage,
+                        index: Some(idx as u8),
+                        target_slot: None,
+                    });
+                }
+                let options = std::mem::take(&mut self.scratch.choice_options);
+                let _ = self.start_choice(ChoiceReason::CostPayment, player, options, None);
+            }
+            CostStepKind::ClockFromDeckTop => {
+                if let Some(card) = self.draw_from_deck(player) {
+                    let card_id = card.id;
+                    self.move_card_between_zones(player, card, Zone::Deck, Zone::Clock, None, None);
+                    self.log_event(Event::Clock {
+                        player,
+                        card: Some(card_id),
+                    });
+                }
+                if let Some(cost_state) = self.state.turn.pending_cost.as_mut() {
+                    cost_state.remaining.clock_from_deck_top =
+                        cost_state.remaining.clock_from_deck_top.saturating_sub(1);
+                    cost_state.current_step = None;
+                }
+                self.start_cost_choice();
+            }
+            _ => {
+                self.scratch.choice_options.clear();
+                for (idx, card_inst) in self.state.players[player as usize]
+                    .hand
+                    .iter()
+                    .enumerate()
+                {
+                    if idx > u8::MAX as usize {
+                        break;
+                    }
+                    self.scratch.choice_options.push(ChoiceOptionRef {
+                        card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
+                        zone: ChoiceZone::Hand,
+                        index: Some(idx as u8),
+                        target_slot: None,
+                    });
+                }
+                let options = std::mem::take(&mut self.scratch.choice_options);
+                let _ = self.start_choice(ChoiceReason::CostPayment, player, options, None);
+            }
+        }
+    }
+
+    fn apply_cost_payment_choice(&mut self, player: u8, option: ChoiceOptionRef) {
+        let Some(mut cost_state) = self.state.turn.pending_cost.take() else {
+            return;
+        };
+        if cost_state.controller != player {
+            self.state.turn.pending_cost = Some(cost_state);
+            return;
+        }
+        let Some(step) = cost_state.current_step else {
+            self.state.turn.pending_cost = Some(cost_state);
+            return;
+        };
+        let p = player as usize;
+        match step {
+            CostStepKind::RestOther => {
+                if option.zone != ChoiceZone::Stage {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let Some(index) = option.index else {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                };
+                let idx = index as usize;
+                if idx >= self.state.players[p].stage.len() {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let Some(card_inst) = self.state.players[p].stage[idx].card else {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                };
+                if card_inst.instance_id != option.instance_id {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                if self.state.players[p].stage[idx].status != StageStatus::Stand {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                self.state.players[p].stage[idx].status = StageStatus::Rest;
+                self.mark_slot_power_dirty(player, index);
+                self.mark_continuous_modifiers_dirty();
+                cost_state.remaining.rest_other =
+                    cost_state.remaining.rest_other.saturating_sub(1);
+            }
+            CostStepKind::DiscardFromHand => {
+                if option.zone != ChoiceZone::Hand {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let Some(index) = option.index else {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                };
+                let idx = index as usize;
+                if idx >= self.state.players[p].hand.len() {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let card_inst = self.state.players[p].hand[idx];
+                if card_inst.instance_id != option.instance_id {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let card = self.state.players[p].hand.remove(idx);
+                self.move_card_between_zones(
+                    player,
+                    card,
+                    Zone::Hand,
+                    Zone::WaitingRoom,
+                    Some(index),
+                    None,
+                );
+                cost_state.remaining.discard_from_hand =
+                    cost_state.remaining.discard_from_hand.saturating_sub(1);
+            }
+            CostStepKind::ClockFromHand => {
+                if option.zone != ChoiceZone::Hand {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let Some(index) = option.index else {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                };
+                let idx = index as usize;
+                if idx >= self.state.players[p].hand.len() {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let card_inst = self.state.players[p].hand[idx];
+                if card_inst.instance_id != option.instance_id {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let card = self.state.players[p].hand.remove(idx);
+                self.move_card_between_zones(
+                    player,
+                    card,
+                    Zone::Hand,
+                    Zone::Clock,
+                    Some(index),
+                    None,
+                );
+                cost_state.remaining.clock_from_hand =
+                    cost_state.remaining.clock_from_hand.saturating_sub(1);
+            }
+            CostStepKind::RevealFromHand => {
+                if option.zone != ChoiceZone::Hand {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let Some(index) = option.index else {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                };
+                let idx = index as usize;
+                if idx >= self.state.players[p].hand.len() {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let card_inst = self.state.players[p].hand[idx];
+                if card_inst.instance_id != option.instance_id {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let card = self.state.players[p].hand[idx];
+                self.reveal_card(
+                    player,
+                    &card,
+                    RevealReason::AbilityEffect,
+                    RevealAudience::Public,
+                );
+                cost_state.remaining.reveal_from_hand =
+                    cost_state.remaining.reveal_from_hand.saturating_sub(1);
+            }
+            CostStepKind::ClockFromDeckTop => {
+                self.state.turn.pending_cost = Some(cost_state);
+                return;
+            }
+        }
+        cost_state.current_step = None;
+        self.state.turn.pending_cost = Some(cost_state);
+        self.start_cost_choice();
+    }
+
+    fn finish_cost_payment(&mut self, cost_state: CostPaymentState) {
+        self.state.turn.cost_payment_depth =
+            self.state.turn.cost_payment_depth.saturating_sub(1);
+        let effects: Vec<_> = self
+            .db
+            .compiled_effects_for_ability(cost_state.source_id, cost_state.ability_index as usize)
+            .to_vec();
+        let source_ref = cost_state.source_slot.and_then(|slot| {
+            let p = cost_state.controller as usize;
+            let slot_state = self.state.players[p].stage.get(slot as usize)?;
+            let card_inst = slot_state.card?;
+            if card_inst.instance_id != cost_state.source_instance_id {
+                return None;
+            }
+            Some(TargetRef {
+                player: cost_state.controller,
+                zone: TargetZone::Stage,
+                index: slot,
+                card_id: card_inst.id,
+                instance_id: card_inst.instance_id,
+            })
+        });
+        for effect in effects {
+            self.enqueue_effect_spec_with_source(
+                cost_state.controller,
+                cost_state.source_id,
+                effect.clone(),
+                source_ref,
+            );
+        }
+        let mut grant_priority = None;
+        if let Some(priority) = &mut self.state.turn.priority {
+            if priority.holder == cost_state.controller {
+                priority.holder = 1 - cost_state.controller;
+                priority.passes = 0;
+                grant_priority = Some((priority.window, priority.holder));
+            }
+        }
+        if let Some((window, player)) = grant_priority {
+            self.log_event(Event::PriorityGranted { window, player });
+        }
+    }
+
     pub(super) fn queue_activated_ability_stack_item(
         &mut self,
         player: u8,
         slot: u8,
         ability_index: u8,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         if !self.curriculum.enable_activated_abilities {
             return Err(anyhow!("Activated abilities disabled"));
         }
@@ -1817,14 +3472,45 @@ impl GameEnv {
         if spec_kind != AbilityKind::Activated {
             return Err(anyhow!("Ability is not activated"));
         }
+        let spec = db
+            .iter_card_abilities_in_canonical_order(card_id)
+            .get(idx)
+            .ok_or_else(|| anyhow!("Ability index out of range"))?;
+        let mut cost = self.ability_cost_for_spec(spec);
+        if !self.can_pay_ability_cost(player, slot, card_inst, cost) {
+            return Err(anyhow!("Activated ability cost not payable"));
+        }
+        self.pay_ability_cost_immediate(player, slot, card_inst, &mut cost)?;
         let effects = db.compiled_effects_for_ability(card_id, idx);
         if effects.is_empty() {
             return Err(anyhow!("Activated ability has no effects"));
         }
-        for effect in effects {
-            self.enqueue_effect_spec(player, card_id, effect.clone());
+        if Self::next_cost_step(&cost).is_some() {
+            self.state.turn.cost_payment_depth =
+                self.state.turn.cost_payment_depth.saturating_add(1);
+            self.state.turn.pending_cost = Some(CostPaymentState {
+                controller: player,
+                source_id: card_id,
+                source_instance_id: card_inst.instance_id,
+                source_slot: Some(slot),
+                ability_index,
+                remaining: cost,
+                current_step: None,
+            });
+            self.start_cost_choice();
+            return Ok(true);
         }
-        Ok(())
+        let source_ref = Some(TargetRef {
+            player,
+            zone: TargetZone::Stage,
+            index: slot,
+            card_id,
+            instance_id: card_inst.instance_id,
+        });
+        for effect in effects {
+            self.enqueue_effect_spec_with_source(player, card_id, effect.clone(), source_ref);
+        }
+        Ok(false)
     }
 
     pub(super) fn queue_counter_stack_item(&mut self, player: u8, hand_index: u8) -> Result<()> {
@@ -1869,7 +3555,12 @@ impl GameEnv {
         self.pay_cost(player, card.cost as usize)?;
         let card_inst = self.state.players[p].hand.remove(hi);
         let card_id = card_inst.id;
-        self.reveal_card(player, &card_inst, RevealReason::Play, RevealAudience::Public);
+        self.reveal_card(
+            player,
+            &card_inst,
+            RevealReason::Play,
+            RevealAudience::Public,
+        );
         self.move_card_between_zones(
             player,
             card_inst,
@@ -1890,6 +3581,7 @@ impl GameEnv {
                 id: EffectId::new(EffectSourceKind::Counter, card_id, 0, 0),
                 kind: EffectKind::CounterBackup { power },
                 target: None,
+                optional: false,
             };
             self.enqueue_effect_spec(player, card_id, spec);
         }
@@ -1901,6 +3593,7 @@ impl GameEnv {
                         amount: reduce as u8,
                     },
                     target: None,
+                    optional: false,
                 };
                 self.enqueue_effect_spec(player, card_id, spec);
             }
@@ -1910,25 +3603,11 @@ impl GameEnv {
                 id: EffectId::new(EffectSourceKind::Counter, card_id, 0, 10),
                 kind: EffectKind::CounterDamageCancel,
                 target: None,
+                optional: false,
             };
             self.enqueue_effect_spec(player, card_id, spec);
         }
         Ok(())
     }
 
-    pub(super) fn enumerate_open_stage_slots(&self, player: u8) -> Vec<u8> {
-        let p = player as usize;
-        let max_slot = if self.curriculum.reduced_stage_mode {
-            1
-        } else {
-            MAX_STAGE
-        };
-        let mut slots = Vec::new();
-        for slot in 0..max_slot {
-            if self.state.players[p].stage[slot].card.is_none() {
-                slots.push(slot as u8);
-            }
-        }
-        slots
-    }
 }

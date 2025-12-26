@@ -5,11 +5,48 @@ use super::{
 };
 use crate::config::*;
 use crate::db::*;
-use crate::encode::MAX_STAGE;
 use crate::effects::*;
+use crate::encode::MAX_STAGE;
 use crate::events::*;
 use crate::legal::*;
 use crate::state::*;
+
+#[derive(Clone, Copy)]
+struct TriggerSeed {
+    player: u8,
+    source: CardId,
+    effect: TriggerEffect,
+}
+
+fn trigger_effect_sort_key(effect: TriggerEffect) -> (u8, u8) {
+    match effect {
+        TriggerEffect::Soul => (0, 0),
+        TriggerEffect::Draw => (1, 0),
+        TriggerEffect::Shot => (2, 0),
+        TriggerEffect::Bounce => (3, 0),
+        TriggerEffect::Treasure => (4, 0),
+        TriggerEffect::Gate => (5, 0),
+        TriggerEffect::Standby => (6, 0),
+        TriggerEffect::AutoAbility { ability_index } => (7, ability_index),
+    }
+}
+
+fn trigger_seed_sort_key(seed: &TriggerSeed) -> (u8, u32, u8, u8) {
+    let (kind, sub) = trigger_effect_sort_key(seed.effect);
+    (seed.player, seed.source, kind, sub)
+}
+
+fn pending_trigger_sort_key(trigger: &PendingTrigger) -> (u32, u8, u32, u8, u8, u32) {
+    let (kind, sub) = trigger_effect_sort_key(trigger.effect);
+    (
+        trigger.group_id,
+        trigger.player,
+        trigger.source_card,
+        kind,
+        sub,
+        trigger.id,
+    )
+}
 
 impl GameEnv {
     pub(super) fn resolve_rule_actions_until_stable(&mut self) {
@@ -23,8 +60,7 @@ impl GameEnv {
             let mut progressed = false;
             for player in 0..2u8 {
                 let p = player as usize;
-                if self.state.players[p].deck.is_empty()
-                    && self.state.turn.cost_payment_depth == 0
+                if self.state.players[p].deck.is_empty() && self.state.turn.cost_payment_depth == 0
                 {
                     if self.state.players[p].waiting_room.is_empty() {
                         self.register_loss(player);
@@ -61,6 +97,17 @@ impl GameEnv {
                     }
                     slot_idx += 1;
                 }
+                let mut slot_idx = 0usize;
+                while slot_idx < self.state.players[p].stage.len() {
+                    if self.state.players[p].stage[slot_idx].card.is_some() {
+                        let power = self.compute_slot_power(p, slot_idx);
+                        if power <= 0 {
+                            self.send_stage_to_waiting_room(player, slot_idx as u8);
+                            progressed = true;
+                        }
+                    }
+                    slot_idx += 1;
+                }
 
                 let mut idx = 0usize;
                 while idx < self.state.players[p].climax.len() {
@@ -86,7 +133,11 @@ impl GameEnv {
                     }
                 }
                 if self.state.players[p].climax.len() > 1 {
-                    let extra = self.state.players[p].climax.split_off(1);
+                    let last = self.state.players[p]
+                        .climax
+                        .pop()
+                        .expect("climax non-empty");
+                    let extra = std::mem::take(&mut self.state.players[p].climax);
                     for card in extra {
                         self.move_card_between_zones(
                             player,
@@ -97,6 +148,7 @@ impl GameEnv {
                             None,
                         );
                     }
+                    self.state.players[p].climax.push(last);
                     progressed = true;
                 }
             }
@@ -110,7 +162,7 @@ impl GameEnv {
         if !self.curriculum.enable_triggers {
             return;
         }
-        let mut pending: Vec<(u8, CardId, TriggerEffect)> = Vec::new();
+        let mut pending: Vec<TriggerSeed> = Vec::new();
         for player in 0..2u8 {
             for slot in &self.state.players[player as usize].stage {
                 let Some(card_inst) = slot.card else {
@@ -126,13 +178,13 @@ impl GameEnv {
                         continue;
                     }
                     if spec.timing() == Some(timing) {
-                        pending.push((
+                        pending.push(TriggerSeed {
                             player,
-                            card_id,
-                            TriggerEffect::AutoAbility {
+                            source: card_id,
+                            effect: TriggerEffect::AutoAbility {
                                 ability_index: ability_index as u8,
                             },
-                        ));
+                        });
                     }
                 }
             }
@@ -147,13 +199,13 @@ impl GameEnv {
                         continue;
                     }
                     if spec.timing() == Some(timing) {
-                        pending.push((
+                        pending.push(TriggerSeed {
                             player,
-                            card_id,
-                            TriggerEffect::AutoAbility {
+                            source: card_id,
+                            effect: TriggerEffect::AutoAbility {
                                 ability_index: ability_index as u8,
                             },
-                        ));
+                        });
                     }
                 }
             }
@@ -162,10 +214,41 @@ impl GameEnv {
             return;
         }
         let group_id = self.allocate_trigger_group();
-        for (player, source, effect) in pending {
-            self.queue_trigger_group_with_group(group_id, player, source, vec![effect]);
-        }
+        self.queue_trigger_group_batch(group_id, pending);
         self.maybe_validate_state("check_timing_triggers");
+    }
+
+    pub(super) fn queue_on_reverse_triggers(&mut self, reversed: &[(u8, CardId)]) {
+        if !self.curriculum.enable_triggers || !self.curriculum.enable_on_reverse_triggers {
+            return;
+        }
+        let mut pending: Vec<TriggerSeed> = Vec::new();
+        for (player, card_id) in reversed {
+            if self.db.get(*card_id).is_none() {
+                continue;
+            }
+            let specs = self.db.iter_card_abilities_in_canonical_order(*card_id);
+            for (ability_index, spec) in specs.iter().enumerate() {
+                if spec.kind != AbilityKind::Auto {
+                    continue;
+                }
+                if spec.timing() == Some(AbilityTiming::OnReverse) {
+                    pending.push(TriggerSeed {
+                        player: *player,
+                        source: *card_id,
+                        effect: TriggerEffect::AutoAbility {
+                            ability_index: ability_index as u8,
+                        },
+                    });
+                }
+            }
+        }
+        if pending.is_empty() {
+            return;
+        }
+        let group_id = self.allocate_trigger_group();
+        self.queue_trigger_group_batch(group_id, pending);
+        self.maybe_validate_state("on_reverse_triggers");
     }
 
     pub(super) fn run_check_timing(&mut self, timing: AbilityTiming) {
@@ -174,10 +257,11 @@ impl GameEnv {
             return;
         }
         self.queue_timing_triggers(timing);
+        self.resolve_quiescence_until_decision();
     }
     pub(super) fn handle_trigger_pipeline(&mut self) -> bool {
         if let Some(choice) = &self.state.turn.choice {
-            self.decision = Some(Decision {
+            self.set_decision(Decision {
                 player: choice.player,
                 kind: DecisionKind::Choice,
                 focus_slot: None,
@@ -189,9 +273,16 @@ impl GameEnv {
             self.state.turn.trigger_order = None;
             return false;
         }
+        if !self.state.turn.pending_triggers_sorted {
+            self.state
+                .turn
+                .pending_triggers
+                .sort_by_key(pending_trigger_sort_key);
+            self.state.turn.pending_triggers_sorted = true;
+        }
 
         if let Some(order) = &self.state.turn.trigger_order {
-            self.decision = Some(Decision {
+            self.set_decision(Decision {
                 player: order.player,
                 kind: DecisionKind::TriggerOrder,
                 focus_slot: None,
@@ -213,22 +304,22 @@ impl GameEnv {
         };
         let active = self.state.turn.active_player;
         for player in [active, 1 - active] {
-            let mut choices: Vec<u32> = self
+            let mut choices: Vec<&PendingTrigger> = self
                 .state
                 .turn
                 .pending_triggers
                 .iter()
                 .filter(|t| t.group_id == group_id && t.player == player)
-                .map(|t| t.id)
                 .collect();
             if choices.len() > 1 {
-                choices.sort_by_key(|id| *id);
+                choices.sort_by_key(|t| pending_trigger_sort_key(t));
+                let ids: Vec<u32> = choices.iter().map(|t| t.id).collect();
                 self.state.turn.trigger_order = Some(TriggerOrderState {
                     group_id,
                     player,
-                    choices,
+                    choices: ids,
                 });
-                self.decision = Some(Decision {
+                self.set_decision(Decision {
                     player,
                     kind: DecisionKind::TriggerOrder,
                     focus_slot: None,
@@ -237,7 +328,7 @@ impl GameEnv {
                 return true;
             }
             if choices.len() == 1 {
-                let trigger_id = choices[0];
+                let trigger_id = choices[0].id;
                 if let Some(index) = self
                     .state
                     .turn
@@ -267,6 +358,9 @@ impl GameEnv {
             return true;
         }
         self.collect_priority_actions(priority.holder);
+        if self.curriculum.priority_allow_pass && !self.curriculum.strict_priority_mode {
+            self.scratch.priority_actions.push(ActionDesc::Pass);
+        }
         if self.scratch.priority_actions.is_empty() {
             self.priority_pass(priority.holder);
             return true;
@@ -278,43 +372,71 @@ impl GameEnv {
             let _ = self.apply_priority_action(priority.holder, action);
             return true;
         }
-        self.start_priority_choice(priority.holder);
+        if self.start_priority_choice(priority.holder) {
+            self.set_decision(Decision {
+                player: priority.holder,
+                kind: DecisionKind::Choice,
+                focus_slot: None,
+            });
+        }
         true
     }
 
-    pub(super) fn queue_trigger_group(&mut self, player: u8, source: CardId, effects: Vec<TriggerEffect>) {
-        if effects.is_empty() {
-            return;
-        }
-        let group_id = self.allocate_trigger_group();
-        self.queue_trigger_group_with_group(group_id, player, source, effects);
-    }
-
-    pub(super) fn queue_trigger_group_with_group(
+    pub(super) fn queue_trigger_group(
         &mut self,
-        group_id: u32,
         player: u8,
         source: CardId,
         effects: Vec<TriggerEffect>,
     ) {
-        for effect in effects {
+        if effects.is_empty() {
+            return;
+        }
+        let group_id = self.allocate_trigger_group();
+        let triggers = effects
+            .into_iter()
+            .map(|effect| TriggerSeed {
+                player,
+                source,
+                effect,
+            })
+            .collect();
+        self.queue_trigger_group_batch(group_id, triggers);
+    }
+
+    fn queue_trigger_group_batch(&mut self, group_id: u32, mut triggers: Vec<TriggerSeed>) {
+        triggers.sort_by_key(trigger_seed_sort_key);
+        let mut trigger_ids = Vec::with_capacity(triggers.len());
+        for trigger in triggers {
             let id = self.state.turn.next_trigger_id;
             self.state.turn.next_trigger_id = self.state.turn.next_trigger_id.wrapping_add(1);
             let pending = PendingTrigger {
                 id,
                 group_id,
-                player,
-                source_card: source,
-                effect,
+                player: trigger.player,
+                source_card: trigger.source,
+                effect: trigger.effect,
                 effect_id: None,
             };
             self.state.turn.pending_triggers.push(pending);
+            self.state.turn.pending_triggers_sorted = false;
+            trigger_ids.push(id);
             self.log_event(Event::TriggerQueued {
                 trigger_id: id,
                 group_id,
-                player,
-                source,
-                effect,
+                player: trigger.player,
+                source: trigger.source,
+                effect: trigger.effect,
+            });
+        }
+        self.state
+            .turn
+            .pending_triggers
+            .sort_by_key(pending_trigger_sort_key);
+        self.state.turn.pending_triggers_sorted = true;
+        if !trigger_ids.is_empty() {
+            self.log_event(Event::TriggerGrouped {
+                group_id,
+                trigger_ids,
             });
         }
     }
@@ -333,11 +455,13 @@ impl GameEnv {
                 id: self.trigger_effect_id(ctx.source_card, TRIGGER_EFFECT_SOUL),
                 kind: EffectKind::ModifyPendingAttackDamage { delta: 1 },
                 target: None,
+                optional: false,
             }],
             TriggerIcon::Draw => vec![EffectSpec {
                 id: self.trigger_effect_id(ctx.source_card, TRIGGER_EFFECT_DRAW),
                 kind: EffectKind::Draw { count: 1 },
                 target: None,
+                optional: false,
             }],
             TriggerIcon::Shot => vec![EffectSpec {
                 id: self.trigger_effect_id(ctx.source_card, TRIGGER_EFFECT_SHOT),
@@ -347,6 +471,7 @@ impl GameEnv {
                     damage_type: DamageType::Effect,
                 },
                 target: None,
+                optional: false,
             }],
             TriggerIcon::Gate => vec![EffectSpec {
                 id: self.trigger_effect_id(ctx.source_card, TRIGGER_EFFECT_GATE),
@@ -355,9 +480,16 @@ impl GameEnv {
                     zone: TargetZone::WaitingRoom,
                     side: TargetSide::SelfSide,
                     slot_filter: TargetSlotFilter::Any,
-                    card_type: Some(CardType::Character),
+                    card_type: Some(CardType::Climax),
+                    card_trait: None,
+                    level_max: None,
+                    cost_max: None,
                     count: 1,
+                    limit: None,
+                    source_only: false,
+                    reveal_to_controller: false,
                 }),
+                optional: true,
             }],
             TriggerIcon::Bounce => vec![EffectSpec {
                 id: self.trigger_effect_id(ctx.source_card, TRIGGER_EFFECT_BOUNCE),
@@ -367,8 +499,15 @@ impl GameEnv {
                     side: TargetSide::SelfSide,
                     slot_filter: TargetSlotFilter::Any,
                     card_type: Some(CardType::Character),
+                    card_trait: None,
+                    level_max: None,
+                    cost_max: None,
                     count: 1,
+                    limit: None,
+                    source_only: false,
+                    reveal_to_controller: false,
                 }),
+                optional: true,
             }],
             TriggerIcon::Standby => {
                 let Some(slot) = ctx.standby_slot else {
@@ -382,8 +521,15 @@ impl GameEnv {
                         side: TargetSide::SelfSide,
                         slot_filter: TargetSlotFilter::Any,
                         card_type: Some(CardType::Character),
+                        card_trait: None,
+                        level_max: None,
+                        cost_max: None,
                         count: 1,
+                        limit: None,
+                        source_only: false,
+                        reveal_to_controller: false,
                     }),
+                    optional: false,
                 }]
             }
             TriggerIcon::Treasure => {
@@ -396,12 +542,14 @@ impl GameEnv {
                         id: self.trigger_effect_id(ctx.source_card, TRIGGER_EFFECT_TREASURE_STOCK),
                         kind: EffectKind::TreasureStock { take_stock },
                         target: None,
+                        optional: false,
                     });
                 }
                 effects.push(EffectSpec {
                     id: self.trigger_effect_id(ctx.source_card, TRIGGER_EFFECT_TREASURE_MOVE),
                     kind: EffectKind::MoveTriggerCardToHand,
                     target: None,
+                    optional: false,
                 });
                 effects
             }
@@ -493,17 +641,12 @@ impl GameEnv {
     }
 
     pub(super) fn resolve_trigger_standby(&mut self, trigger: PendingTrigger) -> bool {
-        let open_slots = self.enumerate_open_stage_slots(trigger.player);
-        let target_slots = if open_slots.is_empty() {
-            let max_slot = if self.curriculum.reduced_stage_mode {
-                1
-            } else {
-                MAX_STAGE
-            };
-            (0..max_slot).map(|slot| slot as u8).collect::<Vec<_>>()
+        let max_slot = if self.curriculum.reduced_stage_mode {
+            1
         } else {
-            open_slots
+            MAX_STAGE
         };
+        let target_slots = (0..max_slot).map(|slot| slot as u8).collect::<Vec<_>>();
         let level_limit = self.state.players[trigger.player as usize]
             .level
             .len()
@@ -539,6 +682,15 @@ impl GameEnv {
                     target_slot: Some(*slot),
                 });
             }
+        }
+        if !self.scratch.choice_options.is_empty() {
+            self.scratch.choice_options.push(ChoiceOptionRef {
+                card_id: 0,
+                instance_id: 0,
+                zone: ChoiceZone::Skip,
+                index: None,
+                target_slot: None,
+            });
         }
         let candidates = std::mem::take(&mut self.scratch.choice_options);
         self.start_choice(
@@ -585,6 +737,8 @@ impl GameEnv {
             }
             slot.power_mod_battle = 0;
         }
+        self.mark_player_slot_power_dirty(player);
+        self.mark_continuous_modifiers_dirty();
         self.log_event(Event::Stand { player });
     }
 
@@ -620,7 +774,14 @@ impl GameEnv {
         if !self.state.turn.end_phase_climax_done {
             let p = player as usize;
             if let Some(card) = self.state.players[p].climax.pop() {
-                self.move_card_between_zones(player, card, Zone::Climax, Zone::WaitingRoom, None, None);
+                self.move_card_between_zones(
+                    player,
+                    card,
+                    Zone::Climax,
+                    Zone::WaitingRoom,
+                    None,
+                    None,
+                );
             }
             self.state.turn.end_phase_climax_done = true;
         }
@@ -643,7 +804,11 @@ impl GameEnv {
     pub(super) fn start_end_phase_discard_choice(&mut self, player: u8) -> bool {
         self.scratch.choice_options.clear();
         for (idx, card) in self.state.players[player as usize].hand.iter().enumerate() {
-            let index = if idx <= u8::MAX as usize { Some(idx as u8) } else { None };
+            let index = if idx <= u8::MAX as usize {
+                Some(idx as u8)
+            } else {
+                None
+            };
             self.scratch.choice_options.push(ChoiceOptionRef {
                 card_id: card.id,
                 instance_id: card.instance_id,
@@ -665,6 +830,7 @@ impl GameEnv {
                 slot.attack_cost = 0;
             }
         }
+        self.mark_all_slot_power_dirty();
         let mut removed: Vec<u32> = Vec::new();
         self.state.modifiers.retain(|m| {
             if m.duration == ModifierDuration::UntilEndOfTurn {
@@ -681,6 +847,7 @@ impl GameEnv {
             });
         }
         self.state.turn.derived_attack = None;
+        self.mark_continuous_modifiers_dirty();
         self.maybe_validate_state("end_phase_expire");
     }
 
@@ -737,6 +904,7 @@ impl GameEnv {
 
     pub(super) fn finish_end_phase(&mut self, player: u8) {
         self.state.turn.pending_triggers.clear();
+        self.state.turn.pending_triggers_sorted = true;
         self.state.turn.trigger_order = None;
         self.state.turn.choice = None;
         self.state.turn.priority = None;
@@ -918,6 +1086,7 @@ impl GameEnv {
             let card_id = card_inst.id;
             let instance_id = card_inst.instance_id;
             ctx.trigger_card = Some(card_id);
+            ctx.trigger_instance_id = Some(instance_id);
             let _ = self.reveal_cards(
                 active as u8,
                 &[card_inst],
@@ -967,7 +1136,11 @@ impl GameEnv {
                             _ => {}
                         }
                     }
+                    let has_treasure = effects.iter().any(|e| matches!(e, TriggerEffect::Treasure));
                     self.queue_trigger_group(active as u8, card_id, effects);
+                    if has_treasure {
+                        return;
+                    }
                 }
             }
             if let Some(resolved) = self.take_resolution_card(active as u8, instance_id) {
@@ -1182,9 +1355,7 @@ impl GameEnv {
                 player: intent.target,
             });
             for card in revealed {
-                if let Some(resolved) =
-                    self.take_resolution_card(intent.target, card.instance_id)
-                {
+                if let Some(resolved) = self.take_resolution_card(intent.target, card.instance_id) {
                     self.move_card_between_zones(
                         intent.target,
                         resolved,
@@ -1198,9 +1369,7 @@ impl GameEnv {
         } else {
             for card in revealed {
                 let card_id = card.id;
-                if let Some(resolved) =
-                    self.take_resolution_card(intent.target, card.instance_id)
-                {
+                if let Some(resolved) = self.take_resolution_card(intent.target, card.instance_id) {
                     self.move_card_between_zones(
                         intent.target,
                         resolved,
@@ -1239,6 +1408,7 @@ impl GameEnv {
             Some(s) => s as usize,
             None => return,
         };
+        let mut reversed: Vec<(u8, CardId)> = Vec::new();
         let atk_power = self.compute_slot_power(attacker, atk_slot);
         let def_power = self.compute_slot_power(defender, def_slot);
         if atk_power > def_power {
@@ -1248,6 +1418,9 @@ impl GameEnv {
                 slot: def_slot as u8,
                 cause_damage_event: ctx.last_damage_event_id,
             });
+            if let Some(card_inst) = self.state.players[defender].stage[def_slot].card {
+                reversed.push((defender as u8, card_inst.id));
+            }
         } else if atk_power < def_power {
             self.state.players[attacker].stage[atk_slot].status = StageStatus::Reverse;
             self.log_event(Event::ReversalCommitted {
@@ -1255,6 +1428,9 @@ impl GameEnv {
                 slot: atk_slot as u8,
                 cause_damage_event: ctx.last_damage_event_id,
             });
+            if let Some(card_inst) = self.state.players[attacker].stage[atk_slot].card {
+                reversed.push((attacker as u8, card_inst.id));
+            }
         } else {
             self.state.players[defender].stage[def_slot].status = StageStatus::Reverse;
             self.state.players[attacker].stage[atk_slot].status = StageStatus::Reverse;
@@ -1268,6 +1444,15 @@ impl GameEnv {
                 slot: atk_slot as u8,
                 cause_damage_event: ctx.last_damage_event_id,
             });
+            if let Some(card_inst) = self.state.players[defender].stage[def_slot].card {
+                reversed.push((defender as u8, card_inst.id));
+            }
+            if let Some(card_inst) = self.state.players[attacker].stage[atk_slot].card {
+                reversed.push((attacker as u8, card_inst.id));
+            }
+        }
+        if !reversed.is_empty() {
+            self.queue_on_reverse_triggers(&reversed);
         }
     }
 
@@ -1310,6 +1495,7 @@ impl GameEnv {
                 slot.power_mod_battle = 0;
             }
         }
+        self.mark_all_slot_power_dirty();
     }
 
     pub(super) fn register_loss(&mut self, player: u8) {

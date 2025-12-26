@@ -111,9 +111,13 @@ struct CanonicalCurriculumConfig {
     enable_visibility_policies: bool,
     use_alternate_end_conditions: bool,
     priority_autopick_single_action: bool,
+    priority_allow_pass: bool,
+    strict_priority_mode: bool,
     reduced_stage_mode: bool,
     enforce_color_requirement: bool,
     enforce_cost_requirement: bool,
+    allow_concede: bool,
+    memory_is_public: bool,
 }
 
 impl CanonicalCurriculumConfig {
@@ -149,9 +153,13 @@ impl CanonicalCurriculumConfig {
             enable_visibility_policies: curriculum.enable_visibility_policies,
             use_alternate_end_conditions: curriculum.use_alternate_end_conditions,
             priority_autopick_single_action: curriculum.priority_autopick_single_action,
+            priority_allow_pass: curriculum.priority_allow_pass,
+            strict_priority_mode: curriculum.strict_priority_mode,
             reduced_stage_mode: curriculum.reduced_stage_mode,
             enforce_color_requirement: curriculum.enforce_color_requirement,
             enforce_cost_requirement: curriculum.enforce_cost_requirement,
+            allow_concede: curriculum.allow_concede,
+            memory_is_public: curriculum.memory_is_public,
         }
     }
 }
@@ -159,6 +167,7 @@ impl CanonicalCurriculumConfig {
 #[derive(Clone, Debug, Serialize)]
 struct CanonicalStateForHash {
     players: [CanonicalPlayerState; 2],
+    reveal_history: [crate::state::RevealHistory; 2],
     turn: CanonicalTurnState,
     rng_state: u64,
     modifiers: Vec<crate::state::ModifierInstance>,
@@ -175,6 +184,7 @@ impl CanonicalStateForHash {
                 CanonicalPlayerState::from_player(&state.players[0]),
                 CanonicalPlayerState::from_player(&state.players[1]),
             ],
+            reveal_history: state.reveal_history.clone(),
             turn: CanonicalTurnState::from_turn(&state.turn),
             rng_state: state.rng.state(),
             modifiers: state.modifiers.clone(),
@@ -224,7 +234,7 @@ struct CanonicalTurnState {
     turn_number: u32,
     phase: crate::state::Phase,
     mulligan_done: [bool; 2],
-    mulligan_selected: [u16; 2],
+    mulligan_selected: [u64; 2],
     main_passed: bool,
     decision_count: u32,
     tick_count: u32,
@@ -237,6 +247,7 @@ struct CanonicalTurnState {
     trigger_order: Option<crate::state::TriggerOrderState>,
     choice: Option<ChoiceState>,
     target_selection: Option<TargetSelectionState>,
+    pending_cost: Option<crate::state::CostPaymentState>,
     priority: Option<PriorityState>,
     stack: Vec<StackItem>,
     pending_stack_groups: Vec<StackOrderState>,
@@ -285,6 +296,7 @@ impl CanonicalTurnState {
             trigger_order: turn.trigger_order.clone(),
             choice: turn.choice.clone(),
             target_selection: turn.target_selection.clone(),
+            pending_cost: turn.pending_cost.clone(),
             priority: turn.priority.clone(),
             stack: turn.stack.clone(),
             pending_stack_groups: turn.pending_stack_groups.iter().cloned().collect(),

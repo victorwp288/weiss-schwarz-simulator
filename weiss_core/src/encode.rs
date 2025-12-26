@@ -1,12 +1,17 @@
 use crate::config::{CurriculumConfig, ObservationVisibility};
 use crate::db::CardDb;
 use crate::legal::{ActionDesc, Decision, DecisionKind};
-use crate::state::{AttackType, GameState, ModifierKind, Phase, StageStatus, TerminalResult};
+use crate::state::{
+    AttackType, GameState, ModifierKind, Phase, StageStatus, TerminalResult, REVEAL_HISTORY_LEN,
+};
 
-pub const OBS_ENCODING_VERSION: u32 = 1;
-pub const ACTION_ENCODING_VERSION: u32 = 1;
+pub const OBS_ENCODING_VERSION: u32 = 5;
+pub const ACTION_ENCODING_VERSION: u32 = 2;
+pub const POLICY_VERSION: u32 = 1;
+pub const SPEC_HASH: u64 =
+    ((OBS_ENCODING_VERSION as u64) << 32) | ((ACTION_ENCODING_VERSION as u64) << 16) | (POLICY_VERSION as u64);
 
-pub const MAX_HAND: usize = 10;
+pub const MAX_HAND: usize = 50;
 pub const MAX_DECK: usize = 50;
 pub const MAX_STAGE: usize = 5;
 pub const MAX_ABILITIES_PER_CARD: usize = 4;
@@ -21,24 +26,21 @@ pub const MULLIGAN_CONFIRM_ID: usize = 0;
 pub const MULLIGAN_SELECT_BASE: usize = MULLIGAN_CONFIRM_ID + 1;
 pub const MULLIGAN_SELECT_COUNT: usize = MAX_HAND;
 
-pub const CLOCK_PASS_ID: usize = MULLIGAN_SELECT_BASE + MULLIGAN_SELECT_COUNT;
-pub const CLOCK_HAND_BASE: usize = CLOCK_PASS_ID + 1;
+pub const PASS_ACTION_ID: usize = MULLIGAN_SELECT_BASE + MULLIGAN_SELECT_COUNT;
+pub const CLOCK_HAND_BASE: usize = PASS_ACTION_ID + 1;
 pub const CLOCK_HAND_COUNT: usize = MAX_HAND;
 
-pub const MAIN_PASS_ID: usize = CLOCK_HAND_BASE + CLOCK_HAND_COUNT;
-pub const MAIN_PLAY_CHAR_BASE: usize = MAIN_PASS_ID + 1;
+pub const MAIN_PLAY_CHAR_BASE: usize = CLOCK_HAND_BASE + CLOCK_HAND_COUNT;
 pub const MAIN_PLAY_CHAR_COUNT: usize = MAX_HAND * MAX_STAGE;
 pub const MAIN_PLAY_EVENT_BASE: usize = MAIN_PLAY_CHAR_BASE + MAIN_PLAY_CHAR_COUNT;
 pub const MAIN_PLAY_EVENT_COUNT: usize = MAX_HAND;
 pub const MAIN_MOVE_BASE: usize = MAIN_PLAY_EVENT_BASE + MAIN_PLAY_EVENT_COUNT;
 pub const MAIN_MOVE_COUNT: usize = MAX_STAGE * (MAX_STAGE - 1);
 
-pub const CLIMAX_PASS_ID: usize = MAIN_MOVE_BASE + MAIN_MOVE_COUNT;
-pub const CLIMAX_PLAY_BASE: usize = CLIMAX_PASS_ID + 1;
+pub const CLIMAX_PLAY_BASE: usize = MAIN_MOVE_BASE + MAIN_MOVE_COUNT;
 pub const CLIMAX_PLAY_COUNT: usize = MAX_HAND;
 
-pub const ATTACK_PASS_ID: usize = CLIMAX_PLAY_BASE + CLIMAX_PLAY_COUNT;
-pub const ATTACK_BASE: usize = ATTACK_PASS_ID + 1;
+pub const ATTACK_BASE: usize = CLIMAX_PLAY_BASE + CLIMAX_PLAY_COUNT;
 pub const ATTACK_COUNT: usize = ATTACK_SLOT_COUNT * 3;
 
 pub const LEVEL_UP_BASE: usize = ATTACK_BASE + ATTACK_COUNT;
@@ -61,6 +63,21 @@ pub const CONCEDE_ID: usize = CHOICE_NEXT_ID + 1;
 pub const ACTION_SPACE_SIZE: usize = CONCEDE_ID + 1;
 
 pub const OBS_HEADER_LEN: usize = 16;
+pub const OBS_REASON_LEN: usize = 8;
+pub const OBS_REASON_IN_MAIN: usize = 0;
+pub const OBS_REASON_IN_CLIMAX: usize = 1;
+pub const OBS_REASON_IN_ATTACK: usize = 2;
+pub const OBS_REASON_IN_COUNTER_WINDOW: usize = 3;
+pub const OBS_REASON_NO_STOCK: usize = 4;
+pub const OBS_REASON_NO_COLOR: usize = 5;
+pub const OBS_REASON_NO_HAND: usize = 6;
+pub const OBS_REASON_NO_TARGETS: usize = 7;
+pub const OBS_REVEAL_LEN: usize = REVEAL_HISTORY_LEN;
+pub const OBS_CONTEXT_LEN: usize = 4;
+pub const OBS_CONTEXT_PRIORITY_WINDOW: usize = 0;
+pub const OBS_CONTEXT_CHOICE_ACTIVE: usize = 1;
+pub const OBS_CONTEXT_STACK_NONEMPTY: usize = 2;
+pub const OBS_CONTEXT_ENCORE_PENDING: usize = 3;
 pub const PER_PLAYER_COUNTS: usize = 9;
 pub const PER_STAGE_SLOT: usize = 5;
 pub const PER_PLAYER_STAGE: usize = MAX_STAGE * PER_STAGE_SLOT;
@@ -82,28 +99,54 @@ pub const PER_PLAYER_BLOCK_LEN: usize = PER_PLAYER_COUNTS
     + PER_PLAYER_STOCK_TOP
     + PER_PLAYER_HAND
     + PER_PLAYER_DECK;
-pub const OBS_LEN: usize = OBS_HEADER_LEN + 2 * PER_PLAYER_BLOCK_LEN;
+pub const OBS_REASON_BASE: usize = OBS_HEADER_LEN + 2 * PER_PLAYER_BLOCK_LEN;
+pub const OBS_REVEAL_BASE: usize = OBS_REASON_BASE + OBS_REASON_LEN;
+pub const OBS_CONTEXT_BASE: usize = OBS_REVEAL_BASE + OBS_REVEAL_LEN;
+pub const OBS_LEN: usize = OBS_CONTEXT_BASE + OBS_CONTEXT_LEN;
 
 #[allow(clippy::too_many_arguments)]
 pub fn encode_observation(
     state: &GameState,
     db: &CardDb,
-    _curriculum: &CurriculumConfig,
+    curriculum: &CurriculumConfig,
     perspective: u8,
     decision: Option<&Decision>,
     last_action: Option<&ActionDesc>,
     last_action_player: Option<u8>,
     visibility: ObservationVisibility,
-    policies_enabled: bool,
+    out: &mut [i32],
+) {
+    let mut slot_powers = [[0i32; MAX_STAGE]; 2];
+    compute_slot_powers_from_state(state, db, &mut slot_powers);
+    encode_observation_with_slot_power(
+        state,
+        db,
+        curriculum,
+        perspective,
+        decision,
+        last_action,
+        last_action_player,
+        visibility,
+        &slot_powers,
+        out,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn encode_observation_with_slot_power(
+    state: &GameState,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    perspective: u8,
+    decision: Option<&Decision>,
+    last_action: Option<&ActionDesc>,
+    last_action_player: Option<u8>,
+    visibility: ObservationVisibility,
+    slot_powers: &[[i32; MAX_STAGE]; 2],
     out: &mut [i32],
 ) {
     assert!(out.len() >= OBS_LEN);
     out.fill(0);
-    let visibility = if policies_enabled {
-        visibility
-    } else {
-        ObservationVisibility::Full
-    };
     let p0 = perspective as usize;
     let p1 = 1 - p0;
     out[0] = state.turn.active_player as i32;
@@ -111,13 +154,8 @@ pub fn encode_observation(
     out[2] = decision_kind_to_i32(decision.map(|d| d.kind));
     out[3] = decision.map(|d| d.player as i32).unwrap_or(-1);
     out[4] = terminal_to_i32(state.terminal);
-    let (last_kind, last_p1, last_p2) = last_action_to_fields(
-        last_action,
-        last_action_player,
-        perspective,
-        visibility,
-        policies_enabled,
-    );
+    let (last_kind, last_p1, last_p2) =
+        last_action_to_fields(last_action, last_action_player, perspective, visibility);
     out[5] = last_kind;
     out[6] = last_p1;
     out[7] = last_p2;
@@ -158,13 +196,23 @@ pub fn encode_observation(
         out[offset + 3] = p.hand.len() as i32;
         out[offset + 4] = p.stock.len() as i32;
         out[offset + 5] = p.waiting_room.len() as i32;
-        out[offset + 6] = p.memory.len() as i32;
+        let memory_visible = if visibility == ObservationVisibility::Public
+            && !curriculum.memory_is_public
+        {
+            *player_index == perspective as usize
+        } else {
+            true
+        };
+        out[offset + 6] = if memory_visible {
+            p.memory.len() as i32
+        } else {
+            0
+        };
         out[offset + 7] = p.climax.len() as i32;
         out[offset + 8] = p.resolution.len() as i32;
         offset += PER_PLAYER_COUNTS;
 
-        for slot in 0..MAX_STAGE {
-            let slot_state = &p.stage[slot];
+        for (slot, slot_state) in p.stage.iter().enumerate() {
             let card_id = slot_state.card.map(|c| c.id).unwrap_or(0) as i32;
             let status = if slot_state.card.is_some() {
                 status_to_i32(slot_state.status)
@@ -174,22 +222,7 @@ pub fn encode_observation(
             let has_attacked = if slot_state.has_attacked { 1 } else { 0 };
             let (power, soul) = if let Some(card) = slot_state.card.and_then(|inst| db.get(inst.id))
             {
-                let mut power =
-                    card.power + slot_state.power_mod_turn + slot_state.power_mod_battle;
-                for modifier in &state.modifiers {
-                    if modifier.kind != ModifierKind::Power {
-                        continue;
-                    }
-                    if modifier.target_player as usize != *player_index
-                        || modifier.target_slot as usize != slot
-                    {
-                        continue;
-                    }
-                    if modifier.target_card != slot_state.card.map(|c| c.id).unwrap_or(0) {
-                        continue;
-                    }
-                    power += modifier.magnitude;
-                }
+                let power = slot_powers[*player_index][slot];
                 let soul = card.soul as i32;
                 (power, soul)
             } else {
@@ -285,6 +318,212 @@ pub fn encode_observation(
         }
         offset += MAX_DECK;
     }
+
+    let reason_bits = compute_reason_bits(state, db, curriculum, perspective, decision);
+    let reason_base = OBS_REASON_BASE;
+    out[reason_base..reason_base + OBS_REASON_LEN].copy_from_slice(&reason_bits);
+
+    let reveal_base = OBS_REVEAL_BASE;
+    let reveal_slice = &mut out[reveal_base..reveal_base + OBS_REVEAL_LEN];
+    state.reveal_history[p0].write_chronological(reveal_slice);
+
+    let context_base = OBS_CONTEXT_BASE;
+    let context_bits = compute_context_bits(state);
+    out[context_base..context_base + OBS_CONTEXT_LEN].copy_from_slice(&context_bits);
+}
+
+fn compute_slot_powers_from_state(state: &GameState, db: &CardDb, out: &mut [[i32; MAX_STAGE]; 2]) {
+    let mut slot_card_ids = [[0u32; MAX_STAGE]; 2];
+    for (player, p) in state.players.iter().enumerate() {
+        for (slot, slot_state) in p.stage.iter().enumerate() {
+            slot_card_ids[player][slot] = slot_state.card.map(|c| c.id).unwrap_or(0);
+        }
+    }
+    let mut slot_power_mods = [[0i32; MAX_STAGE]; 2];
+    for modifier in &state.modifiers {
+        if modifier.kind != ModifierKind::Power {
+            continue;
+        }
+        let p = modifier.target_player as usize;
+        let s = modifier.target_slot as usize;
+        if p >= 2 || s >= MAX_STAGE {
+            continue;
+        }
+        if slot_card_ids[p][s] != modifier.target_card {
+            continue;
+        }
+        slot_power_mods[p][s] = slot_power_mods[p][s].saturating_add(modifier.magnitude);
+    }
+    for (player, p) in state.players.iter().enumerate() {
+        for (slot, slot_state) in p.stage.iter().enumerate() {
+            let power = if let Some(card) = slot_state.card.and_then(|inst| db.get(inst.id)) {
+                card.power
+                    + slot_state.power_mod_turn
+                    + slot_state.power_mod_battle
+                    + slot_power_mods[player][slot]
+            } else {
+                0
+            };
+            out[player][slot] = power;
+        }
+    }
+}
+
+fn compute_reason_bits(
+    state: &GameState,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    perspective: u8,
+    decision: Option<&Decision>,
+) -> [i32; OBS_REASON_LEN] {
+    let mut out = [0i32; OBS_REASON_LEN];
+    let decision = match decision {
+        Some(decision) if decision.player == perspective => decision,
+        _ => return out,
+    };
+    let in_main = decision.kind == DecisionKind::Main;
+    let in_climax = decision.kind == DecisionKind::Climax;
+    let in_attack = decision.kind == DecisionKind::AttackDeclaration;
+    let in_counter_window = state
+        .turn
+        .priority
+        .as_ref()
+        .map(|p| p.window == crate::state::TimingWindow::CounterWindow)
+        .unwrap_or(false);
+    out[OBS_REASON_IN_MAIN] = i32::from(in_main);
+    out[OBS_REASON_IN_CLIMAX] = i32::from(in_climax);
+    out[OBS_REASON_IN_ATTACK] = i32::from(in_attack);
+    out[OBS_REASON_IN_COUNTER_WINDOW] = i32::from(in_counter_window);
+
+    let p = &state.players[perspective as usize];
+    let mut any_candidate = false;
+    let mut stock_blocked = false;
+    let mut color_blocked = false;
+    if in_main || in_climax {
+        for card_inst in &p.hand {
+            let Some(card) = db.get(card_inst.id) else {
+                continue;
+            };
+            if !card_set_allowed(card, curriculum) {
+                continue;
+            }
+            if in_main {
+                match card.card_type {
+                    crate::db::CardType::Character => {
+                        if !curriculum.allow_character {
+                            continue;
+                        }
+                    }
+                    crate::db::CardType::Event => {
+                        if !curriculum.allow_event {
+                            continue;
+                        }
+                    }
+                    _ => continue,
+                }
+            } else if in_climax {
+                if card.card_type != crate::db::CardType::Climax || !curriculum.allow_climax {
+                    continue;
+                }
+                if !curriculum.enable_climax_phase {
+                    continue;
+                }
+            }
+            if !meets_level_requirement(card, p.level.len()) {
+                continue;
+            }
+            any_candidate = true;
+            if !meets_cost_requirement(card, p, curriculum) {
+                stock_blocked = true;
+            }
+            if !meets_color_requirement(card, p, db, curriculum) {
+                color_blocked = true;
+            }
+        }
+    }
+    if in_main || in_climax {
+        out[OBS_REASON_NO_HAND] = i32::from(!any_candidate);
+        out[OBS_REASON_NO_STOCK] = i32::from(stock_blocked);
+        out[OBS_REASON_NO_COLOR] = i32::from(color_blocked);
+    }
+
+    let no_targets = decision.kind == DecisionKind::Choice
+        && state
+            .turn
+            .choice
+            .as_ref()
+            .map(|choice| {
+                choice
+                    .options
+                    .iter()
+                    .all(|opt| opt.zone == crate::state::ChoiceZone::Skip)
+            })
+            .unwrap_or(true);
+    out[OBS_REASON_NO_TARGETS] = i32::from(no_targets);
+
+    out
+}
+
+fn compute_context_bits(state: &GameState) -> [i32; OBS_CONTEXT_LEN] {
+    let mut out = [0i32; OBS_CONTEXT_LEN];
+    out[OBS_CONTEXT_PRIORITY_WINDOW] = i32::from(state.turn.priority.is_some());
+    out[OBS_CONTEXT_CHOICE_ACTIVE] = i32::from(state.turn.choice.is_some());
+    out[OBS_CONTEXT_STACK_NONEMPTY] = i32::from(!state.turn.stack.is_empty());
+    out[OBS_CONTEXT_ENCORE_PENDING] = i32::from(!state.turn.encore_queue.is_empty());
+    out
+}
+
+fn card_set_allowed(card: &crate::db::CardStatic, curriculum: &CurriculumConfig) -> bool {
+    if let Some(set) = curriculum.allowed_card_sets_cache.as_ref() {
+        match &card.card_set {
+            Some(set_id) => set.contains(set_id),
+            None => false,
+        }
+    } else if curriculum.allowed_card_sets.is_empty() {
+        true
+    } else {
+        card.card_set
+            .as_ref()
+            .map(|s| curriculum.allowed_card_sets.iter().any(|a| a == s))
+            .unwrap_or(false)
+    }
+}
+
+fn meets_level_requirement(card: &crate::db::CardStatic, level_count: usize) -> bool {
+    card.level as usize <= level_count
+}
+
+fn meets_cost_requirement(
+    card: &crate::db::CardStatic,
+    player: &crate::state::PlayerState,
+    curriculum: &CurriculumConfig,
+) -> bool {
+    if !curriculum.enforce_cost_requirement {
+        return true;
+    }
+    player.stock.len() >= card.cost as usize
+}
+
+fn meets_color_requirement(
+    card: &crate::db::CardStatic,
+    player: &crate::state::PlayerState,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+) -> bool {
+    if !curriculum.enforce_color_requirement {
+        return true;
+    }
+    if card.level == 0 || card.color == crate::db::CardColor::Colorless {
+        return true;
+    }
+    for card_id in player.level.iter().chain(player.clock.iter()) {
+        if let Some(c) = db.get(card_id.id) {
+            if c.color == card.color {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn phase_to_i32(phase: Phase) -> i32 {
@@ -351,10 +590,8 @@ fn last_action_to_fields(
     actor: Option<u8>,
     perspective: u8,
     visibility: ObservationVisibility,
-    policies_enabled: bool,
 ) -> (i32, i32, i32) {
-    let mask = policies_enabled
-        && visibility == ObservationVisibility::Public
+    let mask = visibility == ObservationVisibility::Public
         && actor.map(|p| p != perspective).unwrap_or(false);
     match action {
         None => (0, -1, -1),
@@ -363,12 +600,11 @@ fn last_action_to_fields(
             let idx = if mask { -1 } else { *hand_index as i32 };
             (2, idx, -1)
         }
-        Some(ActionDesc::ClockPass) => (3, -1, -1),
+        Some(ActionDesc::Pass) => (3, -1, -1),
         Some(ActionDesc::Clock { hand_index }) => {
             let idx = if mask { -1 } else { *hand_index as i32 };
             (4, idx, -1)
         }
-        Some(ActionDesc::MainPass) => (5, -1, -1),
         Some(ActionDesc::MainPlayCharacter {
             hand_index,
             stage_slot,
@@ -387,16 +623,13 @@ fn last_action_to_fields(
             slot,
             ability_index,
         }) => (9, *slot as i32, *ability_index as i32),
-        Some(ActionDesc::ClimaxPass) => (10, -1, -1),
         Some(ActionDesc::ClimaxPlay { hand_index }) => {
             let idx = if mask { -1 } else { *hand_index as i32 };
             (11, idx, -1)
         }
-        Some(ActionDesc::AttackPass) => (12, -1, -1),
         Some(ActionDesc::Attack { slot, attack_type }) => {
             (13, *slot as i32, attack_type_to_i32(*attack_type))
         }
-        Some(ActionDesc::CounterPass) => (14, -1, -1),
         Some(ActionDesc::CounterPlay { hand_index }) => {
             let idx = if mask { -1 } else { *hand_index as i32 };
             (15, idx, -1)
@@ -426,7 +659,7 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
                 None
             }
         }
-        ActionDesc::ClockPass => Some(CLOCK_PASS_ID),
+        ActionDesc::Pass => Some(PASS_ACTION_ID),
         ActionDesc::Clock { hand_index } => {
             let hi = *hand_index as usize;
             if hi < MAX_HAND {
@@ -435,7 +668,6 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
                 None
             }
         }
-        ActionDesc::MainPass => Some(MAIN_PASS_ID),
         ActionDesc::MainPlayCharacter {
             hand_index,
             stage_slot,
@@ -473,7 +705,6 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
             let _ = (slot, ability_index);
             None
         }
-        ActionDesc::ClimaxPass => Some(CLIMAX_PASS_ID),
         ActionDesc::ClimaxPlay { hand_index } => {
             let hi = *hand_index as usize;
             if hi < MAX_HAND {
@@ -482,7 +713,6 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
                 None
             }
         }
-        ActionDesc::AttackPass => Some(ATTACK_PASS_ID),
         ActionDesc::Attack { slot, attack_type } => {
             let s = *slot as usize;
             let t = attack_type_to_i32(*attack_type) as usize;
@@ -492,7 +722,6 @@ pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
                 None
             }
         }
-        ActionDesc::CounterPass => None,
         ActionDesc::CounterPlay { hand_index } => {
             let _ = hand_index;
             None

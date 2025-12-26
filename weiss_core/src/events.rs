@@ -11,9 +11,10 @@ pub enum RevealReason {
     DamageCheck,
     RefreshPenalty,
     Play,
+    AbilityEffect,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RevealAudience {
     Public,
     OwnerOnly,
@@ -116,6 +117,10 @@ pub enum Event {
         player: u8,
         source: CardId,
         effect: TriggerEffect,
+    },
+    TriggerGrouped {
+        group_id: u32,
+        trigger_ids: Vec<u32>,
     },
     TriggerResolved {
         trigger_id: u32,
@@ -301,4 +306,5 @@ pub enum Event {
 pub enum ModifierRemoveReason {
     EndOfTurn,
     TargetLeftStage,
+    ContinuousRefresh,
 }

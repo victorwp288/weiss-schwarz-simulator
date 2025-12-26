@@ -14,6 +14,64 @@ pub struct CardInstance {
     pub controller: u8,
 }
 
+pub const REVEAL_HISTORY_LEN: usize = 8;
+
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub struct RevealHistory {
+    entries: [CardId; REVEAL_HISTORY_LEN],
+    len: u8,
+    head: u8,
+}
+
+impl RevealHistory {
+    pub fn new() -> Self {
+        Self {
+            entries: [0; REVEAL_HISTORY_LEN],
+            len: 0,
+            head: 0,
+        }
+    }
+
+    pub fn push(&mut self, card: CardId) {
+        if REVEAL_HISTORY_LEN == 0 {
+            return;
+        }
+        let head = self.head as usize;
+        self.entries[head] = card;
+        if (self.len as usize) < REVEAL_HISTORY_LEN {
+            self.len = self.len.saturating_add(1);
+        }
+        self.head = ((head + 1) % REVEAL_HISTORY_LEN) as u8;
+    }
+
+    pub fn write_chronological(&self, out: &mut [i32]) {
+        out.fill(0);
+        let len = self.len as usize;
+        if len == 0 || REVEAL_HISTORY_LEN == 0 {
+            return;
+        }
+        let start = if len < REVEAL_HISTORY_LEN {
+            0
+        } else {
+            self.head as usize
+        };
+        for idx in 0..len.min(out.len()) {
+            let entry_idx = if len < REVEAL_HISTORY_LEN {
+                idx
+            } else {
+                (start + idx) % REVEAL_HISTORY_LEN
+            };
+            out[idx] = self.entries[entry_idx] as i32;
+        }
+    }
+}
+
+impl Default for RevealHistory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CardInstance {
     pub fn new(id: CardId, owner: u8, instance_id: CardInstanceId) -> Self {
         Self {
@@ -161,6 +219,8 @@ pub enum TargetSide {
 pub enum TargetSlotFilter {
     Any,
     FrontRow,
+    BackRow,
+    SpecificSlot(u8),
 }
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
@@ -169,7 +229,19 @@ pub struct TargetSpec {
     pub side: TargetSide,
     pub slot_filter: TargetSlotFilter,
     pub card_type: Option<crate::db::CardType>,
+    #[serde(default)]
+    pub card_trait: Option<u16>,
+    #[serde(default)]
+    pub level_max: Option<u8>,
+    #[serde(default)]
+    pub cost_max: Option<u8>,
     pub count: u8,
+    #[serde(default)]
+    pub limit: Option<u8>,
+    #[serde(default)]
+    pub source_only: bool,
+    #[serde(default)]
+    pub reveal_to_controller: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -196,7 +268,10 @@ pub struct TargetSelectionState {
     pub spec: TargetSpec,
     pub remaining: u8,
     pub selected: Vec<TargetRef>,
+    #[serde(default)]
+    pub candidates: Vec<TargetRef>,
     pub effect: PendingTargetEffect,
+    pub allow_skip: bool,
 }
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
@@ -229,8 +304,29 @@ pub enum ChoiceReason {
     TriggerTreasureSelect,
     StackOrderSelect,
     PriorityActionSelect,
+    CostPayment,
     TargetSelect,
     EndPhaseDiscard,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CostStepKind {
+    RestOther,
+    DiscardFromHand,
+    ClockFromHand,
+    ClockFromDeckTop,
+    RevealFromHand,
+}
+
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub struct CostPaymentState {
+    pub controller: u8,
+    pub source_id: CardId,
+    pub source_instance_id: CardInstanceId,
+    pub source_slot: Option<u8>,
+    pub ability_index: u8,
+    pub remaining: crate::db::AbilityCost,
+    pub current_step: Option<CostStepKind>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -248,6 +344,8 @@ pub enum ChoiceZone {
     Stack,
     PriorityCounter,
     PriorityAct,
+    PriorityPass,
+    Skip,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -276,6 +374,7 @@ pub struct AttackContext {
     pub defender_slot: Option<u8>,
     pub attack_type: AttackType,
     pub trigger_card: Option<CardId>,
+    pub trigger_instance_id: Option<CardInstanceId>,
     pub damage: i32,
     pub counter_allowed: bool,
     pub counter_played: bool,
@@ -405,16 +504,27 @@ pub enum ModifierDuration {
     WhileOnStage,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ModifierLayer {
+    Continuous,
+    #[default]
+    Effect,
+}
+
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct ModifierInstance {
     pub id: u32,
     pub source: CardId,
+    #[serde(default)]
+    pub source_slot: Option<u8>,
     pub target_player: u8,
     pub target_slot: u8,
     pub target_card: CardId,
     pub kind: ModifierKind,
     pub magnitude: i32,
     pub duration: ModifierDuration,
+    #[serde(default)]
+    pub layer: ModifierLayer,
     pub insertion: u32,
 }
 
@@ -425,7 +535,7 @@ pub struct TurnState {
     pub turn_number: u32,
     pub phase: Phase,
     pub mulligan_done: [bool; 2],
-    pub mulligan_selected: [u16; 2],
+    pub mulligan_selected: [u64; 2],
     pub main_passed: bool,
     pub decision_count: u32,
     pub tick_count: u32,
@@ -435,6 +545,7 @@ pub struct TurnState {
     pub encore_queue: Vec<EncoreRequest>,
     pub encore_step_player: Option<u8>,
     pub pending_triggers: Vec<PendingTrigger>,
+    pub pending_triggers_sorted: bool,
     pub active_window: Option<TimingWindow>,
     pub end_phase_window_done: bool,
     pub end_phase_discard_done: bool,
@@ -452,6 +563,7 @@ pub struct TurnState {
     pub trigger_order: Option<TriggerOrderState>,
     pub choice: Option<ChoiceState>,
     pub target_selection: Option<TargetSelectionState>,
+    pub pending_cost: Option<CostPaymentState>,
     pub priority: Option<PriorityState>,
     pub stack: Vec<StackItem>,
     pub pending_stack_groups: VecDeque<StackOrderState>,
@@ -469,6 +581,7 @@ pub struct TurnState {
 #[derive(Clone, Debug, Hash)]
 pub struct GameState {
     pub players: [PlayerState; 2],
+    pub reveal_history: [RevealHistory; 2],
     pub turn: TurnState,
     pub rng: Rng64,
     pub modifiers: Vec<ModifierInstance>,
@@ -496,6 +609,7 @@ impl GameState {
         let deck_b = Self::build_deck(deck_b, 1, &mut next_instance_id);
         Self {
             players: [PlayerState::new(deck_a), PlayerState::new(deck_b)],
+            reveal_history: [RevealHistory::new(), RevealHistory::new()],
             turn: TurnState {
                 active_player: starting_player,
                 starting_player,
@@ -512,9 +626,11 @@ impl GameState {
                 encore_queue: Vec::new(),
                 encore_step_player: None,
                 pending_triggers: Vec::new(),
+                pending_triggers_sorted: true,
                 trigger_order: None,
                 choice: None,
                 target_selection: None,
+                pending_cost: None,
                 priority: None,
                 stack: Vec::new(),
                 pending_stack_groups: VecDeque::new(),

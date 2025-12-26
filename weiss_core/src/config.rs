@@ -121,6 +121,8 @@ pub struct CurriculumConfig {
     #[serde(default = "default_true")]
     pub enable_trigger_standby: bool,
     #[serde(default = "default_true")]
+    pub enable_on_reverse_triggers: bool,
+    #[serde(default = "default_true")]
     pub enable_backup: bool,
     #[serde(default = "default_true")]
     pub enable_encore: bool,
@@ -140,12 +142,20 @@ pub struct CurriculumConfig {
     pub use_alternate_end_conditions: bool,
     #[serde(default = "default_true")]
     pub priority_autopick_single_action: bool,
+    #[serde(default = "default_true")]
+    pub priority_allow_pass: bool,
+    #[serde(default)]
+    pub strict_priority_mode: bool,
     #[serde(default)]
     pub reduced_stage_mode: bool,
     #[serde(default = "default_true")]
     pub enforce_color_requirement: bool,
     #[serde(default = "default_true")]
     pub enforce_cost_requirement: bool,
+    #[serde(default)]
+    pub allow_concede: bool,
+    #[serde(default = "default_true")]
+    pub memory_is_public: bool,
     #[serde(skip)]
     pub allowed_card_sets_cache: Option<HashSet<String>>,
 }
@@ -170,6 +180,7 @@ impl Default for CurriculumConfig {
             enable_trigger_treasure: true,
             enable_trigger_gate: true,
             enable_trigger_standby: true,
+            enable_on_reverse_triggers: true,
             enable_backup: true,
             enable_encore: true,
             enable_refresh_penalty: true,
@@ -180,9 +191,13 @@ impl Default for CurriculumConfig {
             enable_visibility_policies: false,
             use_alternate_end_conditions: false,
             priority_autopick_single_action: true,
+            priority_allow_pass: true,
+            strict_priority_mode: false,
             reduced_stage_mode: false,
             enforce_color_requirement: true,
             enforce_cost_requirement: true,
+            allow_concede: false,
+            memory_is_public: true,
             allowed_card_sets_cache: None,
         }
     }

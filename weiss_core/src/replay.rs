@@ -115,9 +115,7 @@ impl ReplayWriter {
                 let header = &data.header;
                 let filename = format!(
                     "episode_{:04}_{:08}_{:016x}.wsr",
-                    header.env_id,
-                    header.episode_index,
-                    header.seed
+                    header.env_id, header.episode_index, header.seed
                 );
                 let path = out_dir.join(filename);
                 if let Err(err) = write_replay_file(&path, &data, compress) {

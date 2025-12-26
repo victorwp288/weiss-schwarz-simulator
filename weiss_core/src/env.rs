@@ -1,13 +1,14 @@
+use anyhow::{anyhow, Result};
 use std::collections::BTreeSet;
 use std::sync::Arc;
-use anyhow::{anyhow, Result};
 
 use crate::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
 use crate::db::{CardDb, CardId, CardStatic, CardType};
 use crate::encode::{
-    encode_observation, fill_action_mask, ACTION_ENCODING_VERSION, OBS_ENCODING_VERSION, OBS_LEN,
+    encode_observation_with_slot_power, fill_action_mask, ACTION_ENCODING_VERSION,
+    OBS_ENCODING_VERSION, OBS_LEN,
 };
 use crate::events::{Event, Zone};
 use crate::legal::{ActionDesc, Decision, DecisionKind};
@@ -31,6 +32,7 @@ pub struct EnvInfo {
     pub terminal: Option<TerminalResult>,
     pub illegal_action: bool,
     pub engine_error: bool,
+    pub engine_error_code: u8,
 }
 
 /// Outcome from applying a single decision action.
@@ -56,6 +58,21 @@ impl VisibilityContext {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EngineErrorCode {
+    None = 0,
+    StackAutoResolveCap = 1,
+    TriggerQuiescenceCap = 2,
+    Panic = 3,
+    ActionError = 4,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DebugConfig {
+    pub fingerprint_every_n: u32,
+    pub event_ring_capacity: usize,
+}
+
 /// A single Weiss Schwarz environment instance with deterministic RNG state.
 pub struct GameEnv {
     pub db: Arc<CardDb>,
@@ -65,16 +82,24 @@ pub struct GameEnv {
     pub env_id: u32,
     pub episode_index: u32,
     pub decision: Option<Decision>,
-    pub last_action_lookup: Vec<Option<ActionDesc>>,
-    pub last_action_mask: Vec<u8>,
-    pub last_legal_actions: Vec<ActionDesc>,
+    action_cache: ActionCache,
+    decision_id: u32,
     pub last_action_desc: Option<ActionDesc>,
     pub last_action_player: Option<u8>,
     pub last_illegal_action: bool,
     pub last_engine_error: bool,
+    pub last_engine_error_code: EngineErrorCode,
     pub last_perspective: u8,
     pub pending_damage_delta: [i32; 2],
     pub obs_buf: Vec<i32>,
+    slot_power_cache: [[i32; crate::encode::MAX_STAGE]; 2],
+    slot_power_dirty: [[bool; crate::encode::MAX_STAGE]; 2],
+    slot_power_cache_card: [[CardId; crate::encode::MAX_STAGE]; 2],
+    slot_power_cache_mod_turn: [[i32; crate::encode::MAX_STAGE]; 2],
+    slot_power_cache_mod_battle: [[i32; crate::encode::MAX_STAGE]; 2],
+    rule_actions_dirty: bool,
+    continuous_modifiers_dirty: bool,
+    last_rule_action_phase: Phase,
     pub replay_config: ReplayConfig,
     pub replay_writer: Option<ReplayWriter>,
     pub replay_actions: Vec<ActionDesc>,
@@ -87,6 +112,8 @@ pub struct GameEnv {
     pub scratch_replacement_indices: Vec<usize>,
     scratch: EnvScratch,
     revealed_to_viewer: [BTreeSet<CardInstanceId>; 2],
+    debug: DebugConfig,
+    debug_event_ring: Option<[EventRing; 2]>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -116,8 +143,226 @@ impl EnvScratch {
     }
 }
 
+struct ActionCache {
+    mask: Vec<u8>,
+    lookup: Vec<Option<ActionDesc>>,
+    legal_actions: Vec<ActionDesc>,
+    decision_id: u32,
+    decision_kind: Option<DecisionKind>,
+    decision_player: u8,
+}
+
+impl ActionCache {
+    fn new() -> Self {
+        Self {
+            mask: vec![0u8; crate::encode::ACTION_SPACE_SIZE],
+            lookup: vec![None; crate::encode::ACTION_SPACE_SIZE],
+            legal_actions: Vec::new(),
+            decision_id: 0,
+            decision_kind: None,
+            decision_player: 0,
+        }
+    }
+
+    fn clear(&mut self) {
+        if self.mask.len() != crate::encode::ACTION_SPACE_SIZE {
+            self.mask.resize(crate::encode::ACTION_SPACE_SIZE, 0);
+        }
+        self.mask.fill(0);
+        if self.lookup.len() != crate::encode::ACTION_SPACE_SIZE {
+            self.lookup
+                .resize(crate::encode::ACTION_SPACE_SIZE, None);
+        }
+        for slot in self.lookup.iter_mut() {
+            *slot = None;
+        }
+        self.legal_actions.clear();
+        self.decision_id = 0;
+        self.decision_kind = None;
+        self.decision_player = 0;
+    }
+
+    fn update(
+        &mut self,
+        state: &GameState,
+        decision: &Decision,
+        decision_id: u32,
+        db: &CardDb,
+        curriculum: &CurriculumConfig,
+        allowed_card_sets: Option<&std::collections::HashSet<String>>,
+    ) {
+        if self.decision_id == decision_id
+            && self.decision_kind == Some(decision.kind)
+            && self.decision_player == decision.player
+        {
+            return;
+        }
+        let actions = crate::legal::legal_actions_cached(
+            state,
+            decision,
+            db,
+            curriculum,
+            allowed_card_sets,
+        );
+        fill_action_mask(&actions, &mut self.mask, &mut self.lookup);
+        self.legal_actions = actions;
+        self.decision_id = decision_id;
+        self.decision_kind = Some(decision.kind);
+        self.decision_player = decision.player;
+    }
+}
+
+struct EventRing {
+    capacity: usize,
+    events: Vec<ReplayEvent>,
+    next: usize,
+    full: bool,
+}
+
+impl EventRing {
+    fn new(capacity: usize) -> Self {
+        let mut events = Vec::with_capacity(capacity);
+        events.reserve(capacity);
+        Self {
+            capacity,
+            events,
+            next: 0,
+            full: false,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.events.clear();
+        self.next = 0;
+        self.full = false;
+    }
+
+    fn push(&mut self, event: ReplayEvent) {
+        if self.capacity == 0 {
+            return;
+        }
+        if self.events.len() < self.capacity {
+            self.events.push(event);
+            if self.events.len() == self.capacity {
+                self.full = true;
+                self.next = 0;
+            }
+        } else {
+            self.events[self.next] = event;
+            self.next = (self.next + 1) % self.capacity;
+        }
+    }
+
+    fn len(&self) -> usize {
+        if self.capacity == 0 {
+            0
+        } else if self.full {
+            self.capacity
+        } else {
+            self.events.len()
+        }
+    }
+
+    fn snapshot_codes<F: Fn(&ReplayEvent) -> u32>(&self, out: &mut [u32], code_fn: F) -> usize {
+        let len = self.len();
+        if len == 0 {
+            for slot in out.iter_mut() {
+                *slot = 0;
+            }
+            return 0;
+        }
+        let cap = self.capacity;
+        for (i, slot) in out.iter_mut().enumerate() {
+            if i >= len {
+                *slot = 0;
+                continue;
+            }
+            let idx = if self.full {
+                (self.next + i) % cap
+            } else {
+                i
+            };
+            *slot = code_fn(&self.events[idx]);
+        }
+        len
+    }
+
+    fn snapshot_events(&self) -> Vec<ReplayEvent> {
+        let len = self.len();
+        if len == 0 {
+            return Vec::new();
+        }
+        let cap = self.capacity;
+        let mut out = Vec::with_capacity(len);
+        for i in 0..len {
+            let idx = if self.full {
+                (self.next + i) % cap
+            } else {
+                i
+            };
+            out.push(self.events[idx].clone());
+        }
+        out
+    }
+}
+
+fn event_code(event: &ReplayEvent) -> u32 {
+    use crate::events::Event;
+    match event {
+        Event::Draw { .. } => 1,
+        Event::Damage { .. } => 2,
+        Event::DamageCancel { .. } => 3,
+        Event::DamageIntent { .. } => 4,
+        Event::DamageModifierApplied { .. } => 5,
+        Event::DamageModified { .. } => 6,
+        Event::DamageCommitted { .. } => 7,
+        Event::ReversalCommitted { .. } => 8,
+        Event::Reveal { .. } => 9,
+        Event::TriggerQueued { .. } => 10,
+        Event::TriggerGrouped { .. } => 11,
+        Event::TriggerResolved { .. } => 12,
+        Event::TriggerCanceled { .. } => 13,
+        Event::TimingWindowEntered { .. } => 14,
+        Event::PriorityGranted { .. } => 15,
+        Event::PriorityPassed { .. } => 16,
+        Event::StackGroupPresented { .. } => 17,
+        Event::StackOrderChosen { .. } => 18,
+        Event::StackPushed { .. } => 19,
+        Event::StackResolved { .. } => 20,
+        Event::AutoResolveCapExceeded { .. } => 21,
+        Event::WindowAdvanced { .. } => 22,
+        Event::ChoicePresented { .. } => 23,
+        Event::ChoicePageChanged { .. } => 24,
+        Event::ChoiceMade { .. } => 25,
+        Event::ChoiceAutopicked { .. } => 26,
+        Event::ChoiceSkipped { .. } => 27,
+        Event::ZoneMove { .. } => 28,
+        Event::ControlChanged { .. } => 29,
+        Event::ModifierAdded { .. } => 30,
+        Event::ModifierRemoved { .. } => 31,
+        Event::Concede { .. } => 32,
+        Event::Play { .. } => 33,
+        Event::PlayEvent { .. } => 34,
+        Event::PlayClimax { .. } => 35,
+        Event::Trigger { .. } => 36,
+        Event::Attack { .. } => 37,
+        Event::AttackType { .. } => 38,
+        Event::Counter { .. } => 39,
+        Event::Clock { .. } => 40,
+        Event::Shuffle { .. } => 41,
+        Event::Refresh { .. } => 42,
+        Event::RefreshPenalty { .. } => 43,
+        Event::LevelUpChoice { .. } => 44,
+        Event::Encore { .. } => 45,
+        Event::Stand { .. } => 46,
+        Event::EndTurn { .. } => 47,
+        Event::Terminal { .. } => 48,
+    }
+}
+
 const MAX_CHOICE_OPTIONS: usize = crate::encode::CHOICE_COUNT;
 pub const STACK_AUTO_RESOLVE_CAP: u32 = 256;
+pub const CHECK_TIMING_QUIESCENCE_CAP: u32 = 256;
 pub const HAND_LIMIT: usize = 7;
 
 const TRIGGER_EFFECT_SOUL: u8 = 0;
@@ -136,21 +381,28 @@ struct TriggerCompileContext {
     treasure_take_stock: Option<bool>,
 }
 
-mod visibility;
 mod interaction;
-mod phases;
-mod movement;
 mod modifiers;
+mod movement;
+mod phases;
+mod visibility;
 
 impl GameEnv {
     fn validate_deck_lists(db: &CardDb, deck_lists: &[Vec<CardId>; 2]) {
         for (player, deck) in deck_lists.iter().enumerate() {
+            assert!(
+                deck.len() == crate::encode::MAX_DECK,
+                "Deck {player} has {} cards (must be {})",
+                deck.len(),
+                crate::encode::MAX_DECK
+            );
             let mut climax_count = 0usize;
-            let mut counts: std::collections::HashMap<CardId, usize> = std::collections::HashMap::new();
+            let mut counts: std::collections::HashMap<CardId, usize> =
+                std::collections::HashMap::new();
             for &card_id in deck {
-                let card = db.get(card_id).unwrap_or_else(|| {
-                    panic!("Deck {player} contains unknown card id {card_id}")
-                });
+                let card = db
+                    .get(card_id)
+                    .unwrap_or_else(|| panic!("Deck {player} contains unknown card id {card_id}"));
                 if card.card_type == CardType::Climax {
                     climax_count += 1;
                 }
@@ -180,12 +432,22 @@ impl GameEnv {
     ) -> Option<u32> {
         self.add_modifier_instance(
             source,
+            None,
             target_player,
             target_slot,
             kind,
             magnitude,
             duration,
+            crate::state::ModifierLayer::Effect,
         )
+    }
+
+    pub(crate) fn mark_rule_actions_dirty(&mut self) {
+        self.rule_actions_dirty = true;
+    }
+
+    pub(crate) fn mark_continuous_modifiers_dirty(&mut self) {
+        self.continuous_modifiers_dirty = true;
     }
 
     pub fn new(
@@ -217,16 +479,24 @@ impl GameEnv {
             env_id,
             episode_index: 0,
             decision: None,
-            last_action_lookup: vec![None; crate::encode::ACTION_SPACE_SIZE],
-            last_action_mask: vec![0u8; crate::encode::ACTION_SPACE_SIZE],
-            last_legal_actions: Vec::new(),
+            action_cache: ActionCache::new(),
+            decision_id: 0,
             last_action_desc: None,
             last_action_player: None,
             last_illegal_action: false,
             last_engine_error: false,
+            last_engine_error_code: EngineErrorCode::None,
             last_perspective: 0,
             pending_damage_delta: [0, 0],
             obs_buf: vec![0; OBS_LEN],
+            slot_power_cache: [[0; crate::encode::MAX_STAGE]; 2],
+            slot_power_dirty: [[true; crate::encode::MAX_STAGE]; 2],
+            slot_power_cache_card: [[0; crate::encode::MAX_STAGE]; 2],
+            slot_power_cache_mod_turn: [[0; crate::encode::MAX_STAGE]; 2],
+            slot_power_cache_mod_battle: [[0; crate::encode::MAX_STAGE]; 2],
+            rule_actions_dirty: true,
+            continuous_modifiers_dirty: true,
+            last_rule_action_phase: Phase::Stand,
             replay_config,
             replay_writer,
             replay_actions: Vec::new(),
@@ -239,6 +509,8 @@ impl GameEnv {
             scratch_replacement_indices: Vec::new(),
             scratch: EnvScratch::new(),
             revealed_to_viewer: std::array::from_fn(|_| BTreeSet::new()),
+            debug: DebugConfig::default(),
+            debug_event_ring: None,
         };
         env.reset();
         env
@@ -256,6 +528,41 @@ impl GameEnv {
         &self.canonical_events
     }
 
+    pub fn decision_id(&self) -> u32 {
+        self.decision_id
+    }
+
+    pub fn action_mask(&self) -> &[u8] {
+        &self.action_cache.mask
+    }
+
+    pub fn action_lookup(&self) -> &[Option<ActionDesc>] {
+        &self.action_cache.lookup
+    }
+
+    pub fn legal_actions(&self) -> &[ActionDesc] {
+        &self.action_cache.legal_actions
+    }
+
+    pub fn debug_event_ring_codes(&self, viewer: u8, out: &mut [u32]) -> u16 {
+        let Some(rings) = self.debug_event_ring.as_ref() else {
+            for slot in out.iter_mut() {
+                *slot = 0;
+            }
+            return 0;
+        };
+        let ring = &rings[viewer as usize % 2];
+        let count = ring.snapshot_codes(out, event_code);
+        count as u16
+    }
+
+    pub fn debug_event_ring_snapshot(&self, viewer: u8) -> Vec<ReplayEvent> {
+        let Some(rings) = self.debug_event_ring.as_ref() else {
+            return Vec::new();
+        };
+        rings[viewer as usize % 2].snapshot_events()
+    }
+
     fn reset_with_obs(&mut self, copy_obs: bool) -> StepOutcome {
         let episode_seed = self.meta_rng.next_u64();
         let starting_player = if (episode_seed & 1) == 1 { 1 } else { 0 };
@@ -268,24 +575,22 @@ impl GameEnv {
             episode_seed,
             starting_player,
         );
+        self.slot_power_cache = [[0; crate::encode::MAX_STAGE]; 2];
+        self.slot_power_dirty = [[true; crate::encode::MAX_STAGE]; 2];
+        self.slot_power_cache_card = [[0; crate::encode::MAX_STAGE]; 2];
+        self.slot_power_cache_mod_turn = [[0; crate::encode::MAX_STAGE]; 2];
+        self.slot_power_cache_mod_battle = [[0; crate::encode::MAX_STAGE]; 2];
+        self.rule_actions_dirty = true;
+        self.continuous_modifiers_dirty = true;
+        self.last_rule_action_phase = self.state.turn.phase;
         self.decision = None;
-        if self.last_action_lookup.len() != crate::encode::ACTION_SPACE_SIZE {
-            self.last_action_lookup
-                .resize(crate::encode::ACTION_SPACE_SIZE, None);
-        }
-        for slot in self.last_action_lookup.iter_mut() {
-            *slot = None;
-        }
-        if self.last_action_mask.len() != crate::encode::ACTION_SPACE_SIZE {
-            self.last_action_mask
-                .resize(crate::encode::ACTION_SPACE_SIZE, 0);
-        }
-        self.last_action_mask.fill(0);
-        self.last_legal_actions.clear();
+        self.action_cache.clear();
+        self.decision_id = 0;
         self.last_action_desc = None;
         self.last_action_player = None;
         self.last_illegal_action = false;
         self.last_engine_error = false;
+        self.last_engine_error_code = EngineErrorCode::None;
         self.last_perspective = self.state.turn.starting_player;
         self.pending_damage_delta = [0, 0];
         if self.obs_buf.len() != OBS_LEN {
@@ -297,6 +602,11 @@ impl GameEnv {
         self.replay_steps.clear();
         for set in &mut self.revealed_to_viewer {
             set.clear();
+        }
+        if let Some(rings) = self.debug_event_ring.as_mut() {
+            for ring in rings.iter_mut() {
+                ring.clear();
+            }
         }
         self.recording = self.replay_config.enabled
             && self.meta_rng.next_u32() <= self.replay_config.sample_threshold;
@@ -316,6 +626,40 @@ impl GameEnv {
     pub(crate) fn clear_status_flags(&mut self) {
         self.last_illegal_action = false;
         self.last_engine_error = false;
+        self.last_engine_error_code = EngineErrorCode::None;
+    }
+
+    fn run_rule_actions_if_needed(&mut self) {
+        if self.state.turn.phase != self.last_rule_action_phase {
+            self.rule_actions_dirty = true;
+            self.last_rule_action_phase = self.state.turn.phase;
+        }
+        if !self.rule_actions_dirty {
+            return;
+        }
+        self.rule_actions_dirty = false;
+        self.resolve_rule_actions_until_stable();
+        self.rule_actions_dirty = false;
+    }
+
+    pub(super) fn set_decision(&mut self, decision: Decision) {
+        self.decision = Some(decision);
+        self.decision_id = self.decision_id.wrapping_add(1);
+    }
+
+    pub(super) fn clear_decision(&mut self) {
+        self.decision = None;
+    }
+
+    pub fn set_debug_config(&mut self, debug: DebugConfig) {
+        self.debug = debug;
+        if debug.event_ring_capacity == 0 {
+            self.debug_event_ring = None;
+        } else {
+            self.debug_event_ring = Some(std::array::from_fn(|_| {
+                EventRing::new(debug.event_ring_capacity)
+            }));
+        }
     }
 
     pub fn apply_action_id(&mut self, action_id: usize) -> Result<StepOutcome> {
@@ -333,12 +677,14 @@ impl GameEnv {
     ) -> Result<StepOutcome> {
         self.last_illegal_action = false;
         self.last_engine_error = false;
+        self.last_engine_error_code = EngineErrorCode::None;
         if self.decision.is_none() {
             return Err(anyhow!("No pending decision"));
         }
         self.last_perspective = self.decision.as_ref().unwrap().player;
         let action = match self
-            .last_action_lookup
+            .action_cache
+            .lookup
             .get(action_id)
             .and_then(|a| a.clone())
         {
@@ -393,6 +739,7 @@ impl GameEnv {
                 ErrorPolicy::Strict => Err(err),
                 ErrorPolicy::LenientTerminate => {
                     self.last_engine_error = true;
+                    self.last_engine_error_code = EngineErrorCode::ActionError;
                     self.last_perspective = acting_player;
                     self.state.terminal = Some(TerminalResult::Win {
                         winner: 1 - acting_player,
@@ -404,6 +751,7 @@ impl GameEnv {
                 }
                 ErrorPolicy::LenientNoop => {
                     self.last_engine_error = true;
+                    self.last_engine_error_code = EngineErrorCode::ActionError;
                     self.last_perspective = acting_player;
                     self.update_action_cache();
                     Ok(self.build_outcome_with_obs(0.0, copy_obs))
@@ -467,7 +815,7 @@ impl GameEnv {
                             copy_obs,
                         );
                     }
-                    let bit = 1u16 << hi;
+                    let bit = 1u64 << hi;
                     let current = &mut self.state.turn.mulligan_selected[p];
                     if *current & bit != 0 {
                         *current &= !bit;
@@ -481,7 +829,7 @@ impl GameEnv {
                     let mut indices: Vec<usize> = Vec::new();
                     let mask = self.state.turn.mulligan_selected[p];
                     for idx in 0..hand_len.min(crate::encode::MAX_HAND) {
-                        if mask & (1u16 << idx) != 0 {
+                        if mask & (1u64 << idx) != 0 {
                             indices.push(idx);
                         }
                     }
@@ -522,7 +870,7 @@ impl GameEnv {
             },
             DecisionKind::Clock => {
                 match action {
-                    ActionDesc::ClockPass => {
+                    ActionDesc::Pass => {
                         self.log_event(Event::Clock {
                             player: decision.player,
                             card: None,
@@ -566,10 +914,16 @@ impl GameEnv {
                 self.state.turn.phase_step = 2;
             }
             DecisionKind::Main => match action {
-                ActionDesc::MainPass => {
-                    self.state.turn.main_passed = true;
-                    if self.state.turn.priority.is_none() {
-                        self.enter_timing_window(TimingWindow::MainWindow, decision.player);
+                ActionDesc::Pass => {
+                    if self.curriculum.enable_priority_windows {
+                        self.state.turn.main_passed = true;
+                        if self.state.turn.priority.is_none() {
+                            self.enter_timing_window(TimingWindow::MainWindow, decision.player);
+                        }
+                    } else {
+                        self.state.turn.main_passed = false;
+                        self.state.turn.phase = Phase::Climax;
+                        self.state.turn.phase_step = 0;
                     }
                 }
                 ActionDesc::MainPlayCharacter {
@@ -617,16 +971,10 @@ impl GameEnv {
                     self.state.players[p].stage.swap(fs, ts);
                     self.remove_modifiers_for_slot(decision.player, from_slot);
                     self.remove_modifiers_for_slot(decision.player, to_slot);
-                    if let Some(card) = self.state.players[p].stage[fs].card {
-                        self.apply_continuous_modifiers_for_slot(
-                            decision.player,
-                            from_slot,
-                            card.id,
-                        );
-                    }
-                    if let Some(card) = self.state.players[p].stage[ts].card {
-                        self.apply_continuous_modifiers_for_slot(decision.player, to_slot, card.id);
-                    }
+                    self.mark_slot_power_dirty(decision.player, from_slot);
+                    self.mark_slot_power_dirty(decision.player, to_slot);
+                    self.mark_rule_actions_dirty();
+                    self.mark_continuous_modifiers_dirty();
                 }
                 ActionDesc::MainActivateAbility {
                     slot,
@@ -648,7 +996,7 @@ impl GameEnv {
                 }
             },
             DecisionKind::Climax => match action {
-                ActionDesc::ClimaxPass => {
+                ActionDesc::Pass => {
                     self.state.turn.phase_step = 2;
                     if self.curriculum.enable_priority_windows {
                         self.enter_timing_window(TimingWindow::ClimaxWindow, decision.player);
@@ -676,7 +1024,7 @@ impl GameEnv {
                 }
             },
             DecisionKind::AttackDeclaration => match action {
-                ActionDesc::AttackPass => {
+                ActionDesc::Pass => {
                     if self.curriculum.enable_encore {
                         self.queue_encore_requests();
                     } else {
@@ -982,35 +1330,82 @@ impl GameEnv {
         0.0
     }
 
+    fn resolve_quiescence_until_decision(&mut self) {
+        let mut auto_resolve_steps: u32 = 0;
+        loop {
+            if self.state.terminal.is_some() || self.decision.is_some() {
+                return;
+            }
+            self.run_rule_actions_if_needed();
+            self.refresh_continuous_modifiers_if_needed();
+            if let Some(player) = self.state.turn.pending_level_up {
+                self.set_decision(Decision {
+                    player,
+                    kind: DecisionKind::LevelUp,
+                    focus_slot: None,
+                });
+                return;
+            }
+            if self.handle_trigger_pipeline() {
+                if self.decision.is_some() {
+                    return;
+                }
+                continue;
+            }
+            if self.handle_priority_window() {
+                if self.decision.is_some() {
+                    return;
+                }
+                continue;
+            }
+            if !self.curriculum.enable_priority_windows
+                && self.state.turn.priority.is_none()
+                && self.state.turn.choice.is_none()
+                && self.state.turn.stack_order.is_none()
+                && !self.state.turn.stack.is_empty()
+            {
+                auto_resolve_steps = auto_resolve_steps.saturating_add(1);
+                if auto_resolve_steps > CHECK_TIMING_QUIESCENCE_CAP {
+                    self.log_event(Event::AutoResolveCapExceeded {
+                        cap: CHECK_TIMING_QUIESCENCE_CAP,
+                        stack_len: self.state.turn.stack.len() as u32,
+                        window: self.state.turn.active_window,
+                    });
+                    self.last_engine_error = true;
+                    self.last_engine_error_code = EngineErrorCode::TriggerQuiescenceCap;
+                    self.state.terminal = Some(TerminalResult::Timeout);
+                    return;
+                }
+                if let Some(item) = self.state.turn.stack.pop() {
+                    self.resolve_stack_item(&item);
+                    self.log_event(Event::StackResolved { item });
+                    continue;
+                }
+            }
+            break;
+        }
+    }
+
     pub(crate) fn update_action_cache(&mut self) {
         if self.decision.is_some() {
-            let decision_kind = self.decision.as_ref().map(|d| d.kind);
-            if decision_kind == Some(DecisionKind::AttackDeclaration)
+            let decision_kind = self.decision.as_ref().map(|d| d.kind).expect("decision kind");
+            if decision_kind == DecisionKind::AttackDeclaration
                 && self.state.turn.derived_attack.is_none()
             {
                 self.recompute_derived_attack();
             }
             let decision = self.decision.as_ref().expect("decision present");
             self.last_perspective = decision.player;
-            let actions = crate::legal::legal_actions_cached(
+            self.action_cache.update(
                 &self.state,
                 decision,
+                self.decision_id,
                 &self.db,
                 &self.curriculum,
                 self.curriculum.allowed_card_sets_cache.as_ref(),
             );
-            fill_action_mask(
-                &actions,
-                &mut self.last_action_mask,
-                &mut self.last_action_lookup,
-            );
-            self.last_legal_actions = actions;
         } else {
-            self.last_action_mask.fill(0);
-            for slot in self.last_action_lookup.iter_mut() {
-                *slot = None;
-            }
-            self.last_legal_actions.clear();
+            self.action_cache.clear();
         }
     }
 
@@ -1079,36 +1474,124 @@ impl GameEnv {
         for zone_player in 0..2 {
             let p = &self.state.players[zone_player];
             for card in &p.deck {
-                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} deck"));
-                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} deck"));
+                consume(
+                    &mut counts,
+                    &mut errors,
+                    card.owner,
+                    card.id,
+                    &format!("p{zone_player} deck"),
+                );
+                check_instance(
+                    &mut instance_ids,
+                    &mut errors,
+                    card,
+                    &format!("p{zone_player} deck"),
+                );
             }
             for card in &p.hand {
-                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} hand"));
-                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} hand"));
+                consume(
+                    &mut counts,
+                    &mut errors,
+                    card.owner,
+                    card.id,
+                    &format!("p{zone_player} hand"),
+                );
+                check_instance(
+                    &mut instance_ids,
+                    &mut errors,
+                    card,
+                    &format!("p{zone_player} hand"),
+                );
             }
             for card in &p.waiting_room {
-                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} waiting_room"));
-                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} waiting_room"));
+                consume(
+                    &mut counts,
+                    &mut errors,
+                    card.owner,
+                    card.id,
+                    &format!("p{zone_player} waiting_room"),
+                );
+                check_instance(
+                    &mut instance_ids,
+                    &mut errors,
+                    card,
+                    &format!("p{zone_player} waiting_room"),
+                );
             }
             for card in &p.clock {
-                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} clock"));
-                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} clock"));
+                consume(
+                    &mut counts,
+                    &mut errors,
+                    card.owner,
+                    card.id,
+                    &format!("p{zone_player} clock"),
+                );
+                check_instance(
+                    &mut instance_ids,
+                    &mut errors,
+                    card,
+                    &format!("p{zone_player} clock"),
+                );
             }
             for card in &p.level {
-                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} level"));
-                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} level"));
+                consume(
+                    &mut counts,
+                    &mut errors,
+                    card.owner,
+                    card.id,
+                    &format!("p{zone_player} level"),
+                );
+                check_instance(
+                    &mut instance_ids,
+                    &mut errors,
+                    card,
+                    &format!("p{zone_player} level"),
+                );
             }
             for card in &p.stock {
-                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} stock"));
-                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} stock"));
+                consume(
+                    &mut counts,
+                    &mut errors,
+                    card.owner,
+                    card.id,
+                    &format!("p{zone_player} stock"),
+                );
+                check_instance(
+                    &mut instance_ids,
+                    &mut errors,
+                    card,
+                    &format!("p{zone_player} stock"),
+                );
             }
             for card in &p.memory {
-                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} memory"));
-                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} memory"));
+                consume(
+                    &mut counts,
+                    &mut errors,
+                    card.owner,
+                    card.id,
+                    &format!("p{zone_player} memory"),
+                );
+                check_instance(
+                    &mut instance_ids,
+                    &mut errors,
+                    card,
+                    &format!("p{zone_player} memory"),
+                );
             }
             for card in &p.climax {
-                consume(&mut counts, &mut errors, card.owner, card.id, &format!("p{zone_player} climax"));
-                check_instance(&mut instance_ids, &mut errors, card, &format!("p{zone_player} climax"));
+                consume(
+                    &mut counts,
+                    &mut errors,
+                    card.owner,
+                    card.id,
+                    &format!("p{zone_player} climax"),
+                );
+                check_instance(
+                    &mut instance_ids,
+                    &mut errors,
+                    card,
+                    &format!("p{zone_player} climax"),
+                );
             }
             for card in &p.resolution {
                 consume(
@@ -1256,7 +1739,8 @@ impl GameEnv {
             .as_ref()
             .map(|d| d.player)
             .unwrap_or(self.last_perspective);
-        encode_observation(
+        self.refresh_slot_power_cache();
+        encode_observation_with_slot_power(
             &self.state,
             &self.db,
             &self.curriculum,
@@ -1265,7 +1749,7 @@ impl GameEnv {
             self.last_action_desc.as_ref(),
             self.last_action_player,
             self.config.observation_visibility,
-            self.curriculum.enable_visibility_policies,
+            &self.slot_power_cache,
             &mut self.obs_buf,
         );
         let obs = if copy_obs {
@@ -1298,12 +1782,18 @@ impl GameEnv {
             terminal: self.state.terminal,
             illegal_action: self.last_illegal_action,
             engine_error: self.last_engine_error,
+            engine_error_code: self.last_engine_error_code as u8,
         };
+        let truncated = matches!(self.state.terminal, Some(TerminalResult::Timeout));
+        let terminated = matches!(
+            self.state.terminal,
+            Some(TerminalResult::Win { .. } | TerminalResult::Draw)
+        );
         StepOutcome {
             obs,
             reward,
-            terminated: self.state.terminal.is_some(),
-            truncated: matches!(self.state.terminal, Some(TerminalResult::Timeout)),
+            terminated,
+            truncated,
             info,
         }
     }
@@ -1315,6 +1805,8 @@ impl GameEnv {
                 break;
             }
             self.resolve_pending_losses();
+            self.run_rule_actions_if_needed();
+            self.refresh_continuous_modifiers_if_needed();
             if self.decision.is_some() {
                 break;
             }
@@ -1325,7 +1817,7 @@ impl GameEnv {
             self.state.turn.tick_count += 1;
 
             if let Some(player) = self.state.turn.pending_level_up {
-                self.decision = Some(Decision {
+                self.set_decision(Decision {
                     player,
                     kind: DecisionKind::LevelUp,
                     focus_slot: None,
@@ -1360,6 +1852,7 @@ impl GameEnv {
                         window: self.state.turn.active_window,
                     });
                     self.last_engine_error = true;
+                    self.last_engine_error_code = EngineErrorCode::StackAutoResolveCap;
                     self.state.terminal = Some(TerminalResult::Timeout);
                     break;
                 }
@@ -1424,7 +1917,7 @@ impl GameEnv {
                     }
                 };
                 if let Some(player) = next_player {
-                    self.decision = Some(Decision {
+                    self.set_decision(Decision {
                         player,
                         kind: DecisionKind::Encore,
                         focus_slot: None,
@@ -1447,7 +1940,7 @@ impl GameEnv {
                     } else {
                         1 - sp
                     };
-                    self.decision = Some(Decision {
+                    self.set_decision(Decision {
                         player: next as u8,
                         kind: DecisionKind::Mulligan,
                         focus_slot: None,
@@ -1538,7 +2031,7 @@ impl GameEnv {
                             continue;
                         }
                         1 => {
-                            self.decision = Some(Decision {
+                            self.set_decision(Decision {
                                 player: p,
                                 kind: DecisionKind::Clock,
                                 focus_slot: None,
@@ -1569,7 +2062,7 @@ impl GameEnv {
                         self.state.turn.phase_step = 1;
                         continue;
                     }
-                    self.decision = Some(Decision {
+                    self.set_decision(Decision {
                         player: p,
                         kind: DecisionKind::Main,
                         focus_slot: None,
@@ -1592,7 +2085,7 @@ impl GameEnv {
                             continue;
                         }
                         1 => {
-                            self.decision = Some(Decision {
+                            self.set_decision(Decision {
                                 player: p,
                                 kind: DecisionKind::Climax,
                                 focus_slot: None,
@@ -1634,7 +2127,7 @@ impl GameEnv {
                         }
                         let p = self.state.turn.active_player;
                         self.recompute_derived_attack();
-                        self.decision = Some(Decision {
+                        self.set_decision(Decision {
                             player: p,
                             kind: DecisionKind::AttackDeclaration,
                             focus_slot: None,
@@ -1655,16 +2148,6 @@ impl GameEnv {
             self.maybe_validate_state("advance_loop");
         }
     }
-
-
-
-
-
-
-
-
-
-
 
     fn card_set_allowed(&self, card: &CardStatic) -> bool {
         match (&self.curriculum.allowed_card_sets_cache, &card.card_set) {
@@ -1717,10 +2200,7 @@ impl GameEnv {
             None => 0.0,
         }
     }
-
-
 }
-
 
 #[cfg(test)]
 mod tests;

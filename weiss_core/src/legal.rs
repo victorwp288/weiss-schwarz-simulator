@@ -5,7 +5,7 @@ use crate::config::CurriculumConfig;
 use crate::db::{CardColor, CardDb, CardStatic, CardType};
 use crate::state::{AttackType, GameState, StageSlot, StageStatus};
 
-const MAX_HAND: usize = 10;
+const MAX_HAND: usize = crate::encode::MAX_HAND;
 const MAX_STAGE: usize = 5;
 
 /// Player decision kinds exposed to callers.
@@ -35,18 +35,14 @@ pub struct Decision {
 pub enum ActionDesc {
     MulliganConfirm,
     MulliganSelect { hand_index: u8 },
-    ClockPass,
+    Pass,
     Clock { hand_index: u8 },
-    MainPass,
     MainPlayCharacter { hand_index: u8, stage_slot: u8 },
     MainPlayEvent { hand_index: u8 },
     MainMove { from_slot: u8, to_slot: u8 },
     MainActivateAbility { slot: u8, ability_index: u8 },
-    ClimaxPass,
     ClimaxPlay { hand_index: u8 },
-    AttackPass,
     Attack { slot: u8, attack_type: AttackType },
-    CounterPass,
     CounterPlay { hand_index: u8 },
     LevelUp { index: u8 },
     EncorePay { slot: u8 },
@@ -173,7 +169,7 @@ pub fn legal_actions_cached(
         }
         DecisionKind::Clock => {
             let mut actions = Vec::new();
-            actions.push(ActionDesc::ClockPass);
+            actions.push(ActionDesc::Pass);
             let p = &state.players[player];
             for (hand_index, card_inst) in p.hand.iter().enumerate() {
                 if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
@@ -214,12 +210,10 @@ pub fn legal_actions_cached(
                                 && meets_cost_requirement(card, p, curriculum)
                             {
                                 for slot in 0..max_slot {
-                                    if p.stage[slot].card.is_none() {
-                                        actions.push(ActionDesc::MainPlayCharacter {
-                                            hand_index: hand_index as u8,
-                                            stage_slot: slot as u8,
-                                        });
-                                    }
+                                    actions.push(ActionDesc::MainPlayCharacter {
+                                        hand_index: hand_index as u8,
+                                        stage_slot: slot as u8,
+                                    });
                                 }
                             }
                         }
@@ -258,7 +252,7 @@ pub fn legal_actions_cached(
                     }
                 }
             }
-            actions.push(ActionDesc::MainPass);
+            actions.push(ActionDesc::Pass);
             actions
         }
         DecisionKind::Climax => {
@@ -287,14 +281,14 @@ pub fn legal_actions_cached(
                     }
                 }
             }
-            actions.push(ActionDesc::ClimaxPass);
+            actions.push(ActionDesc::Pass);
             actions
         }
         DecisionKind::AttackDeclaration => {
             let mut actions = Vec::new();
             let attacks = legal_attack_actions(state, decision.player, curriculum);
             actions.extend(attacks);
-            actions.push(ActionDesc::AttackPass);
+            actions.push(ActionDesc::Pass);
             actions
         }
         DecisionKind::LevelUp => {
@@ -353,7 +347,9 @@ pub fn legal_actions_cached(
             actions
         }
     };
-    actions.push(ActionDesc::Concede);
+    if curriculum.allow_concede {
+        actions.push(ActionDesc::Concede);
+    }
     actions
 }
 
