@@ -13,12 +13,13 @@ pub mod replay;
 pub mod rules;
 pub mod state;
 pub mod util;
+pub mod visibility_policy;
 
 pub use config::{
     CurriculumConfig, EndConditionPolicy, EnvConfig, ErrorPolicy, ObservationVisibility,
     RewardConfig, SimultaneousLossPolicy,
 };
 pub use db::{CardDb, CardId};
-pub use env::{GameEnv, StepOutcome};
+pub use env::{DebugConfig, GameEnv, StepOutcome};
 pub use legal::{ActionDesc, Decision, DecisionKind};
-pub use pool::{EnvPool, StepBatchResult};
+pub use pool::{BatchOutDebug, BatchOutDebugBuffers, BatchOutMinimal, BatchOutMinimalBuffers, EnvPool};
