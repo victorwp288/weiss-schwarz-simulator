@@ -3,7 +3,7 @@
 [![CI](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/ci.yml)
 [![Wheels](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/wheels.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/wheels.yml)
 [![Benchmarks](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/benchmarks.yml)
-[![Security](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/security.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/security.yml)
+[![Security](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/security.yml)
 [![Docs](https://img.shields.io/badge/docs-rustdoc-blue)](https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/)
 [![PyPI](https://img.shields.io/pypi/v/weiss-sim.svg)](https://pypi.org/project/weiss-sim/)
 [![Changelog](https://img.shields.io/badge/changelog-view-blue)](https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/CHANGELOG.md)
