@@ -17,6 +17,21 @@ permissions:
   contents: write
 
 jobs:
+  sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: .
+          command: sdist
+          args: --manifest-path weiss_py/Cargo.toml --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*
+
   build:
     name: Build wheels (${{ matrix.os }} / py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
@@ -27,59 +42,56 @@ jobs:
           - os: ubuntu-latest
             python-version: "3.10"
             manylinux: "2014"
-            args: --release --manifest-path weiss_py/Cargo.toml --out dist
-            sdist: true
+            interpreter: /opt/python/cp310-cp310/bin/python
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter /opt/python/cp310-cp310/bin/python
           - os: ubuntu-latest
             python-version: "3.11"
             manylinux: "2014"
-            args: --release --manifest-path weiss_py/Cargo.toml --out dist
-            sdist: false
+            interpreter: /opt/python/cp311-cp311/bin/python
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter /opt/python/cp311-cp311/bin/python
           - os: ubuntu-latest
             python-version: "3.12"
             manylinux: "2014"
-            args: --release --manifest-path weiss_py/Cargo.toml --out dist
-            sdist: false
+            interpreter: /opt/python/cp312-cp312/bin/python
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter /opt/python/cp312-cp312/bin/python
           - os: windows-latest
             python-version: "3.10"
             manylinux: ""
-            args: --release --manifest-path weiss_py/Cargo.toml --out dist
-            sdist: false
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python
           - os: windows-latest
             python-version: "3.11"
             manylinux: ""
-            args: --release --manifest-path weiss_py/Cargo.toml --out dist
-            sdist: false
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python
           - os: windows-latest
             python-version: "3.12"
             manylinux: ""
-            args: --release --manifest-path weiss_py/Cargo.toml --out dist
-            sdist: false
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python
           - os: macos-latest
             python-version: "3.10"
             manylinux: ""
-            args: --release --manifest-path weiss_py/Cargo.toml --out dist --universal2
-            sdist: false
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --target universal2-apple-darwin --interpreter python
           - os: macos-latest
             python-version: "3.11"
             manylinux: ""
-            args: --release --manifest-path weiss_py/Cargo.toml --out dist --universal2
-            sdist: false
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --target universal2-apple-darwin --interpreter python
           - os: macos-latest
             python-version: "3.12"
             manylinux: ""
-            args: --release --manifest-path weiss_py/Cargo.toml --out dist --universal2
-            sdist: false
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --target universal2-apple-darwin --interpreter python
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        if: matrix.os != 'ubuntu-latest'
+        with:
+          python-version: ${{ matrix.python-version }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
+          working-directory: .
           command: build
-          python-version: ${{ matrix.python-version }}
-          before-script: python -m pip install -U pip numpy
+          # use manylinux container for linux; use host python for mac/windows via --interpreter python
           args: ${{ matrix.args }}
           manylinux: ${{ matrix.manylinux }}
-          sdist: ${{ matrix.sdist }}
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}-py${{ matrix.python-version }}
@@ -88,7 +100,7 @@ jobs:
   release:
     name: Publish (GitHub Releases + PyPI)
     if: startsWith(github.ref, 'refs/tags/')
-    needs: build
+    needs: [sdist, build]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -99,6 +111,10 @@ jobs:
         with:
           pattern: wheels-*
           merge-multiple: true
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdist
           path: dist
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2

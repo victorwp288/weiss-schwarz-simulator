@@ -54,8 +54,10 @@ jobs:
           mkdir -p benchmark
           cargo bench -p weiss_core --bench core_benches -- --output-format bencher | tee benchmark/benches.txt
           cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher | tee -a benchmark/benches.txt
-      - name: Build extension (maturin develop)
-        run: maturin develop --release --manifest-path weiss_py/Cargo.toml
+      - name: Build + install extension (wheel)
+        run: |
+          maturin build --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python
+          python -m pip install dist/*.whl
       - name: Run Python benchmarks
         run: |
           python python/examples/bench_python_boundary.py --num-envs 128 --steps 2000 --warmup 200 --reset-reps 200 --mode both | tee benchmark/python_bench.txt
