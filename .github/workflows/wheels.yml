@@ -76,6 +76,7 @@ jobs:
         with:
           command: build
           python-version: ${{ matrix.python-version }}
+          before-script: python -m pip install -U pip numpy
           args: ${{ matrix.args }}
           manylinux: ${{ matrix.manylinux }}
           sdist: ${{ matrix.sdist }}

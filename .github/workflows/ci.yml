@@ -9,22 +9,36 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'weiss_core/**'
+              - 'weiss_py/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            python:
+              - 'python/**'
+              - 'scraper/**'
+              - 'scripts/**'
+              - 'pyproject.toml'
+              - 'weiss_py/**'
+
   rust:
     name: Rust (fmt, clippy, test)
-    if: >-
-      github.event_name == 'pull_request' ||
-      contains(toJson(github.event.head_commit.modified), 'weiss_core/') ||
-      contains(toJson(github.event.head_commit.added), 'weiss_core/') ||
-      contains(toJson(github.event.head_commit.removed), 'weiss_core/') ||
-      contains(toJson(github.event.head_commit.modified), 'weiss_py/') ||
-      contains(toJson(github.event.head_commit.added), 'weiss_py/') ||
-      contains(toJson(github.event.head_commit.removed), 'weiss_py/') ||
-      contains(toJson(github.event.head_commit.modified), 'Cargo.toml') ||
-      contains(toJson(github.event.head_commit.added), 'Cargo.toml') ||
-      contains(toJson(github.event.head_commit.removed), 'Cargo.toml') ||
-      contains(toJson(github.event.head_commit.modified), 'Cargo.lock') ||
-      contains(toJson(github.event.head_commit.added), 'Cargo.lock') ||
-      contains(toJson(github.event.head_commit.removed), 'Cargo.lock')
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,17 +57,8 @@ jobs:
 
   python:
     name: Python (ruff, pytest)
-    if: >-
-      github.event_name == 'pull_request' ||
-      contains(toJson(github.event.head_commit.modified), 'python/') ||
-      contains(toJson(github.event.head_commit.added), 'python/') ||
-      contains(toJson(github.event.head_commit.removed), 'python/') ||
-      contains(toJson(github.event.head_commit.modified), 'pyproject.toml') ||
-      contains(toJson(github.event.head_commit.added), 'pyproject.toml') ||
-      contains(toJson(github.event.head_commit.removed), 'pyproject.toml') ||
-      contains(toJson(github.event.head_commit.modified), 'weiss_py/') ||
-      contains(toJson(github.event.head_commit.added), 'weiss_py/') ||
-      contains(toJson(github.event.head_commit.removed), 'weiss_py/')
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
