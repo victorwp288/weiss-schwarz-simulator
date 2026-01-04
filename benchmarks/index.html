@@ -111,7 +111,7 @@
       (function() {
         // Colors from https://github.com/github/linguist/blob/master/lib/linguist/languages.yml
         const toolColors = {
-          cargo: '#dea584',
+          cargo: '#b45309',
           go: '#00add8',
           benchmarkjs: '#f1e05a',
           benchmarkluau: '#000080',
@@ -184,6 +184,9 @@
                   data: dataset.map(d => d.bench.value),
                   borderColor: color,
                   backgroundColor: color + '60', // Add alpha for #rrggbbaa
+                  pointRadius: dataset.length > 1 ? 2 : 5,
+                  pointHoverRadius: dataset.length > 1 ? 4 : 7,
+                  borderWidth: 2,
                 }
               ],
             };
