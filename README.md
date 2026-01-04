@@ -296,6 +296,20 @@ cargo run -p weiss_core --bin carddb_pack -- cards.json cards.wsdb
 
 See `weiss_core/src/db.rs` for the `CardStatic` schema and supported ability templates.
 
+### Scraper + converter pipeline (full card set)
+
+The full EN card set is produced by the scraper + converter pipeline:
+
+- Scrape: `scraper/scrape.py` → `scraper/out/cards.jsonl`
+- Convert: `scraper/convert.py` → `scraper/out/cards.json` + `scraper/out/cards_raw.json`
+- Pack: `carddb_pack` → `scraper/out/cards.wsdb`
+
+Smoke check with Python:
+
+```bash
+PYTHONPATH=python python python/wsdb_smoke.py
+```
+
 ---
 
 ## Project status (implemented vs simplified)
