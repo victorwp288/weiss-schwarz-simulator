@@ -91,7 +91,9 @@ jobs:
         run: ruff format --check python scraper scripts
       - name: Ruff lint
         run: ruff check python scraper scripts
-      - name: Build extension (maturin develop)
-        run: maturin develop --release --manifest-path weiss_py/Cargo.toml
+      - name: Build + install extension (wheel)
+        run: |
+          maturin build --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python
+          python -m pip install dist/*.whl
       - name: Pytest
         run: pytest -q python/tests
