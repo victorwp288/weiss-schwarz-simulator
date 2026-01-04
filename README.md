@@ -56,6 +56,12 @@ https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/
 
 Note: with only 1–2 benchmark runs, charts can look “empty” until more points exist.
 
+### Releases
+
+Release automation is handled by Release Please. To ensure downstream workflows (like `Wheels`) run
+automatically when a release tag is created, configure a fine-grained PAT as `RELEASE_PLEASE_TOKEN`
+in GitHub Actions secrets; otherwise you can manually run the `Wheels` workflow for the release tag.
+
 ### Benchmark Snapshot (main, top 12)
 
 <!-- BENCHMARKS:START -->
