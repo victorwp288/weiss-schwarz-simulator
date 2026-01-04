@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["WSDB_SCHEMA_VERSION"],"enum":["AbilityKind","AbilityTemplate","AbilityTemplateTag","AbilityTiming","CardColor","CardType","EffectTemplate","TargetTemplate","TriggerIcon"],"struct":["AbilityCost","AbilityDef","AbilitySpec","CardDb","CardStatic"],"type":["CardId"]};

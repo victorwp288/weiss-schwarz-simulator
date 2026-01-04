@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["EffectKind","EffectSourceKind","ReplacementHook","ReplacementKind"],"struct":["EffectId","EffectPayload","EffectSpec","ReplacementSpec"]};

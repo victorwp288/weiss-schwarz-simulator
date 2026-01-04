@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ActionDesc","DecisionKind"],"fn":["can_declare_attack","legal_actions","legal_actions_cached","legal_attack_actions"],"struct":["Decision"]};

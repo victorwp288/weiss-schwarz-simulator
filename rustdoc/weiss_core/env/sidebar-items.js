@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CHECK_TIMING_QUIESCENCE_CAP","HAND_LIMIT","STACK_AUTO_RESOLVE_CAP"],"enum":["EngineErrorCode"],"struct":["DebugConfig","EnvInfo","GameEnv","StepOutcome"]};
