@@ -124,10 +124,6 @@ docs/_build/
 .pybuilder/
 target/
 
-# Scraper generated outputs (keep the packed DB, ignore the rest)
-scraper/out/*
-!scraper/out/cards.wsdb
-
 # Jupyter Notebook
 .ipynb_checkpoints
 

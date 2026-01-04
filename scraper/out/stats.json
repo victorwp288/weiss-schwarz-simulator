@@ -1,0 +1,22 @@
+{
+  "schema_version": "1",
+  "scraped_at": "2026-01-04T11:50:51.696676+00:00",
+  "recon": {
+    "listing_page_1_count": 7,
+    "listing_page_1_url": "https://en.ws-tcg.com/cardlist/cardsearch_ex?keyword=&keyword_or=&keyword_not=&keyword_type%5B0%5D=name&keyword_type%5B1%5D=feature&keyword_type%5B2%5D=text&keyword_type%5B3%5D=no&side=&title=&category=&expansion_name=&card_kind%5B0%5D=all&color%5B0%5D=all&level_s=&level_e=&power_s=&power_e=&soul_s=&soul_e=&cost_s=&cost_e=&trigger=&view=image&page=1",
+    "listing_page_9999_url": "https://en.ws-tcg.com/",
+    "listing_page_9999_count": 0
+  },
+  "discovered_count": 18780,
+  "done_count": 18474,
+  "new_success_count": 18474,
+  "failure_count": 306,
+  "filters": {
+    "title_count": 79,
+    "expansion_count": 268,
+    "category_count": 5
+  },
+  "sanity": {
+    "success_plus_failure_equals_discovered": true
+  }
+}
