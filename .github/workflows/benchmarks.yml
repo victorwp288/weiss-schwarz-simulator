@@ -92,9 +92,9 @@ jobs:
             updated = updated.replace(
               needle,
               needle
-              + \"\\n                  pointRadius: dataset.length > 1 ? 2 : 5,\"
-              + \"\\n                  pointHoverRadius: dataset.length > 1 ? 4 : 7,\"
-              + \"\\n                  borderWidth: 2,\",
+              + "\n                  pointRadius: dataset.length > 1 ? 2 : 5,"
+              + "\n                  pointHoverRadius: dataset.length > 1 ? 4 : 7,"
+              + "\n                  borderWidth: 2,",
             )
 
           if updated != html:
