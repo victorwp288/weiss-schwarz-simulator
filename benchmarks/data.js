@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767565570987,
+  "lastUpdate": 1767565928440,
   "repoUrl": "https://github.com/victorwp288/weiss-schwarz-simulator",
   "entries": {
     "Benchmark": [
@@ -251,6 +251,132 @@ window.BENCHMARK_DATA = {
             "name": "alloc_choice_paging_worst_case",
             "value": 179,
             "range": "± 1",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "victorwpetersen@gmail.com",
+            "name": "Victor Wejergang Petersen",
+            "username": "victorwp288"
+          },
+          "committer": {
+            "email": "victorwpetersen@gmail.com",
+            "name": "Victor Wejergang Petersen",
+            "username": "victorwp288"
+          },
+          "distinct": true,
+          "id": "f16e6563a6e1df2305296f87fb63a75186126b33",
+          "message": "ci: fix benchmark page patch step",
+          "timestamp": "2026-01-04T23:27:57+01:00",
+          "tree_id": "0e11777aa0c72acec322f053f32f0478b65a4ef6",
+          "url": "https://github.com/victorwp288/weiss-schwarz-simulator/commit/f16e6563a6e1df2305296f87fb63a75186126b33"
+        },
+        "date": 1767565927886,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "advance_until_decision",
+            "value": 63288,
+            "range": "± 451",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_64",
+            "value": 26336,
+            "range": "± 679",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_off",
+            "value": 121032,
+            "range": "± 1693",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_on",
+            "value": 117206,
+            "range": "± 2698",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions",
+            "value": 43,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions_forced",
+            "value": 41,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_on",
+            "value": 1546,
+            "range": "± 28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_off",
+            "value": 1536,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode",
+            "value": 221,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode_forced",
+            "value": 227,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction",
+            "value": 418,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction_forced",
+            "value": 422,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "choice_paging_worst_case_mask",
+            "value": 190,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_legal_actions",
+            "value": 42,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_observation_encode",
+            "value": 158,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_action_masks_batch_into",
+            "value": 880,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_choice_paging_worst_case",
+            "value": 198,
+            "range": "± 4",
             "unit": "ns/iter"
           }
         ]
