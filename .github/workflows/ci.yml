@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, test)
+    if: >-
+      github.event_name == 'pull_request' ||
+      contains(toJson(github.event.head_commit.modified), 'weiss_core/') ||
+      contains(toJson(github.event.head_commit.added), 'weiss_core/') ||
+      contains(toJson(github.event.head_commit.removed), 'weiss_core/') ||
+      contains(toJson(github.event.head_commit.modified), 'weiss_py/') ||
+      contains(toJson(github.event.head_commit.added), 'weiss_py/') ||
+      contains(toJson(github.event.head_commit.removed), 'weiss_py/') ||
+      contains(toJson(github.event.head_commit.modified), 'Cargo.toml') ||
+      contains(toJson(github.event.head_commit.added), 'Cargo.toml') ||
+      contains(toJson(github.event.head_commit.removed), 'Cargo.toml') ||
+      contains(toJson(github.event.head_commit.modified), 'Cargo.lock') ||
+      contains(toJson(github.event.head_commit.added), 'Cargo.lock') ||
+      contains(toJson(github.event.head_commit.removed), 'Cargo.lock')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Cargo fmt
+        run: cargo fmt --all -- --check
+      - name: Cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Cargo test
+        run: cargo test --workspace
+      - name: Cargo build (release)
+        run: cargo build -p weiss_core --release
+
+  python:
+    name: Python (ruff, pytest)
+    if: >-
+      github.event_name == 'pull_request' ||
+      contains(toJson(github.event.head_commit.modified), 'python/') ||
+      contains(toJson(github.event.head_commit.added), 'python/') ||
+      contains(toJson(github.event.head_commit.removed), 'python/') ||
+      contains(toJson(github.event.head_commit.modified), 'pyproject.toml') ||
+      contains(toJson(github.event.head_commit.added), 'pyproject.toml') ||
+      contains(toJson(github.event.head_commit.removed), 'pyproject.toml') ||
+      contains(toJson(github.event.head_commit.modified), 'weiss_py/') ||
+      contains(toJson(github.event.head_commit.added), 'weiss_py/') ||
+      contains(toJson(github.event.head_commit.removed), 'weiss_py/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Python tooling
+        run: |
+          python -m pip install -U pip
+          python -m pip install ruff maturin pytest numpy
+      - name: Ruff format
+        run: ruff format --check python scraper scripts
+      - name: Ruff lint
+        run: ruff check python scraper scripts
+      - name: Build extension (maturin develop)
+        run: maturin develop --release --manifest-path weiss_py/Cargo.toml
+      - name: Pytest
+        run: pytest -q python/tests

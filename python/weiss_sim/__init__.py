@@ -1,4 +1,3 @@
-"""Python package for the Weiss Schwarz simulator."""
 from __future__ import annotations
 
 import numpy as np

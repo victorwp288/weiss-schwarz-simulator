@@ -134,7 +134,7 @@ where
 }
 
 fn action_desc_to_pydict(py: Python<'_>, action: &ActionDesc) -> PyResult<PyObject> {
-    let dict = PyDict::new_bound(py);
+    let dict = PyDict::new(py);
     match action {
         ActionDesc::MulliganConfirm => {
             dict.set_item("kind", "mulligan_confirm")?;
@@ -253,53 +253,53 @@ impl PyBatchOutMinimal {
         let engine_status = Array1::<u8>::zeros(num_envs);
         let spec_hash = Array1::<u64>::from_elem(num_envs, SPEC_HASH);
         Ok(Self {
-            obs: PyArray2::from_owned_array_bound(py, obs).unbind(),
-            masks: PyArray2::from_owned_array_bound(py, masks).unbind(),
-            rewards: PyArray1::from_owned_array_bound(py, rewards).unbind(),
-            terminated: PyArray1::from_owned_array_bound(py, terminated).unbind(),
-            truncated: PyArray1::from_owned_array_bound(py, truncated).unbind(),
-            actor: PyArray1::from_owned_array_bound(py, actor).unbind(),
-            decision_id: PyArray1::from_owned_array_bound(py, decision_id).unbind(),
-            engine_status: PyArray1::from_owned_array_bound(py, engine_status).unbind(),
-            spec_hash: PyArray1::from_owned_array_bound(py, spec_hash).unbind(),
+            obs: PyArray2::from_owned_array(py, obs).unbind(),
+            masks: PyArray2::from_owned_array(py, masks).unbind(),
+            rewards: PyArray1::from_owned_array(py, rewards).unbind(),
+            terminated: PyArray1::from_owned_array(py, terminated).unbind(),
+            truncated: PyArray1::from_owned_array(py, truncated).unbind(),
+            actor: PyArray1::from_owned_array(py, actor).unbind(),
+            decision_id: PyArray1::from_owned_array(py, decision_id).unbind(),
+            engine_status: PyArray1::from_owned_array(py, engine_status).unbind(),
+            spec_hash: PyArray1::from_owned_array(py, spec_hash).unbind(),
         })
     }
 
     #[getter]
-    fn obs(&self) -> Py<PyArray2<i32>> {
-        self.obs.clone()
+    fn obs(&self, py: Python<'_>) -> Py<PyArray2<i32>> {
+        self.obs.clone_ref(py)
     }
     #[getter]
-    fn masks(&self) -> Py<PyArray2<u8>> {
-        self.masks.clone()
+    fn masks(&self, py: Python<'_>) -> Py<PyArray2<u8>> {
+        self.masks.clone_ref(py)
     }
     #[getter]
-    fn rewards(&self) -> Py<PyArray1<f32>> {
-        self.rewards.clone()
+    fn rewards(&self, py: Python<'_>) -> Py<PyArray1<f32>> {
+        self.rewards.clone_ref(py)
     }
     #[getter]
-    fn terminated(&self) -> Py<PyArray1<bool>> {
-        self.terminated.clone()
+    fn terminated(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.terminated.clone_ref(py)
     }
     #[getter]
-    fn truncated(&self) -> Py<PyArray1<bool>> {
-        self.truncated.clone()
+    fn truncated(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.truncated.clone_ref(py)
     }
     #[getter]
-    fn actor(&self) -> Py<PyArray1<i8>> {
-        self.actor.clone()
+    fn actor(&self, py: Python<'_>) -> Py<PyArray1<i8>> {
+        self.actor.clone_ref(py)
     }
     #[getter]
-    fn decision_id(&self) -> Py<PyArray1<u32>> {
-        self.decision_id.clone()
+    fn decision_id(&self, py: Python<'_>) -> Py<PyArray1<u32>> {
+        self.decision_id.clone_ref(py)
     }
     #[getter]
-    fn engine_status(&self) -> Py<PyArray1<u8>> {
-        self.engine_status.clone()
+    fn engine_status(&self, py: Python<'_>) -> Py<PyArray1<u8>> {
+        self.engine_status.clone_ref(py)
     }
     #[getter]
-    fn spec_hash(&self) -> Py<PyArray1<u64>> {
-        self.spec_hash.clone()
+    fn spec_hash(&self, py: Python<'_>) -> Py<PyArray1<u64>> {
+        self.spec_hash.clone_ref(py)
     }
 }
 
@@ -345,78 +345,78 @@ impl PyBatchOutDebug {
         let event_counts = Array1::<u16>::zeros(num_envs);
         let event_codes = Array2::<u32>::zeros((num_envs, event_capacity));
         Ok(Self {
-            obs: PyArray2::from_owned_array_bound(py, obs).unbind(),
-            masks: PyArray2::from_owned_array_bound(py, masks).unbind(),
-            rewards: PyArray1::from_owned_array_bound(py, rewards).unbind(),
-            terminated: PyArray1::from_owned_array_bound(py, terminated).unbind(),
-            truncated: PyArray1::from_owned_array_bound(py, truncated).unbind(),
-            actor: PyArray1::from_owned_array_bound(py, actor).unbind(),
-            decision_id: PyArray1::from_owned_array_bound(py, decision_id).unbind(),
-            engine_status: PyArray1::from_owned_array_bound(py, engine_status).unbind(),
-            spec_hash: PyArray1::from_owned_array_bound(py, spec_hash).unbind(),
-            decision_kind: PyArray1::from_owned_array_bound(py, decision_kind).unbind(),
-            state_fingerprint: PyArray1::from_owned_array_bound(py, state_fingerprint).unbind(),
-            events_fingerprint: PyArray1::from_owned_array_bound(py, events_fingerprint).unbind(),
-            event_counts: PyArray1::from_owned_array_bound(py, event_counts).unbind(),
-            event_codes: PyArray2::from_owned_array_bound(py, event_codes).unbind(),
+            obs: PyArray2::from_owned_array(py, obs).unbind(),
+            masks: PyArray2::from_owned_array(py, masks).unbind(),
+            rewards: PyArray1::from_owned_array(py, rewards).unbind(),
+            terminated: PyArray1::from_owned_array(py, terminated).unbind(),
+            truncated: PyArray1::from_owned_array(py, truncated).unbind(),
+            actor: PyArray1::from_owned_array(py, actor).unbind(),
+            decision_id: PyArray1::from_owned_array(py, decision_id).unbind(),
+            engine_status: PyArray1::from_owned_array(py, engine_status).unbind(),
+            spec_hash: PyArray1::from_owned_array(py, spec_hash).unbind(),
+            decision_kind: PyArray1::from_owned_array(py, decision_kind).unbind(),
+            state_fingerprint: PyArray1::from_owned_array(py, state_fingerprint).unbind(),
+            events_fingerprint: PyArray1::from_owned_array(py, events_fingerprint).unbind(),
+            event_counts: PyArray1::from_owned_array(py, event_counts).unbind(),
+            event_codes: PyArray2::from_owned_array(py, event_codes).unbind(),
         })
     }
 
     #[getter]
-    fn obs(&self) -> Py<PyArray2<i32>> {
-        self.obs.clone()
+    fn obs(&self, py: Python<'_>) -> Py<PyArray2<i32>> {
+        self.obs.clone_ref(py)
     }
     #[getter]
-    fn masks(&self) -> Py<PyArray2<u8>> {
-        self.masks.clone()
+    fn masks(&self, py: Python<'_>) -> Py<PyArray2<u8>> {
+        self.masks.clone_ref(py)
     }
     #[getter]
-    fn rewards(&self) -> Py<PyArray1<f32>> {
-        self.rewards.clone()
+    fn rewards(&self, py: Python<'_>) -> Py<PyArray1<f32>> {
+        self.rewards.clone_ref(py)
     }
     #[getter]
-    fn terminated(&self) -> Py<PyArray1<bool>> {
-        self.terminated.clone()
+    fn terminated(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.terminated.clone_ref(py)
     }
     #[getter]
-    fn truncated(&self) -> Py<PyArray1<bool>> {
-        self.truncated.clone()
+    fn truncated(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.truncated.clone_ref(py)
     }
     #[getter]
-    fn actor(&self) -> Py<PyArray1<i8>> {
-        self.actor.clone()
+    fn actor(&self, py: Python<'_>) -> Py<PyArray1<i8>> {
+        self.actor.clone_ref(py)
     }
     #[getter]
-    fn decision_id(&self) -> Py<PyArray1<u32>> {
-        self.decision_id.clone()
+    fn decision_id(&self, py: Python<'_>) -> Py<PyArray1<u32>> {
+        self.decision_id.clone_ref(py)
     }
     #[getter]
-    fn engine_status(&self) -> Py<PyArray1<u8>> {
-        self.engine_status.clone()
+    fn engine_status(&self, py: Python<'_>) -> Py<PyArray1<u8>> {
+        self.engine_status.clone_ref(py)
     }
     #[getter]
-    fn spec_hash(&self) -> Py<PyArray1<u64>> {
-        self.spec_hash.clone()
+    fn spec_hash(&self, py: Python<'_>) -> Py<PyArray1<u64>> {
+        self.spec_hash.clone_ref(py)
     }
     #[getter]
-    fn decision_kind(&self) -> Py<PyArray1<i8>> {
-        self.decision_kind.clone()
+    fn decision_kind(&self, py: Python<'_>) -> Py<PyArray1<i8>> {
+        self.decision_kind.clone_ref(py)
     }
     #[getter]
-    fn state_fingerprint(&self) -> Py<PyArray1<u64>> {
-        self.state_fingerprint.clone()
+    fn state_fingerprint(&self, py: Python<'_>) -> Py<PyArray1<u64>> {
+        self.state_fingerprint.clone_ref(py)
     }
     #[getter]
-    fn events_fingerprint(&self) -> Py<PyArray1<u64>> {
-        self.events_fingerprint.clone()
+    fn events_fingerprint(&self, py: Python<'_>) -> Py<PyArray1<u64>> {
+        self.events_fingerprint.clone_ref(py)
     }
     #[getter]
-    fn event_counts(&self) -> Py<PyArray1<u16>> {
-        self.event_counts.clone()
+    fn event_counts(&self, py: Python<'_>) -> Py<PyArray1<u16>> {
+        self.event_counts.clone_ref(py)
     }
     #[getter]
-    fn event_codes(&self) -> Py<PyArray2<u32>> {
-        self.event_codes.clone()
+    fn event_codes(&self, py: Python<'_>) -> Py<PyArray2<u32>> {
+        self.event_codes.clone_ref(py)
     }
 }
 
@@ -1106,9 +1106,9 @@ impl PyEnvPool {
     }
 
     fn action_lookup_batch<'py>(&self, py: Python<'py>) -> PyResult<Py<PyList>> {
-        let outer = PyList::empty_bound(py);
+        let outer = PyList::empty(py);
         for env in &self.pool.envs {
-            let inner = PyList::empty_bound(py);
+            let inner = PyList::empty(py);
             for entry in env.action_lookup() {
                 match entry {
                     Some(action) => inner.append(action_desc_to_pydict(py, action)?)?,
@@ -1130,7 +1130,7 @@ impl PyEnvPool {
                 "action_ids length must match env count",
             ));
         }
-        let out = PyList::empty_bound(py);
+        let out = PyList::empty(py);
         for (env, action_id) in self.pool.envs.iter().zip(action_ids.iter()) {
             let action = env
                 .action_lookup()
@@ -1145,9 +1145,9 @@ impl PyEnvPool {
     }
 
     fn decision_info_batch<'py>(&self, py: Python<'py>) -> PyResult<Py<PyList>> {
-        let outer = PyList::empty_bound(py);
+        let outer = PyList::empty(py);
         for env in &self.pool.envs {
-            let dict = PyDict::new_bound(py);
+            let dict = PyDict::new(py);
             if let Some(decision) = &env.decision {
                 dict.set_item("decision_kind", format!("{:?}", decision.kind))?;
                 dict.set_item("current_player", decision.player)?;
@@ -1174,13 +1174,13 @@ impl PyEnvPool {
     fn state_fingerprint_batch<'py>(&self, py: Python<'py>) -> PyResult<Py<PyArray1<u64>>> {
         let vals = self.pool.state_fingerprint_batch();
         let arr = Array1::<u64>::from(vals);
-        Ok(PyArray1::from_owned_array_bound(py, arr).unbind())
+        Ok(PyArray1::from_owned_array(py, arr).unbind())
     }
 
     fn events_fingerprint_batch<'py>(&self, py: Python<'py>) -> PyResult<Py<PyArray1<u64>>> {
         let vals = self.pool.events_fingerprint_batch();
         let arr = Array1::<u64>::from(vals);
-        Ok(PyArray1::from_owned_array_bound(py, arr).unbind())
+        Ok(PyArray1::from_owned_array(py, arr).unbind())
     }
 
     fn legal_action_ids_into<'py>(

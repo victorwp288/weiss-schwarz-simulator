@@ -215,13 +215,11 @@ fn bench_alloc_legal_actions(c: &mut Criterion) {
                 let (allocs, _, _, _) = alloc_snapshot();
                 total_allocs += allocs;
             }
-            if iters > 0 {
-                if !PRINT_LEGAL.swap(true, Ordering::Relaxed) {
-                    println!(
-                        "alloc_legal_actions avg_allocs_per_iter={}",
-                        total_allocs / iters as usize
-                    );
-                }
+            if iters > 0 && !PRINT_LEGAL.swap(true, Ordering::Relaxed) {
+                println!(
+                    "alloc_legal_actions avg_allocs_per_iter={}",
+                    total_allocs / iters as usize
+                );
             }
             start.elapsed()
         })
@@ -263,13 +261,11 @@ fn bench_alloc_observation_encode(c: &mut Criterion) {
                 let (allocs, _, _, _) = alloc_snapshot();
                 total_allocs += allocs;
             }
-            if iters > 0 {
-                if !PRINT_OBS.swap(true, Ordering::Relaxed) {
-                    println!(
-                        "alloc_observation_encode avg_allocs_per_iter={}",
-                        total_allocs / iters as usize
-                    );
-                }
+            if iters > 0 && !PRINT_OBS.swap(true, Ordering::Relaxed) {
+                println!(
+                    "alloc_observation_encode avg_allocs_per_iter={}",
+                    total_allocs / iters as usize
+                );
             }
             start.elapsed()
         })
@@ -303,13 +299,11 @@ fn bench_alloc_action_masks_batch_into(c: &mut Criterion) {
                 let (allocs, _, _, _) = alloc_snapshot();
                 total_allocs += allocs;
             }
-            if iters > 0 {
-                if !PRINT_MASKS.swap(true, Ordering::Relaxed) {
-                    println!(
-                        "alloc_action_masks_batch_into avg_allocs_per_iter={}",
-                        total_allocs / iters as usize
-                    );
-                }
+            if iters > 0 && !PRINT_MASKS.swap(true, Ordering::Relaxed) {
+                println!(
+                    "alloc_action_masks_batch_into avg_allocs_per_iter={}",
+                    total_allocs / iters as usize
+                );
             }
             start.elapsed()
         })
@@ -346,13 +340,11 @@ fn bench_alloc_choice_paging_worst_case(c: &mut Criterion) {
                 let (allocs, _, _, _) = alloc_snapshot();
                 total_allocs += allocs;
             }
-            if iters > 0 {
-                if !PRINT_MASKS.swap(true, Ordering::Relaxed) {
-                    println!(
-                        "alloc_choice_paging_worst_case avg_allocs_per_iter={}",
-                        total_allocs / iters as usize
-                    );
-                }
+            if iters > 0 && !PRINT_MASKS.swap(true, Ordering::Relaxed) {
+                println!(
+                    "alloc_choice_paging_worst_case avg_allocs_per_iter={}",
+                    total_allocs / iters as usize
+                );
             }
             start.elapsed()
         })

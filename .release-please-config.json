@@ -1,0 +1,14 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "changelog-path": "CHANGELOG.md",
+      "include-component-in-tag": false,
+      "extra-files": [
+        "pyproject.toml",
+        "weiss_core/Cargo.toml",
+        "weiss_py/Cargo.toml"
+      ]
+    }
+  }
+}

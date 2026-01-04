@@ -6,8 +6,20 @@ build-backend = "maturin"
 name = "weiss-sim"
 version = "0.1.0"
 requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.23",
+]
 
 [tool.maturin]
 manifest-path = "weiss_py/Cargo.toml"
 python-source = "python"
 module-name = "weiss_sim"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = ["python/examples"]
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E501"]

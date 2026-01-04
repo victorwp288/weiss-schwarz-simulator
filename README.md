@@ -1,5 +1,13 @@
 # Weiss Schwarz Simulator (Rust core + Python bindings)
 
+[![CI](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/ci.yml)
+[![Wheels](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/wheels.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/wheels.yml)
+[![Benchmarks](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/benchmarks.yml)
+[![Docs](https://img.shields.io/badge/docs-rustdoc-blue)](https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/)
+[![PyPI](https://img.shields.io/pypi/v/weiss-sim.svg)](https://pypi.org/project/weiss-sim/)
+[![Changelog](https://img.shields.io/badge/changelog-view-blue)](https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/CHANGELOG.md)
+[![Last Commit](https://img.shields.io/github/last-commit/victorwp288/weiss-schwarz-simulator.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/commits/main)
+
 Deterministic, RL-first Weiss Schwarz simulation: **Rust runs the hot loop**, advances until a **decision point**, and exposes a **fixed action space + mask** (and legal action ids) for efficient batched training. Python gets a thin `EnvPool` wrapper for stepping many environments in parallel.
 
 ---
@@ -30,6 +38,27 @@ This repo is built around those constraints.
 
 Each environment is deterministic given its seed and action sequence. Parallel batch stepping does not change outcomes because envs are fully isolated.
 
+---
+
+## Automation & Benchmarks
+
+- **CI** runs on every push/PR: Rust fmt/clippy/tests + Python ruff/pytest.
+- **Wheels** build on pushes to `main` (artifacts), and tags `v*` publish to GitHub Releases + PyPI.
+- **Benchmarks** run on pushes to `main`; history + charts are published via GitHub Pages.
+
+Latest benchmark history and charts:
+https://victorwp288.github.io/weiss-schwarz-simulator/benchmarks
+
+### Benchmark Snapshot (main, top 12)
+
+<!-- BENCHMARKS:START -->
+_Last updated: 1970-01-01 00:00 UTC_
+
+| Benchmark | Time |
+| --- | --- |
+| pending | - |
+<!-- BENCHMARKS:END -->
+
 
 ---
 
@@ -49,6 +78,7 @@ Each environment is deterministic given its seed and action sequence. Parallel b
 Prerequisites:
 - **Python**: ≥ 3.10
 - **Rust toolchain**: stable (`cargo`, `rustc`)
+- **Bindings**: built with PyO3 0.24 + numpy 0.24 (Rust side)
 
 Install (editable):
 
@@ -56,6 +86,13 @@ Install (editable):
 python -m pip install -U pip
 python -m pip install -U maturin
 python -m pip install -e .
+```
+
+Note (macOS/PyO3): if you build wheels locally, prefer an explicit interpreter to avoid linking errors
+and unsupported system Pythons:
+
+```bash
+maturin build --release --manifest-path weiss_py/Cargo.toml --interpreter .venv/bin/python -o dist
 ```
 
 Sanity check:

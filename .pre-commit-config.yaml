@@ -1,0 +1,33 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.12
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: cargo-clippy
+        name: cargo clippy --fix
+        entry: cargo clippy --fix --allow-dirty --allow-staged --workspace --all-targets -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: cargo-test-core
+        name: cargo test -p weiss_core
+        entry: cargo test -p weiss_core
+        language: system
+        pass_filenames: false
+        files: "^(weiss_core|weiss_py)/|^Cargo\\.(toml|lock)$"
+      - id: pytest
+        name: pytest -q python/tests
+        entry: pytest -q python/tests
+        language: system
+        pass_filenames: false
+        files: "^python/|^pyproject\\.toml$"

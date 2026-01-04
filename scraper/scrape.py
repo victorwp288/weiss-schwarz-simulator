@@ -348,7 +348,9 @@ def parse_detail_html(html: str, requested_cardno: str) -> Tuple[Optional[dict],
     side_dd = type_pairs.get("Side")
     if side_dd:
         img = side_dd.find("img") if hasattr(side_dd, "find") else None
-        side_token = filename_from_src(img.get("src") if img else None) or text_from_tag(side_dd) or ""
+        side_token = (
+            filename_from_src(img.get("src") if img else None) or text_from_tag(side_dd) or ""
+        )
         if side_token:
             side = normalize_side(side_token.split(".")[0])
 
@@ -356,7 +358,9 @@ def parse_detail_html(html: str, requested_cardno: str) -> Tuple[Optional[dict],
     color_dd = type_pairs.get("Color")
     if color_dd:
         img = color_dd.find("img") if hasattr(color_dd, "find") else None
-        color_token = filename_from_src(img.get("src") if img else None) or text_from_tag(color_dd) or ""
+        color_token = (
+            filename_from_src(img.get("src") if img else None) or text_from_tag(color_dd) or ""
+        )
         if color_token:
             color = normalize_color(os.path.splitext(color_token)[0])
 
@@ -457,15 +461,19 @@ def parse_detail_html(html: str, requested_cardno: str) -> Tuple[Optional[dict],
     return record, None
 
 
-async def fetch_text(client: httpx.AsyncClient, url: str, params: Optional[Dict[str, str]] = None) -> httpx.Response:
+async def fetch_text(
+    client: httpx.AsyncClient, url: str, params: Optional[Dict[str, str]] = None
+) -> httpx.Response:
     return await client.get(url, params=params)
 
 
-async def fetch_with_retry(client: httpx.AsyncClient, url: str, params: Optional[Dict[str, str]] = None, label: str = "") -> httpx.Response:
+async def fetch_with_retry(
+    client: httpx.AsyncClient, url: str, params: Optional[Dict[str, str]] = None, label: str = ""
+) -> httpx.Response:
     for attempt in range(3):
         try:
             resp = await fetch_text(client, url, params=params)
-        except Exception as exc:
+        except Exception:
             if attempt == 2:
                 raise
             await asyncio.sleep(1 + attempt)
@@ -481,19 +489,25 @@ async def fetch_with_retry(client: httpx.AsyncClient, url: str, params: Optional
 
 async def recon_check(client: httpx.AsyncClient) -> Dict[str, Any]:
     result = {"listing_page_1_count": 0, "listing_page_1_url": "", "listing_page_9999_url": ""}
-    resp = await fetch_with_retry(client, LISTING_ENDPOINT, params=listing_params(1), label="recon-page-1")
+    resp = await fetch_with_retry(
+        client, LISTING_ENDPOINT, params=listing_params(1), label="recon-page-1"
+    )
     result["listing_page_1_url"] = str(resp.url)
     cardnos = parse_listing_cardnos(resp.text)
     result["listing_page_1_count"] = len(cardnos)
 
-    resp_far = await fetch_with_retry(client, LISTING_ENDPOINT, params=listing_params(9999), label="recon-page-9999")
+    resp_far = await fetch_with_retry(
+        client, LISTING_ENDPOINT, params=listing_params(9999), label="recon-page-9999"
+    )
     result["listing_page_9999_url"] = str(resp_far.url)
     result["listing_page_9999_count"] = len(parse_listing_cardnos(resp_far.text))
     return result
 
 
 async def test_listing_parse(client: httpx.AsyncClient) -> None:
-    resp = await fetch_with_retry(client, LISTING_ENDPOINT, params=listing_params(1), label="test-listing")
+    resp = await fetch_with_retry(
+        client, LISTING_ENDPOINT, params=listing_params(1), label="test-listing"
+    )
     cardnos = parse_listing_cardnos(resp.text)
     if not cardnos:
         raise RuntimeError("Test A failed: no card numbers parsed from listing page 1")
@@ -520,7 +534,9 @@ async def test_detail_parse(client: httpx.AsyncClient) -> None:
 
 
 async def test_idempotence(client: httpx.AsyncClient, out_dir: Path) -> None:
-    resp = await fetch_with_retry(client, LISTING_ENDPOINT, params=listing_params(1), label="test-idempotence-listing")
+    resp = await fetch_with_retry(
+        client, LISTING_ENDPOINT, params=listing_params(1), label="test-idempotence-listing"
+    )
     cardnos = parse_listing_cardnos(resp.text)[:5]
     if len(cardnos) < 2:
         raise RuntimeError("Test C failed: not enough card numbers for idempotence test")
@@ -582,7 +598,9 @@ async def discover_cards_for_params(
             break
         params = listing_params(page, **filters)
         try:
-            resp = await fetch_with_retry(client, LISTING_ENDPOINT, params=params, label=f"discover-{label}-p{page}")
+            resp = await fetch_with_retry(
+                client, LISTING_ENDPOINT, params=params, label=f"discover-{label}-p{page}"
+            )
         except Exception as exc:
             if failures_path:
                 failure_obj = {
@@ -808,9 +826,17 @@ async def main() -> int:
     parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--discovery-concurrency", type=int, default=4)
     parser.add_argument("--skip-tests", action="store_true")
-    parser.add_argument("--limit", type=int, default=0, help="Limit number of cards to crawl (debug)")
-    parser.add_argument("--smoke", action="store_true", help="Fast check: limit to 1000 cards and skip set enumeration")
-    parser.add_argument("--max-discovery-pages", type=int, default=0, help="Cap pages per discovery query")
+    parser.add_argument(
+        "--limit", type=int, default=0, help="Limit number of cards to crawl (debug)"
+    )
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Fast check: limit to 1000 cards and skip set enumeration",
+    )
+    parser.add_argument(
+        "--max-discovery-pages", type=int, default=0, help="Cap pages per discovery query"
+    )
     args = parser.parse_args()
 
     out_dir = Path("out")
@@ -829,10 +855,14 @@ async def main() -> int:
 
     discovery_max_pages = args.max_discovery_pages or None
 
-    async with httpx.AsyncClient(limits=limits, timeout=timeout, headers=headers, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        limits=limits, timeout=timeout, headers=headers, follow_redirects=True
+    ) as client:
         print("Phase 0: recon")
         recon = await recon_check(client)
-        print(f"  listing page 1 count: {recon.get('listing_page_1_count')}, page 9999 url: {recon.get('listing_page_9999_url')}")
+        print(
+            f"  listing page 1 count: {recon.get('listing_page_1_count')}, page 9999 url: {recon.get('listing_page_9999_url')}"
+        )
 
         if not args.skip_tests:
             print("Phase 5: tests A-C")
@@ -964,7 +994,8 @@ async def main() -> int:
             "category_count": len(category_options),
         },
         "sanity": {
-            "success_plus_failure_equals_discovered": (done_in_discovery + failure_count) == len(cardnos_all),
+            "success_plus_failure_equals_discovered": (done_in_discovery + failure_count)
+            == len(cardnos_all),
         },
     }
     write_stats(out_dir / "stats.json", stats)

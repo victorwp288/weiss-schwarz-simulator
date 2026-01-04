@@ -172,9 +172,7 @@ def parse_cost(line: str) -> Tuple[Dict[str, Any], bool, str]:
             seg_low,
         )
 
-        for match in re.finditer(
-            r"put (\d+) card(?:s)? from your hand into your clock", seg_low
-        ):
+        for match in re.finditer(r"put (\d+) card(?:s)? from your hand into your clock", seg_low):
             cost["clock_from_hand"] += int(match.group(1))
         seg_low = re.sub(
             r"put \d+ card(?:s)? from your hand into your clock",
@@ -256,7 +254,9 @@ def _ability_def(
     }
 
 
-def parse_abilities(text: str, card_type: str, stats: AbilityParseStats) -> Tuple[List[Any], List[Any], bool]:
+def parse_abilities(
+    text: str, card_type: str, stats: AbilityParseStats
+) -> Tuple[List[Any], List[Any], bool]:
     abilities: List[Any] = []
     ability_defs: List[Any] = []
     counter_timing = False
@@ -346,9 +346,7 @@ def parse_abilities(text: str, card_type: str, stats: AbilityParseStats) -> Tupl
                     re.I,
                 )
                 if match and "may" not in effect.lower():
-                    abilities.append(
-                        _template("AutoOnPlayStockCharge", count=int(match.group(1)))
-                    )
+                    abilities.append(_template("AutoOnPlayStockCharge", count=int(match.group(1))))
                     stats.parsed_lines += 1
                     stats.emitted_templates["AutoOnPlayStockCharge"] += 1
                     continue
@@ -453,9 +451,7 @@ def parse_abilities(text: str, card_type: str, stats: AbilityParseStats) -> Tupl
                             "Auto",
                             "AttackDeclaration",
                             effects=[
-                                _template(
-                                    "AddPower", amount=int(buff.group(1)), duration_turn=True
-                                )
+                                _template("AddPower", amount=int(buff.group(1)), duration_turn=True)
                             ],
                             targets=["SelfStage"],
                         )
@@ -564,9 +560,7 @@ def parse_abilities(text: str, card_type: str, stats: AbilityParseStats) -> Tupl
                         "Activated",
                         None,
                         effects=[
-                            _template(
-                                "AddPower", amount=int(match.group(1)), duration_turn=True
-                            )
+                            _template("AddPower", amount=int(match.group(1)), duration_turn=True)
                         ],
                         targets=["This"],
                         cost=cost,
@@ -692,9 +686,7 @@ def convert(
         traits = [trait_map[t] for t in traits_raw if t in trait_map]
 
         text = rec.get("text") or ""
-        abilities, ability_defs, counter_timing = parse_abilities(
-            text, card_type, ability_stats
-        )
+        abilities, ability_defs, counter_timing = parse_abilities(text, card_type, ability_stats)
 
         card_set = pick_card_set(rec)
 

@@ -1,0 +1,70 @@
+name: Benchmarks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "weiss_core/**"
+      - "weiss_py/**"
+      - "python/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  benches:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+      - name: Install Python tooling
+        run: |
+          python -m pip install -U pip
+          python -m pip install maturin numpy
+      - name: Run Criterion benches
+        run: |
+          mkdir -p benchmark
+          cargo bench -p weiss_core --bench core_benches -- --output-format bencher | tee benchmark/benches.txt
+          cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher | tee -a benchmark/benches.txt
+      - name: Build extension (maturin develop)
+        run: maturin develop --release --manifest-path weiss_py/Cargo.toml
+      - name: Run Python benchmarks
+        run: |
+          python python/examples/bench_python_boundary.py --num-envs 128 --steps 2000 --warmup 200 --reset-reps 200 --mode both | tee benchmark/python_bench.txt
+      - name: Publish benchmark history
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: "cargo"
+          output-file-path: benchmark/benches.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          benchmark-data-dir-path: benchmarks
+      - name: Update README benchmark snapshot
+        run: |
+          python scripts/bench_to_readme.py \
+            --input benchmark/benches.txt \
+            --python-input benchmark/python_bench.txt \
+            --readme README.md \
+            --max 12
+      - name: Commit README update
+        run: |
+          if git diff --quiet; then
+            echo "No README changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "chore: update benchmark snapshot [skip ci]"
+          git push

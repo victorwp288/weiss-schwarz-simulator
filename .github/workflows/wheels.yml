@@ -1,0 +1,109 @@
+name: Wheels
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "weiss_core/**"
+      - "weiss_py/**"
+      - "python/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build wheels (${{ matrix.os }} / py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+            manylinux: "2014"
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist
+            sdist: true
+          - os: ubuntu-latest
+            python-version: "3.11"
+            manylinux: "2014"
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist
+            sdist: false
+          - os: ubuntu-latest
+            python-version: "3.12"
+            manylinux: "2014"
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist
+            sdist: false
+          - os: windows-latest
+            python-version: "3.10"
+            manylinux: ""
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist
+            sdist: false
+          - os: windows-latest
+            python-version: "3.11"
+            manylinux: ""
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist
+            sdist: false
+          - os: windows-latest
+            python-version: "3.12"
+            manylinux: ""
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist
+            sdist: false
+          - os: macos-latest
+            python-version: "3.10"
+            manylinux: ""
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --universal2
+            sdist: false
+          - os: macos-latest
+            python-version: "3.11"
+            manylinux: ""
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --universal2
+            sdist: false
+          - os: macos-latest
+            python-version: "3.12"
+            manylinux: ""
+            args: --release --manifest-path weiss_py/Cargo.toml --out dist --universal2
+            sdist: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          python-version: ${{ matrix.python-version }}
+          args: ${{ matrix.args }}
+          manylinux: ${{ matrix.manylinux }}
+          sdist: ${{ matrix.sdist }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: dist/*
+
+  release:
+    name: Publish (GitHub Releases + PyPI)
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@v1
+        with:
+          packages-dir: dist

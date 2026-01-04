@@ -18,7 +18,21 @@ def _first_legal_actions(masks):
 def test_priority_window_includes_pass_option():
     fixture_dir = Path(__file__).parent / "fixtures"
     db_path = fixture_dir / "cards.wsdb"
-    deck = ([14] * 4) + ([1] * 4) + ([2] * 4) + ([3] * 4) + ([4] * 4) + ([5] * 4) + ([6] * 4) + ([7] * 4) + ([8] * 4) + ([9] * 4) + ([10] * 4) + ([11] * 4) + ([12] * 2)
+    deck = (
+        ([14] * 4)
+        + ([1] * 4)
+        + ([2] * 4)
+        + ([3] * 4)
+        + ([4] * 4)
+        + ([5] * 4)
+        + ([6] * 4)
+        + ([7] * 4)
+        + ([8] * 4)
+        + ([9] * 4)
+        + ([10] * 4)
+        + ([11] * 4)
+        + ([12] * 2)
+    )
     curriculum = json.dumps(
         {
             "enable_priority_windows": True,
