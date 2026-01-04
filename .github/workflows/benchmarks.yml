@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     paths:
+      - ".github/workflows/benchmarks.yml"
+      - "scripts/bench_to_readme.py"
       - "weiss_core/**"
       - "weiss_py/**"
       - "python/**"
