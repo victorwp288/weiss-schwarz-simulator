@@ -59,22 +59,22 @@ Note: with only 1–2 benchmark runs, charts can look “empty” until more poi
 ### Benchmark Snapshot (main, top 12)
 
 <!-- BENCHMARKS:START -->
-_Last updated: 2026-01-04 22:32 UTC_
+_Last updated: 2026-01-04 23:00 UTC_
 
 | Benchmark | Time |
 | --- | --- |
-| rust/advance_until_decision | 63288 ns/iter |
-| rust/step_batch_64 | 26336 ns/iter |
-| rust/step_batch_fast_256_priority_off | 121032 ns/iter |
-| rust/step_batch_fast_256_priority_on | 117206 ns/iter |
+| rust/advance_until_decision | 63281 ns/iter |
+| rust/step_batch_64 | 26500 ns/iter |
+| rust/step_batch_fast_256_priority_off | 117553 ns/iter |
+| rust/step_batch_fast_256_priority_on | 111286 ns/iter |
 | rust/legal_actions | 43 ns/iter |
 | rust/legal_actions_forced | 41 ns/iter |
-| rust/on_reverse_decision_frequency_on | 1546 ns/iter |
-| rust/on_reverse_decision_frequency_off | 1536 ns/iter |
-| rust/observation_encode | 221 ns/iter |
-| rust/observation_encode_forced | 227 ns/iter |
-| rust/mask_construction | 418 ns/iter |
-| rust/mask_construction_forced | 422 ns/iter |
+| rust/on_reverse_decision_frequency_on | 1510 ns/iter |
+| rust/on_reverse_decision_frequency_off | 1513 ns/iter |
+| rust/observation_encode | 206 ns/iter |
+| rust/observation_encode_forced | 211 ns/iter |
+| rust/mask_construction | 410 ns/iter |
+| rust/mask_construction_forced | 432 ns/iter |
 <!-- BENCHMARKS:END -->
 
 
