@@ -193,8 +193,8 @@ Python helper:
 
 Encodings are deterministic and **explicitly versioned**:
 
-- `weiss_sim.OBS_ENCODING_VERSION` (currently 5)
-- `weiss_sim.ACTION_ENCODING_VERSION` (currently 2)
+- `weiss_sim.OBS_ENCODING_VERSION` (currently 1)
+- `weiss_sim.ACTION_ENCODING_VERSION` (currently 1)
 
 ### Observation tensor
 

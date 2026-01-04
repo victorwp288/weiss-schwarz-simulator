@@ -3,7 +3,7 @@ use weiss_core::state::REVEAL_HISTORY_LEN;
 
 #[test]
 fn observation_layout_constants_are_stable() {
-    assert_eq!(OBS_ENCODING_VERSION, 5);
+    assert_eq!(OBS_ENCODING_VERSION, 1);
     assert_eq!(OBS_HEADER_LEN, 16);
     assert_eq!(OBS_REASON_LEN, 8);
     assert_eq!(OBS_REVEAL_LEN, REVEAL_HISTORY_LEN);

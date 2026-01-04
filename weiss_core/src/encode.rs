@@ -5,8 +5,8 @@ use crate::state::{
     AttackType, GameState, ModifierKind, Phase, StageStatus, TerminalResult, REVEAL_HISTORY_LEN,
 };
 
-pub const OBS_ENCODING_VERSION: u32 = 5;
-pub const ACTION_ENCODING_VERSION: u32 = 2;
+pub const OBS_ENCODING_VERSION: u32 = 1;
+pub const ACTION_ENCODING_VERSION: u32 = 1;
 pub const POLICY_VERSION: u32 = 1;
 pub const SPEC_HASH: u64 =
     ((OBS_ENCODING_VERSION as u64) << 32) | ((ACTION_ENCODING_VERSION as u64) << 16) | (POLICY_VERSION as u64);
