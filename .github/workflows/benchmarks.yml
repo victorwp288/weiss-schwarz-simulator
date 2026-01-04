@@ -12,14 +12,23 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "pyproject.toml"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  benches_pr:
+    name: benches
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Benchmarks run on main pushes; PRs skip heavy bench runs."
+
   benches:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event_name != 'pull_request' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

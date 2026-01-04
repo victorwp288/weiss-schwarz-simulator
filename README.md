@@ -3,6 +3,7 @@
 [![CI](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/ci.yml)
 [![Wheels](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/wheels.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/wheels.yml)
 [![Benchmarks](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/benchmarks.yml)
+[![Security](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/security.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/security.yml)
 [![Docs](https://img.shields.io/badge/docs-rustdoc-blue)](https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/)
 [![PyPI](https://img.shields.io/pypi/v/weiss-sim.svg)](https://pypi.org/project/weiss-sim/)
 [![Changelog](https://img.shields.io/badge/changelog-view-blue)](https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/CHANGELOG.md)
@@ -45,9 +46,15 @@ Each environment is deterministic given its seed and action sequence. Parallel b
 - **CI** runs on every push/PR: Rust fmt/clippy/tests + Python ruff/pytest.
 - **Wheels** build on pushes to `main` (artifacts), and tags `v*` publish to GitHub Releases + PyPI.
 - **Benchmarks** run on pushes to `main`; history + charts are published via GitHub Pages.
+- **Docs** are published to GitHub Pages on pushes to `main`.
 
 Latest benchmark history and charts:
 https://victorwp288.github.io/weiss-schwarz-simulator/benchmarks
+
+Rust API docs:
+https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/
+
+Note: with only 1–2 benchmark runs, charts can look “empty” until more points exist.
 
 ### Benchmark Snapshot (main, top 12)
 

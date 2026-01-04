@@ -35,6 +35,20 @@ jobs:
               - 'pyproject.toml'
               - 'weiss_py/**'
 
+  ci:
+    name: ci
+    needs: [changes, rust, python]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any required job failed
+        run: |
+          echo "rust=${{ needs.rust.result }}"
+          echo "python=${{ needs.python.result }}"
+          if [[ "${{ needs.rust.result }}" == "failure" || "${{ needs.python.result }}" == "failure" ]]; then
+            exit 1
+          fi
+
   rust:
     name: Rust (fmt, clippy, test)
     needs: changes

@@ -11,6 +11,8 @@ on:
       - "README.md"
       - "Cargo.toml"
       - "Cargo.lock"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -23,9 +25,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Build Rust docs
+      - name: Build Rust docs (PR)
+        if: github.event_name == 'pull_request'
+        run: cargo doc -p weiss_core --no-deps
+      - name: Build Rust docs (publish)
+        if: github.event_name != 'pull_request'
         run: cargo doc --workspace --no-deps
       - name: Ensure rustdoc index.html
+        if: github.event_name != 'pull_request'
         run: |
           if [ -f target/doc/index.html ]; then
             echo "target/doc/index.html already exists."
@@ -70,6 +77,7 @@ jobs:
           </html>
           EOF
       - name: Publish to GitHub Pages (gh-pages/rustdoc)
+        if: github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -77,6 +85,7 @@ jobs:
           destination_dir: rustdoc
           keep_files: true
       - name: Build Pages index
+        if: github.event_name != 'pull_request'
         run: |
           mkdir -p pages-root
           cat > pages-root/index.html <<'EOF'
@@ -108,6 +117,7 @@ jobs:
           EOF
           touch pages-root/.nojekyll
       - name: Publish index to GitHub Pages (gh-pages/)
+        if: github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
