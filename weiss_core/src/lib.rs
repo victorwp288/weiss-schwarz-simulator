@@ -22,4 +22,6 @@ pub use config::{
 pub use db::{CardDb, CardId};
 pub use env::{DebugConfig, GameEnv, StepOutcome};
 pub use legal::{ActionDesc, Decision, DecisionKind};
-pub use pool::{BatchOutDebug, BatchOutDebugBuffers, BatchOutMinimal, BatchOutMinimalBuffers, EnvPool};
+pub use pool::{
+    BatchOutDebug, BatchOutDebugBuffers, BatchOutMinimal, BatchOutMinimalBuffers, EnvPool,
+};

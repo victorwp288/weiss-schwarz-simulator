@@ -385,7 +385,9 @@ impl EnvPool {
                 .zip(action_ids.iter())
             {
                 let result = catch_unwind(AssertUnwindSafe(|| step_inner(env, action_id)))
-                    .map_err(|panic| anyhow!("panic in env step: {}", Self::panic_message(panic)))?;
+                    .map_err(|panic| {
+                        anyhow!("panic in env step: {}", Self::panic_message(panic))
+                    })?;
                 *slot = result?;
             }
         } else if let Some(pool) = self.thread_pool.as_ref() {
@@ -420,11 +422,7 @@ impl EnvPool {
         Ok(())
     }
 
-    pub fn step_into(
-        &mut self,
-        action_ids: &[u32],
-        out: &mut BatchOutMinimal<'_>,
-    ) -> Result<()> {
+    pub fn step_into(&mut self, action_ids: &[u32], out: &mut BatchOutMinimal<'_>) -> Result<()> {
         self.step_batch_outcomes(action_ids)?;
         let outcomes = &self.outcomes_scratch;
         self.fill_minimal_out(outcomes, out)
@@ -869,16 +867,9 @@ mod tests {
         let db = make_db();
         let config = make_config(make_deck());
         let curriculum = CurriculumConfig::default();
-        let mut pool = EnvPool::new_debug(
-            2,
-            db,
-            config,
-            curriculum,
-            11,
-            None,
-            DebugConfig::default(),
-        )
-        .expect("pool");
+        let mut pool =
+            EnvPool::new_debug(2, db, config, curriculum, 11, None, DebugConfig::default())
+                .expect("pool");
         let mut out = BatchOutMinimalBuffers::new(pool.envs.len());
         let _ = pool.reset_into(&mut out.view_mut());
 
@@ -898,16 +889,9 @@ mod tests {
         let db = make_db();
         let config = make_config(make_deck());
         let curriculum = CurriculumConfig::default();
-        let mut pool = EnvPool::new_debug(
-            2,
-            db,
-            config,
-            curriculum,
-            13,
-            None,
-            DebugConfig::default(),
-        )
-        .expect("pool");
+        let mut pool =
+            EnvPool::new_debug(2, db, config, curriculum, 13, None, DebugConfig::default())
+                .expect("pool");
         let mut out = BatchOutMinimalBuffers::new(pool.envs.len());
         let _ = pool.reset_into(&mut out.view_mut());
 
@@ -939,16 +923,9 @@ mod tests {
         let db = make_db();
         let config = make_config(make_deck());
         let curriculum = CurriculumConfig::default();
-        let mut pool = EnvPool::new_debug(
-            2,
-            db,
-            config,
-            curriculum,
-            9,
-            None,
-            DebugConfig::default(),
-        )
-        .expect("pool");
+        let mut pool =
+            EnvPool::new_debug(2, db, config, curriculum, 9, None, DebugConfig::default())
+                .expect("pool");
         let mut out = BatchOutMinimalBuffers::new(pool.envs.len());
 
         assert_eq!(pool.engine_error_reset_count(), 0);

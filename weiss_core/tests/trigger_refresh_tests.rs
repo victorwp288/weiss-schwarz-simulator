@@ -77,11 +77,7 @@ fn refresh_penalty_applied() {
         if env.state.players[active].clock.len() == 1 {
             break;
         }
-        let action = env
-            .legal_actions()
-            .first()
-            .cloned()
-            .expect("legal action");
+        let action = env.legal_actions().first().cloned().expect("legal action");
         env.apply_action(action).unwrap();
     }
     assert_eq!(env.state.players[active].clock.len(), 1);

@@ -17,9 +17,7 @@ use weiss_core::{CardDb, CurriculumConfig, DebugConfig, EnvConfig, EnvPool, Rewa
 fn parse_reward_config(reward_json: Option<String>) -> PyResult<RewardConfig> {
     if let Some(json) = reward_json {
         serde_json::from_str::<RewardConfig>(&json).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "reward_json parse error: {e}"
-            ))
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("reward_json parse error: {e}"))
         })
     } else {
         Ok(RewardConfig::default())
@@ -47,11 +45,9 @@ fn parse_error_policy(error_policy: Option<String>) -> PyResult<ErrorPolicy> {
             "strict" => Ok(ErrorPolicy::Strict),
             "lenient_terminate" | "lenient" => Ok(ErrorPolicy::LenientTerminate),
             "lenient_noop" => Ok(ErrorPolicy::LenientNoop),
-            other => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!(
-                    "error_policy must be one of strict, lenient_terminate, lenient_noop (got {other})"
-                ),
-            )),
+            other => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "error_policy must be one of strict, lenient_terminate, lenient_noop (got {other})"
+            ))),
         }
     } else {
         Ok(ErrorPolicy::LenientTerminate)
@@ -122,10 +118,7 @@ fn build_env_config(
     Ok((Arc::new(db), config))
 }
 
-fn array_mut<'py, T, D>(
-    py: Python<'py>,
-    arr: &'py Py<PyArray<T, D>>,
-) -> ArrayViewMut<'py, T, D>
+fn array_mut<'py, T, D>(py: Python<'py>, arr: &'py Py<PyArray<T, D>>) -> ArrayViewMut<'py, T, D>
 where
     D: Dimension,
     T: Element,
@@ -479,18 +472,13 @@ impl PyEnvPool {
             Some(debug_fingerprint_every_n),
             Some(debug_event_ring_capacity),
         );
-        let pool = EnvPool::new_rl_train(
-            num_envs,
-            db,
-            config,
-            curriculum,
-            seed,
-            num_threads,
-            debug,
-        )
-        .map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("EnvPool init failed: {e}"))
-        })?;
+        let pool =
+            EnvPool::new_rl_train(num_envs, db, config, curriculum, seed, num_threads, debug)
+                .map_err(|e| {
+                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                        "EnvPool init failed: {e}"
+                    ))
+                })?;
         Ok(Self { pool })
     }
 
@@ -546,18 +534,12 @@ impl PyEnvPool {
             Some(debug_fingerprint_every_n),
             Some(debug_event_ring_capacity),
         );
-        let pool = EnvPool::new_rl_eval(
-            num_envs,
-            db,
-            config,
-            curriculum,
-            seed,
-            num_threads,
-            debug,
-        )
-        .map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("EnvPool init failed: {e}"))
-        })?;
+        let pool = EnvPool::new_rl_eval(num_envs, db, config, curriculum, seed, num_threads, debug)
+            .map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "EnvPool init failed: {e}"
+                ))
+            })?;
         Ok(Self { pool })
     }
 
@@ -619,16 +601,8 @@ impl PyEnvPool {
             Some(debug_fingerprint_every_n),
             Some(debug_event_ring_capacity),
         );
-        let pool = EnvPool::new_debug(
-            num_envs,
-            db,
-            config,
-            curriculum,
-            seed,
-            num_threads,
-            debug,
-        )
-        .map_err(|e| {
+        let pool = EnvPool::new_debug(num_envs, db, config, curriculum, seed, num_threads, debug)
+            .map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("EnvPool init failed: {e}"))
         })?;
         Ok(Self { pool })
@@ -644,9 +618,9 @@ impl PyEnvPool {
             .as_slice_mut()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("obs not contiguous"))?;
         let mut masks = array_mut(py, &out.masks);
-        let mask_slice = masks
-            .as_slice_mut()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous"))?;
+        let mask_slice = masks.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous")
+        })?;
         let mut rewards = array_mut(py, &out.rewards);
         let rewards_slice = rewards.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("rewards not contiguous")
@@ -701,9 +675,9 @@ impl PyEnvPool {
             .as_slice_mut()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("obs not contiguous"))?;
         let mut masks = array_mut(py, &out.masks);
-        let mask_slice = masks
-            .as_slice_mut()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous"))?;
+        let mask_slice = masks.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous")
+        })?;
         let mut rewards = array_mut(py, &out.rewards);
         let rewards_slice = rewards.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("rewards not contiguous")
@@ -761,9 +735,9 @@ impl PyEnvPool {
             .as_slice_mut()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("obs not contiguous"))?;
         let mut masks = array_mut(py, &out.masks);
-        let mask_slice = masks
-            .as_slice_mut()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous"))?;
+        let mask_slice = masks.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous")
+        })?;
         let mut rewards = array_mut(py, &out.rewards);
         let rewards_slice = rewards.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("rewards not contiguous")
@@ -821,9 +795,9 @@ impl PyEnvPool {
             .as_slice_mut()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("obs not contiguous"))?;
         let mut masks = array_mut(py, &out.masks);
-        let mask_slice = masks
-            .as_slice_mut()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous"))?;
+        let mask_slice = masks.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous")
+        })?;
         let mut rewards = array_mut(py, &out.rewards);
         let rewards_slice = rewards.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("rewards not contiguous")
@@ -881,9 +855,9 @@ impl PyEnvPool {
             .as_slice_mut()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("obs not contiguous"))?;
         let mut masks = array_mut(py, &out.masks);
-        let mask_slice = masks
-            .as_slice_mut()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous"))?;
+        let mask_slice = masks.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous")
+        })?;
         let mut rewards = array_mut(py, &out.rewards);
         let rewards_slice = rewards.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("rewards not contiguous")
@@ -964,9 +938,9 @@ impl PyEnvPool {
             .as_slice_mut()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("obs not contiguous"))?;
         let mut masks = array_mut(py, &out.masks);
-        let mask_slice = masks
-            .as_slice_mut()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous"))?;
+        let mask_slice = masks.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous")
+        })?;
         let mut rewards = array_mut(py, &out.rewards);
         let rewards_slice = rewards.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("rewards not contiguous")
@@ -1043,17 +1017,17 @@ impl PyEnvPool {
         codes: PyReadonlyArray1<u8>,
         out: PyRef<'py, PyBatchOutMinimal>,
     ) -> PyResult<usize> {
-        let codes = codes.as_slice().map_err(|_| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>("codes not contiguous")
-        })?;
+        let codes = codes
+            .as_slice()
+            .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("codes not contiguous"))?;
         let mut obs = array_mut(py, &out.obs);
         let obs_slice = obs
             .as_slice_mut()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("obs not contiguous"))?;
         let mut masks = array_mut(py, &out.masks);
-        let mask_slice = masks
-            .as_slice_mut()
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous"))?;
+        let mask_slice = masks.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("masks not contiguous")
+        })?;
         let mut rewards = array_mut(py, &out.rewards);
         let rewards_slice = rewards.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("rewards not contiguous")
@@ -1093,8 +1067,11 @@ impl PyEnvPool {
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
         };
-        py.allow_threads(|| self.pool.auto_reset_on_error_codes_into(codes, &mut out_min))
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
+        py.allow_threads(|| {
+            self.pool
+                .auto_reset_on_error_codes_into(codes, &mut out_min)
+        })
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
     fn engine_error_reset_count(&self) -> u64 {
@@ -1160,7 +1137,8 @@ impl PyEnvPool {
             dict.set_item("decision_id", env.decision_id())?;
             if let Some(choice) = &env.state.turn.choice {
                 dict.set_item("choice_reason", format!("{:?}", choice.reason))?;
-                let mut zones: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+                let mut zones: std::collections::BTreeSet<String> =
+                    std::collections::BTreeSet::new();
                 for option in &choice.options {
                     zones.insert(format!("{:?}", option.zone));
                 }
@@ -1190,15 +1168,18 @@ impl PyEnvPool {
         offsets: Py<PyArray1<u32>>,
     ) -> PyResult<usize> {
         let mut ids_arr = array_mut(py, &ids);
-        let ids_slice = ids_arr.as_slice_mut().ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>("ids not contiguous")
-        })?;
+        let ids_slice = ids_arr
+            .as_slice_mut()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("ids not contiguous"))?;
         let mut offsets_arr = array_mut(py, &offsets);
         let offsets_slice = offsets_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("offsets not contiguous")
         })?;
-        py.allow_threads(|| self.pool.legal_action_ids_batch_into(ids_slice, offsets_slice))
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
+        py.allow_threads(|| {
+            self.pool
+                .legal_action_ids_batch_into(ids_slice, offsets_slice)
+        })
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
     }
 
     fn render_ansi(&self, env_index: usize, perspective: u8) -> String {

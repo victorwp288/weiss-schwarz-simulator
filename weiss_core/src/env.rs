@@ -170,8 +170,7 @@ impl ActionCache {
         }
         self.mask.fill(0);
         if self.lookup.len() != crate::encode::ACTION_SPACE_SIZE {
-            self.lookup
-                .resize(crate::encode::ACTION_SPACE_SIZE, None);
+            self.lookup.resize(crate::encode::ACTION_SPACE_SIZE, None);
         }
         for slot in self.lookup.iter_mut() {
             *slot = None;
@@ -197,13 +196,8 @@ impl ActionCache {
         {
             return;
         }
-        let actions = crate::legal::legal_actions_cached(
-            state,
-            decision,
-            db,
-            curriculum,
-            allowed_card_sets,
-        );
+        let actions =
+            crate::legal::legal_actions_cached(state, decision, db, curriculum, allowed_card_sets);
         fill_action_mask(&actions, &mut self.mask, &mut self.lookup);
         self.legal_actions = actions;
         self.decision_id = decision_id;
@@ -277,11 +271,7 @@ impl EventRing {
                 *slot = 0;
                 continue;
             }
-            let idx = if self.full {
-                (self.next + i) % cap
-            } else {
-                i
-            };
+            let idx = if self.full { (self.next + i) % cap } else { i };
             *slot = code_fn(&self.events[idx]);
         }
         len
@@ -295,11 +285,7 @@ impl EventRing {
         let cap = self.capacity;
         let mut out = Vec::with_capacity(len);
         for i in 0..len {
-            let idx = if self.full {
-                (self.next + i) % cap
-            } else {
-                i
-            };
+            let idx = if self.full { (self.next + i) % cap } else { i };
             out.push(self.events[idx].clone());
         }
         out
@@ -1388,7 +1374,11 @@ impl GameEnv {
 
     pub(crate) fn update_action_cache(&mut self) {
         if self.decision.is_some() {
-            let decision_kind = self.decision.as_ref().map(|d| d.kind).expect("decision kind");
+            let decision_kind = self
+                .decision
+                .as_ref()
+                .map(|d| d.kind)
+                .expect("decision kind");
             if decision_kind == DecisionKind::AttackDeclaration
                 && self.state.turn.derived_attack.is_none()
             {

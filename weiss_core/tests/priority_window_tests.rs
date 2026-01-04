@@ -107,10 +107,7 @@ fn main_pass_skips_priority_when_disabled_but_main_actions_remain() {
     };
     let mut env = GameEnv::new(db, config, curriculum, 5, replay_config, None, 0);
 
-    let card = env.state.players[0]
-        .deck
-        .pop()
-        .expect("deck card");
+    let card = env.state.players[0].deck.pop().expect("deck card");
     env.state.players[0].hand.push(card);
     set_main_decision(&mut env, 0);
 

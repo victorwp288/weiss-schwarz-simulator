@@ -69,10 +69,7 @@ fn run_episode(
         kinds.push(decision.kind);
         let mask = env.action_mask();
         masks.push(mask.to_vec());
-        let action_id = mask
-            .iter()
-            .position(|v| *v == 1)
-            .expect("legal action");
+        let action_id = mask.iter().position(|v| *v == 1).expect("legal action");
         action_ids.push(action_id as u32);
         env.apply_action_id(action_id).expect("apply action");
     }
@@ -115,7 +112,10 @@ fn determinism_default_config() {
     let (kinds_a, masks_a, actions_a, hash_a, replay_hash_a) = run_episode(&mut env_a, 40);
     let (kinds_b, masks_b, actions_b, hash_b, replay_hash_b) = run_episode(&mut env_b, 40);
 
-    if kinds_a != kinds_b || masks_a != masks_b || hash_a != hash_b || replay_hash_a != replay_hash_b
+    if kinds_a != kinds_b
+        || masks_a != masks_b
+        || hash_a != hash_b
+        || replay_hash_a != replay_hash_b
     {
         replay_bundle_support::maybe_dump_failure_bundle(
             "determinism_default_a",
@@ -200,7 +200,10 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
     let (kinds_a, masks_a, actions_a, hash_a, replay_hash_a) = run_episode(&mut env_on_a, 40);
     let (kinds_b, masks_b, actions_b, hash_b, replay_hash_b) = run_episode(&mut env_on_b, 40);
 
-    if kinds_a != kinds_b || masks_a != masks_b || hash_a != hash_b || replay_hash_a != replay_hash_b
+    if kinds_a != kinds_b
+        || masks_a != masks_b
+        || hash_a != hash_b
+        || replay_hash_a != replay_hash_b
     {
         replay_bundle_support::maybe_dump_failure_bundle(
             "determinism_flags_a",

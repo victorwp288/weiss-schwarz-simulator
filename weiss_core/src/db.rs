@@ -60,9 +60,17 @@ pub enum TargetTemplate {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum EffectTemplate {
-    Draw { count: u8 },
-    DealDamage { amount: u8, cancelable: bool },
-    AddPower { amount: i32, duration_turn: bool },
+    Draw {
+        count: u8,
+    },
+    DealDamage {
+        amount: u8,
+        cancelable: bool,
+    },
+    AddPower {
+        amount: i32,
+        duration_turn: bool,
+    },
     MoveToHand,
     MoveToWaitingRoom,
     MoveToStock,
@@ -70,12 +78,25 @@ pub enum EffectTemplate {
     Heal,
     RestTarget,
     StandTarget,
-    StockCharge { count: u8 },
-    MillTop { target: TargetSide, count: u8 },
-    MoveStageSlot { slot: u8 },
+    StockCharge {
+        count: u8,
+    },
+    MillTop {
+        target: TargetSide,
+        count: u8,
+    },
+    MoveStageSlot {
+        slot: u8,
+    },
     SwapStageSlots,
-    RandomDiscardFromHand { target: TargetSide, count: u8 },
-    RandomMill { target: TargetSide, count: u8 },
+    RandomDiscardFromHand {
+        target: TargetSide,
+        count: u8,
+    },
+    RandomMill {
+        target: TargetSide,
+        count: u8,
+    },
     RevealZoneTop {
         target: TargetSide,
         zone: TargetZone,
@@ -83,8 +104,12 @@ pub enum EffectTemplate {
         audience: RevealAudience,
     },
     ChangeController,
-    CounterBackup { power: i32 },
-    CounterDamageReduce { amount: u8 },
+    CounterBackup {
+        power: i32,
+    },
+    CounterDamageReduce {
+        amount: u8,
+    },
     CounterDamageCancel,
 }
 
@@ -694,19 +719,19 @@ fn ability_template_key(template: &AbilityTemplate) -> Vec<u64> {
         AbilityTemplate::ActivatedTargetedMoveToHand { count, target } => {
             vec![*count as u64, target_template_key(*target)]
         }
-        AbilityTemplate::ActivatedPaidTargetedMoveToHand { cost, count, target } => vec![
-            *cost as u64,
-            *count as u64,
-            target_template_key(*target),
-        ],
+        AbilityTemplate::ActivatedPaidTargetedMoveToHand {
+            cost,
+            count,
+            target,
+        } => vec![*cost as u64, *count as u64, target_template_key(*target)],
         AbilityTemplate::ActivatedChangeController { count, target } => {
             vec![*count as u64, target_template_key(*target)]
         }
-        AbilityTemplate::ActivatedPaidChangeController { cost, count, target } => vec![
-            *cost as u64,
-            *count as u64,
-            target_template_key(*target),
-        ],
+        AbilityTemplate::ActivatedPaidChangeController {
+            cost,
+            count,
+            target,
+        } => vec![*cost as u64, *count as u64, target_template_key(*target)],
         AbilityTemplate::CounterBackup { power } => vec![*power as i64 as u64],
         AbilityTemplate::CounterDamageReduce { amount } => vec![*amount as u64],
         AbilityTemplate::CounterDamageCancel => Vec::new(),
@@ -1579,9 +1604,10 @@ fn compile_effects_from_def(
                     .or_else(|| ability.targets.first())
                     .map(|t| target_spec_from_template(*t, 1)),
             ),
-            EffectTemplate::StockCharge { count } => {
-                (crate::effects::EffectKind::StockCharge { count: *count }, None)
-            }
+            EffectTemplate::StockCharge { count } => (
+                crate::effects::EffectKind::StockCharge { count: *count },
+                None,
+            ),
             EffectTemplate::MillTop { target, count } => (
                 crate::effects::EffectKind::MillTop {
                     target: *target,

@@ -379,14 +379,8 @@ fn auto_on_play_salvage_moves_waiting_room_card() {
     })
     .unwrap();
 
-    assert!(env.state.players[0]
-        .hand
-        .iter()
-        .any(|c| c.id == 5));
-    assert!(!env.state.players[0]
-        .waiting_room
-        .iter()
-        .any(|c| c.id == 5));
+    assert!(env.state.players[0].hand.iter().any(|c| c.id == 5));
+    assert!(!env.state.players[0].waiting_room.iter().any(|c| c.id == 5));
 }
 
 #[test]
@@ -512,15 +506,7 @@ fn paid_activated_ability_requires_stock() {
         priority_autopick_single_action: false,
         ..Default::default()
     };
-    let mut env = GameEnv::new(
-        db,
-        config,
-        curriculum,
-        4,
-        Default::default(),
-        None,
-        0,
-    );
+    let mut env = GameEnv::new(db, config, curriculum, 4, Default::default(), None, 0);
 
     setup_player_state(
         &mut env,

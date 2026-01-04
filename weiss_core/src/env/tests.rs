@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
@@ -10,20 +9,19 @@ use crate::db::{
 };
 use crate::effects::{EffectId, EffectKind, EffectPayload, EffectSourceKind, EffectSpec};
 use crate::encode::{
-    encode_observation, OBS_CONTEXT_BASE, OBS_CONTEXT_LEN, OBS_HEADER_LEN, OBS_LEN,
-    OBS_REVEAL_BASE, OBS_REVEAL_LEN, OBS_CONTEXT_PRIORITY_WINDOW, OBS_CONTEXT_CHOICE_ACTIVE,
-    OBS_CONTEXT_STACK_NONEMPTY, OBS_CONTEXT_ENCORE_PENDING, PER_PLAYER_BLOCK_LEN,
-    PER_PLAYER_CLIMAX_TOP, PER_PLAYER_CLOCK_TOP, PER_PLAYER_COUNTS, PER_PLAYER_DECK,
-    PER_PLAYER_HAND, PER_PLAYER_LEVEL, PER_PLAYER_RESOLUTION_TOP, PER_PLAYER_STAGE,
-    PER_PLAYER_STOCK_TOP, PER_PLAYER_WAITING_TOP,
+    encode_observation, OBS_CONTEXT_BASE, OBS_CONTEXT_CHOICE_ACTIVE, OBS_CONTEXT_ENCORE_PENDING,
+    OBS_CONTEXT_LEN, OBS_CONTEXT_PRIORITY_WINDOW, OBS_CONTEXT_STACK_NONEMPTY, OBS_HEADER_LEN,
+    OBS_LEN, OBS_REVEAL_BASE, OBS_REVEAL_LEN, PER_PLAYER_BLOCK_LEN, PER_PLAYER_CLIMAX_TOP,
+    PER_PLAYER_CLOCK_TOP, PER_PLAYER_COUNTS, PER_PLAYER_DECK, PER_PLAYER_HAND, PER_PLAYER_LEVEL,
+    PER_PLAYER_RESOLUTION_TOP, PER_PLAYER_STAGE, PER_PLAYER_STOCK_TOP, PER_PLAYER_WAITING_TOP,
 };
 use crate::events::{Event, RevealAudience, RevealReason, Zone};
 use crate::fingerprint::{events_fingerprint, state_fingerprint};
 use crate::replay::ReplayConfig;
 use crate::replay::ReplayEvent;
 use crate::state::{
-    CardInstance, ChoiceReason, ChoiceState, ChoiceZone, EncoreRequest, PendingTargetEffect,
-    CostStepKind, PriorityState, StackItem, StageSlot, StageStatus, TargetSelectionState,
+    CardInstance, ChoiceReason, ChoiceState, ChoiceZone, CostStepKind, EncoreRequest,
+    PendingTargetEffect, PriorityState, StackItem, StageSlot, StageStatus, TargetSelectionState,
     TargetSide, TargetSlotFilter, TargetSpec, TargetZone, TerminalResult, TimingWindow,
     TriggerEffect, REVEAL_HISTORY_LEN,
 };
@@ -747,10 +745,7 @@ fn move_to_stock_from_deck_top_moves_top_card() {
 
     assert_eq!(env.state.players[0].deck.len(), 1);
     assert_eq!(env.state.players[0].stock.len(), 1);
-    assert_eq!(
-        env.state.players[0].stock[0].instance_id,
-        top.instance_id
-    );
+    assert_eq!(env.state.players[0].stock[0].instance_id, top.instance_id);
 }
 
 #[test]
@@ -793,10 +788,7 @@ fn move_to_clock_from_hand_moves_card() {
 
     assert!(env.state.players[0].hand.is_empty());
     assert_eq!(env.state.players[0].clock.len(), 1);
-    assert_eq!(
-        env.state.players[0].clock[0].instance_id,
-        card.instance_id
-    );
+    assert_eq!(env.state.players[0].clock[0].instance_id, card.instance_id);
 }
 
 #[test]
@@ -996,31 +988,23 @@ fn random_discard_is_deterministic() {
     env_a.resolve_effect_payload(0, 1, &payload);
     env_b.resolve_effect_payload(0, 1, &payload);
 
-    let hand_a: Vec<u32> = env_a
-        .state
-        .players[0]
+    let hand_a: Vec<u32> = env_a.state.players[0]
         .hand
         .iter()
         .map(|c| c.instance_id)
         .collect();
-    let hand_b: Vec<u32> = env_b
-        .state
-        .players[0]
+    let hand_b: Vec<u32> = env_b.state.players[0]
         .hand
         .iter()
         .map(|c| c.instance_id)
         .collect();
     assert_eq!(hand_a, hand_b);
-    let wr_a: Vec<u32> = env_a
-        .state
-        .players[0]
+    let wr_a: Vec<u32> = env_a.state.players[0]
         .waiting_room
         .iter()
         .map(|c| c.instance_id)
         .collect();
-    let wr_b: Vec<u32> = env_b
-        .state
-        .players[0]
+    let wr_b: Vec<u32> = env_b.state.players[0]
         .waiting_room
         .iter()
         .map(|c| c.instance_id)
@@ -1061,31 +1045,23 @@ fn random_mill_is_deterministic() {
     env_a.resolve_effect_payload(0, 2, &payload);
     env_b.resolve_effect_payload(0, 2, &payload);
 
-    let deck_a: Vec<u32> = env_a
-        .state
-        .players[0]
+    let deck_a: Vec<u32> = env_a.state.players[0]
         .deck
         .iter()
         .map(|c| c.instance_id)
         .collect();
-    let deck_b: Vec<u32> = env_b
-        .state
-        .players[0]
+    let deck_b: Vec<u32> = env_b.state.players[0]
         .deck
         .iter()
         .map(|c| c.instance_id)
         .collect();
     assert_eq!(deck_a, deck_b);
-    let wr_a: Vec<u32> = env_a
-        .state
-        .players[0]
+    let wr_a: Vec<u32> = env_a.state.players[0]
         .waiting_room
         .iter()
         .map(|c| c.instance_id)
         .collect();
-    let wr_b: Vec<u32> = env_b
-        .state
-        .players[0]
+    let wr_b: Vec<u32> = env_b.state.players[0]
         .waiting_room
         .iter()
         .map(|c| c.instance_id)
@@ -1134,7 +1110,10 @@ fn heal_moves_clock_to_waiting_room() {
     env.resolve_effect_payload(0, 10, &payload);
     assert!(env.state.players[0].clock.is_empty());
     assert_eq!(env.state.players[0].waiting_room.len(), 1);
-    assert_eq!(env.state.players[0].waiting_room[0].instance_id, card.instance_id);
+    assert_eq!(
+        env.state.players[0].waiting_room[0].instance_id,
+        card.instance_id
+    );
 }
 
 #[test]
@@ -1163,8 +1142,14 @@ fn mill_top_moves_cards_to_waiting_room_in_order() {
     };
     env.resolve_effect_payload(0, 11, &payload);
     assert_eq!(env.state.players[0].waiting_room.len(), 2);
-    assert_eq!(env.state.players[0].waiting_room[0].instance_id, c.instance_id);
-    assert_eq!(env.state.players[0].waiting_room[1].instance_id, b.instance_id);
+    assert_eq!(
+        env.state.players[0].waiting_room[0].instance_id,
+        c.instance_id
+    );
+    assert_eq!(
+        env.state.players[0].waiting_room[1].instance_id,
+        b.instance_id
+    );
 }
 
 #[test]
@@ -1634,10 +1619,10 @@ fn observation_context_bits_reflect_turn_state() {
         pending_trigger: None,
     });
     env.state.turn.stack.push(make_noop_stack_item(1));
-    env.state.turn.encore_queue.push(EncoreRequest {
-        player: 0,
-        slot: 0,
-    });
+    env.state
+        .turn
+        .encore_queue
+        .push(EncoreRequest { player: 0, slot: 0 });
 
     let mut obs = vec![0; OBS_LEN];
     encode_observation(
@@ -1738,20 +1723,10 @@ fn rule_actions_remove_non_character_from_stage() {
     let _ = env.reset_no_copy();
     let mut next_id = 1u32;
     let event_card = make_instance(2, 0, &mut next_id);
-    env.place_card_on_stage(
-        0,
-        event_card,
-        0,
-        StageStatus::Stand,
-        Zone::Hand,
-        None,
-    );
+    env.place_card_on_stage(0, event_card, 0, StageStatus::Stand, Zone::Hand, None);
     env.advance_until_decision();
     assert!(env.state.players[0].stage[0].card.is_none());
-    assert!(env.state.players[0]
-        .waiting_room
-        .iter()
-        .any(|c| c.id == 2));
+    assert!(env.state.players[0].waiting_room.iter().any(|c| c.id == 2));
 }
 
 #[test]
@@ -1761,7 +1736,11 @@ fn trigger_group_ordering_is_stable_and_grouped_event_logged() {
     env.canonical_events.clear();
     env.replay_events.clear();
 
-    let effects = vec![TriggerEffect::Bounce, TriggerEffect::Soul, TriggerEffect::Draw];
+    let effects = vec![
+        TriggerEffect::Bounce,
+        TriggerEffect::Soul,
+        TriggerEffect::Draw,
+    ];
     env.queue_trigger_group(0, 1, effects);
 
     let pending: Vec<TriggerEffect> = env
@@ -1773,7 +1752,11 @@ fn trigger_group_ordering_is_stable_and_grouped_event_logged() {
         .collect();
     assert_eq!(
         pending,
-        vec![TriggerEffect::Soul, TriggerEffect::Draw, TriggerEffect::Bounce]
+        vec![
+            TriggerEffect::Soul,
+            TriggerEffect::Draw,
+            TriggerEffect::Bounce
+        ]
     );
 
     let grouped = env
@@ -1787,7 +1770,13 @@ fn trigger_group_ordering_is_stable_and_grouped_event_logged() {
             _ => None,
         })
         .expect("TriggerGrouped event");
-    let pending_ids: Vec<u32> = env.state.turn.pending_triggers.iter().map(|t| t.id).collect();
+    let pending_ids: Vec<u32> = env
+        .state
+        .turn
+        .pending_triggers
+        .iter()
+        .map(|t| t.id)
+        .collect();
     assert_eq!(grouped.1, pending_ids);
 }
 
@@ -1812,7 +1801,10 @@ fn trigger_quiescence_cap_sets_timeout_and_error_code() {
 
     assert_eq!(env.state.terminal, Some(TerminalResult::Timeout));
     assert!(env.last_engine_error);
-    assert_eq!(env.last_engine_error_code, EngineErrorCode::TriggerQuiescenceCap);
+    assert_eq!(
+        env.last_engine_error_code,
+        EngineErrorCode::TriggerQuiescenceCap
+    );
 }
 
 #[test]
@@ -2036,11 +2028,7 @@ fn deterministic_replay_from_seed_and_actions() {
         if env_a.state.terminal.is_some() {
             break;
         }
-        let action = env_a
-            .legal_actions()
-            .first()
-            .expect("legal action")
-            .clone();
+        let action = env_a.legal_actions().first().expect("legal action").clone();
         actions.push(action.clone());
         env_a.apply_action(action).expect("apply action");
     }

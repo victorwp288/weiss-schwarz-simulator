@@ -30,7 +30,9 @@ pub fn target_zone_identity_visibility(
     curriculum: &CurriculumConfig,
 ) -> ZoneIdentityVisibility {
     match zone {
-        TargetZone::Hand | TargetZone::DeckTop | TargetZone::Stock => ZoneIdentityVisibility::OwnerOnly,
+        TargetZone::Hand | TargetZone::DeckTop | TargetZone::Stock => {
+            ZoneIdentityVisibility::OwnerOnly
+        }
         TargetZone::Memory => {
             if curriculum.memory_is_public {
                 ZoneIdentityVisibility::Public

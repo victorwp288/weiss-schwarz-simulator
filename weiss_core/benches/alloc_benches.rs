@@ -10,8 +10,8 @@ use weiss_core::encode::{fill_action_mask, CHOICE_COUNT};
 use weiss_core::env::GameEnv;
 use weiss_core::legal::{Decision, DecisionKind};
 use weiss_core::pool::EnvPool;
-use weiss_core::DebugConfig;
 use weiss_core::state::{ChoiceOptionRef, ChoiceReason, ChoiceState, ChoiceZone};
+use weiss_core::DebugConfig;
 
 struct CountingAlloc;
 
@@ -168,9 +168,7 @@ fn fill_choice_actions(env: &GameEnv, actions: &mut Vec<weiss_core::legal::Actio
         let safe_start = page_start.min(total);
         let page_end = total.min(safe_start + CHOICE_COUNT);
         for idx in 0..(page_end - safe_start) {
-            actions.push(weiss_core::legal::ActionDesc::ChoiceSelect {
-                index: idx as u8,
-            });
+            actions.push(weiss_core::legal::ActionDesc::ChoiceSelect { index: idx as u8 });
         }
         if page_start >= CHOICE_COUNT {
             actions.push(weiss_core::legal::ActionDesc::ChoicePrevPage);

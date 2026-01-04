@@ -6,9 +6,12 @@ use weiss_core::config::{CurriculumConfig, EnvConfig, RewardConfig};
 use weiss_core::db::{AbilityTemplate, CardColor, CardDb, CardStatic, CardType};
 use weiss_core::encode::{fill_action_mask, CHOICE_COUNT};
 use weiss_core::env::GameEnv;
-use weiss_core::pool::{BatchOutMinimalBuffers, EnvPool};
 use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
-use weiss_core::state::{AttackType, ChoiceOptionRef, ChoiceReason, ChoiceState, ChoiceZone, Phase, StageSlot, StageStatus};
+use weiss_core::pool::{BatchOutMinimalBuffers, EnvPool};
+use weiss_core::state::{
+    AttackType, ChoiceOptionRef, ChoiceReason, ChoiceState, ChoiceZone, Phase, StageSlot,
+    StageStatus,
+};
 use weiss_core::DebugConfig;
 
 fn make_base_cards() -> Vec<CardStatic> {
@@ -610,15 +613,7 @@ fn bench_choice_paging_worst_case(c: &mut Criterion) {
     let db = make_choice_db(total as u32);
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(
-        db,
-        config,
-        curriculum,
-        123,
-        Default::default(),
-        None,
-        0,
-    );
+    let mut env = GameEnv::new(db, config, curriculum, 123, Default::default(), None, 0);
     install_choice(&mut env, total);
     let mut actions = Vec::with_capacity(64);
     let mut mask = vec![0u8; weiss_core::encode::ACTION_SPACE_SIZE];
@@ -643,8 +638,7 @@ criterion_group!(
     bench_on_reverse_decision_frequency,
     bench_observation_encode,
     bench_observation_encode_forced,
-    bench_mask_construction
-    ,
+    bench_mask_construction,
     bench_mask_construction_forced,
     bench_choice_paging_worst_case
 );

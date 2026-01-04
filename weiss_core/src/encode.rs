@@ -8,8 +8,9 @@ use crate::state::{
 pub const OBS_ENCODING_VERSION: u32 = 1;
 pub const ACTION_ENCODING_VERSION: u32 = 1;
 pub const POLICY_VERSION: u32 = 1;
-pub const SPEC_HASH: u64 =
-    ((OBS_ENCODING_VERSION as u64) << 32) | ((ACTION_ENCODING_VERSION as u64) << 16) | (POLICY_VERSION as u64);
+pub const SPEC_HASH: u64 = ((OBS_ENCODING_VERSION as u64) << 32)
+    | ((ACTION_ENCODING_VERSION as u64) << 16)
+    | (POLICY_VERSION as u64);
 
 pub const MAX_HAND: usize = 50;
 pub const MAX_DECK: usize = 50;
@@ -196,13 +197,12 @@ pub(crate) fn encode_observation_with_slot_power(
         out[offset + 3] = p.hand.len() as i32;
         out[offset + 4] = p.stock.len() as i32;
         out[offset + 5] = p.waiting_room.len() as i32;
-        let memory_visible = if visibility == ObservationVisibility::Public
-            && !curriculum.memory_is_public
-        {
-            *player_index == perspective as usize
-        } else {
-            true
-        };
+        let memory_visible =
+            if visibility == ObservationVisibility::Public && !curriculum.memory_is_public {
+                *player_index == perspective as usize
+            } else {
+                true
+            };
         out[offset + 6] = if memory_visible {
             p.memory.len() as i32
         } else {

@@ -520,7 +520,11 @@ impl GameEnv {
                     match spec.slot_filter {
                         TargetSlotFilter::FrontRow if slot >= 3 => continue,
                         TargetSlotFilter::BackRow if slot < 3 => continue,
-                        TargetSlotFilter::SpecificSlot(target_slot) if slot != target_slot as usize => continue,
+                        TargetSlotFilter::SpecificSlot(target_slot)
+                            if slot != target_slot as usize =>
+                        {
+                            continue
+                        }
                         _ => {}
                     }
                     let slot_state = &state.players[target_player as usize].stage[slot];
@@ -1769,8 +1773,7 @@ impl GameEnv {
                         let reveal_count = std::cmp::min(deck_len, *count as usize);
                         for offset in 0..reveal_count {
                             let deck_idx = deck_len.saturating_sub(1 + offset);
-                            let Some(card) =
-                                self.state.players[p].deck.get(deck_idx).copied()
+                            let Some(card) = self.state.players[p].deck.get(deck_idx).copied()
                             else {
                                 continue;
                             };
@@ -1805,8 +1808,7 @@ impl GameEnv {
                             *count as usize,
                         );
                         for idx in 0..reveal_count {
-                            let Some(card) =
-                                self.state.players[p].waiting_room.get(idx).copied()
+                            let Some(card) = self.state.players[p].waiting_room.get(idx).copied()
                             else {
                                 continue;
                             };
@@ -1900,13 +1902,10 @@ impl GameEnv {
                     }
                     TargetZone::Resolution => {
                         let p = target_player as usize;
-                        let reveal_count = std::cmp::min(
-                            self.state.players[p].resolution.len(),
-                            *count as usize,
-                        );
+                        let reveal_count =
+                            std::cmp::min(self.state.players[p].resolution.len(), *count as usize);
                         for idx in 0..reveal_count {
-                            let Some(card) =
-                                self.state.players[p].resolution.get(idx).copied()
+                            let Some(card) = self.state.players[p].resolution.get(idx).copied()
                             else {
                                 continue;
                             };
@@ -2050,10 +2049,7 @@ impl GameEnv {
                     if offset >= self.state.players[p].deck.len() {
                         continue;
                     }
-                    let deck_idx = self.state.players[p]
-                        .deck
-                        .len()
-                        .saturating_sub(1 + offset);
+                    let deck_idx = self.state.players[p].deck.len().saturating_sub(1 + offset);
                     if deck_idx >= self.state.players[p].deck.len() {
                         continue;
                     }
@@ -2288,10 +2284,7 @@ impl GameEnv {
                     if offset >= self.state.players[p].deck.len() {
                         continue;
                     }
-                    let deck_idx = self.state.players[p]
-                        .deck
-                        .len()
-                        .saturating_sub(1 + offset);
+                    let deck_idx = self.state.players[p].deck.len().saturating_sub(1 + offset);
                     if deck_idx >= self.state.players[p].deck.len() {
                         continue;
                     }
@@ -2505,10 +2498,7 @@ impl GameEnv {
                     if offset >= self.state.players[p].deck.len() {
                         continue;
                     }
-                    let deck_idx = self.state.players[p]
-                        .deck
-                        .len()
-                        .saturating_sub(1 + offset);
+                    let deck_idx = self.state.players[p].deck.len().saturating_sub(1 + offset);
                     if deck_idx >= self.state.players[p].deck.len() {
                         continue;
                     }
@@ -2641,10 +2631,7 @@ impl GameEnv {
                     if offset >= self.state.players[p].deck.len() {
                         continue;
                     }
-                    let deck_idx = self.state.players[p]
-                        .deck
-                        .len()
-                        .saturating_sub(1 + offset);
+                    let deck_idx = self.state.players[p].deck.len().saturating_sub(1 + offset);
                     if deck_idx >= self.state.players[p].deck.len() {
                         continue;
                     }
@@ -2757,7 +2744,9 @@ impl GameEnv {
                 let Some(s_card) = self.state.players[p].stage[s_idx].card else {
                     return;
                 };
-                if f_card.instance_id != first.instance_id || s_card.instance_id != second.instance_id {
+                if f_card.instance_id != first.instance_id
+                    || s_card.instance_id != second.instance_id
+                {
                     return;
                 }
                 self.swap_stage_slots(first.player, first.index, second.index);
@@ -3224,10 +3213,7 @@ impl GameEnv {
             }
             _ => {
                 self.scratch.choice_options.clear();
-                for (idx, card_inst) in self.state.players[player as usize]
-                    .hand
-                    .iter()
-                    .enumerate()
+                for (idx, card_inst) in self.state.players[player as usize].hand.iter().enumerate()
                 {
                     if idx > u8::MAX as usize {
                         break;
@@ -3289,8 +3275,7 @@ impl GameEnv {
                 self.state.players[p].stage[idx].status = StageStatus::Rest;
                 self.mark_slot_power_dirty(player, index);
                 self.mark_continuous_modifiers_dirty();
-                cost_state.remaining.rest_other =
-                    cost_state.remaining.rest_other.saturating_sub(1);
+                cost_state.remaining.rest_other = cost_state.remaining.rest_other.saturating_sub(1);
             }
             CostStepKind::DiscardFromHand => {
                 if option.zone != ChoiceZone::Hand {
@@ -3394,8 +3379,7 @@ impl GameEnv {
     }
 
     fn finish_cost_payment(&mut self, cost_state: CostPaymentState) {
-        self.state.turn.cost_payment_depth =
-            self.state.turn.cost_payment_depth.saturating_sub(1);
+        self.state.turn.cost_payment_depth = self.state.turn.cost_payment_depth.saturating_sub(1);
         let effects: Vec<_> = self
             .db
             .compiled_effects_for_ability(cost_state.source_id, cost_state.ability_index as usize)
@@ -3609,5 +3593,4 @@ impl GameEnv {
         }
         Ok(())
     }
-
 }

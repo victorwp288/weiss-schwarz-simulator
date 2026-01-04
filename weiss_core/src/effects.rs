@@ -148,7 +148,10 @@ impl EffectKind {
     pub fn requires_target_zone(&self, zone: TargetZone) -> bool {
         match self {
             EffectKind::MoveToHand => {
-                matches!(zone, TargetZone::Stage | TargetZone::WaitingRoom | TargetZone::DeckTop)
+                matches!(
+                    zone,
+                    TargetZone::Stage | TargetZone::WaitingRoom | TargetZone::DeckTop
+                )
             }
             EffectKind::MoveToWaitingRoom => matches!(
                 zone,
@@ -195,7 +198,9 @@ impl EffectKind {
             EffectKind::Standby { .. } => matches!(zone, TargetZone::WaitingRoom),
             EffectKind::RandomDiscardFromHand { .. } => matches!(zone, TargetZone::Hand),
             EffectKind::RandomMill { .. } => matches!(zone, TargetZone::DeckTop),
-            EffectKind::RevealZoneTop { zone: reveal_zone, .. } => zone == *reveal_zone,
+            EffectKind::RevealZoneTop {
+                zone: reveal_zone, ..
+            } => zone == *reveal_zone,
             _ => true,
         }
     }

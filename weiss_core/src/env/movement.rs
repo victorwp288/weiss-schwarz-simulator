@@ -132,7 +132,13 @@ impl GameEnv {
             .resolution
             .iter()
             .position(|card| card.instance_id == card_inst.instance_id)
-            .and_then(|idx| if idx <= u8::MAX as usize { Some(idx as u8) } else { None });
+            .and_then(|idx| {
+                if idx <= u8::MAX as usize {
+                    Some(idx as u8)
+                } else {
+                    None
+                }
+            });
         let source_ref = resolution_index.map(|index| TargetRef {
             player,
             zone: TargetZone::Resolution,
