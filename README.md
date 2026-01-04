@@ -52,22 +52,22 @@ https://victorwp288.github.io/weiss-schwarz-simulator/benchmarks
 ### Benchmark Snapshot (main, top 12)
 
 <!-- BENCHMARKS:START -->
-_Last updated: 2026-01-04 21:59 UTC_
+_Last updated: 2026-01-04 22:32 UTC_
 
 | Benchmark | Time |
 | --- | --- |
-| rust/advance_until_decision | 63182 ns/iter |
-| rust/step_batch_64 | 26470 ns/iter |
-| rust/step_batch_fast_256_priority_off | 115638 ns/iter |
-| rust/step_batch_fast_256_priority_on | 109410 ns/iter |
+| rust/advance_until_decision | 63288 ns/iter |
+| rust/step_batch_64 | 26336 ns/iter |
+| rust/step_batch_fast_256_priority_off | 121032 ns/iter |
+| rust/step_batch_fast_256_priority_on | 117206 ns/iter |
 | rust/legal_actions | 43 ns/iter |
 | rust/legal_actions_forced | 41 ns/iter |
-| rust/on_reverse_decision_frequency_on | 1483 ns/iter |
-| rust/on_reverse_decision_frequency_off | 1485 ns/iter |
+| rust/on_reverse_decision_frequency_on | 1546 ns/iter |
+| rust/on_reverse_decision_frequency_off | 1536 ns/iter |
 | rust/observation_encode | 221 ns/iter |
-| rust/observation_encode_forced | 228 ns/iter |
-| rust/mask_construction | 421 ns/iter |
-| rust/mask_construction_forced | 427 ns/iter |
+| rust/observation_encode_forced | 227 ns/iter |
+| rust/mask_construction | 418 ns/iter |
+| rust/mask_construction_forced | 422 ns/iter |
 <!-- BENCHMARKS:END -->
 
 
