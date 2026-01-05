@@ -4,11 +4,37 @@ build-backend = "maturin"
 
 [project]
 name = "weiss-sim"
+<<<<<<< HEAD
 version = "0.1.2"
+=======
+version = "0.1.1"
+description = "Deterministic Weiss Schwarz simulator with a Rust core and Python bindings."
+readme = "README.md"
+>>>>>>> 11681ba (docs: enrich PyPI metadata)
 requires-python = ">=3.10"
+license = { text = "MIT OR Apache-2.0" }
+authors = [{ name = "Lallan" }]
+keywords = ["weiss-schwarz", "reinforcement-learning", "simulation", "pyo3", "rl"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Rust",
+  "Topic :: Games/Entertainment",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
   "numpy>=1.23",
 ]
+
+[project.urls]
+Homepage = "https://github.com/victorwp288/weiss-schwarz-simulator"
+Repository = "https://github.com/victorwp288/weiss-schwarz-simulator"
+Documentation = "https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/"
 
 [tool.maturin]
 manifest-path = "weiss_py/Cargo.toml"
