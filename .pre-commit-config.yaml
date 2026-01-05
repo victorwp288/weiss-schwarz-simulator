@@ -31,3 +31,21 @@ repos:
         language: system
         pass_filenames: false
         files: "^python/|^pyproject\\.toml$"
+      - id: cargo-audit
+        name: cargo audit
+        entry: cargo audit
+        language: system
+        pass_filenames: false
+        stages: [manual]
+      - id: pip-audit
+        name: pip-audit (project)
+        entry: pip-audit .
+        language: system
+        pass_filenames: false
+        stages: [manual]
+      - id: pip-audit-scraper
+        name: pip-audit (scraper)
+        entry: pip-audit -r scraper/requirements.txt
+        language: system
+        pass_filenames: false
+        stages: [manual]
