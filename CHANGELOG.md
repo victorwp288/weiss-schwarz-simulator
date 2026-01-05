@@ -2,6 +2,13 @@
 
 This file is maintained by Release Please.
 
+## [0.1.2](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.1.1...v0.1.2) (2026-01-05)
+
+
+### Bug Fixes
+
+* align package versions with v0.1.1 ([5c3cacf](https://github.com/victorwp288/weiss-schwarz-simulator/commit/5c3cacfda4b899aefb8decae0d5fdca63e11b3ff))
+
 ## [0.1.1](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.1.0...v0.1.1) (2026-01-04)
 
 
