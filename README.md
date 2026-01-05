@@ -65,22 +65,22 @@ in GitHub Actions secrets; otherwise you can manually run the `Wheels` workflow 
 ### Benchmark Snapshot (main, top 12)
 
 <!-- BENCHMARKS:START -->
-_Last updated: 2026-01-05 00:20 UTC_
+_Last updated: 2026-01-05 00:44 UTC_
 
 | Benchmark | Time |
 | --- | --- |
-| rust/advance_until_decision | 62940 ns/iter |
-| rust/step_batch_64 | 26161 ns/iter |
-| rust/step_batch_fast_256_priority_off | 109888 ns/iter |
-| rust/step_batch_fast_256_priority_on | 108526 ns/iter |
+| rust/advance_until_decision | 63280 ns/iter |
+| rust/step_batch_64 | 26268 ns/iter |
+| rust/step_batch_fast_256_priority_off | 111592 ns/iter |
+| rust/step_batch_fast_256_priority_on | 109646 ns/iter |
 | rust/legal_actions | 44 ns/iter |
-| rust/legal_actions_forced | 42 ns/iter |
-| rust/on_reverse_decision_frequency_on | 1488 ns/iter |
-| rust/on_reverse_decision_frequency_off | 1478 ns/iter |
-| rust/observation_encode | 221 ns/iter |
-| rust/observation_encode_forced | 226 ns/iter |
-| rust/mask_construction | 412 ns/iter |
-| rust/mask_construction_forced | 419 ns/iter |
+| rust/legal_actions_forced | 43 ns/iter |
+| rust/on_reverse_decision_frequency_on | 1534 ns/iter |
+| rust/on_reverse_decision_frequency_off | 1540 ns/iter |
+| rust/observation_encode | 228 ns/iter |
+| rust/observation_encode_forced | 233 ns/iter |
+| rust/mask_construction | 455 ns/iter |
+| rust/mask_construction_forced | 412 ns/iter |
 <!-- BENCHMARKS:END -->
 
 
