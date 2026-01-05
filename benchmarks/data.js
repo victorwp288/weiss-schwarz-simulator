@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767573853722,
+  "lastUpdate": 1767574810486,
   "repoUrl": "https://github.com/victorwp288/weiss-schwarz-simulator",
   "entries": {
     "Benchmark": [
@@ -1133,6 +1133,132 @@ window.BENCHMARK_DATA = {
             "name": "alloc_choice_paging_worst_case",
             "value": 199,
             "range": "± 4",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "victorwpetersen@gmail.com",
+            "name": "Victor Wejergang Petersen",
+            "username": "victorwp288"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dd1008f7ccbde231cc639a03d3fef57f1f3cbbe5",
+          "message": "Merge pull request #3 from victorwp288/release-please--branches--main\n\nchore(main): release 0.1.3",
+          "timestamp": "2026-01-05T01:55:57+01:00",
+          "tree_id": "698e1c8a2b13e74e34ad1fa1743c0fb9d0f6509d",
+          "url": "https://github.com/victorwp288/weiss-schwarz-simulator/commit/dd1008f7ccbde231cc639a03d3fef57f1f3cbbe5"
+        },
+        "date": 1767574809371,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "advance_until_decision",
+            "value": 63126,
+            "range": "± 2283",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_64",
+            "value": 26968,
+            "range": "± 211",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_off",
+            "value": 117321,
+            "range": "± 1028",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_on",
+            "value": 117409,
+            "range": "± 875",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions",
+            "value": 43,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions_forced",
+            "value": 41,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_on",
+            "value": 1487,
+            "range": "± 6924",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_off",
+            "value": 1490,
+            "range": "± 10229",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode",
+            "value": 227,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode_forced",
+            "value": 227,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction",
+            "value": 457,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction_forced",
+            "value": 410,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "choice_paging_worst_case_mask",
+            "value": 188,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_legal_actions",
+            "value": 42,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_observation_encode",
+            "value": 157,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_action_masks_batch_into",
+            "value": 874,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_choice_paging_worst_case",
+            "value": 185,
+            "range": "± 1",
             "unit": "ns/iter"
           }
         ]
