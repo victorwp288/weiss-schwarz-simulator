@@ -2,6 +2,13 @@
 
 This file is maintained by Release Please.
 
+## [0.1.3](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.1.2...v0.1.3) (2026-01-05)
+
+
+### Bug Fixes
+
+* update PyPI metadata ([57133db](https://github.com/victorwp288/weiss-schwarz-simulator/commit/57133db1fb9faebe4aa6a03d23fda5c5573c5a2d))
+
 ## [0.1.2](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.1.1...v0.1.2) (2026-01-05)
 
 
