@@ -43,9 +43,19 @@ jobs:
     steps:
       - name: Fail if any required job failed
         run: |
+          echo "changes=${{ needs.changes.result }}"
           echo "rust=${{ needs.rust.result }}"
           echo "python=${{ needs.python.result }}"
-          if [[ "${{ needs.rust.result }}" == "failure" || "${{ needs.python.result }}" == "failure" ]]; then
+
+          if [[ "${{ needs.changes.result }}" != "success" ]]; then
+            exit 1
+          fi
+
+          if [[ "${{ needs.rust.result }}" != "success" && "${{ needs.rust.result }}" != "skipped" ]]; then
+            exit 1
+          fi
+
+          if [[ "${{ needs.python.result }}" != "success" && "${{ needs.python.result }}" != "skipped" ]]; then
             exit 1
           fi
 

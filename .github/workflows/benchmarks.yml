@@ -30,6 +30,9 @@ jobs:
   benches:
     if: github.event_name != 'pull_request' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - name: Ensure gh-pages branch exists

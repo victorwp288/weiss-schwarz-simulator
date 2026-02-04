@@ -21,6 +21,9 @@ permissions:
 jobs:
   docs:
     runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}', github.run_id) || 'gh-pages' }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
