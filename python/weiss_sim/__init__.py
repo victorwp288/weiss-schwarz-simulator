@@ -95,9 +95,7 @@ def make_train_pool(
 
     Returns: (pool, buffers)
     """
-    _, profile_masks, profile_i16, profile_legal_ids, profile_unsafe_i16 = _resolve_profile(
-        profile
-    )
+    _, profile_masks, profile_i16, profile_legal_ids, profile_unsafe_i16 = _resolve_profile(profile)
     if output_masks is None:
         output_masks = profile_masks
     if use_i16 is None:
@@ -182,9 +180,7 @@ def make_eval_pool(
 
     Returns: (pool, buffers)
     """
-    _, profile_masks, profile_i16, profile_legal_ids, profile_unsafe_i16 = _resolve_profile(
-        profile
-    )
+    _, profile_masks, profile_i16, profile_legal_ids, profile_unsafe_i16 = _resolve_profile(profile)
     if output_masks is None:
         output_masks = profile_masks
     if use_i16 is None:
@@ -387,9 +383,7 @@ class EnvPoolBuffersNoMask:
         return self.out, self.actions
 
     def step_random_legal(self, seeds):
-        self.pool.step_sample_legal_action_ids_uniform_into_nomask(
-            seeds, self.actions, self.out
-        )
+        self.pool.step_sample_legal_action_ids_uniform_into_nomask(seeds, self.actions, self.out)
         return self.out, self.actions
 
     def step_select_from_logits(self, logits):
@@ -400,9 +394,7 @@ class EnvPoolBuffersNoMask:
     def step_sample_from_logits(self, logits, seeds):
         logits = np.ascontiguousarray(logits, dtype=np.float32)
         seeds = np.asarray(seeds, dtype=np.uint64).ravel()
-        self.pool.step_sample_from_logits_into_nomask(
-            logits, seeds, self.actions, self.out
-        )
+        self.pool.step_sample_from_logits_into_nomask(logits, seeds, self.actions, self.out)
         return self.out, self.actions
 
     def select_actions_from_logits(self, logits):
@@ -487,9 +479,7 @@ class EnvPoolBuffersI16:
         return self.out, self.actions
 
     def step_random_legal(self, seeds):
-        self.pool.step_sample_legal_action_ids_uniform_into_i16(
-            seeds, self.actions, self.out
-        )
+        self.pool.step_sample_legal_action_ids_uniform_into_i16(seeds, self.actions, self.out)
         return self.out, self.actions
 
     def step_select_from_logits(self, logits):
@@ -500,9 +490,7 @@ class EnvPoolBuffersI16:
     def step_sample_from_logits(self, logits, seeds):
         logits = np.ascontiguousarray(logits, dtype=np.float32)
         seeds = np.asarray(seeds, dtype=np.uint64).ravel()
-        self.pool.step_sample_from_logits_into_i16(
-            logits, seeds, self.actions, self.out
-        )
+        self.pool.step_sample_from_logits_into_i16(logits, seeds, self.actions, self.out)
         return self.out, self.actions
 
     def select_actions_from_logits(self, logits):
@@ -596,17 +584,13 @@ class EnvPoolBuffersI16LegalIds:
 
     def step_select_from_logits(self, logits):
         logits = np.ascontiguousarray(logits, dtype=np.float32)
-        self.pool.step_select_from_logits_into_i16_legal_ids(
-            logits, self.actions, self.out
-        )
+        self.pool.step_select_from_logits_into_i16_legal_ids(logits, self.actions, self.out)
         return self.out, self.actions
 
     def step_sample_from_logits(self, logits, seeds):
         logits = np.ascontiguousarray(logits, dtype=np.float32)
         seeds = np.asarray(seeds, dtype=np.uint64).ravel()
-        self.pool.step_sample_from_logits_into_i16_legal_ids(
-            logits, seeds, self.actions, self.out
-        )
+        self.pool.step_sample_from_logits_into_i16_legal_ids(logits, seeds, self.actions, self.out)
         return self.out, self.actions
 
     def set_i16_overflow_counter_enabled(self, enabled: bool):
@@ -673,9 +657,7 @@ class EnvPoolTrajectoryBuffersI16:
 
     def rollout_random_legal(self, seeds):
         seeds = np.asarray(seeds, dtype=np.uint64).ravel()
-        self.pool.rollout_sample_legal_action_ids_uniform_into_i16(
-            self.steps, seeds, self.out
-        )
+        self.pool.rollout_sample_legal_action_ids_uniform_into_i16(self.steps, seeds, self.out)
         return self.out
 
 
@@ -735,9 +717,7 @@ class EnvPoolTrajectoryBuffersNoMask:
 
     def rollout_random_legal(self, seeds):
         seeds = np.asarray(seeds, dtype=np.uint64).ravel()
-        self.pool.rollout_sample_legal_action_ids_uniform_into_nomask(
-            self.steps, seeds, self.out
-        )
+        self.pool.rollout_sample_legal_action_ids_uniform_into_nomask(self.steps, seeds, self.out)
         return self.out
 
 
