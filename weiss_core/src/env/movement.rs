@@ -243,6 +243,7 @@ impl GameEnv {
         let card_inst = attacker_slot
             .card
             .ok_or_else(|| anyhow!("Missing attacker card"))?;
+        self.touch_player_obs(player);
         let card = self
             .db
             .get(card_inst.id)
@@ -371,6 +372,7 @@ impl GameEnv {
             }
             if let Some(slot_state) = self.state.players[p].stage.get_mut(s) {
                 slot_state.status = StageStatus::Rest;
+                self.touch_player_obs(player);
             }
             self.log_event(Event::Encore {
                 player,
@@ -399,6 +401,7 @@ impl GameEnv {
         to_slot: Option<u8>,
     ) {
         let p = player as usize;
+        self.touch_player_obs(player);
         match to {
             Zone::Deck => self.state.players[p].deck.push(card),
             Zone::Hand => self.state.players[p].hand.push(card),
@@ -434,6 +437,7 @@ impl GameEnv {
             .resolution
             .iter()
             .position(|card| card.instance_id == instance_id)?;
+        self.touch_player_obs(player);
         Some(self.state.players[p].resolution.remove(pos))
     }
 
@@ -473,6 +477,7 @@ impl GameEnv {
         slot_state.card = Some(card);
         slot_state.status = status;
         self.state.players[p].stage[slot as usize] = slot_state;
+        self.touch_player_obs(player);
         self.mark_slot_power_dirty(player, slot);
         self.mark_rule_actions_dirty();
         self.mark_continuous_modifiers_dirty();
@@ -491,6 +496,7 @@ impl GameEnv {
         let s = slot as usize;
         self.remove_modifiers_for_slot(player, slot);
         if let Some(card) = self.state.players[p].stage[s].card.take() {
+            self.touch_player_obs(player);
             self.move_card_between_zones(
                 player,
                 card,
@@ -518,6 +524,7 @@ impl GameEnv {
             return;
         }
         self.state.players[p].stage.swap(fs, ts);
+        self.touch_player_obs(player);
         self.remove_modifiers_for_slot(player, from_slot);
         self.remove_modifiers_for_slot(player, to_slot);
         self.mark_slot_power_dirty(player, from_slot);
@@ -698,6 +705,7 @@ impl GameEnv {
         let s = slot as usize;
         if p < 2 && s < crate::encode::MAX_STAGE {
             self.slot_power_dirty[p][s] = true;
+            self.touch_player_obs(player);
         }
     }
 
@@ -709,6 +717,7 @@ impl GameEnv {
         for slot in 0..crate::encode::MAX_STAGE {
             self.slot_power_dirty[p][slot] = true;
         }
+        self.touch_player_obs(player);
     }
 
     pub(super) fn mark_all_slot_power_dirty(&mut self) {
@@ -717,6 +726,8 @@ impl GameEnv {
                 self.slot_power_dirty[player][slot] = true;
             }
         }
+        self.touch_player_obs(0);
+        self.touch_player_obs(1);
     }
 
     fn slot_power_cached(&mut self, player: usize, slot: usize) -> i32 {
@@ -754,10 +765,11 @@ impl GameEnv {
             return 0;
         };
         let card_id = card_inst.id;
-        let Some(card) = self.db.get(card_id) else {
+        if !self.db.is_valid_id(card_id) {
             return 0;
-        };
-        let mut power = card.power + slot_state.power_mod_turn + slot_state.power_mod_battle;
+        }
+        let mut power =
+            self.db.power_by_id(card_id) + slot_state.power_mod_turn + slot_state.power_mod_battle;
         for modifier in &self.state.modifiers {
             if modifier.kind != ModifierKind::Power {
                 continue;
@@ -876,6 +888,7 @@ impl GameEnv {
 
     pub(super) fn shuffle_deck(&mut self, player: u8) {
         let p = player as usize;
+        self.touch_player_obs(player);
         self.state.rng.shuffle(&mut self.state.players[p].deck);
         self.log_event(Event::Shuffle {
             player,

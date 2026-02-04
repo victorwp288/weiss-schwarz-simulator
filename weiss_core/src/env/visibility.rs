@@ -89,9 +89,21 @@ impl GameEnv {
     }
 
     pub(super) fn log_action(&mut self, actor: u8, action: ActionDesc) {
+        if !self.replay_config.store_actions {
+            return;
+        }
         let ctx = self.replay_visibility_context();
+        self.replay_actions_raw.push(action.clone());
         let logged = self.sanitize_action_for_viewer(&action, actor, ctx);
         self.replay_actions.push(logged);
+        let raw_id = action_id_for(&action)
+            .and_then(|id| u16::try_from(id).ok())
+            .unwrap_or(REPLAY_ACTION_ID_UNKNOWN);
+        let public_id = action_id_for(self.replay_actions.last().expect("logged action"))
+            .and_then(|id| u16::try_from(id).ok())
+            .unwrap_or(REPLAY_ACTION_ID_UNKNOWN);
+        self.replay_action_ids_raw.push(raw_id);
+        self.replay_action_ids.push(public_id);
     }
 
     pub(super) fn sanitize_action_for_viewer(
@@ -737,6 +749,9 @@ impl GameEnv {
                 action_version: ACTION_ENCODING_VERSION,
                 replay_version: REPLAY_SCHEMA_VERSION,
                 seed: self.episode_seed,
+                base_seed: self.base_seed,
+                episode_seed: self.episode_seed,
+                spec_hash: crate::encode::SPEC_HASH,
                 starting_player: self.state.turn.starting_player,
                 deck_ids: self.config.deck_ids,
                 curriculum_id: "default".to_string(),
@@ -745,9 +760,38 @@ impl GameEnv {
                 env_id: self.env_id,
                 episode_index: self.episode_index,
             };
+            let (actions, action_ids, events) = match self.replay_config.visibility_mode {
+                ReplayVisibilityMode::Full => (
+                    if self.replay_config.store_actions {
+                        self.replay_actions_raw.clone()
+                    } else {
+                        Vec::new()
+                    },
+                    if self.replay_config.store_actions {
+                        self.replay_action_ids_raw.clone()
+                    } else {
+                        Vec::new()
+                    },
+                    Some(self.canonical_events.clone()),
+                ),
+                ReplayVisibilityMode::Public => (
+                    if self.replay_config.store_actions {
+                        self.replay_actions.clone()
+                    } else {
+                        Vec::new()
+                    },
+                    if self.replay_config.store_actions {
+                        self.replay_action_ids.clone()
+                    } else {
+                        Vec::new()
+                    },
+                    Some(self.replay_events.clone()),
+                ),
+            };
             let body = EpisodeBody {
-                actions: self.replay_actions.clone(),
-                events: Some(self.replay_events.clone()),
+                actions,
+                action_ids,
+                events,
                 steps: self.replay_steps.clone(),
                 final_state: Some(ReplayFinal {
                     terminal: self.state.terminal,

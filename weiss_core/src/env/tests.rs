@@ -1488,6 +1488,48 @@ fn public_observation_masks_hidden_zones_without_policies() {
 }
 
 #[test]
+fn public_observation_masks_hidden_zones_cached_path() {
+    let mut env = make_env();
+    env.curriculum.enable_visibility_policies = false;
+    env.config.observation_visibility = ObservationVisibility::Public;
+
+    // Prime caches with a full encode.
+    let _ = env.reset();
+
+    // Mark only the opponent block dirty to force the cached encode path.
+    let perspective = env.last_perspective as usize;
+    let opponent = 1 - perspective;
+    env.player_obs_version[opponent] = env.player_obs_version[opponent].wrapping_add(1);
+    env.obs_dirty = false;
+    env.obs_perspective = env.last_perspective;
+
+    let outcome = env.build_outcome_with_obs(0.0, true);
+    let obs = outcome.obs;
+
+    let opponent_base = OBS_HEADER_LEN + PER_PLAYER_BLOCK_LEN;
+    let stock_start = opponent_base
+        + PER_PLAYER_COUNTS
+        + PER_PLAYER_STAGE
+        + PER_PLAYER_CLIMAX_TOP
+        + PER_PLAYER_LEVEL
+        + PER_PLAYER_CLOCK_TOP
+        + PER_PLAYER_WAITING_TOP
+        + PER_PLAYER_RESOLUTION_TOP;
+    let hand_start = stock_start + PER_PLAYER_STOCK_TOP;
+    let deck_start = hand_start + PER_PLAYER_HAND;
+
+    assert!(obs[stock_start..stock_start + PER_PLAYER_STOCK_TOP]
+        .iter()
+        .all(|v| *v == -1));
+    assert!(obs[hand_start..hand_start + PER_PLAYER_HAND]
+        .iter()
+        .all(|v| *v == -1));
+    assert!(obs[deck_start..deck_start + PER_PLAYER_DECK]
+        .iter()
+        .all(|v| *v == -1));
+}
+
+#[test]
 fn public_replay_masks_hidden_draws() {
     let replay_config = ReplayConfig {
         enabled: true,
@@ -1651,13 +1693,15 @@ fn action_cache_reuses_for_same_decision() {
 
     let decision_id = env.decision_id();
     let mask_before = env.action_mask().to_vec();
-    let lookup_before = env.action_lookup().to_vec();
+    let ids_before = env.action_ids_cache().to_vec();
+    let bits_before = env.action_mask_bits().to_vec();
 
     env.update_action_cache();
 
     assert_eq!(env.decision_id(), decision_id);
     assert_eq!(env.action_mask(), mask_before.as_slice());
-    assert_eq!(env.action_lookup(), lookup_before.as_slice());
+    assert_eq!(env.action_ids_cache(), ids_before.as_slice());
+    assert_eq!(env.action_mask_bits(), bits_before.as_slice());
 }
 
 #[test]
@@ -2094,4 +2138,78 @@ fn alternate_end_conditions_simultaneous_loss_policies() {
         env.state.terminal,
         Some(TerminalResult::Win { winner: 0 })
     ));
+}
+
+#[test]
+fn observation_encoded_from_actor_and_self_block_first() {
+    let mut env = make_env();
+    env.advance_until_decision();
+    let decision_player = env.decision.as_ref().expect("decision").player as usize;
+    env.state.players[0].hand.truncate(2);
+    env.state.players[1].hand.truncate(5);
+    env.touch_player_obs(0);
+    env.touch_player_obs(1);
+
+    let outcome = env.build_outcome_with_obs(0.0, true);
+    let mut manual = vec![0; OBS_LEN];
+    encode_observation(
+        &env.state,
+        &env.db,
+        &env.curriculum,
+        decision_player as u8,
+        env.decision.as_ref(),
+        env.last_action_desc.as_ref(),
+        env.last_action_player,
+        env.config.observation_visibility,
+        &mut manual,
+    );
+    assert_eq!(outcome.obs, manual);
+
+    let self_hand = outcome.obs[OBS_HEADER_LEN + 3];
+    let opp_hand = outcome.obs[OBS_HEADER_LEN + PER_PLAYER_BLOCK_LEN + 3];
+    assert_eq!(
+        self_hand,
+        env.state.players[decision_player].hand.len() as i32
+    );
+    assert_eq!(
+        opp_hand,
+        env.state.players[1 - decision_player].hand.len() as i32
+    );
+}
+
+#[test]
+fn terminal_rewards_are_zero_sum() {
+    let mut env = make_env();
+    env.state.terminal = Some(TerminalResult::Win { winner: 0 });
+    let r0 = env.terminal_reward_for(0);
+    let r1 = env.terminal_reward_for(1);
+    assert!((r0 + r1).abs() < 1e-6);
+    env.state.terminal = Some(TerminalResult::Draw);
+    assert_eq!(env.terminal_reward_for(0), 0.0);
+    assert_eq!(env.terminal_reward_for(1), 0.0);
+}
+
+#[test]
+fn shaping_reward_is_antisymmetric() {
+    let mut env = make_env();
+    env.config.reward.enable_shaping = true;
+    env.state.terminal = None;
+    let delta = [2, 1];
+    let r0 = env.compute_reward(0, &delta);
+    let r1 = env.compute_reward(1, &delta);
+    assert!((r0 + r1).abs() < 1e-6);
+}
+
+#[test]
+fn terminal_and_timeout_flags_are_distinct() {
+    let mut env = make_env();
+    env.state.terminal = Some(TerminalResult::Timeout);
+    let timeout_outcome = env.build_outcome_with_obs(0.0, true);
+    assert!(timeout_outcome.truncated);
+    assert!(!timeout_outcome.terminated);
+
+    env.state.terminal = Some(TerminalResult::Win { winner: 0 });
+    let win_outcome = env.build_outcome_with_obs(0.0, true);
+    assert!(win_outcome.terminated);
+    assert!(!win_outcome.truncated);
 }

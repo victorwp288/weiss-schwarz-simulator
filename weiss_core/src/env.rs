@@ -7,11 +7,12 @@ use crate::config::{
 };
 use crate::db::{CardDb, CardId, CardStatic, CardType};
 use crate::encode::{
-    encode_observation_with_slot_power, fill_action_mask, ACTION_ENCODING_VERSION,
-    OBS_ENCODING_VERSION, OBS_LEN,
+    encode_obs_context, encode_obs_header, encode_obs_player_block_into, encode_obs_reason,
+    encode_obs_reveal, encode_observation_with_slot_power, ACTION_ENCODING_VERSION,
+    OBS_ENCODING_VERSION, OBS_LEN, PER_PLAYER_BLOCK_LEN,
 };
 use crate::events::{Event, Zone};
-use crate::legal::{ActionDesc, Decision, DecisionKind};
+use crate::legal::{ActionDesc, Decision, DecisionKind, LegalActionIds};
 use crate::replay::{ReplayConfig, ReplayEvent, ReplayWriter, StepMeta};
 use crate::state::{
     CardInstance, CardInstanceId, ChoiceOptionRef, DamageType, GameState, ModifierDuration,
@@ -80,9 +81,12 @@ pub struct GameEnv {
     pub curriculum: CurriculumConfig,
     pub state: GameState,
     pub env_id: u32,
+    pub base_seed: u64,
     pub episode_index: u32,
     pub decision: Option<Decision>,
     action_cache: ActionCache,
+    output_mask_enabled: bool,
+    output_mask_bits_enabled: bool,
     decision_id: u32,
     pub last_action_desc: Option<ActionDesc>,
     pub last_action_player: Option<u8>,
@@ -92,6 +96,12 @@ pub struct GameEnv {
     pub last_perspective: u8,
     pub pending_damage_delta: [i32; 2],
     pub obs_buf: Vec<i32>,
+    obs_dirty: bool,
+    obs_perspective: u8,
+    player_obs_version: [u32; 2],
+    player_block_cache_version: [u32; 2],
+    player_block_cache_self: [Vec<i32>; 2],
+    player_block_cache_opp: [Vec<i32>; 2],
     slot_power_cache: [[i32; crate::encode::MAX_STAGE]; 2],
     slot_power_dirty: [[bool; crate::encode::MAX_STAGE]; 2],
     slot_power_cache_card: [[CardId; crate::encode::MAX_STAGE]; 2],
@@ -103,6 +113,9 @@ pub struct GameEnv {
     pub replay_config: ReplayConfig,
     pub replay_writer: Option<ReplayWriter>,
     pub replay_actions: Vec<ActionDesc>,
+    pub replay_actions_raw: Vec<ActionDesc>,
+    pub replay_action_ids: Vec<u16>,
+    pub replay_action_ids_raw: Vec<u16>,
     pub replay_events: Vec<ReplayEvent>,
     canonical_events: Vec<Event>,
     pub replay_steps: Vec<StepMeta>,
@@ -114,6 +127,7 @@ pub struct GameEnv {
     revealed_to_viewer: [BTreeSet<CardInstanceId>; 2],
     debug: DebugConfig,
     debug_event_ring: Option<[EventRing; 2]>,
+    validate_state_enabled: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -145,8 +159,8 @@ impl EnvScratch {
 
 struct ActionCache {
     mask: Vec<u8>,
-    lookup: Vec<Option<ActionDesc>>,
-    legal_actions: Vec<ActionDesc>,
+    mask_bits: Vec<u64>,
+    last_action_ids: LegalActionIds,
     decision_id: u32,
     decision_kind: Option<DecisionKind>,
     decision_player: u8,
@@ -156,8 +170,8 @@ impl ActionCache {
     fn new() -> Self {
         Self {
             mask: vec![0u8; crate::encode::ACTION_SPACE_SIZE],
-            lookup: vec![None; crate::encode::ACTION_SPACE_SIZE],
-            legal_actions: Vec::new(),
+            mask_bits: vec![0u64; crate::encode::ACTION_SPACE_WORDS],
+            last_action_ids: LegalActionIds::new(),
             decision_id: 0,
             decision_kind: None,
             decision_player: 0,
@@ -169,18 +183,17 @@ impl ActionCache {
             self.mask.resize(crate::encode::ACTION_SPACE_SIZE, 0);
         }
         self.mask.fill(0);
-        if self.lookup.len() != crate::encode::ACTION_SPACE_SIZE {
-            self.lookup.resize(crate::encode::ACTION_SPACE_SIZE, None);
+        if self.mask_bits.len() != crate::encode::ACTION_SPACE_WORDS {
+            self.mask_bits.resize(crate::encode::ACTION_SPACE_WORDS, 0);
         }
-        for slot in self.lookup.iter_mut() {
-            *slot = None;
-        }
-        self.legal_actions.clear();
-        self.decision_id = 0;
+        self.mask_bits.fill(0);
+        self.last_action_ids.clear();
+        self.decision_id = u32::MAX;
         self.decision_kind = None;
         self.decision_player = 0;
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn update(
         &mut self,
         state: &GameState,
@@ -189,6 +202,8 @@ impl ActionCache {
         db: &CardDb,
         curriculum: &CurriculumConfig,
         allowed_card_sets: Option<&std::collections::HashSet<String>>,
+        write_mask: bool,
+        write_mask_bits: bool,
     ) {
         if self.decision_id == decision_id
             && self.decision_kind == Some(decision.kind)
@@ -196,10 +211,45 @@ impl ActionCache {
         {
             return;
         }
-        let actions =
-            crate::legal::legal_actions_cached(state, decision, db, curriculum, allowed_card_sets);
-        fill_action_mask(&actions, &mut self.mask, &mut self.lookup);
-        self.legal_actions = actions;
+        for &id_u16 in self.last_action_ids.iter() {
+            let id = id_u16 as usize;
+            if id < crate::encode::ACTION_SPACE_SIZE {
+                if write_mask {
+                    self.mask[id] = 0;
+                }
+                if write_mask_bits {
+                    let word = id / 64;
+                    let bit = id % 64;
+                    if word < self.mask_bits.len() {
+                        self.mask_bits[word] &= !(1u64 << bit);
+                    }
+                }
+            }
+        }
+        self.last_action_ids.clear();
+        crate::legal::legal_action_ids_cached_into(
+            state,
+            decision,
+            db,
+            curriculum,
+            allowed_card_sets,
+            &mut self.last_action_ids,
+        );
+        for &id_u16 in self.last_action_ids.iter() {
+            let id = id_u16 as usize;
+            if id < crate::encode::ACTION_SPACE_SIZE {
+                if write_mask {
+                    self.mask[id] = 1;
+                }
+                if write_mask_bits {
+                    let word = id / 64;
+                    let bit = id % 64;
+                    if word < self.mask_bits.len() {
+                        self.mask_bits[word] |= 1u64 << bit;
+                    }
+                }
+            }
+        }
         self.decision_id = decision_id;
         self.decision_kind = Some(decision.kind);
         self.decision_player = decision.player;
@@ -463,9 +513,12 @@ impl GameEnv {
             curriculum,
             state,
             env_id,
+            base_seed: seed,
             episode_index: 0,
             decision: None,
             action_cache: ActionCache::new(),
+            output_mask_enabled: true,
+            output_mask_bits_enabled: true,
             decision_id: 0,
             last_action_desc: None,
             last_action_player: None,
@@ -475,6 +528,12 @@ impl GameEnv {
             last_perspective: 0,
             pending_damage_delta: [0, 0],
             obs_buf: vec![0; OBS_LEN],
+            obs_dirty: true,
+            obs_perspective: starting_player,
+            player_obs_version: [0; 2],
+            player_block_cache_version: [u32::MAX; 2],
+            player_block_cache_self: std::array::from_fn(|_| vec![0; PER_PLAYER_BLOCK_LEN]),
+            player_block_cache_opp: std::array::from_fn(|_| vec![0; PER_PLAYER_BLOCK_LEN]),
             slot_power_cache: [[0; crate::encode::MAX_STAGE]; 2],
             slot_power_dirty: [[true; crate::encode::MAX_STAGE]; 2],
             slot_power_cache_card: [[0; crate::encode::MAX_STAGE]; 2],
@@ -486,6 +545,9 @@ impl GameEnv {
             replay_config,
             replay_writer,
             replay_actions: Vec::new(),
+            replay_actions_raw: Vec::new(),
+            replay_action_ids: Vec::new(),
+            replay_action_ids_raw: Vec::new(),
             replay_events: Vec::new(),
             canonical_events: Vec::new(),
             replay_steps: Vec::new(),
@@ -497,6 +559,8 @@ impl GameEnv {
             revealed_to_viewer: std::array::from_fn(|_| BTreeSet::new()),
             debug: DebugConfig::default(),
             debug_event_ring: None,
+            validate_state_enabled: std::env::var("WEISS_VALIDATE_STATE").ok().as_deref()
+                == Some("1"),
         };
         env.reset();
         env
@@ -508,6 +572,14 @@ impl GameEnv {
 
     pub fn reset_no_copy(&mut self) -> StepOutcome {
         self.reset_with_obs(false)
+    }
+
+    pub fn reset_with_episode_seed(&mut self, episode_seed: u64) -> StepOutcome {
+        self.reset_with_episode_seed_internal(episode_seed, true)
+    }
+
+    pub fn reset_with_episode_seed_no_copy(&mut self, episode_seed: u64) -> StepOutcome {
+        self.reset_with_episode_seed_internal(episode_seed, false)
     }
 
     pub fn canonical_events(&self) -> &[Event] {
@@ -522,12 +594,49 @@ impl GameEnv {
         &self.action_cache.mask
     }
 
-    pub fn action_lookup(&self) -> &[Option<ActionDesc>] {
-        &self.action_cache.lookup
+    pub fn action_mask_bits(&self) -> &[u64] {
+        &self.action_cache.mask_bits
     }
 
-    pub fn legal_actions(&self) -> &[ActionDesc] {
-        &self.action_cache.legal_actions
+    pub fn action_id_is_legal(&self, action_id: usize) -> bool {
+        if action_id >= crate::encode::ACTION_SPACE_SIZE {
+            return false;
+        }
+        if !self.output_mask_bits_enabled {
+            return self
+                .action_cache
+                .last_action_ids
+                .iter()
+                .any(|&id| id as usize == action_id);
+        }
+        let word = action_id / 64;
+        let bit = action_id % 64;
+        self.action_cache
+            .mask_bits
+            .get(word)
+            .map(|w| (w >> bit) & 1 == 1)
+            .unwrap_or(false)
+    }
+
+    pub fn action_ids_cache(&self) -> &[u16] {
+        &self.action_cache.last_action_ids
+    }
+
+    pub fn action_for_id(&self, action_id: usize) -> Option<ActionDesc> {
+        if !self.action_id_is_legal(action_id) {
+            return None;
+        }
+        crate::encode::action_desc_for_id(action_id)
+    }
+
+    pub fn legal_actions(&self) -> Vec<ActionDesc> {
+        let mut out = Vec::with_capacity(self.action_cache.last_action_ids.len());
+        for &id in self.action_cache.last_action_ids.iter() {
+            if let Some(action) = crate::encode::action_desc_for_id(id as usize) {
+                out.push(action);
+            }
+        }
+        out
     }
 
     pub fn debug_event_ring_codes(&self, viewer: u8, out: &mut [u32]) -> u16 {
@@ -551,6 +660,14 @@ impl GameEnv {
 
     fn reset_with_obs(&mut self, copy_obs: bool) -> StepOutcome {
         let episode_seed = self.meta_rng.next_u64();
+        self.reset_with_episode_seed_internal(episode_seed, copy_obs)
+    }
+
+    fn reset_with_episode_seed_internal(
+        &mut self,
+        episode_seed: u64,
+        copy_obs: bool,
+    ) -> StepOutcome {
         let starting_player = if (episode_seed & 1) == 1 { 1 } else { 0 };
         self.episode_seed = episode_seed;
         self.episode_index = self.episode_index.wrapping_add(1);
@@ -571,7 +688,7 @@ impl GameEnv {
         self.last_rule_action_phase = self.state.turn.phase;
         self.decision = None;
         self.action_cache.clear();
-        self.decision_id = 0;
+        self.decision_id = u32::MAX;
         self.last_action_desc = None;
         self.last_action_player = None;
         self.last_illegal_action = false;
@@ -579,10 +696,16 @@ impl GameEnv {
         self.last_engine_error_code = EngineErrorCode::None;
         self.last_perspective = self.state.turn.starting_player;
         self.pending_damage_delta = [0, 0];
+        self.obs_dirty = true;
+        self.player_obs_version = [0; 2];
+        self.player_block_cache_version = [u32::MAX; 2];
         if self.obs_buf.len() != OBS_LEN {
             self.obs_buf.resize(OBS_LEN, 0);
         }
         self.replay_actions.clear();
+        self.replay_actions_raw.clear();
+        self.replay_action_ids.clear();
+        self.replay_action_ids_raw.clear();
         self.replay_events.clear();
         self.canonical_events.clear();
         self.replay_steps.clear();
@@ -648,6 +771,75 @@ impl GameEnv {
         }
     }
 
+    pub fn set_output_mask_enabled(&mut self, enabled: bool) {
+        if self.output_mask_enabled == enabled {
+            return;
+        }
+        self.output_mask_enabled = enabled;
+        self.action_cache.decision_id = u32::MAX;
+        if !enabled {
+            self.action_cache.mask.fill(0);
+        }
+    }
+
+    pub fn set_output_mask_bits_enabled(&mut self, enabled: bool) {
+        if self.output_mask_bits_enabled == enabled {
+            return;
+        }
+        self.output_mask_bits_enabled = enabled;
+        self.action_cache.decision_id = u32::MAX;
+        if !enabled {
+            self.action_cache.mask_bits.fill(0);
+        }
+    }
+
+    pub(super) fn touch_player_obs(&mut self, player: u8) {
+        let p = player as usize;
+        if p < 2 {
+            self.player_obs_version[p] = self.player_obs_version[p].wrapping_add(1);
+        }
+    }
+
+    fn refresh_player_block_cache(&mut self, player: u8) {
+        let p = player as usize;
+        if p >= 2 {
+            return;
+        }
+        let visibility = self.config.observation_visibility;
+        let memory_self = true;
+        let memory_opp =
+            visibility == ObservationVisibility::Full || self.curriculum.memory_is_public;
+        let hand_self = true;
+        let hand_opp = visibility == ObservationVisibility::Full;
+        let stock_self = true;
+        let stock_opp = visibility == ObservationVisibility::Full;
+        let deck_self = true;
+        let deck_opp = visibility == ObservationVisibility::Full;
+        encode_obs_player_block_into(
+            &self.state,
+            &self.db,
+            player,
+            memory_self,
+            hand_self,
+            stock_self,
+            deck_self,
+            &self.slot_power_cache,
+            &mut self.player_block_cache_self[p],
+        );
+        encode_obs_player_block_into(
+            &self.state,
+            &self.db,
+            player,
+            memory_opp,
+            hand_opp,
+            stock_opp,
+            deck_opp,
+            &self.slot_power_cache,
+            &mut self.player_block_cache_opp[p],
+        );
+        self.player_block_cache_version[p] = self.player_obs_version[p];
+    }
+
     pub fn apply_action_id(&mut self, action_id: usize) -> Result<StepOutcome> {
         self.apply_action_id_internal(action_id, true)
     }
@@ -668,12 +860,7 @@ impl GameEnv {
             return Err(anyhow!("No pending decision"));
         }
         self.last_perspective = self.decision.as_ref().unwrap().player;
-        let action = match self
-            .action_cache
-            .lookup
-            .get(action_id)
-            .and_then(|a| a.clone())
-        {
+        let action = match self.action_for_id(action_id) {
             Some(action) => action,
             None => {
                 let player = self.decision.as_ref().unwrap().player;
@@ -1373,37 +1560,37 @@ impl GameEnv {
     }
 
     pub(crate) fn update_action_cache(&mut self) {
-        if self.decision.is_some() {
-            let decision_kind = self
-                .decision
-                .as_ref()
-                .map(|d| d.kind)
-                .expect("decision kind");
-            if decision_kind == DecisionKind::AttackDeclaration
-                && self.state.turn.derived_attack.is_none()
-            {
-                self.recompute_derived_attack();
+        let (decision_kind, _) = match self.decision.as_ref() {
+            Some(decision) => (decision.kind, decision.player),
+            None => {
+                self.action_cache.clear();
+                return;
             }
-            let decision = self.decision.as_ref().expect("decision present");
-            self.last_perspective = decision.player;
-            self.action_cache.update(
-                &self.state,
-                decision,
-                self.decision_id,
-                &self.db,
-                &self.curriculum,
-                self.curriculum.allowed_card_sets_cache.as_ref(),
-            );
-        } else {
-            self.action_cache.clear();
+        };
+        if decision_kind == DecisionKind::AttackDeclaration
+            && self.state.turn.derived_attack.is_none()
+        {
+            self.recompute_derived_attack();
         }
+        let decision = self.decision.as_ref().expect("decision present");
+        self.last_perspective = decision.player;
+        self.action_cache.update(
+            &self.state,
+            decision,
+            self.decision_id,
+            &self.db,
+            &self.curriculum,
+            self.curriculum.allowed_card_sets_cache.as_ref(),
+            self.output_mask_enabled,
+            self.output_mask_bits_enabled,
+        );
     }
 
     fn should_validate_state(&self) -> bool {
         if cfg!(debug_assertions) {
             return true;
         }
-        std::env::var("WEISS_VALIDATE_STATE").ok().as_deref() == Some("1")
+        self.validate_state_enabled
     }
 
     fn maybe_validate_state(&self, context: &str) {
@@ -1729,19 +1916,68 @@ impl GameEnv {
             .as_ref()
             .map(|d| d.player)
             .unwrap_or(self.last_perspective);
-        self.refresh_slot_power_cache();
-        encode_observation_with_slot_power(
-            &self.state,
-            &self.db,
-            &self.curriculum,
-            perspective,
-            self.decision.as_ref(),
-            self.last_action_desc.as_ref(),
-            self.last_action_player,
-            self.config.observation_visibility,
-            &self.slot_power_cache,
-            &mut self.obs_buf,
-        );
+        let p0 = perspective as usize;
+        let p1 = 1 - p0;
+        let perspective_changed = self.obs_perspective != perspective;
+        let p0_dirty = self.player_block_cache_version[p0] != self.player_obs_version[p0];
+        let p1_dirty = self.player_block_cache_version[p1] != self.player_obs_version[p1];
+        let full_encode = self.obs_dirty || perspective_changed || (p0_dirty && p1_dirty);
+        if full_encode {
+            self.refresh_slot_power_cache();
+            encode_observation_with_slot_power(
+                &self.state,
+                &self.db,
+                &self.curriculum,
+                perspective,
+                self.decision.as_ref(),
+                self.last_action_desc.as_ref(),
+                self.last_action_player,
+                self.config.observation_visibility,
+                &self.slot_power_cache,
+                &mut self.obs_buf,
+            );
+            self.obs_dirty = false;
+            self.obs_perspective = perspective;
+            self.refresh_player_block_cache(0);
+            self.refresh_player_block_cache(1);
+        } else {
+            encode_obs_header(
+                &self.state,
+                perspective,
+                self.decision.as_ref(),
+                self.last_action_desc.as_ref(),
+                self.last_action_player,
+                self.config.observation_visibility,
+                &mut self.obs_buf,
+            );
+            encode_obs_reason(
+                &self.state,
+                &self.db,
+                &self.curriculum,
+                perspective,
+                self.decision.as_ref(),
+                &mut self.obs_buf,
+            );
+            encode_obs_reveal(&self.state, perspective, &mut self.obs_buf);
+            encode_obs_context(&self.state, &mut self.obs_buf);
+            if p0_dirty || p1_dirty {
+                self.refresh_slot_power_cache();
+            }
+            if p0_dirty {
+                self.refresh_player_block_cache(perspective);
+            }
+            if p1_dirty {
+                self.refresh_player_block_cache(p1 as u8);
+            }
+            if p0_dirty || p1_dirty {
+                let base0 = crate::encode::OBS_HEADER_LEN;
+                let base1 = base0 + PER_PLAYER_BLOCK_LEN;
+                self.obs_buf[base0..base0 + PER_PLAYER_BLOCK_LEN]
+                    .copy_from_slice(&self.player_block_cache_self[p0]);
+                self.obs_buf[base1..base1 + PER_PLAYER_BLOCK_LEN]
+                    .copy_from_slice(&self.player_block_cache_opp[p1]);
+            }
+        }
         let obs = if copy_obs {
             self.obs_buf.clone()
         } else {
@@ -1764,7 +2000,7 @@ impl GameEnv {
                     DecisionKind::TriggerOrder => 7,
                     DecisionKind::Choice => 8,
                 })
-                .unwrap_or(-1),
+                .unwrap_or(crate::encode::DECISION_KIND_NONE),
             current_player: self.decision.as_ref().map(|d| d.player as i8).unwrap_or(-1),
             actor: self.last_perspective as i8,
             decision_count: self.state.turn.decision_count,

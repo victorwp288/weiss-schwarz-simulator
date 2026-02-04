@@ -823,6 +823,20 @@ pub struct CardDb {
     #[serde(skip)]
     index: Vec<usize>,
     #[serde(skip)]
+    valid_by_id: Vec<bool>,
+    #[serde(skip)]
+    power_by_id: Vec<i32>,
+    #[serde(skip)]
+    soul_by_id: Vec<u8>,
+    #[serde(skip)]
+    level_by_id: Vec<u8>,
+    #[serde(skip)]
+    cost_by_id: Vec<u8>,
+    #[serde(skip)]
+    color_by_id: Vec<CardColor>,
+    #[serde(skip)]
+    card_type_by_id: Vec<CardType>,
+    #[serde(skip)]
     ability_specs: Vec<Vec<AbilitySpec>>,
     #[serde(skip)]
     compiled_ability_effects: Vec<Vec<Vec<crate::effects::EffectSpec>>>,
@@ -833,6 +847,13 @@ impl CardDb {
         let mut db = Self {
             cards,
             index: Vec::new(),
+            valid_by_id: Vec::new(),
+            power_by_id: Vec::new(),
+            soul_by_id: Vec::new(),
+            level_by_id: Vec::new(),
+            cost_by_id: Vec::new(),
+            color_by_id: Vec::new(),
+            card_type_by_id: Vec::new(),
             ability_specs: Vec::new(),
             compiled_ability_effects: Vec::new(),
         };
@@ -885,6 +906,52 @@ impl CardDb {
         self.cards.get(idx)
     }
 
+    #[inline(always)]
+    pub fn max_card_id(&self) -> CardId {
+        self.index.len().saturating_sub(1).try_into().unwrap_or(0)
+    }
+
+    #[inline(always)]
+    pub fn is_valid_id(&self, id: CardId) -> bool {
+        self.valid_by_id.get(id as usize).copied().unwrap_or(false)
+    }
+
+    #[inline(always)]
+    pub fn power_by_id(&self, id: CardId) -> i32 {
+        self.power_by_id.get(id as usize).copied().unwrap_or(0)
+    }
+
+    #[inline(always)]
+    pub fn soul_by_id(&self, id: CardId) -> u8 {
+        self.soul_by_id.get(id as usize).copied().unwrap_or(0)
+    }
+
+    #[inline(always)]
+    pub fn level_by_id(&self, id: CardId) -> u8 {
+        self.level_by_id.get(id as usize).copied().unwrap_or(0)
+    }
+
+    #[inline(always)]
+    pub fn cost_by_id(&self, id: CardId) -> u8 {
+        self.cost_by_id.get(id as usize).copied().unwrap_or(0)
+    }
+
+    #[inline(always)]
+    pub fn color_by_id(&self, id: CardId) -> CardColor {
+        self.color_by_id
+            .get(id as usize)
+            .copied()
+            .unwrap_or(CardColor::Red)
+    }
+
+    #[inline(always)]
+    pub fn card_type_by_id(&self, id: CardId) -> CardType {
+        self.card_type_by_id
+            .get(id as usize)
+            .copied()
+            .unwrap_or(CardType::Character)
+    }
+
     pub fn schema_version() -> u32 {
         WSDB_SCHEMA_VERSION
     }
@@ -917,14 +984,35 @@ impl CardDb {
             max_id = max_id.max(card.id as usize);
         }
         let mut index = vec![usize::MAX; max_id + 1];
+        let mut valid_by_id = vec![false; max_id + 1];
+        let mut power_by_id = vec![0i32; max_id + 1];
+        let mut soul_by_id = vec![0u8; max_id + 1];
+        let mut level_by_id = vec![0u8; max_id + 1];
+        let mut cost_by_id = vec![0u8; max_id + 1];
+        let mut color_by_id = vec![CardColor::Red; max_id + 1];
+        let mut card_type_by_id = vec![CardType::Character; max_id + 1];
         for (i, card) in self.cards.iter().enumerate() {
             let id = card.id as usize;
             if index[id] != usize::MAX {
                 anyhow::bail!("Duplicate CardId {id}");
             }
             index[id] = i;
+            valid_by_id[id] = true;
+            power_by_id[id] = card.power;
+            soul_by_id[id] = card.soul;
+            level_by_id[id] = card.level;
+            cost_by_id[id] = card.cost;
+            color_by_id[id] = card.color;
+            card_type_by_id[id] = card.card_type;
         }
         self.index = index;
+        self.valid_by_id = valid_by_id;
+        self.power_by_id = power_by_id;
+        self.soul_by_id = soul_by_id;
+        self.level_by_id = level_by_id;
+        self.cost_by_id = cost_by_id;
+        self.color_by_id = color_by_id;
+        self.card_type_by_id = card_type_by_id;
         self.build_ability_specs()?;
         self.build_compiled_abilities()?;
         Ok(())

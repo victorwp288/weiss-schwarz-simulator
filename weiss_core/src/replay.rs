@@ -9,7 +9,14 @@ use std::sync::mpsc::{self, Sender};
 use std::thread;
 
 const MAGIC: &[u8; 4] = b"WSR1";
-pub const REPLAY_SCHEMA_VERSION: u32 = 1;
+pub const REPLAY_SCHEMA_VERSION: u32 = 2;
+pub const REPLAY_ACTION_ID_UNKNOWN: u16 = u16::MAX;
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ReplayVisibilityMode {
+    Full,
+    Public,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EpisodeHeader {
@@ -17,6 +24,12 @@ pub struct EpisodeHeader {
     pub action_version: u32,
     pub replay_version: u32,
     pub seed: u64,
+    #[serde(default)]
+    pub base_seed: u64,
+    #[serde(default)]
+    pub episode_seed: u64,
+    #[serde(default)]
+    pub spec_hash: u64,
     pub starting_player: u8,
     pub deck_ids: [u32; 2],
     pub curriculum_id: String,
@@ -50,6 +63,8 @@ pub struct ReplayFinal {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EpisodeBody {
     pub actions: Vec<ActionDesc>,
+    #[serde(default)]
+    pub action_ids: Vec<u16>,
     pub events: Option<Vec<ReplayEvent>>,
     pub steps: Vec<StepMeta>,
     pub final_state: Option<ReplayFinal>,
@@ -68,6 +83,8 @@ pub struct ReplayConfig {
     pub out_dir: PathBuf,
     pub compress: bool,
     pub include_trigger_card_id: bool,
+    pub visibility_mode: ReplayVisibilityMode,
+    pub store_actions: bool,
     pub sample_threshold: u32,
 }
 
@@ -79,6 +96,8 @@ impl Default for ReplayConfig {
             out_dir: PathBuf::from("replays"),
             compress: false,
             include_trigger_card_id: false,
+            visibility_mode: ReplayVisibilityMode::Public,
+            store_actions: true,
             sample_threshold: 0,
         };
         config.rebuild_cache();
