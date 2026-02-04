@@ -241,3 +241,47 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
     });
     assert!(on_has_climax_window);
 }
+
+#[test]
+fn determinism_with_episode_seed_reset() {
+    let db = make_db();
+    let deck_a = vec![CARD_BASIC; 50];
+    let deck_b = vec![CARD_BASIC; 50];
+    let config = make_config(deck_a, deck_b);
+    let replay_config = ReplayConfig {
+        enabled: true,
+        sample_rate: 1.0,
+        ..Default::default()
+    };
+
+    let episode_seed = 424242u64;
+    let mut env_a = GameEnv::new(
+        db.clone(),
+        config.clone(),
+        CurriculumConfig::default(),
+        999,
+        replay_config.clone(),
+        None,
+        0,
+    );
+    env_a.reset_with_episode_seed(episode_seed);
+
+    let mut env_b = GameEnv::new(
+        db,
+        config,
+        CurriculumConfig::default(),
+        123,
+        replay_config,
+        None,
+        0,
+    );
+    env_b.reset_with_episode_seed(episode_seed);
+
+    let (kinds_a, masks_a, _actions_a, hash_a, replay_hash_a) = run_episode(&mut env_a, 40);
+    let (kinds_b, masks_b, _actions_b, hash_b, replay_hash_b) = run_episode(&mut env_b, 40);
+
+    assert_eq!(kinds_a, kinds_b);
+    assert_eq!(masks_a, masks_b);
+    assert_eq!(hash_a, hash_b);
+    assert_eq!(replay_hash_a, replay_hash_b);
+}

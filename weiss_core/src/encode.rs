@@ -4,13 +4,17 @@ use crate::legal::{ActionDesc, Decision, DecisionKind};
 use crate::state::{
     AttackType, GameState, ModifierKind, Phase, StageStatus, TerminalResult, REVEAL_HISTORY_LEN,
 };
+use serde::Serialize;
 
 pub const OBS_ENCODING_VERSION: u32 = 1;
 pub const ACTION_ENCODING_VERSION: u32 = 1;
-pub const POLICY_VERSION: u32 = 1;
+pub const POLICY_VERSION: u32 = 2;
 pub const SPEC_HASH: u64 = ((OBS_ENCODING_VERSION as u64) << 32)
     | ((ACTION_ENCODING_VERSION as u64) << 16)
     | (POLICY_VERSION as u64);
+
+pub const ACTOR_NONE: i8 = -1;
+pub const DECISION_KIND_NONE: i8 = -1;
 
 pub const MAX_HAND: usize = 50;
 pub const MAX_DECK: usize = 50;
@@ -62,6 +66,7 @@ pub const CHOICE_NEXT_ID: usize = CHOICE_PREV_ID + 1;
 
 pub const CONCEDE_ID: usize = CHOICE_NEXT_ID + 1;
 pub const ACTION_SPACE_SIZE: usize = CONCEDE_ID + 1;
+pub const ACTION_SPACE_WORDS: usize = ACTION_SPACE_SIZE.div_ceil(64);
 
 pub const OBS_HEADER_LEN: usize = 16;
 pub const OBS_REASON_LEN: usize = 8;
@@ -105,6 +110,745 @@ pub const OBS_REVEAL_BASE: usize = OBS_REASON_BASE + OBS_REASON_LEN;
 pub const OBS_CONTEXT_BASE: usize = OBS_REVEAL_BASE + OBS_REVEAL_LEN;
 pub const OBS_LEN: usize = OBS_CONTEXT_BASE + OBS_CONTEXT_LEN;
 
+#[derive(Clone, Debug, Serialize)]
+pub struct ObsFieldSpec {
+    pub name: &'static str,
+    pub index: usize,
+    pub visibility: &'static str,
+    pub description: &'static str,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ObsSliceSpec {
+    pub name: &'static str,
+    pub start: usize,
+    pub len: usize,
+    pub visibility: &'static str,
+    pub description: &'static str,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct PlayerBlockSpec {
+    pub player_index: u8,
+    pub base: usize,
+    pub len: usize,
+    pub slices: Vec<ObsSliceSpec>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ObservationSpec {
+    pub obs_encoding_version: u32,
+    pub obs_len: usize,
+    pub dtype: &'static str,
+    pub self_first: bool,
+    pub sentinel_hidden: i32,
+    pub sentinel_empty_card: i32,
+    pub header_fields: Vec<ObsFieldSpec>,
+    pub player_blocks: Vec<PlayerBlockSpec>,
+    pub tail_slices: Vec<ObsSliceSpec>,
+    pub notes: Vec<&'static str>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum ActionParamValue {
+    Int(i32),
+    Str(&'static str),
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct ActionParam {
+    pub name: &'static str,
+    pub value: ActionParamValue,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct ActionIdDesc {
+    pub family: &'static str,
+    pub params: Vec<ActionParam>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ActionFamilySpec {
+    pub name: &'static str,
+    pub base: usize,
+    pub count: usize,
+    pub params: Vec<&'static str>,
+    pub description: &'static str,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ActionSpec {
+    pub action_encoding_version: u32,
+    pub action_space_size: usize,
+    pub pass_action_id: usize,
+    pub attack_type_encoding: Vec<(&'static str, i32)>,
+    pub constants: Vec<(&'static str, usize)>,
+    pub families: Vec<ActionFamilySpec>,
+    pub notes: Vec<&'static str>,
+}
+
+pub fn observation_spec() -> ObservationSpec {
+    let header_fields = vec![
+        ObsFieldSpec {
+            name: "active_player",
+            index: 0,
+            visibility: "public",
+            description: "active player id",
+        },
+        ObsFieldSpec {
+            name: "phase",
+            index: 1,
+            visibility: "public",
+            description: "phase enum encoding",
+        },
+        ObsFieldSpec {
+            name: "decision_kind",
+            index: 2,
+            visibility: "public",
+            description: "decision kind encoding (or -1 if none)",
+        },
+        ObsFieldSpec {
+            name: "decision_player",
+            index: 3,
+            visibility: "public",
+            description: "player who must act (or -1)",
+        },
+        ObsFieldSpec {
+            name: "terminal",
+            index: 4,
+            visibility: "public",
+            description: "terminal encoding",
+        },
+        ObsFieldSpec {
+            name: "last_action_kind",
+            index: 5,
+            visibility: "public_or_masked",
+            description: "last action kind (masked when opponent action hidden)",
+        },
+        ObsFieldSpec {
+            name: "last_action_param1",
+            index: 6,
+            visibility: "public_or_masked",
+            description: "last action param1 (masked when hidden)",
+        },
+        ObsFieldSpec {
+            name: "last_action_param2",
+            index: 7,
+            visibility: "public_or_masked",
+            description: "last action param2 (masked when hidden)",
+        },
+        ObsFieldSpec {
+            name: "attack_attacker_slot",
+            index: 8,
+            visibility: "public",
+            description: "attacker slot (or -1)",
+        },
+        ObsFieldSpec {
+            name: "attack_defender_slot",
+            index: 9,
+            visibility: "public",
+            description: "defender slot (or -1)",
+        },
+        ObsFieldSpec {
+            name: "attack_type",
+            index: 10,
+            visibility: "public",
+            description: "attack type encoding",
+        },
+        ObsFieldSpec {
+            name: "attack_damage",
+            index: 11,
+            visibility: "public",
+            description: "pending attack damage",
+        },
+        ObsFieldSpec {
+            name: "counter_power",
+            index: 12,
+            visibility: "public",
+            description: "counter power (if any)",
+        },
+        ObsFieldSpec {
+            name: "focus_slot",
+            index: 13,
+            visibility: "public",
+            description: "focus slot (or -1)",
+        },
+        ObsFieldSpec {
+            name: "choice_page_start",
+            index: 14,
+            visibility: "public",
+            description: "choice pagination start (or -1)",
+        },
+        ObsFieldSpec {
+            name: "choice_total_candidates",
+            index: 15,
+            visibility: "public",
+            description: "choice total candidates (or -1)",
+        },
+    ];
+
+    let mut player_blocks = Vec::new();
+    for player_index in 0..2u8 {
+        let base = OBS_HEADER_LEN + (player_index as usize) * PER_PLAYER_BLOCK_LEN;
+        let mut slices = Vec::new();
+        slices.push(ObsSliceSpec {
+            name: "counts",
+            start: base,
+            len: PER_PLAYER_COUNTS,
+            visibility: "public",
+            description: "zone counts (level, clock, deck, hand, stock, waiting_room, memory, climax, resolution)",
+        });
+        let stage_start = base + PER_PLAYER_COUNTS;
+        slices.push(ObsSliceSpec {
+            name: "stage",
+            start: stage_start,
+            len: PER_PLAYER_STAGE,
+            visibility: "public",
+            description: "stage slots (card id, status, attacked, power, soul)",
+        });
+        let mut offset = stage_start + PER_PLAYER_STAGE;
+        slices.push(ObsSliceSpec {
+            name: "climax_top",
+            start: offset,
+            len: PER_PLAYER_CLIMAX_TOP,
+            visibility: "public",
+            description: "top climax card id",
+        });
+        offset += PER_PLAYER_CLIMAX_TOP;
+        slices.push(ObsSliceSpec {
+            name: "level",
+            start: offset,
+            len: PER_PLAYER_LEVEL,
+            visibility: "public",
+            description: "level zone (top cards)",
+        });
+        offset += PER_PLAYER_LEVEL;
+        slices.push(ObsSliceSpec {
+            name: "clock_top",
+            start: offset,
+            len: PER_PLAYER_CLOCK_TOP,
+            visibility: "public",
+            description: "clock top cards",
+        });
+        offset += PER_PLAYER_CLOCK_TOP;
+        slices.push(ObsSliceSpec {
+            name: "waiting_top",
+            start: offset,
+            len: PER_PLAYER_WAITING_TOP,
+            visibility: "public",
+            description: "waiting room top cards",
+        });
+        offset += PER_PLAYER_WAITING_TOP;
+        slices.push(ObsSliceSpec {
+            name: "resolution_top",
+            start: offset,
+            len: PER_PLAYER_RESOLUTION_TOP,
+            visibility: "public",
+            description: "resolution top cards",
+        });
+        offset += PER_PLAYER_RESOLUTION_TOP;
+        slices.push(ObsSliceSpec {
+            name: "stock_top",
+            start: offset,
+            len: PER_PLAYER_STOCK_TOP,
+            visibility: "private_opponent_masked",
+            description: "stock top cards (masked for opponent in public mode)",
+        });
+        offset += PER_PLAYER_STOCK_TOP;
+        slices.push(ObsSliceSpec {
+            name: "hand",
+            start: offset,
+            len: PER_PLAYER_HAND,
+            visibility: "private_opponent_masked",
+            description: "hand cards (masked for opponent in public mode)",
+        });
+        offset += PER_PLAYER_HAND;
+        slices.push(ObsSliceSpec {
+            name: "deck",
+            start: offset,
+            len: PER_PLAYER_DECK,
+            visibility: "private_opponent_masked",
+            description: "deck cards (masked for opponent in public mode)",
+        });
+        player_blocks.push(PlayerBlockSpec {
+            player_index,
+            base,
+            len: PER_PLAYER_BLOCK_LEN,
+            slices,
+        });
+    }
+
+    let tail_slices = vec![
+        ObsSliceSpec {
+            name: "reason_bits",
+            start: OBS_REASON_BASE,
+            len: OBS_REASON_LEN,
+            visibility: "actor_only",
+            description: "reason bits (only set for acting player)",
+        },
+        ObsSliceSpec {
+            name: "reveal_history",
+            start: OBS_REVEAL_BASE,
+            len: OBS_REVEAL_LEN,
+            visibility: "viewer_only",
+            description: "recent revealed card ids for viewer",
+        },
+        ObsSliceSpec {
+            name: "context_bits",
+            start: OBS_CONTEXT_BASE,
+            len: OBS_CONTEXT_LEN,
+            visibility: "public",
+            description: "context bits (priority, choice, stack, encore)",
+        },
+    ];
+
+    ObservationSpec {
+        obs_encoding_version: OBS_ENCODING_VERSION,
+        obs_len: OBS_LEN,
+        dtype: "int32",
+        self_first: true,
+        sentinel_hidden: -1,
+        sentinel_empty_card: 0,
+        header_fields,
+        player_blocks,
+        tail_slices,
+        notes: vec![
+            "Observation is encoded from acting player perspective.",
+            "Self player block comes first; opponent block comes second.",
+            "Hidden zones are masked with sentinel_hidden in public visibility.",
+        ],
+    }
+}
+
+pub fn observation_spec_json() -> String {
+    serde_json::to_string_pretty(&observation_spec()).unwrap_or_else(|_| "{}".to_string())
+}
+
+pub fn action_spec() -> ActionSpec {
+    ActionSpec {
+        action_encoding_version: ACTION_ENCODING_VERSION,
+        action_space_size: ACTION_SPACE_SIZE,
+        pass_action_id: PASS_ACTION_ID,
+        attack_type_encoding: vec![("frontal", 0), ("side", 1), ("direct", 2)],
+        constants: vec![
+            ("max_hand", MAX_HAND),
+            ("max_stage", MAX_STAGE),
+            ("attack_slot_count", ATTACK_SLOT_COUNT),
+            ("choice_page_size", CHOICE_COUNT),
+            ("trigger_order_count", TRIGGER_ORDER_COUNT),
+            ("level_up_count", LEVEL_UP_COUNT),
+        ],
+        families: vec![
+            ActionFamilySpec {
+                name: "mulligan_confirm",
+                base: MULLIGAN_CONFIRM_ID,
+                count: 1,
+                params: vec![],
+                description: "confirm mulligan selection",
+            },
+            ActionFamilySpec {
+                name: "mulligan_select",
+                base: MULLIGAN_SELECT_BASE,
+                count: MULLIGAN_SELECT_COUNT,
+                params: vec!["hand_index"],
+                description: "toggle mulligan selection",
+            },
+            ActionFamilySpec {
+                name: "pass",
+                base: PASS_ACTION_ID,
+                count: 1,
+                params: vec![],
+                description: "contextual pass",
+            },
+            ActionFamilySpec {
+                name: "clock_from_hand",
+                base: CLOCK_HAND_BASE,
+                count: CLOCK_HAND_COUNT,
+                params: vec!["hand_index"],
+                description: "clock a card from hand",
+            },
+            ActionFamilySpec {
+                name: "main_play_character",
+                base: MAIN_PLAY_CHAR_BASE,
+                count: MAIN_PLAY_CHAR_COUNT,
+                params: vec!["hand_index", "stage_slot"],
+                description: "play character to stage",
+            },
+            ActionFamilySpec {
+                name: "main_play_event",
+                base: MAIN_PLAY_EVENT_BASE,
+                count: MAIN_PLAY_EVENT_COUNT,
+                params: vec!["hand_index"],
+                description: "play event",
+            },
+            ActionFamilySpec {
+                name: "main_move",
+                base: MAIN_MOVE_BASE,
+                count: MAIN_MOVE_COUNT,
+                params: vec!["from_slot", "to_slot"],
+                description: "move character between stage slots",
+            },
+            ActionFamilySpec {
+                name: "climax_play",
+                base: CLIMAX_PLAY_BASE,
+                count: CLIMAX_PLAY_COUNT,
+                params: vec!["hand_index"],
+                description: "play climax",
+            },
+            ActionFamilySpec {
+                name: "attack",
+                base: ATTACK_BASE,
+                count: ATTACK_COUNT,
+                params: vec!["slot", "attack_type"],
+                description: "declare attack",
+            },
+            ActionFamilySpec {
+                name: "level_up",
+                base: LEVEL_UP_BASE,
+                count: LEVEL_UP_COUNT,
+                params: vec!["index"],
+                description: "select level-up cards",
+            },
+            ActionFamilySpec {
+                name: "encore_pay",
+                base: ENCORE_PAY_BASE,
+                count: ENCORE_PAY_COUNT,
+                params: vec!["slot"],
+                description: "pay encore cost for a slot",
+            },
+            ActionFamilySpec {
+                name: "encore_decline",
+                base: ENCORE_DECLINE_BASE,
+                count: ENCORE_DECLINE_COUNT,
+                params: vec!["slot"],
+                description: "decline encore for a slot",
+            },
+            ActionFamilySpec {
+                name: "trigger_order",
+                base: TRIGGER_ORDER_BASE,
+                count: TRIGGER_ORDER_COUNT,
+                params: vec!["index"],
+                description: "choose trigger order",
+            },
+            ActionFamilySpec {
+                name: "choice_select",
+                base: CHOICE_BASE,
+                count: CHOICE_COUNT,
+                params: vec!["index"],
+                description: "select choice option on current page",
+            },
+            ActionFamilySpec {
+                name: "choice_prev_page",
+                base: CHOICE_PREV_ID,
+                count: 1,
+                params: vec![],
+                description: "choice pagination previous",
+            },
+            ActionFamilySpec {
+                name: "choice_next_page",
+                base: CHOICE_NEXT_ID,
+                count: 1,
+                params: vec![],
+                description: "choice pagination next",
+            },
+            ActionFamilySpec {
+                name: "concede",
+                base: CONCEDE_ID,
+                count: 1,
+                params: vec![],
+                description: "concede game (if enabled)",
+            },
+        ],
+        notes: vec![
+            "Action ids are stable within ACTION_ENCODING_VERSION.",
+            "Use legality masks or legal_action_ids for valid choices.",
+        ],
+    }
+}
+
+pub fn action_spec_json() -> String {
+    serde_json::to_string_pretty(&action_spec()).unwrap_or_else(|_| "{}".to_string())
+}
+
+pub fn decode_action_id(id: usize) -> Option<ActionIdDesc> {
+    if id >= ACTION_SPACE_SIZE {
+        return None;
+    }
+    if id == MULLIGAN_CONFIRM_ID {
+        return Some(ActionIdDesc {
+            family: "mulligan_confirm",
+            params: vec![],
+        });
+    }
+    if (MULLIGAN_SELECT_BASE..MULLIGAN_SELECT_BASE + MULLIGAN_SELECT_COUNT).contains(&id) {
+        let hand_index = (id - MULLIGAN_SELECT_BASE) as i32;
+        return Some(ActionIdDesc {
+            family: "mulligan_select",
+            params: vec![ActionParam {
+                name: "hand_index",
+                value: ActionParamValue::Int(hand_index),
+            }],
+        });
+    }
+    if id == PASS_ACTION_ID {
+        return Some(ActionIdDesc {
+            family: "pass",
+            params: vec![],
+        });
+    }
+    if (CLOCK_HAND_BASE..CLOCK_HAND_BASE + CLOCK_HAND_COUNT).contains(&id) {
+        let hand_index = (id - CLOCK_HAND_BASE) as i32;
+        return Some(ActionIdDesc {
+            family: "clock_from_hand",
+            params: vec![ActionParam {
+                name: "hand_index",
+                value: ActionParamValue::Int(hand_index),
+            }],
+        });
+    }
+    if (MAIN_PLAY_CHAR_BASE..MAIN_PLAY_CHAR_BASE + MAIN_PLAY_CHAR_COUNT).contains(&id) {
+        let offset = id - MAIN_PLAY_CHAR_BASE;
+        let hand_index = (offset / MAX_STAGE) as i32;
+        let stage_slot = (offset % MAX_STAGE) as i32;
+        return Some(ActionIdDesc {
+            family: "main_play_character",
+            params: vec![
+                ActionParam {
+                    name: "hand_index",
+                    value: ActionParamValue::Int(hand_index),
+                },
+                ActionParam {
+                    name: "stage_slot",
+                    value: ActionParamValue::Int(stage_slot),
+                },
+            ],
+        });
+    }
+    if (MAIN_PLAY_EVENT_BASE..MAIN_PLAY_EVENT_BASE + MAIN_PLAY_EVENT_COUNT).contains(&id) {
+        let hand_index = (id - MAIN_PLAY_EVENT_BASE) as i32;
+        return Some(ActionIdDesc {
+            family: "main_play_event",
+            params: vec![ActionParam {
+                name: "hand_index",
+                value: ActionParamValue::Int(hand_index),
+            }],
+        });
+    }
+    if (MAIN_MOVE_BASE..MAIN_MOVE_BASE + MAIN_MOVE_COUNT).contains(&id) {
+        let offset = id - MAIN_MOVE_BASE;
+        let from_slot = offset / (MAX_STAGE - 1);
+        let to_index = offset % (MAX_STAGE - 1);
+        let to_slot = if to_index >= from_slot {
+            to_index + 1
+        } else {
+            to_index
+        };
+        return Some(ActionIdDesc {
+            family: "main_move",
+            params: vec![
+                ActionParam {
+                    name: "from_slot",
+                    value: ActionParamValue::Int(from_slot as i32),
+                },
+                ActionParam {
+                    name: "to_slot",
+                    value: ActionParamValue::Int(to_slot as i32),
+                },
+            ],
+        });
+    }
+    if (CLIMAX_PLAY_BASE..CLIMAX_PLAY_BASE + CLIMAX_PLAY_COUNT).contains(&id) {
+        let hand_index = (id - CLIMAX_PLAY_BASE) as i32;
+        return Some(ActionIdDesc {
+            family: "climax_play",
+            params: vec![ActionParam {
+                name: "hand_index",
+                value: ActionParamValue::Int(hand_index),
+            }],
+        });
+    }
+    if (ATTACK_BASE..ATTACK_BASE + ATTACK_COUNT).contains(&id) {
+        let offset = id - ATTACK_BASE;
+        let slot = (offset / 3) as i32;
+        let attack_type = match (offset % 3) as i32 {
+            0 => "frontal",
+            1 => "side",
+            _ => "direct",
+        };
+        return Some(ActionIdDesc {
+            family: "attack",
+            params: vec![
+                ActionParam {
+                    name: "slot",
+                    value: ActionParamValue::Int(slot),
+                },
+                ActionParam {
+                    name: "attack_type",
+                    value: ActionParamValue::Str(attack_type),
+                },
+            ],
+        });
+    }
+    if (LEVEL_UP_BASE..LEVEL_UP_BASE + LEVEL_UP_COUNT).contains(&id) {
+        let index = (id - LEVEL_UP_BASE) as i32;
+        return Some(ActionIdDesc {
+            family: "level_up",
+            params: vec![ActionParam {
+                name: "index",
+                value: ActionParamValue::Int(index),
+            }],
+        });
+    }
+    if (ENCORE_PAY_BASE..ENCORE_PAY_BASE + ENCORE_PAY_COUNT).contains(&id) {
+        let slot = (id - ENCORE_PAY_BASE) as i32;
+        return Some(ActionIdDesc {
+            family: "encore_pay",
+            params: vec![ActionParam {
+                name: "slot",
+                value: ActionParamValue::Int(slot),
+            }],
+        });
+    }
+    if (ENCORE_DECLINE_BASE..ENCORE_DECLINE_BASE + ENCORE_DECLINE_COUNT).contains(&id) {
+        let slot = (id - ENCORE_DECLINE_BASE) as i32;
+        return Some(ActionIdDesc {
+            family: "encore_decline",
+            params: vec![ActionParam {
+                name: "slot",
+                value: ActionParamValue::Int(slot),
+            }],
+        });
+    }
+    if (TRIGGER_ORDER_BASE..TRIGGER_ORDER_BASE + TRIGGER_ORDER_COUNT).contains(&id) {
+        let index = (id - TRIGGER_ORDER_BASE) as i32;
+        return Some(ActionIdDesc {
+            family: "trigger_order",
+            params: vec![ActionParam {
+                name: "index",
+                value: ActionParamValue::Int(index),
+            }],
+        });
+    }
+    if (CHOICE_BASE..CHOICE_BASE + CHOICE_COUNT).contains(&id) {
+        let index = (id - CHOICE_BASE) as i32;
+        return Some(ActionIdDesc {
+            family: "choice_select",
+            params: vec![ActionParam {
+                name: "index",
+                value: ActionParamValue::Int(index),
+            }],
+        });
+    }
+    if id == CHOICE_PREV_ID {
+        return Some(ActionIdDesc {
+            family: "choice_prev_page",
+            params: vec![],
+        });
+    }
+    if id == CHOICE_NEXT_ID {
+        return Some(ActionIdDesc {
+            family: "choice_next_page",
+            params: vec![],
+        });
+    }
+    if id == CONCEDE_ID {
+        return Some(ActionIdDesc {
+            family: "concede",
+            params: vec![],
+        });
+    }
+    None
+}
+
+pub fn action_desc_for_id(id: usize) -> Option<ActionDesc> {
+    if id >= ACTION_SPACE_SIZE {
+        return None;
+    }
+    if id == MULLIGAN_CONFIRM_ID {
+        return Some(ActionDesc::MulliganConfirm);
+    }
+    if (MULLIGAN_SELECT_BASE..MULLIGAN_SELECT_BASE + MULLIGAN_SELECT_COUNT).contains(&id) {
+        let hand_index = (id - MULLIGAN_SELECT_BASE) as u8;
+        return Some(ActionDesc::MulliganSelect { hand_index });
+    }
+    if id == PASS_ACTION_ID {
+        return Some(ActionDesc::Pass);
+    }
+    if (CLOCK_HAND_BASE..CLOCK_HAND_BASE + CLOCK_HAND_COUNT).contains(&id) {
+        let hand_index = (id - CLOCK_HAND_BASE) as u8;
+        return Some(ActionDesc::Clock { hand_index });
+    }
+    if (MAIN_PLAY_CHAR_BASE..MAIN_PLAY_CHAR_BASE + MAIN_PLAY_CHAR_COUNT).contains(&id) {
+        let offset = id - MAIN_PLAY_CHAR_BASE;
+        let hand_index = (offset / MAX_STAGE) as u8;
+        let stage_slot = (offset % MAX_STAGE) as u8;
+        return Some(ActionDesc::MainPlayCharacter {
+            hand_index,
+            stage_slot,
+        });
+    }
+    if (MAIN_PLAY_EVENT_BASE..MAIN_PLAY_EVENT_BASE + MAIN_PLAY_EVENT_COUNT).contains(&id) {
+        let hand_index = (id - MAIN_PLAY_EVENT_BASE) as u8;
+        return Some(ActionDesc::MainPlayEvent { hand_index });
+    }
+    if (MAIN_MOVE_BASE..MAIN_MOVE_BASE + MAIN_MOVE_COUNT).contains(&id) {
+        let offset = id - MAIN_MOVE_BASE;
+        let from_slot = (offset / (MAX_STAGE - 1)) as u8;
+        let to_index = (offset % (MAX_STAGE - 1)) as u8;
+        let to_slot = if to_index < from_slot {
+            to_index
+        } else {
+            to_index + 1
+        };
+        return Some(ActionDesc::MainMove { from_slot, to_slot });
+    }
+    if (CLIMAX_PLAY_BASE..CLIMAX_PLAY_BASE + CLIMAX_PLAY_COUNT).contains(&id) {
+        let hand_index = (id - CLIMAX_PLAY_BASE) as u8;
+        return Some(ActionDesc::ClimaxPlay { hand_index });
+    }
+    if (ATTACK_BASE..ATTACK_BASE + ATTACK_COUNT).contains(&id) {
+        let offset = id - ATTACK_BASE;
+        let slot = (offset / 3) as u8;
+        let attack_type = match (offset % 3) as i32 {
+            0 => AttackType::Frontal,
+            1 => AttackType::Side,
+            _ => AttackType::Direct,
+        };
+        return Some(ActionDesc::Attack { slot, attack_type });
+    }
+    if (LEVEL_UP_BASE..LEVEL_UP_BASE + LEVEL_UP_COUNT).contains(&id) {
+        let index = (id - LEVEL_UP_BASE) as u8;
+        return Some(ActionDesc::LevelUp { index });
+    }
+    if (ENCORE_PAY_BASE..ENCORE_PAY_BASE + ENCORE_PAY_COUNT).contains(&id) {
+        let slot = (id - ENCORE_PAY_BASE) as u8;
+        return Some(ActionDesc::EncorePay { slot });
+    }
+    if (ENCORE_DECLINE_BASE..ENCORE_DECLINE_BASE + ENCORE_DECLINE_COUNT).contains(&id) {
+        let slot = (id - ENCORE_DECLINE_BASE) as u8;
+        return Some(ActionDesc::EncoreDecline { slot });
+    }
+    if (TRIGGER_ORDER_BASE..TRIGGER_ORDER_BASE + TRIGGER_ORDER_COUNT).contains(&id) {
+        let index = (id - TRIGGER_ORDER_BASE) as u8;
+        return Some(ActionDesc::TriggerOrder { index });
+    }
+    if (CHOICE_BASE..CHOICE_BASE + CHOICE_COUNT).contains(&id) {
+        let index = (id - CHOICE_BASE) as u8;
+        return Some(ActionDesc::ChoiceSelect { index });
+    }
+    if id == CHOICE_PREV_ID {
+        return Some(ActionDesc::ChoicePrevPage);
+    }
+    if id == CHOICE_NEXT_ID {
+        return Some(ActionDesc::ChoiceNextPage);
+    }
+    if id == CONCEDE_ID {
+        return Some(ActionDesc::Concede);
+    }
+    None
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn encode_observation(
     state: &GameState,
@@ -134,22 +878,16 @@ pub fn encode_observation(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn encode_observation_with_slot_power(
+pub(crate) fn encode_obs_header(
     state: &GameState,
-    db: &CardDb,
-    curriculum: &CurriculumConfig,
     perspective: u8,
     decision: Option<&Decision>,
     last_action: Option<&ActionDesc>,
     last_action_player: Option<u8>,
     visibility: ObservationVisibility,
-    slot_powers: &[[i32; MAX_STAGE]; 2],
     out: &mut [i32],
 ) {
-    assert!(out.len() >= OBS_LEN);
-    out.fill(0);
-    let p0 = perspective as usize;
-    let p1 = 1 - p0;
+    assert!(out.len() >= OBS_HEADER_LEN);
     out[0] = state.turn.active_player as i32;
     out[1] = phase_to_i32(state.turn.phase);
     out[2] = decision_kind_to_i32(decision.map(|d| d.kind));
@@ -187,152 +925,274 @@ pub(crate) fn encode_observation_with_slot_power(
         out[14] = -1;
         out[15] = -1;
     }
+}
 
-    let mut offset = OBS_HEADER_LEN;
-    for (idx, player_index) in [p0, p1].iter().enumerate() {
-        let p = &state.players[*player_index];
-        out[offset] = p.level.len() as i32;
-        out[offset + 1] = p.clock.len() as i32;
-        out[offset + 2] = p.deck.len() as i32;
-        out[offset + 3] = p.hand.len() as i32;
-        out[offset + 4] = p.stock.len() as i32;
-        out[offset + 5] = p.waiting_room.len() as i32;
-        let memory_visible =
-            if visibility == ObservationVisibility::Public && !curriculum.memory_is_public {
-                *player_index == perspective as usize
-            } else {
-                true
-            };
-        out[offset + 6] = if memory_visible {
-            p.memory.len() as i32
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn encode_obs_player_block(
+    state: &GameState,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    perspective: u8,
+    player_index: u8,
+    visibility: ObservationVisibility,
+    slot_powers: &[[i32; MAX_STAGE]; 2],
+    out: &mut [i32],
+) {
+    assert!(out.len() >= OBS_HEADER_LEN + 2 * PER_PLAYER_BLOCK_LEN);
+    let p = player_index as usize;
+    let block_index = if p == perspective as usize { 0 } else { 1 };
+    let is_self = block_index == 0;
+    let memory_visible =
+        visibility == ObservationVisibility::Full || curriculum.memory_is_public || is_self;
+    let hand_visible = visibility == ObservationVisibility::Full || is_self;
+    let stock_visible = visibility == ObservationVisibility::Full || is_self;
+    let deck_visible = visibility == ObservationVisibility::Full || is_self;
+    let base = OBS_HEADER_LEN + block_index * PER_PLAYER_BLOCK_LEN;
+    let block = &mut out[base..base + PER_PLAYER_BLOCK_LEN];
+    encode_obs_player_block_into(
+        state,
+        db,
+        player_index,
+        memory_visible,
+        hand_visible,
+        stock_visible,
+        deck_visible,
+        slot_powers,
+        block,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn encode_obs_player_block_into(
+    state: &GameState,
+    db: &CardDb,
+    player_index: u8,
+    memory_visible: bool,
+    hand_visible: bool,
+    stock_visible: bool,
+    deck_visible: bool,
+    slot_powers: &[[i32; MAX_STAGE]; 2],
+    out: &mut [i32],
+) {
+    assert!(out.len() >= PER_PLAYER_BLOCK_LEN);
+    let p = player_index as usize;
+    let mut offset = 0;
+    let player = &state.players[p];
+    out[offset] = player.level.len() as i32;
+    out[offset + 1] = player.clock.len() as i32;
+    out[offset + 2] = player.deck.len() as i32;
+    out[offset + 3] = player.hand.len() as i32;
+    out[offset + 4] = player.stock.len() as i32;
+    out[offset + 5] = player.waiting_room.len() as i32;
+    out[offset + 6] = if memory_visible {
+        player.memory.len() as i32
+    } else {
+        0
+    };
+    out[offset + 7] = player.climax.len() as i32;
+    out[offset + 8] = player.resolution.len() as i32;
+    offset += PER_PLAYER_COUNTS;
+
+    for (slot, slot_state) in player.stage.iter().enumerate() {
+        let card_id = slot_state.card.map(|c| c.id).unwrap_or(0) as i32;
+        let status = if slot_state.card.is_some() {
+            status_to_i32(slot_state.status)
         } else {
             0
         };
-        out[offset + 7] = p.climax.len() as i32;
-        out[offset + 8] = p.resolution.len() as i32;
-        offset += PER_PLAYER_COUNTS;
-
-        for (slot, slot_state) in p.stage.iter().enumerate() {
-            let card_id = slot_state.card.map(|c| c.id).unwrap_or(0) as i32;
-            let status = if slot_state.card.is_some() {
-                status_to_i32(slot_state.status)
-            } else {
-                0
-            };
-            let has_attacked = if slot_state.has_attacked { 1 } else { 0 };
-            let (power, soul) = if let Some(card) = slot_state.card.and_then(|inst| db.get(inst.id))
-            {
-                let power = slot_powers[*player_index][slot];
-                let soul = card.soul as i32;
-                (power, soul)
-            } else {
-                (0, 0)
-            };
-            let base = offset + slot * PER_STAGE_SLOT;
-            out[base] = card_id;
-            out[base + 1] = status;
-            out[base + 2] = has_attacked;
-            out[base + 3] = power;
-            out[base + 4] = soul;
-        }
-        offset += PER_PLAYER_STAGE;
-
-        out[offset] = p.climax.last().map(|c| c.id).unwrap_or(0) as i32;
-        offset += PER_PLAYER_CLIMAX_TOP;
-
-        for i in 0..MAX_LEVEL {
-            out[offset + i] = p.level.get(i).map(|c| c.id).unwrap_or(0) as i32;
-        }
-        offset += PER_PLAYER_LEVEL;
-
-        for i in 0..TOP_CLOCK {
-            let idx = p.clock.len().saturating_sub(1 + i);
-            let value = if idx < p.clock.len() {
-                p.clock[idx].id as i32
-            } else {
-                0
-            };
-            out[offset + i] = value;
-        }
-        offset += PER_PLAYER_CLOCK_TOP;
-
-        for i in 0..TOP_WAITING_ROOM {
-            let idx = p.waiting_room.len().saturating_sub(1 + i);
-            let value = if idx < p.waiting_room.len() {
-                p.waiting_room[idx].id as i32
-            } else {
-                0
-            };
-            out[offset + i] = value;
-        }
-        offset += PER_PLAYER_WAITING_TOP;
-
-        for i in 0..TOP_RESOLUTION {
-            let idx = p.resolution.len().saturating_sub(1 + i);
-            let value = if idx < p.resolution.len() {
-                p.resolution[idx].id as i32
-            } else {
-                0
-            };
-            out[offset + i] = value;
-        }
-        offset += PER_PLAYER_RESOLUTION_TOP;
-
-        for i in 0..TOP_STOCK {
-            let value = if visibility == ObservationVisibility::Full {
-                let idx = p.stock.len().saturating_sub(1 + i);
-                if idx < p.stock.len() {
-                    p.stock[idx].id as i32
-                } else {
-                    0
-                }
-            } else {
-                -1
-            };
-            out[offset + i] = value;
-        }
-        offset += PER_PLAYER_STOCK_TOP;
-
-        for i in 0..MAX_HAND {
-            let value = if visibility == ObservationVisibility::Full || idx == 0 {
-                p.hand.get(i).map(|c| c.id).unwrap_or(0) as i32
-            } else {
-                -1
-            };
-            out[offset + i] = value;
-        }
-        offset += MAX_HAND;
-
-        for i in 0..MAX_DECK {
-            let value = if visibility == ObservationVisibility::Full {
-                if i < p.deck.len() {
-                    let deck_idx = p.deck.len() - 1 - i;
-                    p.deck[deck_idx].id as i32
-                } else {
-                    0
-                }
-            } else {
-                -1
-            };
-            out[offset + i] = value;
-        }
-        offset += MAX_DECK;
+        let has_attacked = if slot_state.has_attacked { 1 } else { 0 };
+        let (power, soul) = if let Some(card_inst) = slot_state.card {
+            let power = slot_powers[p][slot];
+            let soul = db.soul_by_id(card_inst.id) as i32;
+            (power, soul)
+        } else {
+            (0, 0)
+        };
+        let base = offset + slot * PER_STAGE_SLOT;
+        out[base] = card_id;
+        out[base + 1] = status;
+        out[base + 2] = has_attacked;
+        out[base + 3] = power;
+        out[base + 4] = soul;
     }
+    offset += PER_PLAYER_STAGE;
 
+    out[offset] = player.climax.last().map(|c| c.id).unwrap_or(0) as i32;
+    offset += PER_PLAYER_CLIMAX_TOP;
+
+    for i in 0..MAX_LEVEL {
+        out[offset + i] = player.level.get(i).map(|c| c.id).unwrap_or(0) as i32;
+    }
+    offset += PER_PLAYER_LEVEL;
+
+    for i in 0..TOP_CLOCK {
+        if i < player.clock.len() {
+            let idx = player.clock.len() - 1 - i;
+            out[offset + i] = player.clock[idx].id as i32;
+        } else {
+            out[offset + i] = 0;
+        }
+    }
+    offset += PER_PLAYER_CLOCK_TOP;
+
+    for i in 0..TOP_WAITING_ROOM {
+        if i < player.waiting_room.len() {
+            let idx = player.waiting_room.len() - 1 - i;
+            out[offset + i] = player.waiting_room[idx].id as i32;
+        } else {
+            out[offset + i] = 0;
+        }
+    }
+    offset += PER_PLAYER_WAITING_TOP;
+
+    for i in 0..TOP_RESOLUTION {
+        if i < player.resolution.len() {
+            let idx = player.resolution.len() - 1 - i;
+            out[offset + i] = player.resolution[idx].id as i32;
+        } else {
+            out[offset + i] = 0;
+        }
+    }
+    offset += PER_PLAYER_RESOLUTION_TOP;
+
+    if stock_visible {
+        for i in 0..TOP_STOCK {
+            if i < player.stock.len() {
+                let idx = player.stock.len() - 1 - i;
+                out[offset + i] = player.stock[idx].id as i32;
+            } else {
+                out[offset + i] = 0;
+            }
+        }
+    } else {
+        out[offset..offset + TOP_STOCK].fill(-1);
+    }
+    offset += PER_PLAYER_STOCK_TOP;
+
+    if hand_visible {
+        for i in 0..MAX_HAND {
+            out[offset + i] = player.hand.get(i).map(|c| c.id).unwrap_or(0) as i32;
+        }
+    } else {
+        out[offset..offset + MAX_HAND].fill(-1);
+    }
+    offset += MAX_HAND;
+
+    if deck_visible {
+        for i in 0..MAX_DECK {
+            out[offset + i] = if i < player.deck.len() {
+                let deck_idx = player.deck.len() - 1 - i;
+                player.deck[deck_idx].id as i32
+            } else {
+                0
+            };
+        }
+    } else {
+        out[offset..offset + MAX_DECK].fill(-1);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn encode_obs_reason(
+    state: &GameState,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    perspective: u8,
+    decision: Option<&Decision>,
+    out: &mut [i32],
+) {
+    assert!(out.len() >= OBS_REASON_BASE + OBS_REASON_LEN);
     let reason_bits = compute_reason_bits(state, db, curriculum, perspective, decision);
     let reason_base = OBS_REASON_BASE;
     out[reason_base..reason_base + OBS_REASON_LEN].copy_from_slice(&reason_bits);
+}
 
+pub(crate) fn encode_obs_reveal(state: &GameState, perspective: u8, out: &mut [i32]) {
+    assert!(out.len() >= OBS_REVEAL_BASE + OBS_REVEAL_LEN);
     let reveal_base = OBS_REVEAL_BASE;
     let reveal_slice = &mut out[reveal_base..reveal_base + OBS_REVEAL_LEN];
-    state.reveal_history[p0].write_chronological(reveal_slice);
+    state.reveal_history[perspective as usize].write_chronological(reveal_slice);
+}
 
+pub(crate) fn encode_obs_context(state: &GameState, out: &mut [i32]) {
+    assert!(out.len() >= OBS_CONTEXT_BASE + OBS_CONTEXT_LEN);
     let context_base = OBS_CONTEXT_BASE;
     let context_bits = compute_context_bits(state);
     out[context_base..context_base + OBS_CONTEXT_LEN].copy_from_slice(&context_bits);
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn encode_observation_with_slot_power(
+    state: &GameState,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    perspective: u8,
+    decision: Option<&Decision>,
+    last_action: Option<&ActionDesc>,
+    last_action_player: Option<u8>,
+    visibility: ObservationVisibility,
+    slot_powers: &[[i32; MAX_STAGE]; 2],
+    out: &mut [i32],
+) {
+    assert!(out.len() >= OBS_LEN);
+    encode_obs_header(
+        state,
+        perspective,
+        decision,
+        last_action,
+        last_action_player,
+        visibility,
+        out,
+    );
+    encode_obs_player_block(
+        state,
+        db,
+        curriculum,
+        perspective,
+        perspective,
+        visibility,
+        slot_powers,
+        out,
+    );
+    let other = 1 - perspective;
+    encode_obs_player_block(
+        state,
+        db,
+        curriculum,
+        perspective,
+        other,
+        visibility,
+        slot_powers,
+        out,
+    );
+    encode_obs_reason(state, db, curriculum, perspective, decision, out);
+    encode_obs_reveal(state, perspective, out);
+    encode_obs_context(state, out);
+}
+
 fn compute_slot_powers_from_state(state: &GameState, db: &CardDb, out: &mut [[i32; MAX_STAGE]; 2]) {
+    let mut has_power_mods = false;
+    for modifier in &state.modifiers {
+        if modifier.kind == ModifierKind::Power {
+            has_power_mods = true;
+            break;
+        }
+    }
+    if !has_power_mods {
+        for (player, p) in state.players.iter().enumerate() {
+            for (slot, slot_state) in p.stage.iter().enumerate() {
+                let power = if let Some(card_inst) = slot_state.card {
+                    db.power_by_id(card_inst.id)
+                        + slot_state.power_mod_turn
+                        + slot_state.power_mod_battle
+                } else {
+                    0
+                };
+                out[player][slot] = power;
+            }
+        }
+        return;
+    }
     let mut slot_card_ids = [[0u32; MAX_STAGE]; 2];
     for (player, p) in state.players.iter().enumerate() {
         for (slot, slot_state) in p.stage.iter().enumerate() {
@@ -356,8 +1216,8 @@ fn compute_slot_powers_from_state(state: &GameState, db: &CardDb, out: &mut [[i3
     }
     for (player, p) in state.players.iter().enumerate() {
         for (slot, slot_state) in p.stage.iter().enumerate() {
-            let power = if let Some(card) = slot_state.card.and_then(|inst| db.get(inst.id)) {
-                card.power
+            let power = if let Some(card_inst) = slot_state.card {
+                db.power_by_id(card_inst.id)
                     + slot_state.power_mod_turn
                     + slot_state.power_mod_battle
                     + slot_power_mods[player][slot]
@@ -517,10 +1377,9 @@ fn meets_color_requirement(
         return true;
     }
     for card_id in player.level.iter().chain(player.clock.iter()) {
-        if let Some(c) = db.get(card_id.id) {
-            if c.color == card.color {
-                return true;
-            }
+        let id = card_id.id;
+        if id != 0 && db.color_by_id(id) == card.color {
+            return true;
         }
     }
     false
@@ -791,9 +1650,228 @@ pub fn fill_action_mask(
     }
 }
 
+pub fn fill_action_mask_sparse(
+    actions: &[ActionDesc],
+    mask: &mut [u8],
+    last_action_ids: &mut Vec<u16>,
+    mask_bits: &mut [u64],
+    write_mask: bool,
+) {
+    for &id_u16 in last_action_ids.iter() {
+        let id = id_u16 as usize;
+        if id < ACTION_SPACE_SIZE {
+            if write_mask {
+                mask[id] = 0;
+            }
+            let word = id / 64;
+            let bit = id % 64;
+            if word < mask_bits.len() {
+                mask_bits[word] &= !(1u64 << bit);
+            }
+        }
+    }
+    last_action_ids.clear();
+    for (idx, action) in actions.iter().enumerate() {
+        if idx > u16::MAX as usize {
+            debug_assert!(false, "legal action count exceeds u16::MAX, cannot index");
+            break;
+        }
+        if let Some(id) = action_id_for(action) {
+            if id < ACTION_SPACE_SIZE {
+                if write_mask {
+                    mask[id] = 1;
+                }
+                if let Ok(id_u16) = u16::try_from(id) {
+                    last_action_ids.push(id_u16);
+                }
+                let word = id / 64;
+                let bit = id % 64;
+                if word < mask_bits.len() {
+                    mask_bits[word] |= 1u64 << bit;
+                }
+            }
+        }
+    }
+}
+
 pub fn build_action_mask(actions: &[ActionDesc]) -> (Vec<u8>, Vec<Option<ActionDesc>>) {
     let mut mask = vec![0u8; ACTION_SPACE_SIZE];
     let mut lookup = vec![None; ACTION_SPACE_SIZE];
     fill_action_mask(actions, &mut mask, &mut lookup);
     (mask, lookup)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const OBS_SPEC_HASH: u64 = 4199711457902658906;
+    const ACTION_SPEC_HASH: u64 = 10374799669423425379;
+
+    #[test]
+    fn observation_spec_json_snapshot_hash() {
+        let json = observation_spec_json();
+        let hash = crate::fingerprint::hash_bytes(json.as_bytes());
+        assert_eq!(hash, OBS_SPEC_HASH, "obs spec JSON hash changed");
+    }
+
+    #[test]
+    fn action_spec_json_snapshot_hash() {
+        let json = action_spec_json();
+        let hash = crate::fingerprint::hash_bytes(json.as_bytes());
+        assert_eq!(hash, ACTION_SPEC_HASH, "action spec JSON hash changed");
+    }
+
+    fn param(name: &'static str, value: ActionParamValue) -> ActionParam {
+        ActionParam { name, value }
+    }
+
+    #[test]
+    fn action_id_decode_roundtrip_samples() {
+        let samples = vec![
+            (
+                ActionDesc::MulliganConfirm,
+                ActionIdDesc {
+                    family: "mulligan_confirm",
+                    params: vec![],
+                },
+            ),
+            (
+                ActionDesc::MulliganSelect { hand_index: 2 },
+                ActionIdDesc {
+                    family: "mulligan_select",
+                    params: vec![param("hand_index", ActionParamValue::Int(2))],
+                },
+            ),
+            (
+                ActionDesc::Pass,
+                ActionIdDesc {
+                    family: "pass",
+                    params: vec![],
+                },
+            ),
+            (
+                ActionDesc::Clock { hand_index: 3 },
+                ActionIdDesc {
+                    family: "clock_from_hand",
+                    params: vec![param("hand_index", ActionParamValue::Int(3))],
+                },
+            ),
+            (
+                ActionDesc::MainPlayCharacter {
+                    hand_index: 1,
+                    stage_slot: 2,
+                },
+                ActionIdDesc {
+                    family: "main_play_character",
+                    params: vec![
+                        param("hand_index", ActionParamValue::Int(1)),
+                        param("stage_slot", ActionParamValue::Int(2)),
+                    ],
+                },
+            ),
+            (
+                ActionDesc::MainPlayEvent { hand_index: 4 },
+                ActionIdDesc {
+                    family: "main_play_event",
+                    params: vec![param("hand_index", ActionParamValue::Int(4))],
+                },
+            ),
+            (
+                ActionDesc::MainMove {
+                    from_slot: 0,
+                    to_slot: 2,
+                },
+                ActionIdDesc {
+                    family: "main_move",
+                    params: vec![
+                        param("from_slot", ActionParamValue::Int(0)),
+                        param("to_slot", ActionParamValue::Int(2)),
+                    ],
+                },
+            ),
+            (
+                ActionDesc::ClimaxPlay { hand_index: 0 },
+                ActionIdDesc {
+                    family: "climax_play",
+                    params: vec![param("hand_index", ActionParamValue::Int(0))],
+                },
+            ),
+            (
+                ActionDesc::Attack {
+                    slot: 1,
+                    attack_type: AttackType::Side,
+                },
+                ActionIdDesc {
+                    family: "attack",
+                    params: vec![
+                        param("slot", ActionParamValue::Int(1)),
+                        param("attack_type", ActionParamValue::Str("side")),
+                    ],
+                },
+            ),
+            (
+                ActionDesc::LevelUp { index: 3 },
+                ActionIdDesc {
+                    family: "level_up",
+                    params: vec![param("index", ActionParamValue::Int(3))],
+                },
+            ),
+            (
+                ActionDesc::EncorePay { slot: 2 },
+                ActionIdDesc {
+                    family: "encore_pay",
+                    params: vec![param("slot", ActionParamValue::Int(2))],
+                },
+            ),
+            (
+                ActionDesc::EncoreDecline { slot: 1 },
+                ActionIdDesc {
+                    family: "encore_decline",
+                    params: vec![param("slot", ActionParamValue::Int(1))],
+                },
+            ),
+            (
+                ActionDesc::TriggerOrder { index: 4 },
+                ActionIdDesc {
+                    family: "trigger_order",
+                    params: vec![param("index", ActionParamValue::Int(4))],
+                },
+            ),
+            (
+                ActionDesc::ChoiceSelect { index: 5 },
+                ActionIdDesc {
+                    family: "choice_select",
+                    params: vec![param("index", ActionParamValue::Int(5))],
+                },
+            ),
+            (
+                ActionDesc::ChoicePrevPage,
+                ActionIdDesc {
+                    family: "choice_prev_page",
+                    params: vec![],
+                },
+            ),
+            (
+                ActionDesc::ChoiceNextPage,
+                ActionIdDesc {
+                    family: "choice_next_page",
+                    params: vec![],
+                },
+            ),
+            (
+                ActionDesc::Concede,
+                ActionIdDesc {
+                    family: "concede",
+                    params: vec![],
+                },
+            ),
+        ];
+
+        for (action, expected) in samples {
+            let id = action_id_for(&action).expect("action id");
+            let decoded = decode_action_id(id).expect("decoded action id");
+            assert_eq!(decoded, expected);
+        }
+    }
 }

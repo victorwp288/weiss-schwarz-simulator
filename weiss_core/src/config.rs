@@ -38,6 +38,34 @@ impl Default for RewardConfig {
     }
 }
 
+impl RewardConfig {
+    pub fn validate_zero_sum(&self) -> Result<(), String> {
+        const EPS: f32 = 1e-6;
+        if !self.terminal_win.is_finite()
+            || !self.terminal_loss.is_finite()
+            || !self.terminal_draw.is_finite()
+        {
+            return Err(format!(
+                "terminal rewards must be finite (terminal_win={}, terminal_loss={}, terminal_draw={})",
+                self.terminal_win, self.terminal_loss, self.terminal_draw
+            ));
+        }
+        let terminal_sum = self.terminal_win + self.terminal_loss;
+        if terminal_sum.abs() > EPS {
+            return Err(format!(
+                "terminal rewards must be zero-sum (terminal_win + terminal_loss = {terminal_sum})"
+            ));
+        }
+        if self.terminal_draw.abs() > EPS {
+            return Err(format!(
+                "terminal_draw must be 0 for zero-sum (terminal_draw = {})",
+                self.terminal_draw
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EnvConfig {
     pub deck_lists: [Vec<CardId>; 2],

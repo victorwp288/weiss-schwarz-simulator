@@ -7,11 +7,18 @@ import numpy as np
 import weiss_sim
 
 
-def pick_first_legal_from_mask(masks: np.ndarray, actions_out: np.ndarray) -> None:
+def pick_first_legal_from_mask(
+    masks: np.ndarray, done: np.ndarray, actions_out: np.ndarray
+) -> None:
     for i in range(masks.shape[0]):
+        if bool(done[i]):
+            actions_out[i] = int(weiss_sim.PASS_ACTION_ID)
+            continue
         row = masks[i]
-        idx = int(np.argmax(row))
-        actions_out[i] = idx
+        if row.any():
+            actions_out[i] = int(np.argmax(row))
+        else:
+            actions_out[i] = int(weiss_sim.PASS_ACTION_ID)
 
 
 def pick_first_legal_from_ids(
@@ -43,7 +50,8 @@ def bench_step_mask(
         done = np.logical_or(out.terminated, out.truncated)
         if reset_done and bool(done.any()):
             out = buffers.reset_done(done)
-        pick_first_legal_from_mask(out.masks, actions)
+            done = np.logical_or(out.terminated, out.truncated)
+        pick_first_legal_from_mask(out.masks, done, actions)
         out = buffers.step(actions)
     return perf_counter() - start
 
@@ -63,18 +71,25 @@ def bench_step_ids(
             start_idx = int(buffers.legal_offsets[i])
             end_idx = int(buffers.legal_offsets[i + 1])
             if start_idx == end_idx:
-                if bool(done[i]):
-                    actions[i] = int(weiss_sim.PASS_ACTION_ID)
-                else:
-                    raise RuntimeError(
-                        f"no legal actions for live env {i}: "
-                        f"decision_id={int(out.decision_id[i])} "
-                        f"engine_status={int(out.engine_status[i])} "
-                        f"actor={int(out.actor[i])}"
-                    )
+                actions[i] = int(weiss_sim.PASS_ACTION_ID)
             else:
                 actions[i] = int(buffers.legal_ids[start_idx])
         out = buffers.step(actions)
+    return perf_counter() - start
+
+
+def bench_step_fast_first_legal(
+    buffers: weiss_sim.EnvPoolBuffers, steps: int, reset_done: bool
+) -> float:
+    actions = buffers.actions
+    out = buffers.out
+    start = perf_counter()
+    for _ in range(steps):
+        done = np.logical_or(out.terminated, out.truncated)
+        if reset_done and bool(done.any()):
+            out = buffers.reset_done(done)
+        buffers.pool.step_first_legal_into(actions, buffers.out)
+        out = buffers.out
     return perf_counter() - start
 
 
@@ -85,7 +100,9 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, default=200)
     parser.add_argument("--reset-reps", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--mode", choices=("mask", "ids", "both"), default="both")
+    parser.add_argument(
+        "--mode", choices=("mask", "ids", "fast_first_legal", "both"), default="both"
+    )
     parser.add_argument("--reset-done", action="store_true")
     args = parser.parse_args()
 
@@ -106,9 +123,16 @@ def main() -> None:
     actions = np.zeros(args.num_envs, dtype=np.uint32)
     for _ in range(args.warmup):
         done = np.logical_or(out.terminated, out.truncated)
+        if args.mode == "fast_first_legal":
+            if args.reset_done and bool(done.any()):
+                out = buffers.reset_done(done)
+            buffers.pool.step_first_legal_into(buffers.actions, buffers.out)
+            out = buffers.out
+            continue
         if args.reset_done and bool(done.any()):
             out = buffers.reset_done(done)
-        pick_first_legal_from_mask(out.masks, actions)
+            done = np.logical_or(out.terminated, out.truncated)
+        pick_first_legal_from_mask(out.masks, done, actions)
         out = buffers.step(actions)
 
     reset_elapsed = bench_reset(buffers, args.reset_reps)
@@ -131,6 +155,14 @@ def main() -> None:
         print(
             f"step(ids): {args.steps} steps in {ids_elapsed:.4f}s "
             f"({ids_eps:.0f} env-steps/sec)"
+        )
+
+    if args.mode == "fast_first_legal":
+        fast_elapsed = bench_step_fast_first_legal(buffers, args.steps, args.reset_done)
+        fast_eps = (args.steps * args.num_envs) / max(fast_elapsed, 1e-9)
+        print(
+            f"step(fast_first_legal): {args.steps} steps in {fast_elapsed:.4f}s "
+            f"({fast_eps:.0f} env-steps/sec)"
         )
 
 

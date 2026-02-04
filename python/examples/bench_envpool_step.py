@@ -10,7 +10,7 @@ import weiss_sim
 def first_legal(mask_row: np.ndarray) -> int:
     idxs = np.flatnonzero(mask_row)
     if idxs.size == 0:
-        raise RuntimeError("no legal actions")
+        return weiss_sim.PASS_ACTION_ID
     return int(idxs[0])
 
 
@@ -37,11 +37,17 @@ def main() -> None:
 
     # Warmup
     for _ in range(100):
+        done = np.logical_or(out.terminated, out.truncated)
+        if done.any():
+            out = buffers.reset_done(done)
         actions = [first_legal(out.masks[i]) for i in range(args.num_envs)]
         out = buffers.step(np.array(actions, dtype=np.uint32))
 
     start = perf_counter()
     for _ in range(args.steps):
+        done = np.logical_or(out.terminated, out.truncated)
+        if done.any():
+            out = buffers.reset_done(done)
         actions = [first_legal(out.masks[i]) for i in range(args.num_envs)]
         out = buffers.step(np.array(actions, dtype=np.uint32))
     elapsed = perf_counter() - start

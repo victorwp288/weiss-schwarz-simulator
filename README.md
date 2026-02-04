@@ -246,6 +246,10 @@ Convenience properties:
 Python helper:
 - `EnvPoolBuffers(pool)` allocates persistent numpy buffers and exposes `reset()`, `step()`, and `legal_action_ids()`.
 - `reset_rl(pool)` / `step_rl(pool, actions)` return a `RlStep` dataclass with named fields.
+- `RlStepI16LegalIds` is like `RlStep` but uses `int16` observations and `uint16` legal action IDs to save memory. The `I16` name refers to the observation dtype; legal IDs are still unsigned. Use `reset_rl_i16_legal_ids` / `step_rl_i16_legal_ids` when you want compact 16-bit legal IDs, and use `reset_rl` / `step_rl` for the standard `RlStep` representation.
+- `*_i16_legal_ids` APIs require `ACTION_SPACE_SIZE <= 65535` (fits in `uint16`) and raise `ValueError` if the action space exceeds that limit.
+- `reset_rl_i16_legal_ids(pool)` / `step_rl_i16_legal_ids(pool, actions)` return `RlStepI16LegalIds`.
+- `step_rl_select_from_logits_i16_legal_ids(pool, logits)` selects actions in Rust and returns `(RlStepI16LegalIds, actions)`. `logits` must be a `np.ndarray` of `float32` with shape `(num_envs, action_space)`, and `actions` is a `np.ndarray` of `uint32` with shape `(num_envs,)`. Type hint example (requires `from numpy.typing import NDArray` and `import numpy as np`): `step_rl_select_from_logits_i16_legal_ids(pool: EnvPool, logits: NDArray[np.float32]) -> tuple[RlStepI16LegalIds, NDArray[np.uint32]]`
 - `pass_action_id_for_decision_kind(decision_kind)` returns `PASS_ACTION_ID` for convenience.
 
 ---
