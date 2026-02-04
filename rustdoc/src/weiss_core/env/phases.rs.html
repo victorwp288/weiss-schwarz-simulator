@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `weiss_core/src/env/phases.rs`."><title>phases.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="weiss_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0 (ded5c06cf 2025-12-08)" data-channel="1.92.0" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">weiss_core/env/</div>phases.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use super</span>::{
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `weiss_core/src/env/phases.rs`."><title>phases.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="weiss_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0 (254b59607 2026-01-19)" data-channel="1.93.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">weiss_core/env/</div>phases.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use super</span>::{
 <a href=#2 id=2 data-nosnippet>2</a>    DamageIntentLocal, GameEnv, TriggerCompileContext, TRIGGER_EFFECT_BOUNCE, TRIGGER_EFFECT_DRAW,
 <a href=#3 id=3 data-nosnippet>3</a>    TRIGGER_EFFECT_GATE, TRIGGER_EFFECT_SHOT, TRIGGER_EFFECT_SOUL, TRIGGER_EFFECT_STANDBY,
 <a href=#4 id=4 data-nosnippet>4</a>    TRIGGER_EFFECT_TREASURE_MOVE, TRIGGER_EFFECT_TREASURE_STOCK,
@@ -174,7 +174,7 @@
 <a href=#174 id=174 data-nosnippet>174</a>                }
 <a href=#175 id=175 data-nosnippet>175</a>                <span class="kw">let </span>specs = <span class="self">self</span>.db.iter_card_abilities_in_canonical_order(card_id);
 <a href=#176 id=176 data-nosnippet>176</a>                <span class="kw">for </span>(ability_index, spec) <span class="kw">in </span>specs.iter().enumerate() {
-<a href=#177 id=177 data-nosnippet>177</a>                    <span class="kw">if </span>spec.kind != AbilityKind::Auto {
+<a href=#177 id=177 data-nosnippet>177</a>                    <span class="kw">if </span>spec.<span class="macro">kind !</span>= AbilityKind::Auto {
 <a href=#178 id=178 data-nosnippet>178</a>                        <span class="kw">continue</span>;
 <a href=#179 id=179 data-nosnippet>179</a>                    }
 <a href=#180 id=180 data-nosnippet>180</a>                    <span class="kw">if </span>spec.timing() == <span class="prelude-val">Some</span>(timing) {
@@ -195,7 +195,7 @@
 <a href=#195 id=195 data-nosnippet>195</a>                }
 <a href=#196 id=196 data-nosnippet>196</a>                <span class="kw">let </span>specs = <span class="self">self</span>.db.iter_card_abilities_in_canonical_order(card_id);
 <a href=#197 id=197 data-nosnippet>197</a>                <span class="kw">for </span>(ability_index, spec) <span class="kw">in </span>specs.iter().enumerate() {
-<a href=#198 id=198 data-nosnippet>198</a>                    <span class="kw">if </span>spec.kind != AbilityKind::Auto {
+<a href=#198 id=198 data-nosnippet>198</a>                    <span class="kw">if </span>spec.<span class="macro">kind !</span>= AbilityKind::Auto {
 <a href=#199 id=199 data-nosnippet>199</a>                        <span class="kw">continue</span>;
 <a href=#200 id=200 data-nosnippet>200</a>                    }
 <a href=#201 id=201 data-nosnippet>201</a>                    <span class="kw">if </span>spec.timing() == <span class="prelude-val">Some</span>(timing) {
@@ -229,7 +229,7 @@
 <a href=#229 id=229 data-nosnippet>229</a>            }
 <a href=#230 id=230 data-nosnippet>230</a>            <span class="kw">let </span>specs = <span class="self">self</span>.db.iter_card_abilities_in_canonical_order(<span class="kw-2">*</span>card_id);
 <a href=#231 id=231 data-nosnippet>231</a>            <span class="kw">for </span>(ability_index, spec) <span class="kw">in </span>specs.iter().enumerate() {
-<a href=#232 id=232 data-nosnippet>232</a>                <span class="kw">if </span>spec.kind != AbilityKind::Auto {
+<a href=#232 id=232 data-nosnippet>232</a>                <span class="kw">if </span>spec.<span class="macro">kind !</span>= AbilityKind::Auto {
 <a href=#233 id=233 data-nosnippet>233</a>                    <span class="kw">continue</span>;
 <a href=#234 id=234 data-nosnippet>234</a>                }
 <a href=#235 id=235 data-nosnippet>235</a>                <span class="kw">if </span>spec.timing() == <span class="prelude-val">Some</span>(AbilityTiming::OnReverse) {
@@ -662,7 +662,7 @@
 <a href=#662 id=662 data-nosnippet>662</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(card) = <span class="self">self</span>.db.get(card_inst.id) <span class="kw">else </span>{
 <a href=#663 id=663 data-nosnippet>663</a>                <span class="kw">continue</span>;
 <a href=#664 id=664 data-nosnippet>664</a>            };
-<a href=#665 id=665 data-nosnippet>665</a>            <span class="kw">if </span>card.card_type != CardType::Character {
+<a href=#665 id=665 data-nosnippet>665</a>            <span class="kw">if </span>card.<span class="macro">card_type !</span>= CardType::Character {
 <a href=#666 id=666 data-nosnippet>666</a>                <span class="kw">continue</span>;
 <a href=#667 id=667 data-nosnippet>667</a>            }
 <a href=#668 id=668 data-nosnippet>668</a>            <span class="kw">if </span>card.level <span class="kw">as </span>usize &gt; level_limit {
@@ -871,12 +871,12 @@
 <a href=#871 id=871 data-nosnippet>871</a>                        <span class="kw">continue</span>;
 <a href=#872 id=872 data-nosnippet>872</a>                    }
 <a href=#873 id=873 data-nosnippet>873</a>                    <span class="kw">for </span>modifier <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.state.modifiers {
-<a href=#874 id=874 data-nosnippet>874</a>                        <span class="kw">if </span>modifier.target_player <span class="kw">as </span>usize != player
-<a href=#875 id=875 data-nosnippet>875</a>                            || modifier.target_slot <span class="kw">as </span>usize != slot
+<a href=#874 id=874 data-nosnippet>874</a>                        <span class="kw">if </span>modifier.target_player <span class="kw">as </span><span class="macro">usize !</span>= player
+<a href=#875 id=875 data-nosnippet>875</a>                            || modifier.target_slot <span class="kw">as </span><span class="macro">usize !</span>= slot
 <a href=#876 id=876 data-nosnippet>876</a>                        {
 <a href=#877 id=877 data-nosnippet>877</a>                            <span class="kw">continue</span>;
 <a href=#878 id=878 data-nosnippet>878</a>                        }
-<a href=#879 id=879 data-nosnippet>879</a>                        <span class="kw">if </span>modifier.target_card != card_id {
+<a href=#879 id=879 data-nosnippet>879</a>                        <span class="kw">if </span>modifier.<span class="macro">target_card !</span>= card_id {
 <a href=#880 id=880 data-nosnippet>880</a>                            <span class="kw">continue</span>;
 <a href=#881 id=881 data-nosnippet>881</a>                        }
 <a href=#882 id=882 data-nosnippet>882</a>                        <span class="kw">match </span>modifier.kind {
@@ -887,7 +887,7 @@
 <a href=#887 id=887 data-nosnippet>887</a>                                }
 <a href=#888 id=888 data-nosnippet>888</a>                            }
 <a href=#889 id=889 data-nosnippet>889</a>                            ModifierKind::CannotAttack =&gt; {
-<a href=#890 id=890 data-nosnippet>890</a>                                <span class="kw">if </span>modifier.magnitude != <span class="number">0 </span>{
+<a href=#890 id=890 data-nosnippet>890</a>                                <span class="kw">if </span>modifier.<span class="macro">magnitude !</span>= <span class="number">0 </span>{
 <a href=#891 id=891 data-nosnippet>891</a>                                    entry.cannot_attack = <span class="bool-val">true</span>;
 <a href=#892 id=892 data-nosnippet>892</a>                                }
 <a href=#893 id=893 data-nosnippet>893</a>                            }
@@ -1193,7 +1193,7 @@
 <a href=#1193 id=1193 data-nosnippet>1193</a>            }
 <a href=#1194 id=1194 data-nosnippet>1194</a>            <span class="kw">let </span>specs = db.iter_card_abilities_in_canonical_order(card_id);
 <a href=#1195 id=1195 data-nosnippet>1195</a>            <span class="kw">for </span>(ability_index, spec) <span class="kw">in </span>specs.iter().enumerate() {
-<a href=#1196 id=1196 data-nosnippet>1196</a>                <span class="kw">if </span>spec.kind != AbilityKind::Auto {
+<a href=#1196 id=1196 data-nosnippet>1196</a>                <span class="kw">if </span>spec.<span class="macro">kind !</span>= AbilityKind::Auto {
 <a href=#1197 id=1197 data-nosnippet>1197</a>                    <span class="kw">continue</span>;
 <a href=#1198 id=1198 data-nosnippet>1198</a>                }
 <a href=#1199 id=1199 data-nosnippet>1199</a>                <span class="kw">if </span>spec.timing() == <span class="prelude-val">Some</span>(<span class="kw">crate</span>::db::AbilityTiming::AttackDeclaration) {
@@ -1547,4 +1547,5 @@
 <a href=#1547 id=1547 data-nosnippet>1547</a>        };
 <a href=#1548 id=1548 data-nosnippet>1548</a>        <span class="self">self</span>.state.terminal = <span class="prelude-val">Some</span>(result);
 <a href=#1549 id=1549 data-nosnippet>1549</a>    }
-<a href=#1550 id=1550 data-nosnippet>1550</a>}</code></pre></div></section></main></body></html>
+<a href=#1550 id=1550 data-nosnippet>1550</a>}
+</code></pre></div></section></main></body></html>

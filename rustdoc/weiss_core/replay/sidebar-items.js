@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["REPLAY_SCHEMA_VERSION"],"fn":["read_replay_file"],"struct":["EpisodeBody","EpisodeHeader","ReplayConfig","ReplayData","ReplayFinal","ReplayWriter","StepMeta"],"type":["ReplayEvent"]};
+window.SIDEBAR_ITEMS = {"constant":["REPLAY_ACTION_ID_UNKNOWN","REPLAY_SCHEMA_VERSION"],"enum":["ReplayVisibilityMode"],"fn":["read_replay_file"],"struct":["EpisodeBody","EpisodeHeader","ReplayConfig","ReplayData","ReplayFinal","ReplayWriter","StepMeta"],"type":["ReplayEvent"]};

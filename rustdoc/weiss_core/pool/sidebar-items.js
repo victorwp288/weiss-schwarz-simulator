@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["BatchOutDebug","BatchOutDebugBuffers","BatchOutMinimal","BatchOutMinimalBuffers","EnvPool"]};
+window.SIDEBAR_ITEMS = {"struct":["BatchOutDebug","BatchOutDebugBuffers","BatchOutMinimal","BatchOutMinimalBuffers","BatchOutMinimalI16","BatchOutMinimalI16Buffers","BatchOutMinimalI16LegalIds","BatchOutMinimalNoMask","BatchOutMinimalNoMaskBuffers","BatchOutTrajectory","BatchOutTrajectoryI16","BatchOutTrajectoryI16LegalIds","BatchOutTrajectoryNoMask","EnvPool"]};

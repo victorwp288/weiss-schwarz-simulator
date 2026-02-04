@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ActionDesc","DecisionKind"],"fn":["can_declare_attack","legal_actions","legal_actions_cached","legal_attack_actions"],"struct":["Decision"]};
+window.SIDEBAR_ITEMS = {"enum":["ActionDesc","DecisionKind"],"fn":["can_declare_attack","legal_action_ids_cached_into","legal_actions","legal_actions_cached","legal_actions_cached_into","legal_attack_actions","legal_attack_actions_into"],"struct":["Decision"],"type":["LegalActionIds","LegalActions"]};
