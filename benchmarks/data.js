@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770197006775,
+  "lastUpdate": 1770483583744,
   "repoUrl": "https://github.com/victorwp288/weiss-schwarz-simulator",
   "entries": {
     "Benchmark": [
@@ -1762,6 +1762,132 @@ window.BENCHMARK_DATA = {
           {
             "name": "alloc_choice_paging_worst_case",
             "value": 166,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "victorwpetersen@gmail.com",
+            "name": "Victor Wejergang Petersen",
+            "username": "victorwp288"
+          },
+          "committer": {
+            "email": "victorwpetersen@gmail.com",
+            "name": "Victor Wejergang Petersen",
+            "username": "victorwp288"
+          },
+          "distinct": true,
+          "id": "759a86d5ad5c042da2c26e76fd1af93c355c4a18",
+          "message": "Fix benchmark workflow branch switch by using temp outputs",
+          "timestamp": "2026-02-07T17:54:45+01:00",
+          "tree_id": "5f6f3bcde56655fb0e8b4c4bddc3ea0e998b75a2",
+          "url": "https://github.com/victorwp288/weiss-schwarz-simulator/commit/759a86d5ad5c042da2c26e76fd1af93c355c4a18"
+        },
+        "date": 1770483583124,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "advance_until_decision",
+            "value": 31802,
+            "range": "± 313",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_64",
+            "value": 16834,
+            "range": "± 62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_off",
+            "value": 80652,
+            "range": "± 1677",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_on",
+            "value": 72821,
+            "range": "± 2243",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions",
+            "value": 12,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions_forced",
+            "value": 12,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_on",
+            "value": 1177,
+            "range": "± 6939",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_off",
+            "value": 1187,
+            "range": "± 13600",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode",
+            "value": 178,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode_forced",
+            "value": 185,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction",
+            "value": 382,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction_forced",
+            "value": 387,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "choice_paging_worst_case_mask",
+            "value": 174,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_legal_actions",
+            "value": 49,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_observation_encode",
+            "value": 110,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_action_masks_batch_into",
+            "value": 882,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_choice_paging_worst_case",
+            "value": 175,
             "range": "± 0",
             "unit": "ns/iter"
           }
