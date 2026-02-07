@@ -15,6 +15,7 @@ jobs:
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
       python: ${{ steps.filter.outputs.python }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,20 +35,30 @@ jobs:
               - 'scripts/**'
               - 'pyproject.toml'
               - 'weiss_py/**'
+            docs:
+              - 'README.md'
+              - 'docs/**'
+              - 'scripts/check_docs_links.py'
+              - 'scripts/check_docs_constants.py'
 
   ci:
     name: ci
-    needs: [changes, rust, python]
+    needs: [changes, docs, rust, python]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any required job failed
         run: |
           echo "changes=${{ needs.changes.result }}"
+          echo "docs=${{ needs.docs.result }}"
           echo "rust=${{ needs.rust.result }}"
           echo "python=${{ needs.python.result }}"
 
           if [[ "${{ needs.changes.result }}" != "success" ]]; then
+            exit 1
+          fi
+
+          if [[ "${{ needs.docs.result }}" != "success" && "${{ needs.docs.result }}" != "skipped" ]]; then
             exit 1
           fi
 
@@ -58,6 +69,18 @@ jobs:
           if [[ "${{ needs.python.result }}" != "success" && "${{ needs.python.result }}" != "skipped" ]]; then
             exit 1
           fi
+
+  docs:
+    name: Docs checks
+    needs: changes
+    if: needs.changes.outputs.docs == 'true' || needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docs link check
+        run: python scripts/check_docs_links.py
+      - name: Docs constants check
+        run: python scripts/check_docs_constants.py
 
   rust:
     name: Rust (fmt, clippy, test)
@@ -70,12 +93,14 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Check env layering
+        run: scripts/check_env_layering.sh
       - name: Cargo fmt
         run: cargo fmt --all -- --check
       - name: Cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Cargo test
-        run: cargo test --workspace
+        run: cargo test --workspace --features test-harness
       - name: Cargo build (release)
         run: cargo build -p weiss_core --release
 

@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""Verify that contract checksum values in docs match encode constants."""
+
+from __future__ import annotations
+
+import ast
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+CONSTANTS_PATH = ROOT / "weiss_core" / "src" / "encode" / "constants.rs"
+STATE_PATH = ROOT / "weiss_core" / "src" / "state.rs"
+DOC_PATH = ROOT / "docs" / "rl_contract.md"
+
+TARGET_FIELDS = {
+    "OBS_LEN",
+    "ACTION_SPACE_SIZE",
+    "OBS_ENCODING_VERSION",
+    "ACTION_ENCODING_VERSION",
+    "SPEC_HASH",
+}
+
+CONST_RE = re.compile(r"^\s*pub const (\w+): [^=]+ = (.+)$")
+
+
+def safe_eval(expr: str, env: dict[str, int]) -> int:
+    expr = re.sub(r"\s+as\s+\w+", "", expr)
+    expr = re.sub(r"(\w+)\.div_ceil\((\d+)\)", r"(\1 + \2 - 1)//\2", expr)
+    tree = ast.parse(expr, mode="eval")
+
+    def _eval(node):
+        if isinstance(node, ast.Expression):
+            return _eval(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, int):
+            return node.value
+        if isinstance(node, ast.Name):
+            if node.id not in env:
+                raise ValueError(f"unknown name {node.id}")
+            return env[node.id]
+        if isinstance(node, ast.BinOp):
+            left = _eval(node.left)
+            right = _eval(node.right)
+            if isinstance(node.op, ast.Add):
+                return left + right
+            if isinstance(node.op, ast.Sub):
+                return left - right
+            if isinstance(node.op, ast.Mult):
+                return left * right
+            if isinstance(node.op, ast.FloorDiv):
+                return left // right
+            if isinstance(node.op, ast.Mod):
+                return left % right
+            if isinstance(node.op, ast.LShift):
+                return left << right
+            if isinstance(node.op, ast.RShift):
+                return left >> right
+            if isinstance(node.op, ast.BitOr):
+                return left | right
+            if isinstance(node.op, ast.BitAnd):
+                return left & right
+        if isinstance(node, ast.UnaryOp):
+            val = _eval(node.operand)
+            if isinstance(node.op, ast.UAdd):
+                return +val
+            if isinstance(node.op, ast.USub):
+                return -val
+        raise ValueError(f"unsupported expression: {expr}")
+
+    return _eval(tree)
+
+
+def parse_state_constants() -> dict[str, int]:
+    env: dict[str, int] = {}
+    text = STATE_PATH.read_text()
+    m = re.search(r"pub const REVEAL_HISTORY_LEN: usize = (\d+);", text)
+    if not m:
+        raise ValueError("REVEAL_HISTORY_LEN not found")
+    env["REVEAL_HISTORY_LEN"] = int(m.group(1))
+    return env
+
+
+def parse_encode_constants() -> dict[str, int]:
+    env = parse_state_constants()
+    lines = CONSTANTS_PATH.read_text().splitlines()
+    idx = 0
+    while idx < len(lines):
+        raw = lines[idx]
+        line = raw.split("//", 1)[0].rstrip()
+        if not line.strip():
+            idx += 1
+            continue
+        m = CONST_RE.match(line)
+        if not m:
+            idx += 1
+            continue
+        name, expr = m.group(1), m.group(2).strip()
+        idx += 1
+        while not expr.rstrip().endswith(";") and idx < len(lines):
+            next_line = lines[idx].split("//", 1)[0].strip()
+            if next_line:
+                expr = f"{expr} {next_line}"
+            idx += 1
+        if expr.endswith(";"):
+            expr = expr[:-1].strip()
+        try:
+            env[name] = safe_eval(expr, env)
+        except Exception:
+            # Skip constants we cannot evaluate; only target fields are required.
+            continue
+    return env
+
+
+def parse_contract_table() -> dict[str, int]:
+    text = DOC_PATH.read_text().splitlines()
+    table: dict[str, int] = {}
+    in_table = False
+    for line in text:
+        if line.strip().startswith("| Field | Value |"):
+            in_table = True
+            continue
+        if in_table:
+            if not line.strip().startswith("|"):
+                break
+            cols = [c.strip() for c in line.strip().strip("|").split("|")]
+            if len(cols) < 2:
+                continue
+            field, value = cols[0], cols[1]
+            if field in TARGET_FIELDS:
+                try:
+                    table[field] = int(value)
+                except ValueError:
+                    raise ValueError(f"Invalid integer for {field}: {value}")
+    return table
+
+
+def main() -> int:
+    env = parse_encode_constants()
+    table = parse_contract_table()
+    missing = TARGET_FIELDS - set(table.keys())
+    if missing:
+        print(f"Missing fields in contract table: {sorted(missing)}")
+        return 1
+    errors = []
+    for field in sorted(TARGET_FIELDS):
+        expected = env.get(field)
+        actual = table.get(field)
+        if expected is None:
+            errors.append(f"Could not compute {field} from constants")
+            continue
+        if expected != actual:
+            errors.append(f"{field} mismatch: docs={actual} constants={expected}")
+    if errors:
+        for err in errors:
+            print(err)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
