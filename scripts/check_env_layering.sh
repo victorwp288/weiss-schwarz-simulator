@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+if ! command -v rg >/dev/null 2>&1; then
+  echo "ERROR: rg (ripgrep) is required for scripts/check_env_layering.sh" >&2
+  exit 127
+fi
+
 RG_BASE=(rg --type rust --pcre2 -n -g '!target/**' -g '!docs/**')
 RG_SANITIZE=(--pre "./scripts/strip_rust_layering.py")
 

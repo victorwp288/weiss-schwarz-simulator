@@ -37,6 +37,7 @@ jobs:
               - 'weiss_py/**'
             docs:
               - 'README.md'
+              - 'PROJECT_STATE.md'
               - 'docs/**'
               - 'scripts/check_docs_links.py'
               - 'scripts/check_docs_constants.py'
@@ -93,6 +94,10 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
       - name: Check env layering
         run: scripts/check_env_layering.sh
       - name: Cargo fmt
