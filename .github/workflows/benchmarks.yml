@@ -65,21 +65,21 @@ jobs:
           python -m pip install maturin numpy
       - name: Run Criterion benches
         run: |
-          mkdir -p benchmark
-          cargo bench -p weiss_core --bench core_benches -- --output-format bencher | tee benchmark/benches.txt
-          cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher | tee -a benchmark/benches.txt
+          mkdir -p /tmp/benchmark-run
+          cargo bench -p weiss_core --bench core_benches -- --output-format bencher | tee /tmp/benchmark-run/benches.txt
+          cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher | tee -a /tmp/benchmark-run/benches.txt
       - name: Build + install extension (wheel)
         run: |
           maturin build --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python
           python -m pip install dist/*.whl
       - name: Run Python benchmarks
         run: |
-          python python/examples/bench_python_boundary.py --num-envs 128 --steps 2000 --warmup 200 --reset-reps 200 --mode both | tee benchmark/python_bench.txt
+          python python/examples/bench_python_boundary.py --num-envs 128 --steps 2000 --warmup 200 --reset-reps 200 --mode both | tee /tmp/benchmark-run/python_bench.txt
       - name: Publish benchmark history
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: "cargo"
-          output-file-path: benchmark/benches.txt
+          output-file-path: /tmp/benchmark-run/benches.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
           benchmark-data-dir-path: benchmarks
@@ -125,8 +125,8 @@ jobs:
       - name: Update README benchmark snapshot
         run: |
           python scripts/bench_to_readme.py \
-            --input benchmark/benches.txt \
-            --python-input benchmark/python_bench.txt \
+            --input /tmp/benchmark-run/benches.txt \
+            --python-input /tmp/benchmark-run/python_bench.txt \
             --readme README.md \
             --max 12
       - name: Commit README update
