@@ -20,7 +20,7 @@ These rules are contract-sensitive and must remain stable unless intentionally v
 
 - Public ordering never depends on hash-map iteration.
 - Ability indexing must use `CardDb::iter_card_abilities_in_canonical_order`.
-- Canonical ability ordering is generated at DB load by sorting `abilities + ability_defs` by `(AbilityTemplateTag, per-variant key)` in `weiss_core/src/db.rs`.
+- Canonical ability ordering is generated at DB load by sorting `abilities + ability_defs` by `(AbilityTemplateTag, per-variant key)` in `weiss_core/src/db/store.rs`.
 - Stage order: slot ascending.
 - Hand order: index ascending.
 - Deck top: index `0` semantic (last element in vector representation).
