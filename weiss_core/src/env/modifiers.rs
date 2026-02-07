@@ -5,6 +5,10 @@ use crate::events::*;
 use crate::state::*;
 
 impl GameEnv {
+    pub(in crate::env) fn bump_modifiers_version(&mut self) {
+        self.modifiers_version = self.modifiers_version.wrapping_add(1);
+    }
+
     pub(super) fn push_attack_damage_modifier(
         ctx: &mut AttackContext,
         kind: DamageModifierKind,
@@ -65,6 +69,7 @@ impl GameEnv {
             layer,
             insertion: id,
         });
+        self.bump_modifiers_version();
         if kind == ModifierKind::Power {
             self.mark_slot_power_dirty(target_player, target_slot);
         }
@@ -93,6 +98,7 @@ impl GameEnv {
             false
         });
         if !removed.is_empty() {
+            self.bump_modifiers_version();
             self.mark_slot_power_dirty(player, slot);
         }
         for id in removed {
@@ -212,35 +218,51 @@ impl GameEnv {
                                 let Some(target_spec) = effect.target.as_ref() else {
                                     continue;
                                 };
-                                self.scratch.targets.clear();
-                                Self::enumerate_target_candidates_into(
-                                    &self.state,
-                                    &self.db,
-                                    &self.curriculum,
-                                    player,
-                                    target_spec,
-                                    &[],
-                                    &mut self.scratch.targets,
-                                );
-                                let limit = if target_spec.count == 0 {
-                                    self.scratch.targets.len()
-                                } else {
-                                    target_spec.count as usize
-                                };
-                                for target in self.scratch.targets.iter().take(limit) {
+                                if target_spec.source_only {
                                     new_continuous.push(ModifierInstance {
                                         id: 0,
                                         source: card_id,
                                         source_slot: Some(slot as u8),
-                                        target_player: target.player,
-                                        target_slot: target.index,
-                                        target_card: target.card_id,
+                                        target_player: player,
+                                        target_slot: slot as u8,
+                                        target_card: card_id,
                                         kind,
                                         magnitude,
                                         duration,
                                         layer: ModifierLayer::Continuous,
                                         insertion: 0,
                                     });
+                                } else {
+                                    self.scratch.targets.clear();
+                                    Self::enumerate_target_candidates_into(
+                                        &self.state,
+                                        &self.db,
+                                        &self.curriculum,
+                                        player,
+                                        target_spec,
+                                        &[],
+                                        &mut self.scratch.targets,
+                                    );
+                                    let limit = if target_spec.count == 0 {
+                                        self.scratch.targets.len()
+                                    } else {
+                                        target_spec.count as usize
+                                    };
+                                    for target in self.scratch.targets.iter().take(limit) {
+                                        new_continuous.push(ModifierInstance {
+                                            id: 0,
+                                            source: card_id,
+                                            source_slot: Some(slot as u8),
+                                            target_player: target.player,
+                                            target_slot: target.index,
+                                            target_card: target.card_id,
+                                            kind,
+                                            magnitude,
+                                            duration,
+                                            layer: ModifierLayer::Continuous,
+                                            insertion: 0,
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -308,6 +330,7 @@ impl GameEnv {
         self.state.modifiers = non_continuous;
         self.state.modifiers.extend(final_continuous);
         if changed {
+            self.bump_modifiers_version();
             self.mark_all_slot_power_dirty();
             self.state.turn.derived_attack = None;
         }

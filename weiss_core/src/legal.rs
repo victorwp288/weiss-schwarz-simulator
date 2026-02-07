@@ -18,50 +18,83 @@ const MAX_STAGE: usize = 5;
 /// Player decision kinds exposed to callers.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DecisionKind {
+    /// Mulligan decision (select cards to discard).
     Mulligan,
+    /// Clock phase decision.
     Clock,
+    /// Main phase decision.
     Main,
+    /// Climax phase decision.
     Climax,
+    /// Attack declaration decision.
     AttackDeclaration,
+    /// Level-up choice decision.
     LevelUp,
+    /// Encore step decision.
     Encore,
+    /// Trigger order decision.
     TriggerOrder,
+    /// Choice selection decision.
     Choice,
 }
 
 /// A pending decision describing which player must act next.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Decision {
+    /// Player index who must act.
     pub player: u8,
+    /// Decision kind.
     pub kind: DecisionKind,
+    /// Optional focus slot for contextual decisions.
     pub focus_slot: Option<u8>,
 }
 
 /// Canonical action descriptor used as the truth representation of legal actions.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ActionDesc {
+    /// Confirm mulligan without selecting additional cards.
     MulliganConfirm,
+    /// Select a hand card for mulligan.
     MulliganSelect { hand_index: u8 },
+    /// Pass the current decision.
     Pass,
+    /// Clock a hand card.
     Clock { hand_index: u8 },
+    /// Play a character from hand to a stage slot.
     MainPlayCharacter { hand_index: u8, stage_slot: u8 },
+    /// Play an event from hand.
     MainPlayEvent { hand_index: u8 },
+    /// Move a character between stage slots.
     MainMove { from_slot: u8, to_slot: u8 },
+    /// Activate a character ability from a stage slot.
     MainActivateAbility { slot: u8, ability_index: u8 },
+    /// Play a climax from hand.
     ClimaxPlay { hand_index: u8 },
+    /// Declare an attack from a stage slot.
     Attack { slot: u8, attack_type: AttackType },
+    /// Play a counter from hand.
     CounterPlay { hand_index: u8 },
+    /// Select a card for level up.
     LevelUp { index: u8 },
+    /// Pay encore for a character.
     EncorePay { slot: u8 },
+    /// Decline encore for a character.
     EncoreDecline { slot: u8 },
+    /// Select trigger order index.
     TriggerOrder { index: u8 },
+    /// Select a choice option by index.
     ChoiceSelect { index: u8 },
+    /// Page to previous choice options.
     ChoicePrevPage,
+    /// Page to next choice options.
     ChoiceNextPage,
+    /// Concede the game.
     Concede,
 }
 
+/// Compact list of canonical legal actions.
 pub type LegalActions = SmallVec<[ActionDesc; 64]>;
+/// Compact list of legal action ids.
 pub type LegalActionIds = SmallVec<[u16; 64]>;
 
 #[inline(always)]
@@ -80,6 +113,7 @@ fn attack_type_to_index(attack_type: AttackType) -> usize {
     }
 }
 
+/// Compute legal action ids for a decision into a reusable buffer.
 #[inline(always)]
 pub fn legal_action_ids_cached_into(
     state: &GameState,
@@ -282,6 +316,7 @@ pub fn legal_action_ids_cached_into(
     }
 }
 
+/// Validate whether an attack can be declared from a slot.
 pub fn can_declare_attack(
     state: &GameState,
     player: u8,
@@ -339,6 +374,7 @@ pub fn can_declare_attack(
     Ok(())
 }
 
+/// Compute legal attack actions into a reusable buffer.
 #[inline(always)]
 pub fn legal_attack_actions_into(
     state: &GameState,
@@ -363,6 +399,7 @@ pub fn legal_attack_actions_into(
     }
 }
 
+/// Compute legal attack actions for a player.
 #[inline(always)]
 pub fn legal_attack_actions(
     state: &GameState,
@@ -374,6 +411,7 @@ pub fn legal_attack_actions(
     actions
 }
 
+/// Compute legal actions for a decision.
 #[inline(always)]
 pub fn legal_actions(
     state: &GameState,
@@ -384,6 +422,7 @@ pub fn legal_actions(
     legal_actions_cached(state, decision, db, curriculum, None)
 }
 
+/// Compute legal actions using cached data structures where possible.
 #[inline(always)]
 pub fn legal_actions_cached(
     state: &GameState,
@@ -404,6 +443,7 @@ pub fn legal_actions_cached(
     actions
 }
 
+/// Compute legal actions into a reusable buffer using cached data.
 #[inline(always)]
 pub fn legal_actions_cached_into(
     state: &GameState,

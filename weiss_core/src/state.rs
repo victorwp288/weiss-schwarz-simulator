@@ -4,8 +4,10 @@ use crate::util::Rng64;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
+/// Unique identifier for a card instance within a game.
 pub type CardInstanceId = u32;
 
+/// Concrete card instance with ownership and controller.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CardInstance {
     pub id: CardId,
@@ -14,8 +16,10 @@ pub struct CardInstance {
     pub controller: u8,
 }
 
+/// Max number of reveal history entries tracked per player.
 pub const REVEAL_HISTORY_LEN: usize = 8;
 
+/// Ring buffer of recently revealed cards.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct RevealHistory {
     entries: [CardId; REVEAL_HISTORY_LEN],
@@ -24,6 +28,7 @@ pub struct RevealHistory {
 }
 
 impl RevealHistory {
+    /// Create an empty reveal history.
     pub fn new() -> Self {
         Self {
             entries: [0; REVEAL_HISTORY_LEN],
@@ -32,6 +37,7 @@ impl RevealHistory {
         }
     }
 
+    /// Push a newly revealed card into the history.
     pub fn push(&mut self, card: CardId) {
         if REVEAL_HISTORY_LEN == 0 {
             return;
@@ -44,6 +50,7 @@ impl RevealHistory {
         self.head = ((head + 1) % REVEAL_HISTORY_LEN) as u8;
     }
 
+    /// Write entries in chronological order into `out`.
     pub fn write_chronological(&self, out: &mut [i32]) {
         out.fill(0);
         let len = self.len as usize;
@@ -73,6 +80,7 @@ impl Default for RevealHistory {
 }
 
 impl CardInstance {
+    /// Create a new card instance owned by `owner`.
     pub fn new(id: CardId, owner: u8, instance_id: CardInstanceId) -> Self {
         Self {
             id,
@@ -83,6 +91,7 @@ impl CardInstance {
     }
 }
 
+/// Turn phase.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Phase {
     Mulligan,
@@ -95,6 +104,7 @@ pub enum Phase {
     End,
 }
 
+/// Timing window for triggered effects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TimingWindow {
     MainWindow,
@@ -107,6 +117,7 @@ pub enum TimingWindow {
     EndPhaseWindow,
 }
 
+/// Stage slot status.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum StageStatus {
     Stand,
@@ -114,6 +125,7 @@ pub enum StageStatus {
     Reverse,
 }
 
+/// Stage slot containing a character or empty.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct StageSlot {
     pub card: Option<CardInstance>,
@@ -126,6 +138,7 @@ pub struct StageSlot {
 }
 
 impl StageSlot {
+    /// Create an empty stage slot.
     pub fn empty() -> Self {
         Self {
             card: None,
@@ -138,11 +151,13 @@ impl StageSlot {
         }
     }
 
+    /// Whether the slot is empty.
     pub fn is_empty(&self) -> bool {
         self.card.is_none()
     }
 }
 
+/// Attack types available during the attack step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AttackType {
     Frontal,
@@ -150,6 +165,7 @@ pub enum AttackType {
     Direct,
 }
 
+/// Attack step sub-phase.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AttackStep {
     Trigger,
@@ -159,12 +175,14 @@ pub enum AttackStep {
     Encore,
 }
 
+/// Damage type classification.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DamageType {
     Battle,
     Effect,
 }
 
+/// Modifier categories for damage processing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DamageModifierKind {
     AddAmount { delta: i32 },
@@ -173,6 +191,7 @@ pub enum DamageModifierKind {
     SetAmount { amount: i32 },
 }
 
+/// Applied damage modifier instance.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct DamageModifier {
     pub kind: DamageModifierKind,
@@ -183,6 +202,7 @@ pub struct DamageModifier {
     pub used: bool,
 }
 
+/// Trigger effects resolved from trigger icons.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TriggerEffect {
     Soul,
@@ -195,6 +215,7 @@ pub enum TriggerEffect {
     AutoAbility { ability_index: u8 },
 }
 
+/// Zones that can be targeted by effects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TargetZone {
     Stage,
@@ -209,12 +230,14 @@ pub enum TargetZone {
     Resolution,
 }
 
+/// Side selection for targeting.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TargetSide {
     SelfSide,
     Opponent,
 }
 
+/// Slot filter for targeting.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TargetSlotFilter {
     Any,
@@ -223,6 +246,7 @@ pub enum TargetSlotFilter {
     SpecificSlot(u8),
 }
 
+/// Targeting specification for effects.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct TargetSpec {
     pub zone: TargetZone,
@@ -244,6 +268,7 @@ pub struct TargetSpec {
     pub reveal_to_controller: bool,
 }
 
+/// Concrete target reference.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TargetRef {
     pub player: u8,
@@ -253,6 +278,7 @@ pub struct TargetRef {
     pub instance_id: CardInstanceId,
 }
 
+/// Pending target effect awaiting resolution.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub enum PendingTargetEffect {
     EffectPending {
@@ -261,6 +287,7 @@ pub enum PendingTargetEffect {
     },
 }
 
+/// State for a target-selection prompt.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct TargetSelectionState {
     pub controller: u8,
@@ -274,6 +301,7 @@ pub struct TargetSelectionState {
     pub allow_skip: bool,
 }
 
+/// Item on the effect stack.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct StackItem {
     pub id: u32,
@@ -283,6 +311,7 @@ pub struct StackItem {
     pub payload: EffectPayload,
 }
 
+/// Priority window state.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct PriorityState {
     pub holder: u8,
@@ -291,6 +320,7 @@ pub struct PriorityState {
     pub used_act_mask: u32,
 }
 
+/// Stack ordering state when multiple items are pending.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct StackOrderState {
     pub group_id: u32,
@@ -298,6 +328,7 @@ pub struct StackOrderState {
     pub items: Vec<StackItem>,
 }
 
+/// Reasons for prompting a choice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ChoiceReason {
     TriggerStandbySelect,
@@ -309,6 +340,7 @@ pub enum ChoiceReason {
     EndPhaseDiscard,
 }
 
+/// Cost payment step kinds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CostStepKind {
     RestOther,
@@ -318,6 +350,7 @@ pub enum CostStepKind {
     RevealFromHand,
 }
 
+/// State for a multi-step cost payment.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct CostPaymentState {
     pub controller: u8,
@@ -329,6 +362,7 @@ pub struct CostPaymentState {
     pub current_step: Option<CostStepKind>,
 }
 
+/// Zones that choices can draw from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ChoiceZone {
     WaitingRoom,
@@ -348,15 +382,17 @@ pub enum ChoiceZone {
     Skip,
 }
 
+/// Reference to a concrete choice option.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ChoiceOptionRef {
     pub card_id: CardId,
     pub instance_id: CardInstanceId,
     pub zone: ChoiceZone,
-    pub index: Option<u8>,
+    pub index: Option<u16>,
     pub target_slot: Option<u8>,
 }
 
+/// Choice prompt state for a player.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct ChoiceState {
     pub id: u32,
@@ -368,6 +404,7 @@ pub struct ChoiceState {
     pub pending_trigger: Option<PendingTrigger>,
 }
 
+/// Context for an ongoing attack.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct AttackContext {
     pub attacker_slot: u8,
@@ -390,6 +427,7 @@ pub struct AttackContext {
     pub damage_window_done: bool,
 }
 
+/// Trigger pending resolution.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct PendingTrigger {
     pub id: u32,
@@ -400,6 +438,7 @@ pub struct PendingTrigger {
     pub effect_id: Option<EffectId>,
 }
 
+/// Ordering state for multiple triggers.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct TriggerOrderState {
     pub group_id: u32,
@@ -407,6 +446,7 @@ pub struct TriggerOrderState {
     pub choices: Vec<u32>,
 }
 
+/// Derived attack information for a single slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DerivedAttackSlot {
     pub cannot_attack: bool,
@@ -414,6 +454,7 @@ pub struct DerivedAttackSlot {
 }
 
 impl DerivedAttackSlot {
+    /// Create an empty derived attack slot.
     pub fn empty() -> Self {
         Self {
             cannot_attack: false,
@@ -422,12 +463,14 @@ impl DerivedAttackSlot {
     }
 }
 
+/// Derived attack state for a turn.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct DerivedAttackState {
     pub per_player: [[DerivedAttackSlot; 5]; 2],
 }
 
 impl DerivedAttackState {
+    /// Create a default derived attack state.
     pub fn new() -> Self {
         Self {
             per_player: [[DerivedAttackSlot::empty(); 5]; 2],
@@ -441,12 +484,14 @@ impl Default for DerivedAttackState {
     }
 }
 
+/// Encore request tracking for a character.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EncoreRequest {
     pub player: u8,
     pub slot: u8,
 }
 
+/// Terminal outcome for an episode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TerminalResult {
     Win { winner: u8 },
@@ -454,6 +499,7 @@ pub enum TerminalResult {
     Timeout,
 }
 
+/// Full per-player state.
 #[derive(Clone, Debug, Hash)]
 pub struct PlayerState {
     pub deck: Vec<CardInstance>,
@@ -469,6 +515,7 @@ pub struct PlayerState {
 }
 
 impl PlayerState {
+    /// Create a new player state with an initial deck.
     pub fn new(deck: Vec<CardInstance>) -> Self {
         Self {
             deck,
@@ -491,6 +538,7 @@ impl PlayerState {
     }
 }
 
+/// Modifier kinds applied to cards or zones.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ModifierKind {
     Power,
@@ -498,12 +546,14 @@ pub enum ModifierKind {
     CannotAttack,
 }
 
+/// Modifier duration semantics.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ModifierDuration {
     UntilEndOfTurn,
     WhileOnStage,
 }
 
+/// Modifier layer for ordering purposes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ModifierLayer {
     Continuous,
@@ -511,6 +561,7 @@ pub enum ModifierLayer {
     Effect,
 }
 
+/// Concrete modifier instance applied to a target.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct ModifierInstance {
     pub id: u32,
@@ -528,6 +579,7 @@ pub struct ModifierInstance {
     pub insertion: u32,
 }
 
+/// Turn-level state tracking.
 #[derive(Clone, Debug, Hash)]
 pub struct TurnState {
     pub active_player: u8,
@@ -578,6 +630,7 @@ pub struct TurnState {
     pub end_phase_pending: bool,
 }
 
+/// Complete game state for an environment.
 #[derive(Clone, Debug, Hash)]
 pub struct GameState {
     pub players: [PlayerState; 2],
@@ -592,6 +645,7 @@ pub struct GameState {
 }
 
 impl GameState {
+    /// Build a new game state with the given decks and seed.
     pub fn new(deck_a: Vec<CardId>, deck_b: Vec<CardId>, seed: u64, starting_player: u8) -> Self {
         assert!(
             deck_a.len() == crate::encode::MAX_DECK,

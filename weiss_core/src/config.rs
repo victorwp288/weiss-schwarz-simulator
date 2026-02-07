@@ -2,27 +2,40 @@ use crate::db::CardId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+/// Policy for handling illegal actions or engine errors during stepping.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum ErrorPolicy {
+    /// Return an error to the caller and preserve strict correctness.
     Strict,
     #[default]
+    /// Convert errors into a terminal loss for the acting player.
     LenientTerminate,
+    /// Ignore the illegal action and return a no-op outcome.
     LenientNoop,
 }
 
+/// Visibility policy for observations.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum ObservationVisibility {
     #[default]
+    /// Hide private information and sanitize hidden zones.
     Public,
+    /// Expose full state without sanitization.
     Full,
 }
 
+/// Reward shaping configuration for RL training.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RewardConfig {
+    /// Reward for winning the episode.
     pub terminal_win: f32,
+    /// Reward for losing the episode.
     pub terminal_loss: f32,
+    /// Reward for a draw or timeout.
     pub terminal_draw: f32,
+    /// Whether to include shaping rewards during the episode.
     pub enable_shaping: bool,
+    /// Per-damage shaping reward (scaled by damage dealt).
     pub damage_reward: f32,
 }
 
@@ -39,6 +52,7 @@ impl Default for RewardConfig {
 }
 
 impl RewardConfig {
+    /// Validate that terminal rewards are finite and zero-sum.
     pub fn validate_zero_sum(&self) -> Result<(), String> {
         const EPS: f32 = 1e-6;
         if !self.terminal_win.is_finite()
@@ -66,40 +80,57 @@ impl RewardConfig {
     }
 }
 
+/// Top-level environment configuration shared by all envs in a pool.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EnvConfig {
+    /// Deck lists for both players, as card IDs.
     pub deck_lists: [Vec<CardId>; 2],
+    /// Deck identifiers for replay metadata.
     pub deck_ids: [u32; 2],
+    /// Max number of decisions before truncation.
     pub max_decisions: u32,
+    /// Max number of engine ticks before truncation.
     pub max_ticks: u32,
+    /// Reward shaping settings.
     pub reward: RewardConfig,
     #[serde(default)]
+    /// Policy for illegal actions and engine errors.
     pub error_policy: ErrorPolicy,
     #[serde(default)]
+    /// Observation sanitization policy.
     pub observation_visibility: ObservationVisibility,
     #[serde(default)]
+    /// End-condition rules for simultaneous losses.
     pub end_condition_policy: EndConditionPolicy,
 }
 
 impl EnvConfig {
+    /// Compute a stable hash for this config and curriculum pair.
     pub fn config_hash(&self, curriculum: &CurriculumConfig) -> u64 {
         crate::fingerprint::config_fingerprint(self, curriculum)
     }
 }
 
+/// Policy for resolving simultaneous loss conditions.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum SimultaneousLossPolicy {
+    /// Active player wins when both players would lose.
     ActivePlayerWins,
+    /// Non-active player wins when both players would lose.
     NonActivePlayerWins,
     #[default]
+    /// Treat simultaneous loss as a draw.
     Draw,
 }
 
+/// End-condition behavior for edge cases such as simultaneous loss.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct EndConditionPolicy {
     #[serde(default)]
+    /// Winner selection strategy for simultaneous losses.
     pub simultaneous_loss: SimultaneousLossPolicy,
-    #[serde(default)]
+    #[serde(default = "default_true")]
+    /// Allow a draw when simultaneous losses occur.
     pub allow_draw_on_simultaneous_loss: bool,
 }
 
@@ -112,79 +143,116 @@ impl Default for EndConditionPolicy {
     }
 }
 
+/// Curriculum toggles for enabling/disabling engine subsystems.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CurriculumConfig {
     #[serde(default)]
+    /// Optional whitelist of allowed card set identifiers.
     pub allowed_card_sets: Vec<String>,
     #[serde(default = "default_true")]
+    /// Allow character cards to be played.
     pub allow_character: bool,
     #[serde(default = "default_true")]
+    /// Allow event cards to be played.
     pub allow_event: bool,
     #[serde(default = "default_true")]
+    /// Allow climax cards to be played.
     pub allow_climax: bool,
     #[serde(default = "default_true")]
+    /// Enable the clock phase.
     pub enable_clock_phase: bool,
     #[serde(default = "default_true")]
+    /// Enable the climax phase.
     pub enable_climax_phase: bool,
     #[serde(default = "default_true")]
+    /// Enable side attacks.
     pub enable_side_attacks: bool,
     #[serde(default = "default_true")]
+    /// Enable direct attacks.
     pub enable_direct_attacks: bool,
     #[serde(default = "default_true")]
+    /// Enable counter play.
     pub enable_counters: bool,
     #[serde(default = "default_true")]
+    /// Enable trigger checks.
     pub enable_triggers: bool,
     #[serde(default = "default_true")]
+    /// Enable soul trigger effect.
     pub enable_trigger_soul: bool,
     #[serde(default = "default_true")]
+    /// Enable draw trigger effect.
     pub enable_trigger_draw: bool,
     #[serde(default = "default_true")]
+    /// Enable shot trigger effect.
     pub enable_trigger_shot: bool,
     #[serde(default = "default_true")]
+    /// Enable bounce trigger effect.
     pub enable_trigger_bounce: bool,
     #[serde(default = "default_true")]
+    /// Enable treasure trigger effect.
     pub enable_trigger_treasure: bool,
     #[serde(default = "default_true")]
+    /// Enable gate trigger effect.
     pub enable_trigger_gate: bool,
     #[serde(default = "default_true")]
+    /// Enable standby trigger effect.
     pub enable_trigger_standby: bool,
     #[serde(default = "default_true")]
+    /// Enable on-reverse triggers.
     pub enable_on_reverse_triggers: bool,
     #[serde(default = "default_true")]
+    /// Enable backup effects.
     pub enable_backup: bool,
     #[serde(default = "default_true")]
+    /// Enable encore step.
     pub enable_encore: bool,
     #[serde(default = "default_true")]
+    /// Enable refresh penalty on deck refresh.
     pub enable_refresh_penalty: bool,
     #[serde(default = "default_true")]
+    /// Enable level-up choice step.
     pub enable_level_up_choice: bool,
     #[serde(default = "default_true")]
+    /// Enable activated abilities.
     pub enable_activated_abilities: bool,
     #[serde(default = "default_true")]
+    /// Enable continuous modifiers.
     pub enable_continuous_modifiers: bool,
     #[serde(default)]
+    /// Enable explicit priority windows.
     pub enable_priority_windows: bool,
     #[serde(default)]
+    /// Enable visibility policies and sanitization.
     pub enable_visibility_policies: bool,
     #[serde(default)]
+    /// Use alternate end-condition handling rules.
     pub use_alternate_end_conditions: bool,
     #[serde(default = "default_true")]
+    /// Auto-pick when only one action is available in priority.
     pub priority_autopick_single_action: bool,
     #[serde(default = "default_true")]
+    /// Allow pass actions during priority windows.
     pub priority_allow_pass: bool,
     #[serde(default)]
+    /// Enforce strict priority legality (debug/audit mode).
     pub strict_priority_mode: bool,
     #[serde(default)]
+    /// Reduce stage size for curriculum experiments.
     pub reduced_stage_mode: bool,
     #[serde(default = "default_true")]
+    /// Enforce color requirements on play.
     pub enforce_color_requirement: bool,
     #[serde(default = "default_true")]
+    /// Enforce cost requirements on play.
     pub enforce_cost_requirement: bool,
     #[serde(default)]
+    /// Allow players to concede.
     pub allow_concede: bool,
     #[serde(default = "default_true")]
+    /// Treat memory zone as public information.
     pub memory_is_public: bool,
     #[serde(skip)]
+    /// Cached set whitelist derived from `allowed_card_sets`.
     pub allowed_card_sets_cache: Option<HashSet<String>>,
 }
 
@@ -232,6 +300,7 @@ impl Default for CurriculumConfig {
 }
 
 impl CurriculumConfig {
+    /// Rebuild derived caches after changing configuration fields.
     pub fn rebuild_cache(&mut self) {
         if self.allowed_card_sets.is_empty() {
             self.allowed_card_sets_cache = None;

@@ -5,6 +5,7 @@ use crate::state::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Reason for revealing a card.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum RevealReason {
     TriggerCheck,
@@ -14,6 +15,7 @@ pub enum RevealReason {
     AbilityEffect,
 }
 
+/// Audience allowed to see a revealed card.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RevealAudience {
     Public,
@@ -23,17 +25,20 @@ pub enum RevealAudience {
     ReplayOnly,
 }
 
+/// Reason a trigger was canceled.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum TriggerCancelReason {
     InvalidSource,
     Suppressed,
 }
 
+/// Reason a choice was skipped.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum ChoiceSkipReason {
     NoCandidates,
 }
 
+/// Logical zone in the game state.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Zone {
     Deck,
@@ -48,12 +53,16 @@ pub enum Zone {
     Stage,
 }
 
+/// Snapshot of a choice option for replay/debugging.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChoiceOptionSnapshot {
+    /// Stable id for the option.
     pub option_id: u64,
+    /// Reference to the underlying option.
     pub reference: ChoiceOptionRef,
 }
 
+/// Canonical event stream emitted by the engine.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Event {
     Draw {
@@ -302,6 +311,7 @@ pub enum Event {
     },
 }
 
+/// Reason a modifier was removed.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum ModifierRemoveReason {
     EndOfTurn,

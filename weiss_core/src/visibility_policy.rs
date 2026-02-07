@@ -2,12 +2,16 @@ use crate::config::{CurriculumConfig, ObservationVisibility};
 use crate::events::Zone;
 use crate::state::TargetZone;
 
+/// Visibility policy for revealing zone identities.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ZoneIdentityVisibility {
+    /// Publicly visible identity.
     Public,
+    /// Visible only to the owner.
     OwnerOnly,
 }
 
+/// Determine identity visibility for a concrete zone.
 pub fn zone_identity_visibility(
     zone: Zone,
     curriculum: &CurriculumConfig,
@@ -25,6 +29,7 @@ pub fn zone_identity_visibility(
     }
 }
 
+/// Determine identity visibility for a targeted zone.
 pub fn target_zone_identity_visibility(
     zone: TargetZone,
     curriculum: &CurriculumConfig,
@@ -44,6 +49,7 @@ pub fn target_zone_identity_visibility(
     }
 }
 
+/// Whether a zone should be hidden for a given viewer.
 pub fn hide_zone_for_viewer(
     visibility: ObservationVisibility,
     viewer: Option<u8>,
@@ -60,6 +66,7 @@ pub fn hide_zone_for_viewer(
     }
 }
 
+/// Whether a target zone should be hidden for a given viewer.
 pub fn hide_target_zone_for_viewer(
     visibility: ObservationVisibility,
     viewer: Option<u8>,

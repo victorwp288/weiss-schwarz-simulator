@@ -12,8 +12,10 @@ use crate::state::{
     StackOrderState, TargetSelectionState, TerminalResult, TimingWindow, TurnState,
 };
 
+/// Fingerprint algorithm identifier.
 pub const FINGERPRINT_ALGO: &str = "postcard+blake3+u64le v1";
 
+/// Hash raw bytes into a stable 64-bit fingerprint.
 pub fn hash_bytes(bytes: &[u8]) -> u64 {
     let hash = blake3::hash(bytes);
     let mut out = [0u8; 8];
@@ -21,21 +23,25 @@ pub fn hash_bytes(bytes: &[u8]) -> u64 {
     u64::from_le_bytes(out)
 }
 
+/// Hash a serializable value using postcard + blake3.
 pub fn hash_postcard<T: Serialize + ?Sized>(value: &T) -> u64 {
     let bytes = postcard::to_allocvec(value).expect("fingerprint serialization failed");
     hash_bytes(&bytes)
 }
 
+/// Compute a stable fingerprint for env config + curriculum.
 pub fn config_fingerprint(config: &EnvConfig, curriculum: &CurriculumConfig) -> u64 {
     let canonical = CanonicalConfigForHash::from_config(config, curriculum);
     hash_postcard(&canonical)
 }
 
+/// Compute a stable fingerprint for a game state.
 pub fn state_fingerprint(state: &GameState) -> u64 {
     let canonical = CanonicalStateForHash::from_state(state);
     hash_postcard(&canonical)
 }
 
+/// Compute a stable fingerprint for an event stream.
 pub fn events_fingerprint(events: &[Event]) -> u64 {
     hash_postcard(events)
 }

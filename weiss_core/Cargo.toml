@@ -12,6 +12,7 @@ path = "src/lib.rs"
 default = []
 replay-zstd = ["dep:zstd"]
 tracing = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-appender"]
+test-harness = []
 
 [dependencies]
 anyhow = "1"
@@ -42,3 +43,7 @@ harness = false
 [[bench]]
 name = "alloc_benches"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

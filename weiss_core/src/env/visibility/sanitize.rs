@@ -1,112 +1,13 @@
-use super::{GameEnv, VisibilityContext};
+use super::super::{GameEnv, VisibilityContext};
 use crate::effects::*;
-use crate::encode::*;
 use crate::events::*;
 use crate::legal::*;
 use crate::replay::*;
 use crate::state::*;
-use crate::visibility_policy::{
-    hide_target_zone_for_viewer, hide_zone_for_viewer, zone_identity_visibility,
-    ZoneIdentityVisibility,
-};
+use crate::visibility_policy::{hide_target_zone_for_viewer, hide_zone_for_viewer};
 
 impl GameEnv {
-    pub(super) fn reveal_card(
-        &mut self,
-        player: u8,
-        card: &CardInstance,
-        reason: RevealReason,
-        audience: RevealAudience,
-    ) {
-        let mut viewers = [0u8; 2];
-        let mut count = 0usize;
-        match audience {
-            RevealAudience::Public | RevealAudience::BothPlayers => {
-                viewers[0] = 0;
-                viewers[1] = 1;
-                count = 2;
-            }
-            RevealAudience::OwnerOnly => {
-                viewers[0] = card.owner;
-                count = 1;
-            }
-            RevealAudience::ControllerOnly => {
-                viewers[0] = card.controller;
-                count = 1;
-            }
-            RevealAudience::ReplayOnly => {}
-        }
-        for &viewer in viewers[..count].iter() {
-            if let Some(history) = self.state.reveal_history.get_mut(viewer as usize) {
-                history.push(card.id);
-            }
-        }
-        if self.curriculum.enable_visibility_policies && count > 0 {
-            self.mark_instance_revealed(&viewers[..count], card.instance_id);
-        }
-        self.log_event(Event::Reveal {
-            player,
-            card: card.id,
-            reason,
-            audience,
-        });
-    }
-
-    pub(super) fn reveal_cards(
-        &mut self,
-        player: u8,
-        cards: &[CardInstance],
-        reason: RevealReason,
-        audience: RevealAudience,
-    ) -> Vec<CardInstance> {
-        for card in cards {
-            self.reveal_card(player, card, reason, audience);
-        }
-        cards.to_vec()
-    }
-
-    pub(super) fn log_event(&mut self, event: Event) {
-        if self.recording {
-            let ctx = self.replay_visibility_context();
-            self.canonical_events.push(event.clone());
-            let replay_event = self.sanitize_event_for_viewer(&event, ctx);
-            self.replay_events.push(replay_event);
-        }
-        if self.debug_event_ring.is_some() {
-            let mut sanitized = [None, None];
-            for viewer in 0..2u8 {
-                let ctx = self.debug_visibility_context(viewer);
-                sanitized[viewer as usize] = Some(self.sanitize_event_for_viewer(&event, ctx));
-            }
-            if let Some(rings) = self.debug_event_ring.as_mut() {
-                for viewer in 0..2u8 {
-                    if let Some(entry) = sanitized[viewer as usize].take() {
-                        rings[viewer as usize].push(entry);
-                    }
-                }
-            }
-        }
-    }
-
-    pub(super) fn log_action(&mut self, actor: u8, action: ActionDesc) {
-        if !self.replay_config.store_actions {
-            return;
-        }
-        let ctx = self.replay_visibility_context();
-        self.replay_actions_raw.push(action.clone());
-        let logged = self.sanitize_action_for_viewer(&action, actor, ctx);
-        self.replay_actions.push(logged);
-        let raw_id = action_id_for(&action)
-            .and_then(|id| u16::try_from(id).ok())
-            .unwrap_or(REPLAY_ACTION_ID_UNKNOWN);
-        let public_id = action_id_for(self.replay_actions.last().expect("logged action"))
-            .and_then(|id| u16::try_from(id).ok())
-            .unwrap_or(REPLAY_ACTION_ID_UNKNOWN);
-        self.replay_action_ids_raw.push(raw_id);
-        self.replay_action_ids.push(public_id);
-    }
-
-    pub(super) fn sanitize_action_for_viewer(
+    pub(in crate::env) fn sanitize_action_for_viewer(
         &self,
         action: &ActionDesc,
         actor: u8,
@@ -150,7 +51,7 @@ impl GameEnv {
         }
     }
 
-    pub(super) fn replay_visibility_context(&self) -> VisibilityContext {
+    pub(in crate::env) fn replay_visibility_context(&self) -> VisibilityContext {
         let policies_enabled = self.curriculum.enable_visibility_policies;
         let mode = self.config.observation_visibility;
         let viewer = None;
@@ -161,7 +62,7 @@ impl GameEnv {
         }
     }
 
-    pub(super) fn debug_visibility_context(&self, viewer: u8) -> VisibilityContext {
+    pub(in crate::env) fn debug_visibility_context(&self, viewer: u8) -> VisibilityContext {
         VisibilityContext {
             viewer: Some(viewer),
             mode: self.config.observation_visibility,
@@ -169,7 +70,7 @@ impl GameEnv {
         }
     }
 
-    pub(super) fn zone_hidden_for_viewer(
+    pub(in crate::env) fn zone_hidden_for_viewer(
         &self,
         ctx: VisibilityContext,
         owner: u8,
@@ -181,7 +82,7 @@ impl GameEnv {
         hide_zone_for_viewer(ctx.mode, ctx.viewer, owner, zone, &self.curriculum)
     }
 
-    pub(super) fn instance_revealed_to_viewer(
+    pub(in crate::env) fn instance_revealed_to_viewer(
         &self,
         ctx: VisibilityContext,
         instance_id: CardInstanceId,
@@ -198,41 +99,7 @@ impl GameEnv {
         }
     }
 
-    pub(super) fn mark_instance_revealed(&mut self, viewers: &[u8], instance_id: CardInstanceId) {
-        if instance_id == 0 {
-            return;
-        }
-        for &viewer in viewers {
-            if let Some(set) = self.revealed_to_viewer.get_mut(viewer as usize) {
-                set.insert(instance_id);
-            }
-        }
-    }
-
-    pub(super) fn forget_instance_revealed(&mut self, instance_id: CardInstanceId) {
-        if instance_id == 0 {
-            return;
-        }
-        for set in &mut self.revealed_to_viewer {
-            set.remove(&instance_id);
-        }
-    }
-
-    pub(super) fn on_card_enter_zone(&mut self, card: &CardInstance, zone: Zone) {
-        if !self.curriculum.enable_visibility_policies {
-            return;
-        }
-        match zone_identity_visibility(zone, &self.curriculum) {
-            ZoneIdentityVisibility::Public => {
-                self.mark_instance_revealed(&[0, 1], card.instance_id);
-            }
-            ZoneIdentityVisibility::OwnerOnly => {
-                self.forget_instance_revealed(card.instance_id);
-            }
-        }
-    }
-
-    pub(super) fn target_hidden_for_viewer(
+    pub(in crate::env) fn target_hidden_for_viewer(
         &self,
         ctx: VisibilityContext,
         owner: u8,
@@ -244,7 +111,7 @@ impl GameEnv {
         hide_target_zone_for_viewer(ctx.mode, ctx.viewer, owner, zone, &self.curriculum)
     }
 
-    pub(super) fn reveal_visible_to_viewer(
+    pub(in crate::env) fn reveal_visible_to_viewer(
         &self,
         ctx: VisibilityContext,
         owner: u8,
@@ -262,7 +129,7 @@ impl GameEnv {
         }
     }
 
-    pub(super) fn sanitize_target_ref(
+    pub(in crate::env) fn sanitize_target_ref(
         &self,
         ctx: VisibilityContext,
         target: TargetRef,
@@ -279,7 +146,7 @@ impl GameEnv {
         }
     }
 
-    pub(super) fn sanitize_stack_item(
+    pub(in crate::env) fn sanitize_stack_item(
         &self,
         ctx: VisibilityContext,
         item: &StackItem,
@@ -311,7 +178,7 @@ impl GameEnv {
         }
     }
 
-    pub(super) fn sanitize_event_for_viewer(
+    pub(in crate::env) fn sanitize_event_for_viewer(
         &self,
         event: &Event,
         ctx: VisibilityContext,
@@ -721,231 +588,6 @@ impl GameEnv {
             Event::Stand { player } => ReplayEvent::Stand { player: *player },
             Event::EndTurn { player } => ReplayEvent::EndTurn { player: *player },
             Event::Terminal { winner } => ReplayEvent::Terminal { winner: *winner },
-        }
-    }
-
-    pub fn finish_episode_replay(&mut self) {
-        if !self.recording {
-            return;
-        }
-        if self.state.terminal.is_some() {
-            let need_terminal = !self
-                .replay_events
-                .iter()
-                .any(|e| matches!(e, ReplayEvent::Terminal { .. }));
-            if need_terminal {
-                let winner = match self.state.terminal {
-                    Some(TerminalResult::Win { winner }) => Some(winner),
-                    Some(TerminalResult::Draw | TerminalResult::Timeout) => None,
-                    None => None,
-                };
-                self.log_event(Event::Terminal { winner });
-            }
-        }
-        let writer = self.replay_writer.clone();
-        if let Some(writer) = writer {
-            let header = EpisodeHeader {
-                obs_version: OBS_ENCODING_VERSION,
-                action_version: ACTION_ENCODING_VERSION,
-                replay_version: REPLAY_SCHEMA_VERSION,
-                seed: self.episode_seed,
-                base_seed: self.base_seed,
-                episode_seed: self.episode_seed,
-                spec_hash: crate::encode::SPEC_HASH,
-                starting_player: self.state.turn.starting_player,
-                deck_ids: self.config.deck_ids,
-                curriculum_id: "default".to_string(),
-                config_hash: self.config.config_hash(&self.curriculum),
-                fingerprint_algo: crate::fingerprint::FINGERPRINT_ALGO.to_string(),
-                env_id: self.env_id,
-                episode_index: self.episode_index,
-            };
-            let (actions, action_ids, events) = match self.replay_config.visibility_mode {
-                ReplayVisibilityMode::Full => (
-                    if self.replay_config.store_actions {
-                        self.replay_actions_raw.clone()
-                    } else {
-                        Vec::new()
-                    },
-                    if self.replay_config.store_actions {
-                        self.replay_action_ids_raw.clone()
-                    } else {
-                        Vec::new()
-                    },
-                    Some(self.canonical_events.clone()),
-                ),
-                ReplayVisibilityMode::Public => (
-                    if self.replay_config.store_actions {
-                        self.replay_actions.clone()
-                    } else {
-                        Vec::new()
-                    },
-                    if self.replay_config.store_actions {
-                        self.replay_action_ids.clone()
-                    } else {
-                        Vec::new()
-                    },
-                    Some(self.replay_events.clone()),
-                ),
-            };
-            let body = EpisodeBody {
-                actions,
-                action_ids,
-                events,
-                steps: self.replay_steps.clone(),
-                final_state: Some(ReplayFinal {
-                    terminal: self.state.terminal,
-                    state_hash: crate::fingerprint::state_fingerprint(&self.state),
-                    decision_count: self.state.turn.decision_count,
-                    tick_count: self.state.turn.tick_count,
-                }),
-            };
-            writer.send(ReplayData { header, body });
-        }
-        self.recording = false;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::{
-        CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
-    };
-    use crate::db::{CardColor, CardDb, CardStatic, CardType};
-    use crate::legal::ActionDesc;
-    use crate::replay::ReplayConfig;
-    use std::sync::Arc;
-
-    fn make_db() -> Arc<CardDb> {
-        let mut cards = Vec::new();
-        for id in 1..=13 {
-            cards.push(CardStatic {
-                id,
-                card_set: None,
-                card_type: CardType::Character,
-                color: CardColor::Red,
-                level: 0,
-                cost: 0,
-                power: 500,
-                soul: 1,
-                triggers: vec![],
-                traits: vec![],
-                abilities: vec![],
-                ability_defs: vec![],
-                counter_timing: false,
-                raw_text: None,
-            });
-        }
-        Arc::new(CardDb::new(cards).expect("db build"))
-    }
-
-    fn make_deck() -> Vec<u32> {
-        let mut deck = Vec::new();
-        for id in 1..=13u32 {
-            for _ in 0..4 {
-                deck.push(id);
-            }
-        }
-        deck.truncate(50);
-        deck
-    }
-
-    fn make_env() -> GameEnv {
-        let db = make_db();
-        let deck = make_deck();
-        let config = EnvConfig {
-            deck_lists: [deck.clone(), deck],
-            deck_ids: [1, 2],
-            max_decisions: 100,
-            max_ticks: 1000,
-            reward: RewardConfig::default(),
-            error_policy: ErrorPolicy::Strict,
-            observation_visibility: ObservationVisibility::Public,
-            end_condition_policy: Default::default(),
-        };
-        let curriculum = CurriculumConfig {
-            enable_visibility_policies: true,
-            ..Default::default()
-        };
-        GameEnv::new(db, config, curriculum, 9, ReplayConfig::default(), None, 0)
-    }
-
-    #[test]
-    fn sanitize_draw_hides_card_ids_in_public() {
-        let env = make_env();
-        let ctx = env.replay_visibility_context();
-        let event = Event::Draw { player: 0, card: 7 };
-        let sanitized = env.sanitize_event_for_viewer(&event, ctx);
-        match sanitized {
-            ReplayEvent::Draw { card, .. } => assert_eq!(card, 0),
-            _ => panic!("unexpected replay event"),
-        }
-    }
-
-    #[test]
-    fn sanitize_choice_option_hides_hidden_zone() {
-        let mut env = make_env();
-        let ctx = env.replay_visibility_context();
-        let option = ChoiceOptionRef {
-            card_id: 5,
-            instance_id: 123,
-            zone: ChoiceZone::Hand,
-            index: Some(0),
-            target_slot: None,
-        };
-        let sanitized = env.sanitize_choice_option_for_event(
-            ChoiceReason::PriorityActionSelect,
-            0,
-            ctx,
-            &option,
-        );
-        assert_eq!(sanitized.card_id, 0);
-        assert_eq!(sanitized.instance_id, 0);
-        assert!(sanitized.index.is_none());
-
-        env.mark_instance_revealed(&[0, 1], 123);
-        let revealed = env.sanitize_choice_option_for_event(
-            ChoiceReason::PriorityActionSelect,
-            0,
-            ctx,
-            &option,
-        );
-        assert_eq!(revealed.card_id, 5);
-        assert_eq!(revealed.instance_id, 0);
-    }
-
-    #[test]
-    fn sanitize_choice_option_strips_instance_id_in_public_replay() {
-        let env = make_env();
-        let ctx = env.replay_visibility_context();
-        let option = ChoiceOptionRef {
-            card_id: 7,
-            instance_id: 4242,
-            zone: ChoiceZone::Stage,
-            index: Some(0),
-            target_slot: None,
-        };
-        let sanitized = env.sanitize_choice_option_for_event(
-            ChoiceReason::PriorityActionSelect,
-            0,
-            ctx,
-            &option,
-        );
-        assert_eq!(sanitized.card_id, 7);
-        assert_eq!(sanitized.instance_id, 0);
-        assert_eq!(sanitized.index, Some(0));
-    }
-
-    #[test]
-    fn sanitize_action_masks_hidden_indices() {
-        let env = make_env();
-        let ctx = env.replay_visibility_context();
-        let action = ActionDesc::MulliganSelect { hand_index: 3 };
-        let masked = env.sanitize_action_for_viewer(&action, 0, ctx);
-        match masked {
-            ActionDesc::MulliganSelect { hand_index } => assert_eq!(hand_index, u8::MAX),
-            _ => panic!("unexpected masked action"),
         }
     }
 }

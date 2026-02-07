@@ -6,27 +6,42 @@ use crate::state::{
     DamageType, ModifierDuration, ModifierKind, TargetSide, TargetSpec, TargetZone,
 };
 
+/// Source category for an effect.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EffectSourceKind {
+    /// Trigger resolution.
     Trigger,
+    /// Auto ability.
     Auto,
+    /// Activated ability.
     Activated,
+    /// Continuous modifier.
     Continuous,
+    /// Event card play.
     EventPlay,
+    /// Counter timing.
     Counter,
+    /// Replacement effect.
     Replacement,
+    /// System-generated effect.
     System,
 }
 
+/// Stable identifier for an effect instance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EffectId {
+    /// Effect source category.
     pub source_kind: EffectSourceKind,
+    /// Source card id (0 means none; see EffectSourceKind).
     pub source_card: CardId,
+    /// Ability index on the source card.
     pub ability_index: u8,
+    /// Effect index within the ability.
     pub effect_index: u8,
 }
 
 impl EffectId {
+    /// Build an effect id from its components.
     pub fn new(
         source_kind: EffectSourceKind,
         source_card: CardId,
@@ -42,14 +57,20 @@ impl EffectId {
     }
 }
 
+/// Fully specified effect with targeting metadata.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct EffectSpec {
+    /// Stable effect id.
     pub id: EffectId,
+    /// Effect kind.
     pub kind: EffectKind,
+    /// Optional target specification.
     pub target: Option<TargetSpec>,
+    /// Whether this effect is optional.
     pub optional: bool,
 }
 
+/// Effect kinds that can be executed by the engine.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub enum EffectKind {
     Draw {
@@ -127,6 +148,7 @@ pub enum EffectKind {
 }
 
 impl EffectKind {
+    /// Whether this effect expects a target to be selected.
     pub fn expects_target(&self) -> bool {
         matches!(
             self,
@@ -206,29 +228,44 @@ impl EffectKind {
     }
 }
 
+/// Effect with resolved targets ready for execution.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct EffectPayload {
+    /// Underlying effect specification.
     pub spec: EffectSpec,
+    /// Resolved targets for this effect.
     pub targets: Vec<crate::state::TargetRef>,
 }
 
+/// Hook point for replacement effects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ReplacementHook {
+    /// Damage resolution hook.
     Damage,
 }
 
+/// Replacement behavior for a hook.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ReplacementKind {
+    /// Cancel damage entirely.
     CancelDamage,
+    /// Redirect damage to a new target.
     RedirectDamage { new_target: TargetSide },
 }
 
+/// Replacement specification with priority ordering.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct ReplacementSpec {
+    /// Stable effect id.
     pub id: EffectId,
+    /// Source card id.
     pub source: CardId,
+    /// Hook point for the replacement.
     pub hook: ReplacementHook,
+    /// Replacement behavior.
     pub kind: ReplacementKind,
+    /// Priority ordering (higher first).
     pub priority: i16,
+    /// Insertion order for stable sorting.
     pub insertion: u32,
 }
