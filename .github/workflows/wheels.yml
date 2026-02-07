@@ -27,6 +27,7 @@ jobs:
         with:
           working-directory: .
           command: sdist
+          maturin-version: "1.8.2"
           args: --manifest-path weiss_py/Cargo.toml --out dist
           sccache: true
       - uses: actions/upload-artifact@v4
@@ -91,6 +92,7 @@ jobs:
         with:
           working-directory: .
           command: build
+          maturin-version: "1.8.2"
           # use manylinux container for linux; use host python for mac/windows via --interpreter python
           args: ${{ matrix.args }}
           manylinux: ${{ matrix.manylinux }}
