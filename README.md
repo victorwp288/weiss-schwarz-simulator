@@ -88,6 +88,27 @@ Reference links:
 - Benchmark charts: <https://victorwp288.github.io/weiss-schwarz-simulator/benchmarks>
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 
+### Benchmark Snapshot (main, top 12)
+
+<!-- BENCHMARKS:START -->
+_Last updated: 2026-02-07 17:01 UTC_
+
+| Benchmark | Time |
+| --- | --- |
+| rust/advance_until_decision | 14563 ns/iter |
+| rust/step_batch_64 | 13642 ns/iter |
+| rust/step_batch_fast_256_priority_off | 54662 ns/iter |
+| rust/step_batch_fast_256_priority_on | 55553 ns/iter |
+| rust/legal_actions | 7 ns/iter |
+| rust/legal_actions_forced | 6 ns/iter |
+| rust/on_reverse_decision_frequency_on | 501 ns/iter |
+| rust/on_reverse_decision_frequency_off | 568 ns/iter |
+| rust/observation_encode | 79 ns/iter |
+| rust/observation_encode_forced | 79 ns/iter |
+| rust/mask_construction | 254 ns/iter |
+| rust/mask_construction_forced | 251 ns/iter |
+<!-- BENCHMARKS:END -->
+
 ## Repository layout
 
 - `weiss_core/` Rust engine core
