@@ -32,14 +32,16 @@ fn enable_validate() {
 }
 
 fn replay_config() -> ReplayConfig {
-    ReplayConfig {
+    let mut config = ReplayConfig {
         enabled: true,
         sample_rate: 1.0,
         out_dir: std::env::temp_dir(),
         compress: false,
         include_trigger_card_id: true,
         ..Default::default()
-    }
+    };
+    config.rebuild_cache();
+    config
 }
 
 fn make_db() -> Arc<CardDb> {
@@ -356,7 +358,7 @@ fn choose_priority_activation(env: &mut GameEnv) {
                 .filter(|(_, opt)| opt.zone == ChoiceZone::PriorityAct)
                 .min_by_key(|(_, opt)| {
                     (
-                        opt.index.unwrap_or(u8::MAX),
+                        opt.index.unwrap_or(u16::MAX),
                         opt.target_slot.unwrap_or(u8::MAX),
                     )
                 })
@@ -441,11 +443,11 @@ fn target_opponent_front_row_ordering() {
         })
         .expect("target selection choice");
 
-    let indices: Vec<u8> = presented
+    let indices: Vec<u16> = presented
         .iter()
         .map(|opt| opt.reference.index.unwrap())
         .collect();
-    assert_eq!(indices, vec![0, 1, 2]);
+    assert_eq!(indices, vec![0u16, 1, 2]);
     assert!(presented
         .iter()
         .all(|opt| opt.reference.zone == ChoiceZone::Stage));
@@ -527,11 +529,11 @@ fn target_opponent_stage_ordering() {
         })
         .expect("target selection choice");
 
-    let indices: Vec<u8> = presented
+    let indices: Vec<u16> = presented
         .iter()
         .map(|opt| opt.reference.index.unwrap())
         .collect();
-    assert_eq!(indices, vec![0, 1, 2, 3, 4]);
+    assert_eq!(indices, vec![0u16, 1, 2, 3, 4]);
     assert!(presented
         .iter()
         .all(|opt| opt.reference.zone == ChoiceZone::Stage));
@@ -596,11 +598,11 @@ fn target_opponent_back_row_ordering() {
         })
         .expect("target selection choice");
 
-    let indices: Vec<u8> = presented
+    let indices: Vec<u16> = presented
         .iter()
         .map(|opt| opt.reference.index.unwrap())
         .collect();
-    assert_eq!(indices, vec![3, 4]);
+    assert_eq!(indices, vec![3u16, 4]);
     assert!(presented
         .iter()
         .all(|opt| opt.reference.zone == ChoiceZone::Stage));
@@ -667,11 +669,11 @@ fn multi_target_selection_no_duplicates() {
         })
         .expect("second target choice");
 
-    let indices: Vec<u8> = second_presented
+    let indices: Vec<u16> = second_presented
         .iter()
         .map(|opt| opt.reference.index.unwrap())
         .collect();
-    assert_eq!(indices, vec![0, 2]);
+    assert_eq!(indices, vec![0u16, 2]);
 
     env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
         .unwrap();
@@ -748,9 +750,9 @@ fn target_choice_truncation_metadata() {
 
     assert_eq!(total, 18);
     assert_eq!(options.len(), 16);
-    let indices: Vec<u8> = options
+    let indices: Vec<u16> = options
         .iter()
         .map(|opt| opt.reference.index.unwrap())
         .collect();
-    assert_eq!(indices, (0u8..16u8).collect::<Vec<u8>>());
+    assert_eq!(indices, (0u16..16u16).collect::<Vec<u16>>());
 }

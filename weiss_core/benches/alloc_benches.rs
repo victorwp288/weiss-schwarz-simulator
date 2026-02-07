@@ -140,7 +140,7 @@ fn install_choice(env: &mut GameEnv, total: usize) {
             card_id: (idx + 1) as u32,
             instance_id: (idx + 1) as u32,
             zone: ChoiceZone::WaitingRoom,
-            index: Some(idx as u8),
+            index: Some(idx as u16),
             target_slot: None,
         })
         .collect::<Vec<_>>();

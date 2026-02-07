@@ -145,11 +145,13 @@ fn pad_deck(deck: Vec<u32>) -> Vec<u32> {
 }
 
 fn replay_config() -> ReplayConfig {
-    ReplayConfig {
+    let mut config = ReplayConfig {
         enabled: true,
         sample_rate: 1.0,
         ..Default::default()
-    }
+    };
+    config.rebuild_cache();
+    config
 }
 
 fn stack_pushed_with_source(events: &[ReplayEvent], source: EffectSourceKind) -> bool {

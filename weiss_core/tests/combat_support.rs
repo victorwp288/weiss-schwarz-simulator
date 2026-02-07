@@ -48,14 +48,16 @@ pub fn enable_validate() {
 }
 
 pub fn replay_config() -> ReplayConfig {
-    ReplayConfig {
+    let mut config = ReplayConfig {
         enabled: true,
         sample_rate: 1.0,
         out_dir: std::env::temp_dir(),
         compress: false,
         include_trigger_card_id: true,
         ..Default::default()
-    }
+    };
+    config.rebuild_cache();
+    config
 }
 
 pub fn make_db() -> Arc<CardDb> {

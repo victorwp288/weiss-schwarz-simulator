@@ -33,14 +33,16 @@ fn enable_validate() {
 }
 
 fn replay_config() -> ReplayConfig {
-    ReplayConfig {
+    let mut config = ReplayConfig {
         enabled: true,
         sample_rate: 1.0,
         out_dir: std::env::temp_dir(),
         compress: false,
         include_trigger_card_id: true,
         ..Default::default()
-    }
+    };
+    config.rebuild_cache();
+    config
 }
 
 fn make_db() -> Arc<CardDb> {
@@ -335,7 +337,7 @@ fn choose_priority_activation(env: &mut GameEnv) {
                 .filter(|(_, opt)| opt.zone == ChoiceZone::PriorityAct)
                 .min_by_key(|(_, opt)| {
                     (
-                        opt.index.unwrap_or(u8::MAX),
+                        opt.index.unwrap_or(u16::MAX),
                         opt.target_slot.unwrap_or(u8::MAX),
                     )
                 })
