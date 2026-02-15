@@ -91,22 +91,22 @@ Reference links:
 ### Benchmark Snapshot (main, top 12)
 
 <!-- BENCHMARKS:START -->
-_Last updated: 2026-02-15 22:10 UTC_
+_Last updated: 2026-02-15 23:50 UTC_
 
 | Benchmark | Time |
 | --- | --- |
-| rust/advance_until_decision | 15351 ns/iter |
-| rust/step_batch_64 | 13702 ns/iter |
-| rust/step_batch_fast_256_priority_off | 55739 ns/iter |
-| rust/step_batch_fast_256_priority_on | 55090 ns/iter |
-| rust/legal_actions | 7 ns/iter |
-| rust/legal_actions_forced | 6 ns/iter |
-| rust/on_reverse_decision_frequency_on | 528 ns/iter |
-| rust/on_reverse_decision_frequency_off | 520 ns/iter |
-| rust/observation_encode | 87 ns/iter |
-| rust/observation_encode_forced | 83 ns/iter |
-| rust/mask_construction | 255 ns/iter |
-| rust/mask_construction_forced | 252 ns/iter |
+| rust/advance_until_decision | 35275 ns/iter |
+| rust/step_batch_64 | 16965 ns/iter |
+| rust/reset_batch_256 | 898737 ns/iter |
+| rust/step_batch_fast_256_priority_off | 73667 ns/iter |
+| rust/step_batch_fast_256_priority_on | 73837 ns/iter |
+| rust/legal_actions | 12 ns/iter |
+| rust/legal_actions_forced | 12 ns/iter |
+| rust/on_reverse_decision_frequency_on | 1170 ns/iter |
+| rust/on_reverse_decision_frequency_off | 1172 ns/iter |
+| rust/observation_encode | 187 ns/iter |
+| rust/observation_encode_forced | 186 ns/iter |
+| rust/mask_construction | 392 ns/iter |
 <!-- BENCHMARKS:END -->
 
 ## Repository layout
