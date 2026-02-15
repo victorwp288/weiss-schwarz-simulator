@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["CHECK_TIMING_QUIESCENCE_CAP","HAND_LIMIT","STACK_AUTO_RESOLVE_CAP"],"enum":["EngineErrorCode"],"fn":["legal_action_ids_cached_into"],"struct":["DebugConfig","EnvInfo","GameEnv","StepOutcome"]};
+window.SIDEBAR_ITEMS = {"constant":["CHECK_TIMING_QUIESCENCE_CAP","HAND_LIMIT","STACK_AUTO_RESOLVE_CAP"],"enum":["EngineErrorCode","FaultSource"],"fn":["legal_action_ids_cached_into"],"struct":["DebugConfig","EnvInfo","FaultRecord","GameEnv","StepOutcome"]};
