@@ -49,7 +49,7 @@ Legend:
 
 - **Phase order (Stand → Draw → Clock → Main → Climax → Attack → End)**: Implemented.
   - `weiss_core::env`
-- **No attacks on starting player's first turn**: Implemented.
+- **Starting player may declare exactly one attack on their first turn**: Implemented.
   - `weiss_core::legal`
 
 ### Section 7 — Attack and Battle
@@ -97,6 +97,7 @@ Legend:
 - **Trigger icons (Soul/Draw/Shot/Bounce/Treasure/Gate/Standby)**: **Local policy** (see below).
 - **Simple search/salvage/reveal templates**: **Implemented (local policy)**.
 - **AbilityDef-driven effects (P0 set)**: **Implemented (local policy)**.
+- **On-reverse battle-opponent reverse/bottom-deck effects**: **Implemented (subset)**.
 - **Other keyword abilities**: **Not implemented** (requires card text ingestion).
 
 ### Section 11 — Miscellaneous
@@ -119,7 +120,7 @@ Legend:
   - Battle resolution
   - On-reverse auto triggers (if any) are queued immediately after reversal
   - Encore handling
-- Starting player cannot declare attacks on their first turn.
+- Starting player may declare exactly one attack on their first turn.
 
 ### Implemented loss / terminal conditions
 
@@ -142,7 +143,7 @@ Key flags that gate behavior:
 - `enable_clock_phase`, `enable_climax_phase`, `enable_side_attacks`, `enable_direct_attacks`
 - `enable_counters`, `enable_triggers` (and per-trigger toggles)
 - `enable_backup`, `enable_encore`, `enable_refresh_penalty`
-- `enable_activated_abilities`, `enable_continuous_modifiers`
+- `enable_activated_abilities`, `enable_continuous_modifiers`, `enable_approx_effects`
 - `enable_priority_windows`, `enable_visibility_policies`, `use_alternate_end_conditions`
 - `priority_autopick_single_action`, `priority_allow_pass`, `strict_priority_mode`
 - `reduced_stage_mode`, `allowed_card_sets`, `enforce_color_requirement`, `enforce_cost_requirement`
@@ -162,9 +163,10 @@ Activated abilities are legal only if all costs are payable up front. Costs are 
 ### Trigger semantics (local policy)
 
 Fixed choices:
-- **Draw** is mandatory (no “may”).
-- **Shot** resolves as immediate 1 damage (cancelable).
-- **Bounce/Return** targets the controller’s own stage.
+- **Draw** is optional (“you may draw 1 card”).
+- **Shot** is delayed and resolves as additional effect damage only if battle damage is canceled.
+- **Bounce/Return** targets the opponent’s stage.
+- **Choice/Pool** triggers are supported.
 
 ### Refresh + penalty (local policy)
 
@@ -185,6 +187,40 @@ When `observation_visibility` is `Public` and `enable_visibility_policies` is tr
 - Target candidates are snapshotted at choice creation.
 - Random selection is uniform and deterministic under seed.
 - Opponent hidden zones are not direct choice targets.
+
+### Conversion snapshot (February 15, 2026)
+
+Data source/process:
+- Snapshot reflects parser-v2 rule-pack conversion output (WSDB v2).
+- Emitted `AbilityDef` entries can include optional provenance at `conditions.source_rule_id` (alias `sourceRuleId`) for rule-origin traceability.
+
+Strict conversion (`--approx-profile strict`):
+
+- Ability lines processed: `29,675`
+- Parsed into supported templates/defs: `15,314` (`51.61%`)
+- Remaining unsupported lines: `14,361`
+- Dropped trigger icons: none (`Choice=0`, `Pool=0`)
+
+Coverage analysis (`scripts/ability_coverage_report.py`):
+
+- Parse-line coverage:
+  - `strict` (legacy alias: `none`): `51.61%` (`15,314 / 29,675`)
+  - `approx` (legacy alias: `rl_v1`): `99.77%` (`29,607 / 29,675`)
+- Card-level all-lines-supported coverage:
+  - `strict` (legacy alias: `none`): `35.03%` (`6,038 / 17,235`)
+  - `approx` (legacy alias: `rl_v1`): `99.61%` (`17,167 / 17,235`)
+
+Family-cluster coverage (selected high-impact groups):
+
+- `AssistOrScalingPower`
+  - `strict`: `59.24%` (`6,417 / 10,832`)
+  - `approx`: `99.98%` (`10,830 / 10,832`)
+- `FollowingAbilityGrant`
+  - `strict`: `13.15%` (`205 / 1,559`)
+  - `approx`: `100.00%` (`1,559 / 1,559`)
+- `PaidOnPlaySearchSalvage`
+  - `strict`: `59.12%` (`833 / 1,409`)
+  - `approx`: `99.93%` (`1,408 / 1,409`)
 
 ---
 

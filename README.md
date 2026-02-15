@@ -91,22 +91,22 @@ Reference links:
 ### Benchmark Snapshot (main, top 12)
 
 <!-- BENCHMARKS:START -->
-_Last updated: 2026-02-07 17:18 UTC_
+_Last updated: 2026-02-15 22:10 UTC_
 
 | Benchmark | Time |
 | --- | --- |
-| rust/advance_until_decision | 31792 ns/iter |
-| rust/step_batch_64 | 16628 ns/iter |
-| rust/step_batch_fast_256_priority_off | 67375 ns/iter |
-| rust/step_batch_fast_256_priority_on | 67209 ns/iter |
-| rust/legal_actions | 13 ns/iter |
-| rust/legal_actions_forced | 12 ns/iter |
-| rust/on_reverse_decision_frequency_on | 1104 ns/iter |
-| rust/on_reverse_decision_frequency_off | 1166 ns/iter |
-| rust/observation_encode | 166 ns/iter |
-| rust/observation_encode_forced | 166 ns/iter |
-| rust/mask_construction | 388 ns/iter |
-| rust/mask_construction_forced | 390 ns/iter |
+| rust/advance_until_decision | 15351 ns/iter |
+| rust/step_batch_64 | 13702 ns/iter |
+| rust/step_batch_fast_256_priority_off | 55739 ns/iter |
+| rust/step_batch_fast_256_priority_on | 55090 ns/iter |
+| rust/legal_actions | 7 ns/iter |
+| rust/legal_actions_forced | 6 ns/iter |
+| rust/on_reverse_decision_frequency_on | 528 ns/iter |
+| rust/on_reverse_decision_frequency_off | 520 ns/iter |
+| rust/observation_encode | 87 ns/iter |
+| rust/observation_encode_forced | 83 ns/iter |
+| rust/mask_construction | 255 ns/iter |
+| rust/mask_construction_forced | 252 ns/iter |
 <!-- BENCHMARKS:END -->
 
 ## Repository layout
@@ -120,7 +120,15 @@ _Last updated: 2026-02-07 17:18 UTC_
 
 ## Local quality checks
 
-Rust:
+Full CI-equivalent local parity:
+
+```bash
+scripts/run_local_ci_parity.sh
+# Optional during iterative work on thermally constrained machines:
+SKIP_BENCHMARKS=1 scripts/run_local_ci_parity.sh
+```
+
+Non-benchmark subset (useful on thermally constrained laptops):
 
 ```bash
 scripts/check_env_layering.sh
@@ -129,14 +137,18 @@ python scripts/check_docs_constants.py
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --features test-harness
-```
-
-Python:
-
-```bash
+RUSTDOCFLAGS="-D missing-docs" cargo doc --workspace --no-deps
 ruff format --check python scraper scripts
 ruff check python scraper scripts
-pytest -q python/tests
+python scripts/ability_coverage_report.py --output /tmp/ability_coverage_report.json
+python scripts/ability_coverage_targets.py --report /tmp/ability_coverage_report.json --output /tmp/ability_coverage_targets.json
+python scripts/check_coverage_budget.py --report /tmp/ability_coverage_report.json --baseline scripts/ability_coverage_baseline.json --min-parse-line-coverage-strict 0.52 --max-unsupported-lines-strict 14200 --min-card-coverage-approx 0.99
+maturin build --release --manifest-path weiss_py/Cargo.toml --out /tmp/wss_dist --interpreter .venv/bin/python
+.venv/bin/python -m pip install --force-reinstall --no-deps /tmp/wss_dist/*.whl
+.venv/bin/python -m pytest -q python/tests
+cargo audit
+pip-audit .
+pip-audit -r scraper/requirements.txt
 ```
 
 ## Compatibility and versioning

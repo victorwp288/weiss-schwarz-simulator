@@ -16,6 +16,7 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
       python: ${{ steps.filter.outputs.python }}
       docs: ${{ steps.filter.outputs.docs }}
+      perf: ${{ steps.filter.outputs.perf }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,10 +42,17 @@ jobs:
               - 'docs/**'
               - 'scripts/check_docs_links.py'
               - 'scripts/check_docs_constants.py'
+            perf:
+              - 'weiss_core/**'
+              - 'weiss_py/**'
+              - 'python/examples/bench_python_boundary.py'
+              - 'benchmark/**'
+              - 'scripts/check_perf_budget.py'
+              - '.github/workflows/ci.yml'
 
   ci:
     name: ci
-    needs: [changes, docs, rust, python]
+    needs: [changes, docs, rust, python, perf]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -54,6 +62,7 @@ jobs:
           echo "docs=${{ needs.docs.result }}"
           echo "rust=${{ needs.rust.result }}"
           echo "python=${{ needs.python.result }}"
+          echo "perf=${{ needs.perf.result }}"
 
           if [[ "${{ needs.changes.result }}" != "success" ]]; then
             exit 1
@@ -68,6 +77,10 @@ jobs:
           fi
 
           if [[ "${{ needs.python.result }}" != "success" && "${{ needs.python.result }}" != "skipped" ]]; then
+            exit 1
+          fi
+
+          if [[ "${{ needs.perf.result }}" != "success" && "${{ needs.perf.result }}" != "skipped" ]]; then
             exit 1
           fi
 
@@ -131,9 +144,78 @@ jobs:
         run: ruff format --check python scraper scripts
       - name: Ruff lint
         run: ruff check python scraper scripts
+      - name: Ability coverage report
+        run: python scripts/ability_coverage_report.py --output /tmp/ability_coverage_report.json
+      - name: Ability coverage targets
+        run: python scripts/ability_coverage_targets.py --report /tmp/ability_coverage_report.json --output /tmp/ability_coverage_targets.json
+      - name: Coverage budget regression gate
+        run: |
+          python scripts/check_coverage_budget.py \
+            --report /tmp/ability_coverage_report.json \
+            --baseline scripts/ability_coverage_baseline.json \
+            --min-parse-line-coverage-strict 0.52 \
+            --max-unsupported-lines-strict 14200 \
+            --min-card-coverage-approx 0.99
       - name: Build + install extension (wheel)
         run: |
           maturin build --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python
           python -m pip install dist/*.whl
       - name: Pytest
         run: pytest -q python/tests
+      - name: Upload ability coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ability-coverage-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            /tmp/ability_coverage_report.json
+            /tmp/ability_coverage_targets.json
+          if-no-files-found: warn
+
+  perf:
+    name: Performance budget
+    needs: changes
+    if: needs.changes.outputs.perf == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Python tooling
+        run: |
+          python -m pip install -U pip
+          python -m pip install maturin numpy
+      - name: Build + install extension (perf)
+        run: python -m maturin develop --release --manifest-path weiss_py/Cargo.toml
+      - name: Capture baseline snapshots
+        run: |
+          mkdir -p /tmp/wss_perf_before /tmp/wss_perf_after
+          cp benchmark/benches.txt /tmp/wss_perf_before/benches.txt
+          cp benchmark/python_bench.txt /tmp/wss_perf_before/python_bench.txt
+      - name: Run rust benches
+        run: |
+          cargo bench -p weiss_core --bench core_benches -- --output-format bencher | tee /tmp/wss_perf_after/benches.txt
+          cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher | tee -a /tmp/wss_perf_after/benches.txt
+      - name: Run python boundary bench
+        run: |
+          PYTHONPATH=python python python/examples/bench_python_boundary.py \
+            --num-envs 128 \
+            --steps 2000 \
+            --warmup 200 \
+            --reset-reps 200 \
+            --mode both | tee /tmp/wss_perf_after/python_bench.txt
+      - name: Enforce perf budget
+        run: |
+          python scripts/check_perf_budget.py \
+            --baseline-benches /tmp/wss_perf_before/benches.txt \
+            --current-benches /tmp/wss_perf_after/benches.txt \
+            --baseline-python /tmp/wss_perf_before/python_bench.txt \
+            --current-python /tmp/wss_perf_after/python_bench.txt \
+            --max-core-regression-pct 15 \
+            --max-python-regression-pct 10 \
+            --require-zero-alloc

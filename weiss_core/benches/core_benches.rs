@@ -192,7 +192,7 @@ fn bench_advance_until_decision(c: &mut Criterion) {
     let curriculum = CurriculumConfig::default();
     c.bench_function("advance_until_decision", |b| {
         b.iter(|| {
-            let mut env = GameEnv::new(
+            let mut env = GameEnv::new_or_panic(
                 db.clone(),
                 config.clone(),
                 curriculum.clone(),
@@ -251,6 +251,28 @@ fn bench_step_batch(c: &mut Criterion) {
             }
             pool.step_into(black_box(&actions), black_box(&mut out.view_mut()))
                 .unwrap();
+        })
+    });
+}
+
+fn bench_reset_batch(c: &mut Criterion) {
+    let db = make_db();
+    let config = make_config();
+    let curriculum = CurriculumConfig::default();
+    let mut pool = EnvPool::new_debug(
+        256,
+        db,
+        config,
+        curriculum,
+        17,
+        None,
+        DebugConfig::default(),
+    )
+    .expect("pool");
+    let mut out = BatchOutMinimalBuffers::new(pool.envs.len());
+    c.bench_function("reset_batch_256", |b| {
+        b.iter(|| {
+            pool.reset_into(black_box(&mut out.view_mut())).unwrap();
         })
     });
 }
@@ -337,7 +359,7 @@ fn bench_legal_actions(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(
+    let env = GameEnv::new_or_panic(
         db.clone(),
         config,
         curriculum,
@@ -364,7 +386,7 @@ fn bench_legal_actions_forced(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(
+    let env = GameEnv::new_or_panic(
         db.clone(),
         config,
         curriculum,
@@ -406,7 +428,7 @@ fn bench_on_reverse_decision_frequency(c: &mut Criterion) {
     c.bench_function("on_reverse_decision_frequency_on", |b| {
         b.iter_batched(
             || {
-                let mut env = GameEnv::new(
+                let mut env = GameEnv::new_or_panic(
                     db.clone(),
                     config.clone(),
                     curriculum_on.clone(),
@@ -434,7 +456,7 @@ fn bench_on_reverse_decision_frequency(c: &mut Criterion) {
     c.bench_function("on_reverse_decision_frequency_off", |b| {
         b.iter_batched(
             || {
-                let mut env = GameEnv::new(
+                let mut env = GameEnv::new_or_panic(
                     db.clone(),
                     config.clone(),
                     curriculum_off.clone(),
@@ -464,7 +486,7 @@ fn bench_observation_encode(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(
+    let env = GameEnv::new_or_panic(
         db.clone(),
         config,
         curriculum,
@@ -496,7 +518,7 @@ fn bench_observation_encode_forced(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(
+    let env = GameEnv::new_or_panic(
         db.clone(),
         config,
         curriculum,
@@ -530,7 +552,7 @@ fn bench_mask_construction(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(
+    let env = GameEnv::new_or_panic(
         db.clone(),
         config,
         curriculum,
@@ -559,7 +581,7 @@ fn bench_mask_construction_forced(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(
+    let env = GameEnv::new_or_panic(
         db.clone(),
         config,
         curriculum,
@@ -613,7 +635,7 @@ fn bench_choice_paging_worst_case(c: &mut Criterion) {
     let db = make_choice_db(total as u32);
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(db, config, curriculum, 123, Default::default(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 123, Default::default(), None, 0);
     install_choice(&mut env, total);
     let mut actions = Vec::with_capacity(64);
     let mut mask = vec![0u8; weiss_core::encode::ACTION_SPACE_SIZE];
@@ -631,6 +653,7 @@ criterion_group!(
     benches,
     bench_advance_until_decision,
     bench_step_batch,
+    bench_reset_batch,
     bench_step_batch_fast_priority_off,
     bench_step_batch_fast_priority_on,
     bench_legal_actions,

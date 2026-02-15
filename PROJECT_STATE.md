@@ -13,6 +13,10 @@ Machine-checked constants live in [docs/invariants_validation.md](docs/invariant
 - Unified effect pipeline covers most trigger/ability/event flows.
 - Priority windows are optional and default to disabled.
 - Replay sanitization is active only when visibility policies are enabled in public mode.
+- Large high-churn modules were split for maintainability:
+  - `weiss_core/src/env/interaction/effects/{mod,core,resolve,conditions}.rs`
+  - `weiss_core/src/db/ability/{mod,models,keys,compile}.rs`
+  - `weiss_core/src/env/tests/engine/{mod,targeting_and_stack,core_effects,triggers_and_conditions,reward_and_conditionals,movement_and_reveal,modifiers_and_followups}.rs`
 
 ## Determinism and Ordering Guarantees
 
@@ -36,12 +40,15 @@ Current values:
 - `OBS_ENCODING_VERSION = 1`
 - `ACTION_ENCODING_VERSION = 1`
 - `REPLAY_SCHEMA_VERSION = 2`
-- `WSDB_SCHEMA_VERSION = 1`
+- `WSDB_SCHEMA_VERSION = 2`
 
 Policy:
 
 - Treat these as compatibility boundaries.
 - Any breaking contract shift requires coordinated updates across code, tests, and docs.
+- WSDB loader behavior is strict; non-v2 DB files must be regenerated with the parser-v2/rule-pack pipeline.
+- Migration path for legacy WSDB v1 files is explicit regeneration (no in-place upgrader):
+  run parser-v2/rule-pack conversion to JSON and repack via `carddb_pack` to emit WSDB v2 artifacts.
 
 ## Fingerprints and Drift Detection
 
@@ -110,6 +117,31 @@ Current behavior:
 - Replay sanitization is global/viewer-agnostic in public mode.
 - Revealed hidden cards may expose `CardId` but not instance id.
 - Reveal tracking is per-viewer/per-instance and invalidated by hidden-zone reentry or shuffle.
+
+## Coverage Tooling
+
+- WSDB build inputs are parser-v2 rule packs; conversion output is versioned as WSDB v2.
+- Ability conversion supports approximation profiles:
+  - `--approx-profile strict` (strict/default; legacy alias: `none`)
+  - `--approx-profile approx` (gated approximation emission; legacy alias: `rl_v1`)
+- Coverage reporting scripts:
+  - `scripts/ability_coverage_report.py` emits machine-readable profile comparisons.
+  - `scripts/check_coverage_budget.py` enforces non-regression against
+    `scripts/ability_coverage_baseline.json`.
+- Approx-only ability defs are marked with `conditions.requires_approx_effects=true` and are ignored at runtime unless `CurriculumConfig.enable_approx_effects=true`.
+- Ability defs may carry optional provenance at `conditions.source_rule_id` (alias `sourceRuleId`) to trace parser-v2 rule-pack origin.
+- Ability defs support optional `target_card_ids` selector narrowing for exact named/dual-trait search/salvage selectors.
+- Latest coverage snapshot (`2026-02-15`, `scripts/ability_coverage_report.py`):
+  - Parse-line coverage:
+    - `strict` (alias: `none`): `51.61%` (`15,314 / 29,675`)
+    - `approx` (alias: `rl_v1`): `99.77%` (`29,607 / 29,675`)
+  - Card-level all-lines-supported coverage:
+    - `strict` (alias: `none`): `35.03%` (`6,038 / 17,235`)
+    - `approx` (alias: `rl_v1`): `99.61%` (`17,167 / 17,235`)
+  - Family clusters (`strict` vs `approx`):
+    - `AssistOrScalingPower`: `59.24%` (`6,417 / 10,832`) vs `99.98%` (`10,830 / 10,832`)
+    - `FollowingAbilityGrant`: `13.15%` (`205 / 1,559`) vs `100.00%` (`1,559 / 1,559`)
+    - `PaidOnPlaySearchSalvage`: `59.12%` (`833 / 1,409`) vs `99.93%` (`1,408 / 1,409`)
 
 ## Known Gaps / Partial Areas
 

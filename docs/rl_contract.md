@@ -103,14 +103,39 @@ The observation encoding maps decision kinds to:
 | `0` | `None` | no engine error |
 | `1` | `StackAutoResolveCap` | stack auto-resolve cap exceeded |
 | `2` | `TriggerQuiescenceCap` | trigger quiescence cap exceeded |
-| `3` | `Panic` | engine panic caught |
+| `3` | `Panic` | trapped panic during step/runtime |
 | `4` | `ActionError` | action application failed |
+| `5` | `InvariantViolation` | runtime invariant violation latched |
+| `6` | `ResetError` | reset path returned an error |
+| `7` | `ResetPanic` | trapped panic during reset |
 
 If you see non-zero values in long runs, log and reset those envs deterministically.
+
+### Fault contract (latched per env)
+
+This contract applies to runtime/step fault codes `1-5`. Reset errors
+(`ResetError=6`, `ResetPanic=7`) are reset-path faults and do not use the
+"subsequent pre-reset step" semantics below.
+
+- Fault rows are emitted with `truncated=True` and `terminated=False`.
+- Fault reward uses actor perspective:
+  - actor known: `reward = terminal_loss` (default `-1.0`, configurable via `reward_json`)
+  - actor unknown: `reward = terminal_draw` (default `0.0`, and must be `0.0` under validated zero-sum rewards)
+- No shaping is emitted on fault rows.
+- Fault is sticky until reset: subsequent pre-reset steps for that env emit
+  `reward=0.0`, unchanged non-zero `engine_status`, and truncated fault flags.
+- In pool mode, per-env runtime faults do not abort the batch.
 
 ---
 
 ## Reference loops
+
+Threading note for Python RL constructors:
+
+- `EnvPool.new_rl_train/new_rl_eval` default `num_threads=None` resolves to
+  CPU parallelism (capped by `num_envs`).
+- Pass `num_threads=1` to force serial execution.
+- `pool.num_threads` reports the effective thread count.
 
 ### Mask-based loop (simple baseline)
 
@@ -191,11 +216,11 @@ Values come from `weiss_core::encode` constants. Update this table only when con
 
 | Field | Value |
 | --- | --- |
-| OBS_LEN | 358 |
+| OBS_LEN | 378 |
 | ACTION_SPACE_SIZE | 527 |
-| OBS_ENCODING_VERSION | 1 |
+| OBS_ENCODING_VERSION | 2 |
 | ACTION_ENCODING_VERSION | 1 |
-| SPEC_HASH | 4295032834 |
+| SPEC_HASH | 8590000130 |
 
 ---
 

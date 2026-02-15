@@ -31,7 +31,7 @@ These values are checked by repository tooling/tests and should be treated as au
 - `action_encoding_version`: 1
 - `obs_encoding_version`: 1
 - `replay_schema_version`: 2
-- `wsdb_schema_version`: 1
+- `wsdb_schema_version`: 2
 - `fingerprint_algo`: `postcard+blake3+u64le v1`
 - `observation_visibility_default`: `public`
 - `visibility_policies_default`: `false`
@@ -47,6 +47,8 @@ python scripts/check_docs_constants.py
 cargo test --workspace --features test-harness
 pytest -q python/tests
 ```
+
+WSDB compatibility is strict: the loader rejects non-v2 files. Regenerate card DB artifacts with the current parser-v2/rule-pack converter pipeline when this version changes.
 
 ---
 

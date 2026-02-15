@@ -25,24 +25,31 @@ A contribution is complete only when code, tests, and docs all agree.
 
 Run these before pushing.
 
-### Rust
+### Full parity run
 
 ```bash
-scripts/check_env_layering.sh
-python scripts/check_docs_links.py
-python scripts/check_docs_constants.py
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace --features test-harness
-cargo build -p weiss_core --release
+scripts/run_local_ci_parity.sh
+SKIP_BENCHMARKS=1 scripts/run_local_ci_parity.sh
 ```
 
-### Python
+`scripts/run_local_ci_parity.sh` runs checks in CI order and fail-fast mode:
+
+1. docs + layering checks
+2. rust fmt/clippy/test/doc
+3. ruff format/check
+4. coverage report/targets + budget gate
+5. wheel build + wheel install + pytest
+6. perf capture + perf budget gate
+7. security audits (`cargo audit`, `pip-audit`)
+
+### Wheel-install pytest requirement
+
+Always validate Python tests against the built wheel, not source imports:
 
 ```bash
-ruff format --check python scraper scripts
-ruff check python scraper scripts
-pytest -q python/tests
+maturin build --release --manifest-path weiss_py/Cargo.toml --out /tmp/wss_dist --interpreter .venv/bin/python
+.venv/bin/python -m pip install --force-reinstall --no-deps /tmp/wss_dist/*.whl
+.venv/bin/python -m pytest -q python/tests
 ```
 
 ## Determinism and Contract Rules
@@ -75,14 +82,42 @@ A strong PR description includes:
 - test evidence (commands + results)
 - docs updated (which files)
 
-## Benchmarks (when relevant)
+## Coverage baseline refresh
 
-If your change touches hot paths or allocation behavior, run and include benchmark data:
+If parser/rule-pack changes legitimately move coverage floors, refresh baseline and gates:
 
 ```bash
-cargo bench -p weiss_core --bench core_benches
-cargo bench -p weiss_core --bench alloc_benches
-python python/examples/bench_python_boundary.py --num-envs 256 --steps 5000 --mode both
+python scripts/ability_coverage_report.py --output /tmp/ability_coverage_report.json
+python scripts/ability_coverage_targets.py --report /tmp/ability_coverage_report.json --output /tmp/ability_coverage_targets.json
+cp /tmp/ability_coverage_targets.json scripts/ability_coverage_baseline.json
+```
+
+Then update `.github/workflows/ci.yml` coverage floor/ceiling args to match the new report while keeping regression checks enabled.
+
+## Perf baseline refresh (when relevant)
+
+If core/Python perf behavior legitimately shifts, refresh checked-in baselines:
+
+```bash
+mkdir -p /tmp/wss_perf_after
+cargo bench -p weiss_core --bench core_benches -- --output-format bencher > /tmp/wss_perf_after/benches.txt
+cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher >> /tmp/wss_perf_after/benches.txt
+PYTHONPATH=python .venv/bin/python python/examples/bench_python_boundary.py --num-envs 128 --steps 2000 --warmup 200 --reset-reps 200 --mode both > /tmp/wss_perf_after/python_bench.txt
+cp /tmp/wss_perf_after/benches.txt benchmark/benches.txt
+cp /tmp/wss_perf_after/python_bench.txt benchmark/python_bench.txt
+```
+
+Validate with:
+
+```bash
+python scripts/check_perf_budget.py \
+  --baseline-benches benchmark/benches.txt \
+  --current-benches /tmp/wss_perf_after/benches.txt \
+  --baseline-python benchmark/python_bench.txt \
+  --current-python /tmp/wss_perf_after/python_bench.txt \
+  --max-core-regression-pct 15 \
+  --max-python-regression-pct 10 \
+  --require-zero-alloc
 ```
 
 ## Related

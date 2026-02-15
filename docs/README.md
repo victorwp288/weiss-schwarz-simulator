@@ -45,6 +45,7 @@ Use this page as the canonical map.
 - [Performance & Benchmarks](performance_benchmarks.md): benchmark commands and interpretation guidance.
 - [Replays & Determinism](replays_determinism.md): replay pipeline and determinism assumptions.
 - [Rules Coverage & Local Policy](rules_coverage.md): implemented sections vs local policy decisions.
+- [Approximation Policy](approximation_policy.md): approved deterministic approximation mappings and gates.
 - [Invariants & Validation](invariants_validation.md): machine-checked constants and debug validation.
 - [Troubleshooting](troubleshooting.md): common build, test, runtime, and determinism issues.
 - [Contributing](contributing.md): PR workflow, quality gates, and documentation standards.

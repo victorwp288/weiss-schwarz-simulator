@@ -48,6 +48,12 @@ Common constructor parameters:
 
 `new_rl_train` and `new_rl_eval` default to public observation visibility and support `output_masks` toggling. Public visibility means hidden opponent zones (hand/deck/stock) are masked in observations; use full visibility only for debugging/evaluation workflows where hidden info leakage is acceptable.
 
+Threading behavior:
+
+- `new_rl_train` / `new_rl_eval` with `num_threads=None` now auto-select thread count from CPU parallelism (capped by `num_envs`).
+- pass `num_threads=1` to force serial execution.
+- `EnvPool.num_threads` exposes the effective runtime thread count.
+
 ## Buffer classes and when to use them
 
 - `EnvPoolBuffers`: standard i32 observations + masks
@@ -122,14 +128,25 @@ Use these for reproducibility logging and replay indexing.
 
 ## Engine error handling
 
-`engine_status` is returned per env each step.
+Runtime stepping/reset is batch-stable: isolated env faults are surfaced in outputs and do not raise Python exceptions in pool mode.
+
+Per-env output fields:
+
+- `engine_status` (`uint8`): stable engine code (`0` means no fault)
+- `truncated` / `terminated`: fault rows are `truncated=True`, `terminated=False`
+- `actor`: fault rows keep actor when known (no sentinel overwrite)
+
+Derived/computed signals:
+
+- `engine_error = (out.engine_status != 0)` (there is no `out.engine_error` array field)
+- reset recommendation uses the same condition: `(out.engine_status != 0)`
 
 Recommended robust pattern:
 
 ```python
-codes = out.engine_status
-if (codes != 0).any():
-    pool.auto_reset_on_error_codes_into(codes, buf.out)
+engine_error = out.engine_status != 0
+if engine_error.any():
+    pool.auto_reset_on_error_codes_into(out.engine_status, buf.out)
 ```
 
 No-mask variant:
@@ -140,6 +157,8 @@ Also available:
 
 - `engine_error_reset_count()`
 - `reset_engine_error_reset_count()`
+
+Note: the Python extension requires `panic=unwind` so per-env panic containment can trap unwinds safely.
 
 ## Replay sampling controls
 

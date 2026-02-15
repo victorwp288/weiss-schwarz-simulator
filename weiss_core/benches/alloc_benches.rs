@@ -183,7 +183,7 @@ fn bench_alloc_legal_actions(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(
+    let env = GameEnv::new_or_panic(
         std::sync::Arc::new(db),
         config,
         curriculum,
@@ -228,7 +228,7 @@ fn bench_alloc_observation_encode(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let env = GameEnv::new(
+    let env = GameEnv::new_or_panic(
         std::sync::Arc::new(db),
         config,
         curriculum,
@@ -313,7 +313,7 @@ fn bench_alloc_choice_paging_worst_case(c: &mut Criterion) {
     let db = make_choice_db(total as u32);
     let config = make_config();
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         std::sync::Arc::new(db),
         config,
         curriculum,

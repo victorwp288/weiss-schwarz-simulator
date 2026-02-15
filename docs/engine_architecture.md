@@ -113,6 +113,11 @@ Known direct-path exceptions (intentional, documented):
 - continuous modifiers that apply immediately
 - refresh/refresh-penalty zone operations
 
+Granted ability runtime notes:
+
+- live ability lookup merges static DB abilities and temporary granted abilities in deterministic order.
+- encore variant cost discovery now reads from live abilities, so temporarily granted `Encore [...]` costs are honored during encore decisions.
+
 ---
 
 ## Timing and priority behavior
@@ -145,13 +150,17 @@ Representative non-zero codes:
 - stack auto-resolve cap exceeded
 - trigger quiescence cap exceeded
 - action application error
-- caught panic
+- trapped runtime panic (`Panic`)
+- reset returned an error (`ResetError`)
+- trapped reset panic (`ResetPanic`)
+- runtime invariant violation (`InvariantViolation`)
 
 Operational guidance:
 
 - keep training loops checking `engine_status`
 - use `auto_reset_on_error_codes_into(...)` where long-running jobs need robustness
 - treat non-zero codes as contract signals, not ignorable warnings
+- build Python extension paths with `panic=unwind` so per-env panic containment is effective
 
 ---
 
