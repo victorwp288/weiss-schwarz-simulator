@@ -20,6 +20,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .weiss_sim import (
+    ACTOR_NONE,
     PASS_ACTION_ID,
     BatchOutMinimal,
     BatchOutMinimalI16LegalIds,
@@ -41,6 +42,18 @@ class RlStep:
     engine_status: np.ndarray
     spec_hash: np.ndarray
 
+    @property
+    def engine_error(self) -> np.ndarray:
+        return self.engine_status != 0
+
+    @property
+    def reset_recommended(self) -> np.ndarray:
+        return self.engine_status != 0
+
+    @property
+    def actor_known(self) -> np.ndarray:
+        return self.actor != ACTOR_NONE
+
 
 @dataclass(frozen=True)
 class RlStepNoMask:
@@ -53,6 +66,18 @@ class RlStepNoMask:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+
+    @property
+    def engine_error(self) -> np.ndarray:
+        return self.engine_status != 0
+
+    @property
+    def reset_recommended(self) -> np.ndarray:
+        return self.engine_status != 0
+
+    @property
+    def actor_known(self) -> np.ndarray:
+        return self.actor != ACTOR_NONE
 
 
 @dataclass(frozen=True)
@@ -68,6 +93,18 @@ class RlStepI16LegalIds:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+
+    @property
+    def engine_error(self) -> np.ndarray:
+        return self.engine_status != 0
+
+    @property
+    def reset_recommended(self) -> np.ndarray:
+        return self.engine_status != 0
+
+    @property
+    def actor_known(self) -> np.ndarray:
+        return self.actor != ACTOR_NONE
 
 
 def pass_action_id_for_decision_kind(decision_kind):

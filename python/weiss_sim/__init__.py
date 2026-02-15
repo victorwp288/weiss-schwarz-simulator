@@ -65,6 +65,12 @@ def _resolve_profile(profile: str):
     raise ValueError(f"unknown profile '{profile}' (expected fast, balanced, eval, debug)")
 
 
+def _prepare_pool_for_legal_ids(pool: EnvPool) -> None:
+    """Legal-id outputs require dense output masks to be disabled."""
+    pool.set_output_mask_enabled(False)
+    pool.set_output_mask_bits_enabled(False)
+
+
 def make_train_pool(
     num_envs: int,
     db_path: str,
@@ -92,6 +98,8 @@ def make_train_pool(
     Profiles:
     - fast: masks off + i16 obs + legal ids (highest throughput)
     - balanced/eval/debug: masks on + i32 obs (easier debugging)
+    - num_threads=None uses RL auto-threading (CPU parallelism capped by num_envs)
+      from EnvPool.new_rl_train; pass num_threads=1 to force serial execution.
 
     Returns: (pool, buffers)
     """
@@ -130,7 +138,7 @@ def make_train_pool(
         debug_event_ring_capacity=debug_event_ring_capacity,
     )
     if legal_ids:
-        pool.set_output_mask_bits_enabled(False)
+        _prepare_pool_for_legal_ids(pool)
     if unsafe_i16:
         pool.set_i16_clamp_enabled(False)
     if rollout_steps is not None:
@@ -177,6 +185,8 @@ def make_eval_pool(
     Profiles:
     - balanced/eval/debug: masks on + i32 obs
     - fast: masks off + i16 obs + legal ids (opt-in)
+    - num_threads=None uses RL auto-threading (CPU parallelism capped by num_envs)
+      from EnvPool.new_rl_eval; pass num_threads=1 to force serial execution.
 
     Returns: (pool, buffers)
     """
@@ -215,7 +225,7 @@ def make_eval_pool(
         debug_event_ring_capacity=debug_event_ring_capacity,
     )
     if legal_ids:
-        pool.set_output_mask_bits_enabled(False)
+        _prepare_pool_for_legal_ids(pool)
     if unsafe_i16:
         pool.set_i16_clamp_enabled(False)
     if rollout_steps is not None:
@@ -235,7 +245,21 @@ def make_eval_pool(
     return pool, EnvPoolBuffersNoMask(pool)
 
 
-class EnvPoolBuffers:
+class _EngineStatusMixin:
+    @property
+    def engine_error(self):
+        return self.engine_status != 0
+
+    @property
+    def reset_recommended(self):
+        return self.engine_error
+
+    @property
+    def actor_known(self):
+        return self.actor != ACTOR_NONE
+
+
+class EnvPoolBuffers(_EngineStatusMixin):
     """Preallocated numpy buffers for high-throughput stepping."""
 
     def __init__(self, pool: EnvPool) -> None:
@@ -336,7 +360,7 @@ class EnvPoolBuffers:
         return self.legal_ids[:count], self.legal_offsets, self.actions
 
 
-class EnvPoolBuffersNoMask:
+class EnvPoolBuffersNoMask(_EngineStatusMixin):
     """Preallocated numpy buffers for stepping without dense masks."""
 
     def __init__(self, pool: EnvPool) -> None:
@@ -431,7 +455,7 @@ class EnvPoolBuffersNoMask:
         return self.legal_ids[:count], self.legal_offsets, self.actions
 
 
-class EnvPoolBuffersI16:
+class EnvPoolBuffersI16(_EngineStatusMixin):
     """Preallocated numpy buffers for high-throughput stepping with i16 obs."""
 
     def __init__(self, pool: EnvPool) -> None:
@@ -530,11 +554,12 @@ class EnvPoolBuffersI16:
         return self.legal_ids[:count], self.legal_offsets, self.actions
 
 
-class EnvPoolBuffersI16LegalIds:
+class EnvPoolBuffersI16LegalIds(_EngineStatusMixin):
     """Preallocated numpy buffers for stepping with i16 obs + legal ids."""
 
     def __init__(self, pool: EnvPool) -> None:
         self.pool = pool
+        _prepare_pool_for_legal_ids(self.pool)
         num_envs = pool.envs_len
         self.out = BatchOutMinimalI16LegalIds(num_envs)
         self.obs = self.out.obs
@@ -603,7 +628,7 @@ class EnvPoolBuffersI16LegalIds:
         self.pool.reset_i16_overflow_count()
 
 
-class EnvPoolTrajectoryBuffers:
+class EnvPoolTrajectoryBuffers(_EngineStatusMixin):
     """Preallocated numpy buffers for multi-step rollouts with masks."""
 
     def __init__(self, pool: EnvPool, steps: int) -> None:
@@ -632,7 +657,7 @@ class EnvPoolTrajectoryBuffers:
         return self.out
 
 
-class EnvPoolTrajectoryBuffersI16:
+class EnvPoolTrajectoryBuffersI16(_EngineStatusMixin):
     """Preallocated numpy buffers for multi-step rollouts with i16 obs."""
 
     def __init__(self, pool: EnvPool, steps: int) -> None:
@@ -661,11 +686,12 @@ class EnvPoolTrajectoryBuffersI16:
         return self.out
 
 
-class EnvPoolTrajectoryBuffersI16LegalIds:
+class EnvPoolTrajectoryBuffersI16LegalIds(_EngineStatusMixin):
     """Preallocated numpy buffers for multi-step rollouts with i16 obs + legal ids."""
 
     def __init__(self, pool: EnvPool, steps: int) -> None:
         self.pool = pool
+        _prepare_pool_for_legal_ids(self.pool)
         self.out = BatchOutTrajectoryI16LegalIds(steps, pool.envs_len)
         self.steps = steps
         self.obs = self.out.obs
@@ -693,7 +719,7 @@ class EnvPoolTrajectoryBuffersI16LegalIds:
         return self.out
 
 
-class EnvPoolTrajectoryBuffersNoMask:
+class EnvPoolTrajectoryBuffersNoMask(_EngineStatusMixin):
     """Preallocated numpy buffers for multi-step rollouts without masks."""
 
     def __init__(self, pool: EnvPool, steps: int) -> None:

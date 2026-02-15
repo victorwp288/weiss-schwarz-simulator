@@ -55,3 +55,22 @@ def test_auto_reset_on_engine_error_codes_updates_count():
 
     pool.reset_engine_error_reset_count()
     assert pool.engine_error_reset_count() == 0
+
+
+def test_python_wrapper_exposes_engine_error_helpers():
+    pool = _make_pool(seed=9090, num_envs=1)
+    buf = weiss_sim.EnvPoolBuffers(pool)
+    out = buf.reset()
+
+    assert buf.engine_error.shape == (1,)
+    assert buf.reset_recommended.shape == (1,)
+    assert buf.actor_known.shape == (1,)
+    assert not bool(buf.engine_error[0])
+    assert not bool(buf.reset_recommended[0])
+    assert bool(buf.actor_known[0])
+
+    out.engine_status[0] = 3
+    out.actor[0] = weiss_sim.ACTOR_NONE
+    assert bool(buf.engine_error[0])
+    assert bool(buf.reset_recommended[0])
+    assert not bool(buf.actor_known[0])

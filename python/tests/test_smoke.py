@@ -105,3 +105,15 @@ def test_envpool_num_threads_optional_and_deterministic():
         assert np.array_equal(out_a.masks, out_b.masks)
         if bool(out_a.terminated[0]) or bool(out_a.truncated[0]):
             break
+
+
+def test_envpool_num_threads_default_and_overrides():
+    pool_default = _make_pool(seed=2026, num_envs=8)
+    assert pool_default.num_threads >= 1
+    assert pool_default.num_threads <= 8
+
+    pool_serial = _make_pool(seed=2026, num_envs=8, num_threads=1)
+    assert pool_serial.num_threads == 1
+
+    pool_capped = _make_pool(seed=2026, num_envs=3, num_threads=4)
+    assert pool_capped.num_threads == 3

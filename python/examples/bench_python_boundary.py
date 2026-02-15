@@ -100,6 +100,7 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, default=200)
     parser.add_argument("--reset-reps", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--num-threads", type=int, default=None)
     parser.add_argument(
         "--mode", choices=("mask", "ids", "fast_first_legal", "both"), default="both"
     )
@@ -116,6 +117,7 @@ def main() -> None:
         deck_lists=[legal_deck, legal_deck],
         deck_ids=[1, 2],
         seed=args.seed,
+        num_threads=args.num_threads,
     )
     buffers = weiss_sim.EnvPoolBuffers(pool)
 
