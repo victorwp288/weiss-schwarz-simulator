@@ -14,7 +14,7 @@ fn end_of_turn_expirations_remove_modifiers() {
     let deck_a = build_deck_list(20, &[CARD_BASIC]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -63,7 +63,7 @@ fn modifier_until_end_of_turn_expires() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 40, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 40, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -145,7 +145,7 @@ fn modifier_while_on_stage_removed_on_leave() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 41, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 41, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,

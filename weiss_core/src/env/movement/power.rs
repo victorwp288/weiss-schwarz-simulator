@@ -35,6 +35,35 @@ impl GameEnv {
         }
         power
     }
+
+    pub(in crate::env) fn compute_slot_level(&self, player: usize, slot: usize) -> i32 {
+        if player >= 2 || slot >= MAX_STAGE {
+            return 0;
+        }
+        let slot_state = &self.state.players[player].stage[slot];
+        let Some(card_inst) = slot_state.card else {
+            return 0;
+        };
+        let card_id = card_inst.id;
+        if !self.db.is_valid_id(card_id) {
+            return 0;
+        }
+        let mut level = i32::from(self.db.level_by_id(card_id));
+        for modifier in &self.state.modifiers {
+            if modifier.kind != ModifierKind::Level {
+                continue;
+            }
+            if modifier.target_player as usize != player || modifier.target_slot as usize != slot {
+                continue;
+            }
+            if modifier.target_card != card_id {
+                continue;
+            }
+            level = level.saturating_add(modifier.magnitude);
+        }
+        level.max(0)
+    }
+
     pub(in crate::env) fn compute_slot_power(&mut self, player: usize, slot: usize) -> i32 {
         self.slot_power_cached(player, slot)
     }

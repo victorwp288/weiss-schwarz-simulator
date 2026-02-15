@@ -1,9 +1,9 @@
 use super::super::GameEnv;
-use crate::db::{AbilityCost, AbilitySpec};
+use crate::db::{AbilityCost, AbilitySpec, AbilityTiming};
 use crate::events::{Event, RevealAudience, RevealReason, Zone};
 use crate::state::{
-    CardInstance, ChoiceOptionRef, ChoiceReason, ChoiceZone, CostPaymentState, CostStepKind,
-    StageStatus, TargetRef, TargetZone,
+    CardInstance, ChoiceOptionRef, ChoiceReason, ChoiceZone, CostPaymentOutcome, CostPaymentState,
+    CostStepKind, StageStatus, TargetRef, TargetZone,
 };
 use anyhow::{anyhow, Result};
 
@@ -44,6 +44,33 @@ impl GameEnv {
                 }
             }
             if available < cost.rest_other as usize {
+                return false;
+            }
+        }
+        if cost.sacrifice_from_stage > 0 {
+            let mut available = 0usize;
+            for (idx, slot_state) in self.state.players[p].stage.iter().enumerate() {
+                if idx == slot as usize {
+                    continue;
+                }
+                if slot_state.card.is_some() {
+                    available += 1;
+                }
+            }
+            if available < cost.sacrifice_from_stage as usize {
+                return false;
+            }
+        }
+        if cost.move_self_to_waiting_room && cost.return_self_to_hand {
+            return false;
+        }
+        if cost.move_self_to_waiting_room || cost.return_self_to_hand {
+            let slot_idx = slot as usize;
+            if slot_idx >= self.state.players[p].stage.len() {
+                return false;
+            }
+            let slot_state = &self.state.players[p].stage[slot_idx];
+            if slot_state.card.map(|c| c.instance_id) != Some(source.instance_id) {
                 return false;
             }
         }
@@ -92,6 +119,40 @@ impl GameEnv {
             self.mark_continuous_modifiers_dirty();
             cost.rest_self = false;
         }
+        if cost.move_self_to_waiting_room && cost.return_self_to_hand {
+            return Err(anyhow!(
+                "Cost cannot both move source to waiting room and return to hand"
+            ));
+        }
+        if cost.move_self_to_waiting_room || cost.return_self_to_hand {
+            let slot_idx = slot as usize;
+            if slot_idx >= self.state.players[p].stage.len() {
+                return Err(anyhow!("Cost source slot out of range"));
+            }
+            let Some(card_inst) = self.state.players[p].stage[slot_idx].card else {
+                return Err(anyhow!("Cost source card missing"));
+            };
+            if card_inst.instance_id != source.instance_id {
+                return Err(anyhow!("Cost source card mismatch"));
+            }
+            if cost.move_self_to_waiting_room {
+                self.send_stage_to_waiting_room(player, slot);
+                cost.move_self_to_waiting_room = false;
+            }
+            if cost.return_self_to_hand {
+                self.move_stage_to_hand(
+                    player,
+                    ChoiceOptionRef {
+                        card_id: source.id,
+                        instance_id: source.instance_id,
+                        zone: ChoiceZone::Stage,
+                        index: Some(slot as u16),
+                        target_slot: None,
+                    },
+                );
+                cost.return_self_to_hand = false;
+            }
+        }
         if cost.stock > 0 && self.curriculum.enforce_cost_requirement {
             self.pay_cost(player, cost.stock as usize)?;
             cost.stock = 0;
@@ -104,6 +165,8 @@ impl GameEnv {
     pub(in crate::env) fn next_cost_step(cost: &AbilityCost) -> Option<CostStepKind> {
         if cost.rest_other > 0 {
             Some(CostStepKind::RestOther)
+        } else if cost.sacrifice_from_stage > 0 {
+            Some(CostStepKind::SacrificeFromStage)
         } else if cost.discard_from_hand > 0 {
             Some(CostStepKind::DiscardFromHand)
         } else if cost.clock_from_hand > 0 {
@@ -159,14 +222,56 @@ impl GameEnv {
                 let options = std::mem::take(&mut self.scratch.choice_options);
                 let _ = self.start_choice(ChoiceReason::CostPayment, player, options, None);
             }
-            CostStepKind::ClockFromDeckTop => {
-                if let Some(card) = self.draw_from_deck(player) {
-                    let card_id = card.id;
-                    self.move_card_between_zones(player, card, Zone::Deck, Zone::Clock, None, None);
-                    self.log_event(Event::Clock {
-                        player,
-                        card: Some(card_id),
+            CostStepKind::SacrificeFromStage => {
+                self.scratch.choice_options.clear();
+                let source_slot = cost_state.source_slot;
+                let p = player as usize;
+                for (idx, slot_state) in self.state.players[p].stage.iter().enumerate() {
+                    if Some(idx as u8) == source_slot {
+                        continue;
+                    }
+                    let Some(card_inst) = slot_state.card else {
+                        continue;
+                    };
+                    if idx > u8::MAX as usize {
+                        break;
+                    }
+                    self.scratch.choice_options.push(ChoiceOptionRef {
+                        card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
+                        zone: ChoiceZone::Stage,
+                        index: Some(idx as u16),
+                        target_slot: None,
                     });
+                }
+                let options = std::mem::take(&mut self.scratch.choice_options);
+                let _ = self.start_choice(ChoiceReason::CostPayment, player, options, None);
+            }
+            CostStepKind::ClockFromDeckTop => {
+                let Some(card) = self.draw_from_deck(player) else {
+                    if let Some(cost_state) = self.state.turn.pending_cost.take() {
+                        self.abort_cost_payment(cost_state);
+                    }
+                    return;
+                };
+                let card_id = card.id;
+                self.move_card_between_zones(player, card, Zone::Deck, Zone::Clock, None, None);
+                self.log_event(Event::Clock {
+                    player,
+                    card: Some(card_id),
+                });
+                if self.state.terminal.is_some()
+                    || self
+                        .state
+                        .turn
+                        .pending_losses
+                        .iter()
+                        .any(|&pending| pending)
+                {
+                    if let Some(cost_state) = self.state.turn.pending_cost.take() {
+                        self.abort_cost_payment(cost_state);
+                    }
+                    return;
                 }
                 if let Some(cost_state) = self.state.turn.pending_cost.as_mut() {
                     cost_state.remaining.clock_from_deck_top =
@@ -248,6 +353,40 @@ impl GameEnv {
                 self.mark_slot_power_dirty(player, index_u8);
                 self.mark_continuous_modifiers_dirty();
                 cost_state.remaining.rest_other = cost_state.remaining.rest_other.saturating_sub(1);
+            }
+            CostStepKind::SacrificeFromStage => {
+                if option.zone != ChoiceZone::Stage {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let Some(index) = option.index else {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                };
+                let idx = index as usize;
+                let Ok(index_u8) = u8::try_from(index) else {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                };
+                if Some(index_u8) == cost_state.source_slot {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                if idx >= self.state.players[p].stage.len() {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                let Some(card_inst) = self.state.players[p].stage[idx].card else {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                };
+                if card_inst.instance_id != option.instance_id {
+                    self.state.turn.pending_cost = Some(cost_state);
+                    return;
+                }
+                self.send_stage_to_waiting_room(player, index_u8);
+                cost_state.remaining.sacrifice_from_stage =
+                    cost_state.remaining.sacrifice_from_stage.saturating_sub(1);
             }
             CostStepKind::DiscardFromHand => {
                 if option.zone != ChoiceZone::Hand {
@@ -360,32 +499,68 @@ impl GameEnv {
 
     pub(in crate::env) fn finish_cost_payment(&mut self, cost_state: CostPaymentState) {
         self.state.turn.cost_payment_depth = self.state.turn.cost_payment_depth.saturating_sub(1);
-        let effects: Vec<_> = self
-            .db
-            .compiled_effects_for_ability(cost_state.source_id, cost_state.ability_index as usize)
-            .to_vec();
-        let source_ref = cost_state.source_slot.and_then(|slot| {
-            let p = cost_state.controller as usize;
-            let slot_state = self.state.players[p].stage.get(slot as usize)?;
-            let card_inst = slot_state.card?;
-            if card_inst.instance_id != cost_state.source_instance_id {
-                return None;
+        match cost_state.outcome {
+            CostPaymentOutcome::ResolveAbility => {
+                let mut effects: Vec<_> = self
+                    .db
+                    .compiled_effects_for_ability(
+                        cost_state.source_id,
+                        cost_state.ability_index as usize,
+                    )
+                    .to_vec();
+                if let Some(slot) = cost_state.source_slot {
+                    if let Some(live) = self.live_stage_ability_at(
+                        cost_state.controller,
+                        slot,
+                        cost_state.ability_index as usize,
+                    ) {
+                        effects = live.effects.to_vec();
+                    }
+                }
+                let source_ref_live = cost_state.source_slot.and_then(|slot| {
+                    let p = cost_state.controller as usize;
+                    let slot_state = self.state.players[p].stage.get(slot as usize)?;
+                    let card_inst = slot_state.card?;
+                    if card_inst.instance_id != cost_state.source_instance_id {
+                        return None;
+                    }
+                    Some(TargetRef {
+                        player: cost_state.controller,
+                        zone: TargetZone::Stage,
+                        index: slot,
+                        card_id: card_inst.id,
+                        instance_id: card_inst.instance_id,
+                    })
+                });
+                for effect in effects {
+                    let source_ref = if source_ref_live.is_some() {
+                        source_ref_live
+                    } else if matches!(
+                        effect.kind,
+                        crate::effects::EffectKind::MoveWaitingRoomCardToSourceSlot
+                    ) {
+                        cost_state.source_slot.map(|slot| TargetRef {
+                            player: cost_state.controller,
+                            zone: TargetZone::Stage,
+                            index: slot,
+                            card_id: cost_state.source_id,
+                            instance_id: cost_state.source_instance_id,
+                        })
+                    } else {
+                        None
+                    };
+                    self.enqueue_effect_spec_with_source(
+                        cost_state.controller,
+                        cost_state.source_id,
+                        effect.clone(),
+                        source_ref,
+                    );
+                }
+                self.queue_timing_triggers(AbilityTiming::UseAct);
             }
-            Some(TargetRef {
-                player: cost_state.controller,
-                zone: TargetZone::Stage,
-                index: slot,
-                card_id: card_inst.id,
-                instance_id: card_inst.instance_id,
-            })
-        });
-        for effect in effects {
-            self.enqueue_effect_spec_with_source(
-                cost_state.controller,
-                cost_state.source_id,
-                effect.clone(),
-                source_ref,
-            );
+            CostPaymentOutcome::EncoreKeep { slot } => {
+                self.complete_encore_keep(cost_state.controller, slot);
+            }
         }
         let mut grant_priority = None;
         if let Some(priority) = &mut self.state.turn.priority {
@@ -398,5 +573,9 @@ impl GameEnv {
         if let Some((window, player)) = grant_priority {
             self.log_event(Event::PriorityGranted { window, player });
         }
+    }
+
+    pub(in crate::env) fn abort_cost_payment(&mut self, _cost_state: CostPaymentState) {
+        self.state.turn.cost_payment_depth = self.state.turn.cost_payment_depth.saturating_sub(1);
     }
 }

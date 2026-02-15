@@ -54,12 +54,15 @@ fn make_db() -> Arc<CardDb> {
                     amount: 1,
                     cancelable: true,
                 }],
+                effect_optional: Vec::new(),
                 targets: vec![],
                 cost: AbilityCost::default(),
+                conditions: Default::default(),
                 target_card_type: None,
                 target_trait: None,
                 target_level_max: None,
                 target_cost_max: None,
+                target_card_ids: Vec::new(),
                 target_limit: None,
             }],
             counter_timing: false,
@@ -169,7 +172,7 @@ fn replacements_apply_in_priority_order() {
         sample_rate: 1.0,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 77, replay_config, None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 77, replay_config, None, 0);
 
     setup_player_state(&mut env, 0, None, CARD_DAMAGE_ACT, 49);
     setup_player_state(&mut env, 1, None, CARD_BASIC, 50);

@@ -99,7 +99,7 @@ fn public_observation_and_masks_invariant_under_opponent_hidden_changes() {
     for seed in 0..6u64 {
         let mut actions: Vec<u32> = Vec::new();
         for step in 0..12u32 {
-            let mut env_a = GameEnv::new(
+            let mut env_a = GameEnv::new_or_panic(
                 Arc::clone(&db),
                 config.clone(),
                 curriculum.clone(),
@@ -120,7 +120,7 @@ fn public_observation_and_masks_invariant_under_opponent_hidden_changes() {
             for viewer in 0..=1u8 {
                 let obs_view = encode_for(&env_a, viewer);
                 for variant in 0..4u8 {
-                    let mut env_b = GameEnv::new(
+                    let mut env_b = GameEnv::new_or_panic(
                         Arc::clone(&db),
                         config.clone(),
                         curriculum.clone(),

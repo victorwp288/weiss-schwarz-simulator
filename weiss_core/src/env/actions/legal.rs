@@ -87,17 +87,20 @@ impl GameEnv {
         {
             self.recompute_derived_attack();
         }
-        let decision = self.decision.as_ref().expect("decision present");
-        self.last_perspective = decision.player;
-        self.action_cache.update(
-            &self.state,
-            decision,
-            self.decision_id,
-            &self.db,
-            &self.curriculum,
-            self.curriculum.allowed_card_sets_cache.as_ref(),
-            self.output_mask_enabled,
-            self.output_mask_bits_enabled,
-        );
+        if let Some(decision) = self.decision.as_ref() {
+            self.last_perspective = decision.player;
+            self.action_cache.update(
+                &self.state,
+                decision,
+                self.decision_id,
+                &self.db,
+                &self.curriculum,
+                self.curriculum.allowed_card_sets_cache.as_ref(),
+                self.output_mask_enabled,
+                self.output_mask_bits_enabled,
+            );
+        } else {
+            self.action_cache.clear();
+        }
     }
 }

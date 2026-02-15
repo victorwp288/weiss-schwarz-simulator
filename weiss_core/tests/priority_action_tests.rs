@@ -19,7 +19,7 @@ fn counter_priority_autoplays_single_counter() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 40, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 40, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -108,7 +108,7 @@ fn counter_priority_choice_orders_by_hand_index() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 41, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 41, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -198,7 +198,7 @@ fn main_priority_act_ability_pushes_and_resolves() {
     let deck_a = build_deck_list(20, &[CARD_ACT_ABILITY]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig {
@@ -298,7 +298,7 @@ fn main_priority_double_pass_ends_window() {
     let deck_a = build_deck_list(20, &[CARD_BASIC]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig {

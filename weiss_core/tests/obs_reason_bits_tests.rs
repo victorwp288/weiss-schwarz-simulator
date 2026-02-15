@@ -68,7 +68,7 @@ fn reason_bits_ignore_opponent_hidden_zones() {
     let db = make_db();
     let config = make_config(make_deck());
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(db, config, curriculum, 42, Default::default(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 42, Default::default(), None, 0);
 
     env.state.turn.phase = Phase::Main;
     let decision = Decision {
@@ -118,7 +118,7 @@ fn reason_bits_reflect_resource_blocks_in_main() {
     let db = make_db();
     let config = make_config(make_deck());
     let curriculum = CurriculumConfig::default();
-    let mut env = GameEnv::new(db, config, curriculum, 7, Default::default(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 7, Default::default(), None, 0);
 
     let player = 0usize;
     env.state.players[player].hand.clear();

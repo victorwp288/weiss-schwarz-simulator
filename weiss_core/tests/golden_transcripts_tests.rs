@@ -361,7 +361,7 @@ fn run_case(
         replay_config.sample_rate = 1.0;
         replay_config.rebuild_cache();
     }
-    let mut env = GameEnv::new(db, config, curriculum, seed, replay_config, None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, seed, replay_config, None, 0);
     env.set_output_mask_enabled(true);
 
     let mut steps = Vec::new();
@@ -482,7 +482,7 @@ fn find_stress_case() -> StressCaseSpec {
     replay_config.rebuild_cache();
 
     for seed in 1..=stress_search_max_seed() {
-        let mut env = GameEnv::new(
+        let mut env = GameEnv::new_or_panic(
             db.clone(),
             config.clone(),
             curriculum.clone(),

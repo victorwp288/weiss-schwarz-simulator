@@ -12,7 +12,7 @@ fn illegal_mainplay_lenient_noop_no_hand_leak() {
     let deck_b = vec![9; 50];
     let mut config = make_config(deck_a, deck_b);
     config.error_policy = ErrorPolicy::LenientNoop;
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         default_curriculum(),
@@ -46,7 +46,7 @@ fn illegal_mainplay_lenient_terminate_no_hand_leak() {
     let deck_b = vec![9; 50];
     let mut config = make_config(deck_a, deck_b);
     config.error_policy = ErrorPolicy::LenientTerminate;
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         default_curriculum(),

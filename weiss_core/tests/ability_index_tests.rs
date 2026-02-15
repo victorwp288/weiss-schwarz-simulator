@@ -18,12 +18,15 @@ fn ability_index_ordering_matches_specs() {
         kind: AbilityKind::Activated,
         timing: Some(AbilityTiming::BeginMainPhase),
         effects: vec![EffectTemplate::Draw { count: 1 }],
+        effect_optional: Vec::new(),
         targets: Vec::new(),
         cost: AbilityCost::default(),
+        conditions: Default::default(),
         target_card_type: None,
         target_trait: None,
         target_level_max: None,
         target_cost_max: None,
+        target_card_ids: Vec::new(),
         target_limit: None,
     };
     let card = CardStatic {
@@ -73,12 +76,15 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
         kind: AbilityKind::Activated,
         timing: Some(AbilityTiming::BeginMainPhase),
         effects: vec![EffectTemplate::Draw { count: 1 }],
+        effect_optional: Vec::new(),
         targets: Vec::new(),
         cost: AbilityCost::default(),
+        conditions: Default::default(),
         target_card_type: None,
         target_trait: None,
         target_level_max: None,
         target_cost_max: None,
+        target_card_ids: Vec::new(),
         target_limit: None,
     };
     let card = CardStatic {
@@ -129,7 +135,7 @@ fn priority_actions_and_replays_use_canonical_ability_indices() {
         sample_rate: 1.0,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db.clone(), config, curriculum, 0, replay_config, None, 0);
+    let mut env = GameEnv::new_or_panic(db.clone(), config, curriculum, 0, replay_config, None, 0);
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::Pass).unwrap();

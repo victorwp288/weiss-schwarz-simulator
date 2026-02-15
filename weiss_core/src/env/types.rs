@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use crate::config::ObservationVisibility;
 use crate::db::CardId;
 use crate::state::{DamageType, TerminalResult};
@@ -71,6 +73,29 @@ pub enum EngineErrorCode {
     Panic = 3,
     /// Action application returned an error.
     ActionError = 4,
+    /// Runtime invariant was violated and fault was latched.
+    InvariantViolation = 5,
+    /// Reset logic returned an error.
+    ResetError = 6,
+    /// Reset logic panicked and was trapped.
+    ResetPanic = 7,
+}
+
+/// Stable source location for a latched env fault.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FaultSource {
+    Step,
+    Reset,
+}
+
+/// Latched per-env runtime fault metadata.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FaultRecord {
+    pub code: EngineErrorCode,
+    pub actor: Option<u8>,
+    pub fingerprint: u64,
+    pub source: FaultSource,
+    pub reward_emitted: bool,
 }
 
 /// Debug instrumentation settings.
@@ -92,6 +117,13 @@ pub struct DamageIntentLocal {
     pub(crate) damage_type: DamageType,
     pub(crate) cancelable: bool,
     pub(crate) refresh_penalty: bool,
+}
+
+/// Result of resolving a single damage intent.
+#[derive(Clone, Copy, Debug)]
+pub struct DamageResolveResult {
+    pub(crate) event_id: u32,
+    pub(crate) canceled: bool,
 }
 
 /// Context used when compiling trigger effects.

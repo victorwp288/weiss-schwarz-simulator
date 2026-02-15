@@ -360,7 +360,7 @@ fn activated_targeting_resolves_via_stack() {
         enable_priority_windows: true,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 120, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 120, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -438,7 +438,7 @@ fn continuous_modifier_applies_and_clears_on_leave() {
         enable_priority_windows: true,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 121, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 121, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,

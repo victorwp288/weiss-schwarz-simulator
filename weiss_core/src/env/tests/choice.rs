@@ -30,6 +30,7 @@ fn visibility_policy_masks_opponent_hidden_choices() {
         card_trait: None,
         level_max: None,
         cost_max: None,
+        card_ids: Vec::new(),
         count: 1,
         limit: None,
         source_only: false,
@@ -54,6 +55,7 @@ fn visibility_policy_masks_opponent_hidden_choices() {
             payload: EffectPayload {
                 spec: effect_spec,
                 targets: Vec::new(),
+                source_ref: None,
             },
         },
         allow_skip: false,

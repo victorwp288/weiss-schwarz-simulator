@@ -1,4 +1,4 @@
-use super::super::GameEnv;
+use super::super::{EngineErrorCode, FaultSource, GameEnv};
 use crate::effects::EffectKind;
 use crate::events::Event;
 use crate::state::{ChoiceOptionRef, ChoiceReason, ChoiceZone, StackItem, StackOrderState};
@@ -16,29 +16,74 @@ impl GameEnv {
             EffectKind::CounterDamageReduce { .. } => 1,
             EffectKind::CounterDamageCancel => 2,
             EffectKind::AddModifier { .. } => 3,
+            EffectKind::AddPowerIfTargetLevelAtLeast { .. } => 3,
+            EffectKind::AddPowerByTargetLevel { .. } => 3,
+            EffectKind::AddPowerIfBattleOpponentLevelAtLeast { .. } => 3,
+            EffectKind::AddSoulIfBattleOpponentLevelAtLeast { .. } => 3,
+            EffectKind::AddPowerIfBattleOpponentLevelExact { .. } => 3,
+            EffectKind::AddPowerIfOtherAttackerMatches { .. } => 3,
+            EffectKind::AddSoulIfMiddleCenter { .. } => 3,
+            EffectKind::FacingOpponentAddSoul { .. } => 3,
+            EffectKind::FacingOpponentAddModifier { .. } => 3,
+            EffectKind::SelfAddModifierIfFacingOpponent { .. } => 3,
+            EffectKind::ConditionalAddModifier { .. } => 3,
+            EffectKind::GrantAbilityDef { .. } => 3,
             EffectKind::MoveToHand => 4,
             EffectKind::MoveTriggerCardToHand => 5,
-            EffectKind::ChangeController { .. } => 6,
-            EffectKind::Standby { .. } => 7,
-            EffectKind::TreasureStock { .. } => 8,
-            EffectKind::ModifyPendingAttackDamage { .. } => 9,
-            EffectKind::Damage { .. } => 10,
-            EffectKind::Draw { .. } => 11,
-            EffectKind::RevealDeckTop { .. } => 12,
-            EffectKind::TriggerIcon { .. } => 13,
-            EffectKind::MoveToWaitingRoom => 14,
-            EffectKind::MoveToStock => 15,
-            EffectKind::MoveToClock => 16,
-            EffectKind::Heal => 17,
-            EffectKind::RestTarget => 18,
-            EffectKind::StandTarget => 19,
-            EffectKind::StockCharge { .. } => 20,
-            EffectKind::MillTop { .. } => 21,
-            EffectKind::MoveStageSlot { .. } => 22,
-            EffectKind::SwapStageSlots => 23,
-            EffectKind::RandomDiscardFromHand { .. } => 24,
-            EffectKind::RandomMill { .. } => 25,
-            EffectKind::RevealZoneTop { .. } => 26,
+            EffectKind::MoveToMarker => 6,
+            EffectKind::MoveTopDeckToMarker => 6,
+            EffectKind::ChangeController { .. } => 7,
+            EffectKind::Standby { .. } => 8,
+            EffectKind::TreasureStock { .. } => 9,
+            EffectKind::ModifyPendingAttackDamage { .. } => 10,
+            EffectKind::EnableShotDamage { .. } => 11,
+            EffectKind::SetTriggerCheckCount { .. } => 11,
+            EffectKind::Damage { .. } => 12,
+            EffectKind::Draw { .. } => 13,
+            EffectKind::RevealDeckTop { .. } => 14,
+            EffectKind::RevealTopIfLevelAtLeastMoveThisToHand { .. } => 14,
+            EffectKind::RevealTopIfLevelAtLeastRestThis { .. } => 14,
+            EffectKind::RevealTopIfLevelAtLeastMoveTopToStock { .. } => 14,
+            EffectKind::LookTopDeckReorder { .. } => 14,
+            EffectKind::LookTopCardTopOrWaitingRoom => 14,
+            EffectKind::LookTopCardTopOrBottom => 14,
+            EffectKind::SearchTopDeckToHandLevelAtLeastMillRest { .. } => 14,
+            EffectKind::RevealTopAndSalvageByRevealedLevel { .. } => 14,
+            EffectKind::TriggerIcon { .. } => 15,
+            EffectKind::MoveToWaitingRoom => 16,
+            EffectKind::MoveToStock => 17,
+            EffectKind::MoveToClock => 18,
+            EffectKind::MoveToMemory => 18,
+            EffectKind::MoveToDeckBottom => 18,
+            EffectKind::MoveWaitingRoomCardToSourceSlot => 18,
+            EffectKind::RecycleWaitingRoomToDeckShuffle => 18,
+            EffectKind::ResetStockFromDeckTop { .. } => 18,
+            EffectKind::Heal => 19,
+            EffectKind::HealIfSourcePlayedFromHandThisTurn => 19,
+            EffectKind::RestTarget => 20,
+            EffectKind::StandTarget => 21,
+            EffectKind::StockCharge { .. } => 22,
+            EffectKind::MillTop { .. } => 23,
+            EffectKind::MoveStageSlot { .. } => 24,
+            EffectKind::MoveThisToOpenCenter { .. } => 24,
+            EffectKind::MoveThisToOpenBack => 24,
+            EffectKind::SwapStageSlots => 25,
+            EffectKind::RandomDiscardFromHand { .. } => 26,
+            EffectKind::RandomMill { .. } => 27,
+            EffectKind::RevealZoneTop { .. } => 28,
+            EffectKind::MoveTriggerCardToStock => 29,
+            EffectKind::Brainstorm { .. } => 30,
+            EffectKind::BrainstormDrawChoice => 31,
+            EffectKind::RestThisIfNoOtherRestCenter => 31,
+            EffectKind::BattleOpponentReverseIf { .. } => 32,
+            EffectKind::BattleOpponentMoveToDeckBottomIf { .. } => 33,
+            EffectKind::BattleOpponentMoveToStockThenBottomStockToWaitingRoomIf { .. } => 34,
+            EffectKind::BattleOpponentMoveToClockAfterClockTopToWaitingRoomIf { .. } => 35,
+            EffectKind::BattleOpponentMoveToClockIf { .. } => 35,
+            EffectKind::BattleOpponentMoveToMemoryIf { .. } => 36,
+            EffectKind::BattleOpponentMove { .. } => 36,
+            EffectKind::BattleOpponentTopDeckToStockIf { .. } => 34,
+            EffectKind::CannotUseAutoEncoreForPlayer { .. } => 3,
         }
     }
 
@@ -89,8 +134,9 @@ impl GameEnv {
         }
         while let Some(group) = self.state.turn.pending_stack_groups.pop_front() {
             if group.items.len() == 1 {
-                let item = group.items.into_iter().next().expect("group item");
-                self.push_stack_item(item);
+                if let Some(item) = group.items.into_iter().next() {
+                    self.push_stack_item(item);
+                }
                 continue;
             }
             self.log_event(Event::StackGroupPresented {
@@ -108,11 +154,17 @@ impl GameEnv {
         let Some(order) = &self.state.turn.stack_order else {
             return;
         };
-        assert!(
-            order.items.len() <= u16::MAX as usize + 1,
-            "stack order too large"
-        );
         self.scratch.choice_options.clear();
+        if order.items.len() > u16::MAX as usize + 1 {
+            let controller = order.controller;
+            self.state.turn.stack_order = None;
+            self.latch_fault_deferred(
+                EngineErrorCode::InvariantViolation,
+                Some(controller),
+                FaultSource::Step,
+            );
+            return;
+        }
         for (idx, item) in order.items.iter().enumerate() {
             self.scratch.choice_options.push(ChoiceOptionRef {
                 card_id: item.source_id,

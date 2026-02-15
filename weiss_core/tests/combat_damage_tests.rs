@@ -5,7 +5,9 @@ use weiss_core::config::CurriculumConfig;
 use weiss_core::env::GameEnv;
 use weiss_core::legal::ActionDesc;
 use weiss_core::replay::ReplayEvent;
-use weiss_core::state::{AttackType, ChoiceReason, ChoiceZone, DamageType};
+use weiss_core::state::{
+    AttackType, ChoiceReason, ChoiceZone, DamageType, ModifierDuration, ModifierKind,
+};
 
 fn choose_counter(env: &mut GameEnv) {
     if let Some(choice) = env.state.turn.choice.as_ref() {
@@ -32,7 +34,7 @@ fn effect_damage_canceled_by_counter() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 10, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 10, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -97,6 +99,71 @@ fn effect_damage_canceled_by_counter() {
 }
 
 #[test]
+fn soul_modifier_increases_attack_damage() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_BASIC]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        210,
+        replay_config(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_BASIC)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    env.add_modifier(
+        CARD_BASIC,
+        0,
+        0,
+        ModifierKind::Soul,
+        1,
+        ModifierDuration::UntilEndOfTurn,
+    )
+    .expect("failed to add soul modifier");
+    force_attack_decision(&mut env, 0);
+
+    env.apply_action(ActionDesc::Attack {
+        slot: 0,
+        attack_type: AttackType::Direct,
+    })
+    .unwrap();
+
+    // Base soul 1 + modifier 1 + direct bonus 1.
+    assert_eq!(env.state.players[1].clock.len(), 3);
+    env.validate_state().unwrap();
+}
+
+#[test]
 fn effect_damage_reduced_then_applied() {
     enable_validate();
     let db = make_db();
@@ -107,7 +174,7 @@ fn effect_damage_reduced_then_applied() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 11, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 11, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -186,7 +253,7 @@ fn effect_damage_multiple_reductions_apply_in_order() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 27, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 27, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -276,7 +343,7 @@ fn battle_damage_vs_effect_damage_flags() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 12, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 12, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -339,7 +406,7 @@ fn reversal_cause_is_recorded_correctly() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 13, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 13, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -424,7 +491,7 @@ fn multiple_instances_damage_same_step_ordering() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 14, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 14, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,

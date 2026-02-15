@@ -5,15 +5,16 @@ use crate::state::{ChoiceOptionRef, ChoiceReason, ChoiceState, ChoiceZone};
 /// Install a synthetic choice state with paging for tests.
 pub fn install_choice_paging(env: &mut GameEnv, total: usize) {
     assert!(
-        total <= u16::MAX as usize + 1,
-        "choice paging total too large"
+        total <= u16::MAX as usize,
+        "choice paging total {total} exceeds u16::MAX ({})",
+        u16::MAX
     );
     let options = (0..total)
         .map(|idx| ChoiceOptionRef {
             card_id: (idx + 1) as u32,
             instance_id: (idx + 1) as u32,
             zone: ChoiceZone::WaitingRoom,
-            index: Some(u16::try_from(idx).expect("choice paging index out of range")),
+            index: Some(idx as u16),
             target_slot: None,
         })
         .collect::<Vec<_>>();

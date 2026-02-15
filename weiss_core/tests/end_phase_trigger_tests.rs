@@ -12,7 +12,7 @@ fn end_of_turn_triggers_fire_then_state_stabilizes() {
     let deck_a = build_deck_list(20, &[CARD_END_DRAW]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),

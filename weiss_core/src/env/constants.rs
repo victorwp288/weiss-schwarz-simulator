@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 pub(crate) const MAX_CHOICE_OPTIONS: usize = crate::encode::CHOICE_COUNT;
 
 pub const STACK_AUTO_RESOLVE_CAP: u32 = 256;
@@ -12,3 +14,5 @@ pub(crate) const TRIGGER_EFFECT_BOUNCE: u8 = 4;
 pub(crate) const TRIGGER_EFFECT_STANDBY: u8 = 5;
 pub(crate) const TRIGGER_EFFECT_TREASURE_STOCK: u8 = 6;
 pub(crate) const TRIGGER_EFFECT_TREASURE_MOVE: u8 = 7;
+pub(crate) const TRIGGER_EFFECT_POOL_STOCK: u8 = 8;
+pub(crate) const TRIGGER_EFFECT_POOL_MOVE: u8 = 9;

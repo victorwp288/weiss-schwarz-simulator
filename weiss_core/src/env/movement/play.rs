@@ -6,6 +6,30 @@ use crate::state::*;
 use anyhow::{anyhow, Result};
 
 impl GameEnv {
+    fn compute_slot_effective_soul(&self, player: usize, slot: usize) -> i32 {
+        if player >= 2 || slot >= MAX_STAGE {
+            return 0;
+        }
+        let slot_state = &self.state.players[player].stage[slot];
+        let Some(card_inst) = slot_state.card else {
+            return 0;
+        };
+        let mut soul = self.db.soul_by_id(card_inst.id) as i32;
+        for modifier in &self.state.modifiers {
+            if modifier.kind != ModifierKind::Soul {
+                continue;
+            }
+            if modifier.target_player as usize != player || modifier.target_slot as usize != slot {
+                continue;
+            }
+            if modifier.target_card != card_inst.id {
+                continue;
+            }
+            soul = soul.saturating_add(modifier.magnitude);
+        }
+        soul.max(0)
+    }
+
     pub(in crate::env) fn play_character(
         &mut self,
         player: u8,
@@ -94,6 +118,22 @@ impl GameEnv {
             .ok_or_else(|| anyhow!("Card missing in db"))?;
         if !self.card_set_allowed(card) {
             return Err(anyhow!("Card set not allowed"));
+        }
+        let events_locked =
+            self.state.players[p]
+                .stage
+                .iter()
+                .enumerate()
+                .any(|(slot, slot_state)| {
+                    slot_state.card.is_some()
+                        && self.slot_has_active_modifier_kind(
+                            player,
+                            slot as u8,
+                            ModifierKind::CannotPlayEventsFromHand,
+                        )
+                });
+        if events_locked {
+            return Err(anyhow!("Cannot play events from hand"));
         }
         if !self.looks_like_event(card) {
             return Err(anyhow!("Card is not an event"));
@@ -212,6 +252,7 @@ impl GameEnv {
             player,
             card: card_id,
         });
+        self.resolve_on_play_abilities(player, card_id, None);
         Ok(())
     }
 
@@ -234,6 +275,7 @@ impl GameEnv {
         let s = slot as usize;
         let defender_player = 1 - p;
         let defender_slot = self.state.players[defender_player].stage[s].card.is_some();
+        let mut damage = self.compute_slot_effective_soul(p, s);
         let attack_cost = self
             .state
             .turn
@@ -247,25 +289,14 @@ impl GameEnv {
         let attacker_slot = &mut self.state.players[p].stage[s];
         attacker_slot.status = StageStatus::Rest;
         attacker_slot.has_attacked = true;
-        let card_inst = attacker_slot
+        let _card_inst = attacker_slot
             .card
             .ok_or_else(|| anyhow!("Missing attacker card"))?;
         self.touch_player_obs(player);
-        let card = self
-            .db
-            .get(card_inst.id)
-            .ok_or_else(|| anyhow!("Card missing in db"))?;
-        let mut damage = card.soul as i32;
         if attack_type == AttackType::Direct {
             damage += 1;
         } else if attack_type == AttackType::Side {
-            let defender_level = self.state.players[defender_player]
-                .stage
-                .get(s)
-                .and_then(|slot| slot.card)
-                .and_then(|card| self.db.get(card.id))
-                .map(|card| card.level as i32)
-                .unwrap_or(0);
+            let defender_level = self.compute_slot_level(defender_player, s);
             damage = (damage - defender_level).max(0);
         }
         self.log_event(Event::Attack { player, slot });
@@ -282,13 +313,17 @@ impl GameEnv {
             attack_type,
             trigger_card: None,
             trigger_instance_id: None,
+            trigger_checks_total: 1,
+            trigger_checks_resolved: 0,
             damage,
             counter_allowed: attack_type == AttackType::Frontal,
             counter_played: false,
             counter_power: 0,
             damage_modifiers: Vec::new(),
+            pending_shot_damage: 0,
             next_modifier_id: 1,
             last_damage_event_id: None,
+            auto_trigger_enqueued: false,
             auto_damage_enqueued: false,
             battle_damage_applied: false,
             step: AttackStep::Trigger,

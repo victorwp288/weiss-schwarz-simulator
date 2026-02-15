@@ -61,6 +61,12 @@ pub struct EnvPool {
     pub(super) legal_counts_scratch: Vec<usize>,
     pub(super) debug_config: DebugConfig,
     pub(super) debug_step_counter: u64,
+    pub(super) template_db: Arc<CardDb>,
+    pub(super) template_config: EnvConfig,
+    pub(super) template_curriculum: CurriculumConfig,
+    pub(super) template_replay_config: ReplayConfig,
+    pub(super) template_replay_writer: Option<ReplayWriter>,
+    pub(super) pool_seed: u64,
 }
 
 impl EnvPool {
@@ -76,6 +82,7 @@ impl EnvPool {
         if let Err(err) = config.reward.validate_zero_sum() {
             anyhow::bail!("Invalid RewardConfig: {err}");
         }
+        config.validate_with_db(&db).map_err(anyhow::Error::from)?;
         let replay_config = ReplayConfig::default();
         let mut envs = Vec::with_capacity(num_envs);
         for i in 0..num_envs {
@@ -88,7 +95,8 @@ impl EnvPool {
                 replay_config.clone(),
                 None,
                 i as u32,
-            );
+            )
+            .map_err(anyhow::Error::from)?;
             env.set_debug_config(debug);
             envs.push(env);
         }
@@ -113,6 +121,12 @@ impl EnvPool {
             legal_counts_scratch: Vec::new(),
             debug_config: debug,
             debug_step_counter: 0,
+            template_db: db,
+            template_config: config,
+            template_curriculum: curriculum,
+            template_replay_config: replay_config,
+            template_replay_writer: None,
+            pool_seed: seed,
         };
         let (thread_pool, thread_pool_size) = threading::build_thread_pool(num_threads, num_envs)?;
         pool.thread_pool = thread_pool;
@@ -179,10 +193,16 @@ impl EnvPool {
         self.engine_error_reset_count
     }
 
+    /// Effective thread count used by this pool (1 when running serially).
+    pub fn effective_num_threads(&self) -> usize {
+        self.thread_pool_size.unwrap_or(1)
+    }
+
     /// Replace curriculum settings for all envs in the pool.
     pub fn set_curriculum(&mut self, curriculum: CurriculumConfig) {
         let mut curriculum = curriculum;
         curriculum.rebuild_cache();
+        self.template_curriculum = curriculum.clone();
         for env in &mut self.envs {
             env.curriculum = curriculum.clone();
         }
@@ -191,6 +211,7 @@ impl EnvPool {
     /// Update error policy for all envs in the pool.
     pub fn set_error_policy(&mut self, error_policy: ErrorPolicy) {
         self.error_policy = error_policy;
+        self.template_config.error_policy = error_policy;
         for env in &mut self.envs {
             env.config.error_policy = error_policy;
         }
@@ -288,6 +309,8 @@ impl EnvPool {
         } else {
             None
         };
+        self.template_replay_config = config.clone();
+        self.template_replay_writer = writer.clone();
         for env in &mut self.envs {
             env.replay_config = config.clone();
             env.replay_writer = writer.clone();

@@ -1,4 +1,5 @@
-use super::super::GameEnv;
+use super::super::{EngineErrorCode, FaultSource, GameEnv};
+use crate::db::AbilityTiming;
 use crate::events::*;
 use crate::state::*;
 use anyhow::{anyhow, Result};
@@ -37,6 +38,7 @@ impl GameEnv {
             card: chosen_id,
         });
         self.state.turn.pending_level_up = None;
+        self.queue_timing_triggers(AbilityTiming::LevelUp);
         if self.state.players[p].level.len() >= 4 {
             self.register_loss(player);
         }
@@ -53,9 +55,12 @@ impl GameEnv {
             if self.state.turn.pending_level_up.is_none() {
                 self.state.turn.pending_level_up = Some(player);
             }
-        } else {
-            self.resolve_level_up(player, 0)
-                .expect("resolve_level_up failed when clock >=7");
+        } else if self.resolve_level_up(player, 0).is_err() {
+            self.latch_fault_deferred(
+                EngineErrorCode::InvariantViolation,
+                Some(player),
+                FaultSource::Step,
+            );
         }
     }
 }

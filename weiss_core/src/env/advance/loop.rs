@@ -98,7 +98,9 @@ impl GameEnv {
                 if self.state.turn.encore_step_player.is_none() {
                     self.state.turn.encore_step_player = Some(self.state.turn.active_player);
                 }
-                let current = self.state.turn.encore_step_player.unwrap();
+                let Some(current) = self.state.turn.encore_step_player else {
+                    continue;
+                };
                 let has_current = self
                     .state
                     .turn
@@ -356,7 +358,9 @@ impl GameEnv {
                     }
                 }
             }
-            self.maybe_validate_state("advance_loop");
+            if self.maybe_validate_state("advance_loop") {
+                break;
+            }
         }
     }
 }

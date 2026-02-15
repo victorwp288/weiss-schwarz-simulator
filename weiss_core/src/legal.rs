@@ -1,16 +1,18 @@
+#![allow(missing_docs)]
+
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::collections::HashSet;
 
 use crate::config::CurriculumConfig;
-use crate::db::{CardColor, CardDb, CardStatic, CardType};
+use crate::db::{AbilityCost, CardColor, CardDb, CardStatic, CardType};
 use crate::encode::{
     ACTION_SPACE_SIZE, ATTACK_BASE, CHOICE_BASE, CHOICE_COUNT, CHOICE_NEXT_ID, CHOICE_PREV_ID,
     CLIMAX_PLAY_BASE, CLOCK_HAND_BASE, CONCEDE_ID, ENCORE_DECLINE_BASE, ENCORE_PAY_BASE,
     LEVEL_UP_BASE, MAIN_MOVE_BASE, MAIN_PLAY_CHAR_BASE, MAIN_PLAY_EVENT_BASE, MULLIGAN_CONFIRM_ID,
     MULLIGAN_SELECT_BASE, PASS_ACTION_ID, TRIGGER_ORDER_BASE,
 };
-use crate::state::{AttackType, GameState, StageSlot, StageStatus};
+use crate::state::{AttackType, CardInstance, GameState, ModifierKind, StageSlot, StageStatus};
 
 const MAX_HAND: usize = crate::encode::MAX_HAND;
 const MAX_STAGE: usize = 5;
@@ -113,6 +115,157 @@ fn attack_type_to_index(attack_type: AttackType) -> usize {
     }
 }
 
+#[inline(always)]
+fn starting_player_first_turn(state: &GameState, player: u8) -> bool {
+    state.turn.turn_number == 0 && player == state.turn.starting_player
+}
+
+#[inline(always)]
+fn starting_player_first_turn_attack_used(state: &GameState, player: u8) -> bool {
+    if !starting_player_first_turn(state, player) {
+        return false;
+    }
+    state.turn.attack_subphase_count > 0
+}
+
+#[inline(always)]
+fn can_pay_cost_from_state(
+    state: &GameState,
+    player: usize,
+    slot: usize,
+    source: CardInstance,
+    cost: AbilityCost,
+    enforce_cost_requirement: bool,
+) -> bool {
+    if cost.rest_self {
+        if slot >= state.players[player].stage.len() {
+            return false;
+        }
+        let slot_state = &state.players[player].stage[slot];
+        if slot_state.card.map(|c| c.instance_id) != Some(source.instance_id) {
+            return false;
+        }
+        if slot_state.status != StageStatus::Stand {
+            return false;
+        }
+    }
+    if cost.rest_other > 0 {
+        let mut available = 0usize;
+        for (idx, slot_state) in state.players[player].stage.iter().enumerate() {
+            if idx == slot {
+                continue;
+            }
+            if slot_state.card.is_some() && slot_state.status == StageStatus::Stand {
+                available += 1;
+            }
+        }
+        if available < cost.rest_other as usize {
+            return false;
+        }
+    }
+    if cost.stock > 0
+        && enforce_cost_requirement
+        && state.players[player].stock.len() < cost.stock as usize
+    {
+        return false;
+    }
+    let required_hand = cost.discard_from_hand as usize
+        + cost.clock_from_hand as usize
+        + cost.reveal_from_hand as usize;
+    if required_hand > state.players[player].hand.len() {
+        return false;
+    }
+    if cost.clock_from_deck_top > 0
+        && state.players[player].deck.len() < cost.clock_from_deck_top as usize
+    {
+        return false;
+    }
+    true
+}
+
+#[inline(always)]
+fn can_pay_encore_for_slot(
+    state: &GameState,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    player: usize,
+    slot: usize,
+) -> bool {
+    if state.turn.cannot_use_auto_encore[player] {
+        return false;
+    }
+    if slot >= state.players[player].stage.len() {
+        return false;
+    }
+    let Some(card_inst) = state.players[player].stage[slot].card else {
+        return false;
+    };
+    let stock_len = state.players[player].stock.len();
+    let mut min_stock_cost = if stock_len >= 3 { Some(3usize) } else { None };
+    for modifier in &state.modifiers {
+        if modifier.target_player as usize != player || modifier.target_slot as usize != slot {
+            continue;
+        }
+        if modifier.target_card != card_inst.id {
+            continue;
+        }
+        if modifier.kind != ModifierKind::EncoreStockCost || modifier.magnitude <= 0 {
+            continue;
+        }
+        let cost = modifier.magnitude as usize;
+        min_stock_cost = Some(match min_stock_cost {
+            Some(existing) => existing.min(cost),
+            None => cost,
+        });
+    }
+    if let Some(cost) = min_stock_cost {
+        if stock_len >= cost {
+            return true;
+        }
+    }
+    db.iter_card_abilities_in_canonical_order(card_inst.id)
+        .iter()
+        .filter_map(|spec| spec.template.encore_variant_cost())
+        .any(|cost| {
+            can_pay_cost_from_state(
+                state,
+                player,
+                slot,
+                card_inst,
+                cost,
+                curriculum.enforce_cost_requirement,
+            )
+        })
+}
+
+#[inline(always)]
+fn slot_has_modifier_kind(
+    state: &GameState,
+    player: usize,
+    slot: usize,
+    kind: ModifierKind,
+) -> bool {
+    if slot >= state.players[player].stage.len() {
+        return false;
+    }
+    let Some(card_inst) = state.players[player].stage[slot].card else {
+        return false;
+    };
+    state.modifiers.iter().any(|modifier| {
+        modifier.target_player as usize == player
+            && modifier.target_slot as usize == slot
+            && modifier.target_card == card_inst.id
+            && modifier.kind == kind
+            && modifier.magnitude != 0
+    })
+}
+
+#[inline(always)]
+fn player_has_stage_modifier_kind(state: &GameState, player: usize, kind: ModifierKind) -> bool {
+    let max_slot = state.players[player].stage.len();
+    (0..max_slot).any(|slot| slot_has_modifier_kind(state, player, slot, kind))
+}
+
 /// Compute legal action ids for a decision into a reusable buffer.
 #[inline(always)]
 pub fn legal_action_ids_cached_into(
@@ -158,6 +311,11 @@ pub fn legal_action_ids_cached_into(
             } else {
                 MAX_STAGE
             };
+            let events_locked = player_has_stage_modifier_kind(
+                state,
+                player,
+                ModifierKind::CannotPlayEventsFromHand,
+            );
             for (hand_index, card_inst) in p.hand.iter().enumerate() {
                 if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                     break;
@@ -180,7 +338,8 @@ pub fn legal_action_ids_cached_into(
                             }
                         }
                         CardType::Event => {
-                            if curriculum.allow_event
+                            if !events_locked
+                                && curriculum.allow_event
                                 && meets_level_requirement(card, p.level.len())
                                 && meets_color_requirement(card, p, db, curriculum)
                                 && meets_cost_requirement(card, p, curriculum)
@@ -237,7 +396,7 @@ pub fn legal_action_ids_cached_into(
             push_id(out, PASS_ACTION_ID);
         }
         DecisionKind::AttackDeclaration => {
-            if state.turn.turn_number == 0 && decision.player == state.turn.starting_player {
+            if starting_player_first_turn_attack_used(state, decision.player) {
                 push_id(out, PASS_ACTION_ID);
             } else {
                 let max_slot = if curriculum.reduced_stage_mode { 1 } else { 3 };
@@ -270,10 +429,9 @@ pub fn legal_action_ids_cached_into(
         }
         DecisionKind::Encore => {
             let p = &state.players[player];
-            let can_pay = p.stock.len() >= 3;
             for slot in 0..p.stage.len() {
                 if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
-                    if can_pay {
+                    if can_pay_encore_for_slot(state, db, curriculum, player, slot) {
                         push_id(out, ENCORE_PAY_BASE + slot);
                     }
                     push_id(out, ENCORE_DECLINE_BASE + slot);
@@ -342,12 +500,66 @@ pub fn can_declare_attack(
     if attacker_slot.has_attacked {
         return Err("Attacker already attacked");
     }
-    let (cannot_attack, attack_cost) = if let Some(derived) = state.turn.derived_attack.as_ref() {
-        let entry = derived.per_player[p][s];
-        (entry.cannot_attack, entry.attack_cost)
-    } else {
-        (attacker_slot.cannot_attack, attacker_slot.attack_cost)
-    };
+    if starting_player_first_turn_attack_used(state, player) {
+        return Err("Starting player can only attack once on first turn");
+    }
+    let (cannot_attack, cannot_side_attack, cannot_frontal_attack, attack_cost) =
+        if let Some(derived) = state.turn.derived_attack.as_ref() {
+            let entry = derived.per_player[p][s];
+            (
+                entry.cannot_attack,
+                entry.cannot_side_attack,
+                entry.cannot_frontal_attack,
+                entry.attack_cost,
+            )
+        } else {
+            let mut cannot_attack = attacker_slot.cannot_attack;
+            let mut cannot_side_attack = false;
+            let mut cannot_frontal_attack = false;
+            let mut attack_cost = attacker_slot.attack_cost;
+            if let Some(card_inst) = attacker_slot.card {
+                let card_id = card_inst.id;
+                for modifier in &state.modifiers {
+                    if modifier.target_player as usize != p || modifier.target_slot as usize != s {
+                        continue;
+                    }
+                    if modifier.target_card != card_id {
+                        continue;
+                    }
+                    match modifier.kind {
+                        crate::state::ModifierKind::AttackCost => {
+                            if modifier.magnitude > 0 {
+                                let cost_delta =
+                                    (modifier.magnitude as u16).min(u8::MAX as u16) as u8;
+                                attack_cost = attack_cost.saturating_add(cost_delta);
+                            }
+                        }
+                        crate::state::ModifierKind::CannotAttack => {
+                            if modifier.magnitude != 0 {
+                                cannot_attack = true;
+                            }
+                        }
+                        crate::state::ModifierKind::CannotSideAttack => {
+                            if modifier.magnitude != 0 {
+                                cannot_side_attack = true;
+                            }
+                        }
+                        crate::state::ModifierKind::CannotFrontalAttack => {
+                            if modifier.magnitude != 0 {
+                                cannot_frontal_attack = true;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            (
+                cannot_attack,
+                cannot_side_attack,
+                cannot_frontal_attack,
+                attack_cost,
+            )
+        };
     if cannot_attack {
         return Err("Attacker cannot attack");
     }
@@ -359,6 +571,12 @@ pub fn can_declare_attack(
     match attack_type {
         AttackType::Frontal | AttackType::Side if !defender_present => {
             return Err("No defender for frontal/side attack");
+        }
+        AttackType::Frontal if cannot_frontal_attack => {
+            return Err("Attacker cannot frontal attack");
+        }
+        AttackType::Side if cannot_side_attack => {
+            return Err("Attacker cannot side attack");
         }
         AttackType::Direct if defender_present => {
             return Err("Direct attack requires empty opposing slot");
@@ -382,7 +600,7 @@ pub fn legal_attack_actions_into(
     curriculum: &CurriculumConfig,
     actions: &mut LegalActions,
 ) {
-    if state.turn.turn_number == 0 && player == state.turn.starting_player {
+    if starting_player_first_turn_attack_used(state, player) {
         return;
     }
     let max_slot = if curriculum.reduced_stage_mode { 1 } else { 3 };
@@ -492,6 +710,11 @@ pub fn legal_actions_cached_into(
             } else {
                 MAX_STAGE
             };
+            let events_locked = player_has_stage_modifier_kind(
+                state,
+                player,
+                ModifierKind::CannotPlayEventsFromHand,
+            );
             for (hand_index, card_inst) in p.hand.iter().enumerate() {
                 if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                     break;
@@ -516,7 +739,8 @@ pub fn legal_actions_cached_into(
                             }
                         }
                         CardType::Event => {
-                            if curriculum.allow_event
+                            if !events_locked
+                                && curriculum.allow_event
                                 && meets_level_requirement(card, p.level.len())
                                 && meets_color_requirement(card, p, db, curriculum)
                                 && meets_cost_requirement(card, p, curriculum)
@@ -542,6 +766,19 @@ pub fn legal_actions_cached_into(
                     if from_slot.card.is_some()
                         && is_character_slot(from_slot, db)
                         && (to_slot.card.is_none() || is_character_slot(to_slot, db))
+                        && !slot_has_modifier_kind(
+                            state,
+                            player,
+                            from,
+                            ModifierKind::CannotMoveStagePosition,
+                        )
+                        && (to_slot.card.is_none()
+                            || !slot_has_modifier_kind(
+                                state,
+                                player,
+                                to,
+                                ModifierKind::CannotMoveStagePosition,
+                            ))
                     {
                         actions.push(ActionDesc::MainMove {
                             from_slot: from as u8,
@@ -590,10 +827,9 @@ pub fn legal_actions_cached_into(
         }
         DecisionKind::Encore => {
             let p = &state.players[player];
-            let can_pay = p.stock.len() >= 3;
             for slot in 0..p.stage.len() {
                 if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
-                    if can_pay {
+                    if can_pay_encore_for_slot(state, db, curriculum, player, slot) {
                         actions.push(ActionDesc::EncorePay { slot: slot as u8 });
                     }
                     actions.push(ActionDesc::EncoreDecline { slot: slot as u8 });

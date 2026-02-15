@@ -1,8 +1,15 @@
-use super::super::{DamageIntentLocal, GameEnv};
+use super::super::{DamageIntentLocal, DamageResolveResult, GameEnv};
 use crate::db::*;
+use crate::effects::EffectKind;
 use crate::encode::MAX_STAGE;
 use crate::events::*;
 use crate::state::*;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AttackAutoResolvePhase {
+    TriggerStep,
+    DamageStep,
+}
 
 impl GameEnv {
     pub(in crate::env) fn recompute_derived_attack(&mut self) {
@@ -45,6 +52,16 @@ impl GameEnv {
                                     entry.cannot_attack = true;
                                 }
                             }
+                            ModifierKind::CannotSideAttack => {
+                                if modifier.magnitude != 0 {
+                                    entry.cannot_side_attack = true;
+                                }
+                            }
+                            ModifierKind::CannotFrontalAttack => {
+                                if modifier.magnitude != 0 {
+                                    entry.cannot_frontal_attack = true;
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -53,7 +70,12 @@ impl GameEnv {
             }
         }
         self.state.turn.derived_attack = Some(derived);
-        self.maybe_validate_state("derived_attack_recompute");
+        if self.maybe_validate_state("derived_attack_recompute") {
+            debug_assert!(
+                self.is_fault_latched(),
+                "validation failure should latch a deferred fault"
+            );
+        }
     }
 
     pub(in crate::env) fn resolve_attack_pipeline(&mut self) {
@@ -74,17 +96,51 @@ impl GameEnv {
                         }
                         break;
                     }
+                    if !ctx.auto_trigger_enqueued {
+                        self.enqueue_other_attack_declaration_auto_effects(
+                            &ctx,
+                            self.state.turn.active_player,
+                        );
+                        self.enqueue_attack_auto_effects(
+                            &ctx,
+                            self.state.turn.active_player,
+                            AttackAutoResolvePhase::TriggerStep,
+                        );
+                        ctx.auto_trigger_enqueued = true;
+                        if !self.state.turn.stack.is_empty()
+                            || self.state.turn.pending_level_up.is_some()
+                            || !self.state.turn.pending_triggers.is_empty()
+                            || self.state.turn.pending_cost.is_some()
+                            || self.state.turn.choice.is_some()
+                        {
+                            self.state.turn.attack = Some(ctx);
+                            if self.maybe_validate_state("attack_decl_auto_pause") {
+                                return;
+                            }
+                            break;
+                        }
+                    }
                     self.resolve_trigger_step(&mut ctx);
-                    if ctx.counter_allowed && self.curriculum.enable_counters {
-                        ctx.step = AttackStep::Counter;
+                    ctx.trigger_checks_resolved = ctx.trigger_checks_resolved.saturating_add(1);
+                    let trigger_checks_total = ctx.trigger_checks_total.max(1);
+                    if ctx.trigger_checks_resolved >= trigger_checks_total {
+                        if ctx.counter_allowed && self.curriculum.enable_counters {
+                            ctx.step = AttackStep::Counter;
+                        } else {
+                            ctx.step = AttackStep::Damage;
+                        }
                     } else {
-                        ctx.step = AttackStep::Damage;
+                        // Re-enter trigger step for additional trigger checks granted this attack.
+                        ctx.step = AttackStep::Trigger;
+                        ctx.trigger_window_done = false;
                     }
                     if self.state.turn.pending_level_up.is_some()
                         || !self.state.turn.pending_triggers.is_empty()
                     {
                         self.state.turn.attack = Some(ctx);
-                        self.maybe_validate_state("attack_trigger_pause");
+                        if self.maybe_validate_state("attack_trigger_pause") {
+                            return;
+                        }
                         break;
                     }
                     if self.curriculum.enable_priority_windows && !ctx.trigger_window_done {
@@ -117,7 +173,9 @@ impl GameEnv {
                     if self.state.turn.priority.is_none() {
                         self.enter_timing_window(TimingWindow::CounterWindow, defender);
                     }
-                    self.maybe_validate_state("attack_counter_window");
+                    if self.maybe_validate_state("attack_counter_window") {
+                        return;
+                    }
                     break;
                 }
                 AttackStep::Damage => {
@@ -132,10 +190,32 @@ impl GameEnv {
                         }
                         break;
                     }
+                    if !ctx.auto_damage_enqueued {
+                        self.enqueue_attack_auto_effects(
+                            &ctx,
+                            self.state.turn.active_player,
+                            AttackAutoResolvePhase::DamageStep,
+                        );
+                        ctx.auto_damage_enqueued = true;
+                        if !self.state.turn.stack.is_empty()
+                            || self.state.turn.pending_level_up.is_some()
+                            || !self.state.turn.pending_triggers.is_empty()
+                            || self.state.turn.pending_cost.is_some()
+                            || self.state.turn.choice.is_some()
+                        {
+                            self.state.turn.attack = Some(ctx);
+                            if self.maybe_validate_state("attack_damage_auto_pause") {
+                                return;
+                            }
+                            break;
+                        }
+                    }
                     let pause = self.resolve_damage_step(&mut ctx);
                     if pause {
                         self.state.turn.attack = Some(ctx);
-                        self.maybe_validate_state("attack_damage_pause");
+                        if self.maybe_validate_state("attack_damage_pause") {
+                            return;
+                        }
                         break;
                     }
                     if ctx.attack_type == AttackType::Direct {
@@ -148,7 +228,9 @@ impl GameEnv {
                         {
                             break;
                         }
-                        self.maybe_validate_state("attack_direct_done");
+                        if self.maybe_validate_state("attack_direct_done") {
+                            return;
+                        }
                         break;
                     }
                     ctx.step = AttackStep::Battle;
@@ -187,16 +269,22 @@ impl GameEnv {
                     {
                         break;
                     }
-                    self.maybe_validate_state("attack_battle_done");
+                    if self.maybe_validate_state("attack_battle_done") {
+                        return;
+                    }
                     break;
                 }
                 AttackStep::Encore => {
                     self.state.turn.attack = Some(ctx);
-                    self.maybe_validate_state("attack_encore_hold");
+                    if self.maybe_validate_state("attack_encore_hold") {
+                        return;
+                    }
                     break;
                 }
             }
-            self.maybe_validate_state("attack_pipeline");
+            if self.maybe_validate_state("attack_pipeline") {
+                return;
+            }
         }
     }
 
@@ -222,6 +310,8 @@ impl GameEnv {
                 None,
                 None,
             );
+            self.state.turn.attack = Some(ctx.clone());
+            self.queue_timing_triggers(crate::db::AbilityTiming::TriggerResolution);
             if self.curriculum.enable_triggers {
                 if let Some(static_card) = self.db.get(card_id) {
                     let triggers = static_card.triggers.clone();
@@ -245,6 +335,8 @@ impl GameEnv {
                             TriggerIcon::Bounce if self.curriculum.enable_trigger_bounce => {
                                 effects.push(TriggerEffect::Bounce)
                             }
+                            TriggerIcon::Choice => effects.push(TriggerEffect::Choice),
+                            TriggerIcon::Pool => effects.push(TriggerEffect::Pool),
                             TriggerIcon::Treasure if self.curriculum.enable_trigger_treasure => {
                                 effects.push(TriggerEffect::Treasure)
                             }
@@ -257,9 +349,11 @@ impl GameEnv {
                             _ => {}
                         }
                     }
-                    let has_treasure = effects.iter().any(|e| matches!(e, TriggerEffect::Treasure));
+                    let has_delayed_trigger_card_move = effects
+                        .iter()
+                        .any(|e| matches!(e, TriggerEffect::Treasure | TriggerEffect::Pool));
                     self.queue_trigger_group(active as u8, card_id, effects);
-                    if has_treasure {
+                    if has_delayed_trigger_card_move {
                         return;
                     }
                 }
@@ -280,13 +374,6 @@ impl GameEnv {
     pub(in crate::env) fn resolve_damage_step(&mut self, ctx: &mut AttackContext) -> bool {
         let attacker = self.state.turn.active_player;
         let defender = 1 - attacker;
-        if !ctx.auto_damage_enqueued {
-            self.enqueue_attack_auto_effects(ctx, attacker);
-            ctx.auto_damage_enqueued = true;
-            if !self.state.turn.stack.is_empty() {
-                return true;
-            }
-        }
         if !ctx.battle_damage_applied {
             let intent = DamageIntentLocal {
                 source_player: attacker,
@@ -297,37 +384,219 @@ impl GameEnv {
                 cancelable: true,
                 refresh_penalty: false,
             };
-            let event_id = self.resolve_damage_intent(intent, &mut ctx.damage_modifiers);
-            ctx.last_damage_event_id = Some(event_id);
+            let result = self.resolve_damage_intent(intent, &mut ctx.damage_modifiers);
+            ctx.last_damage_event_id = Some(result.event_id);
+            if result.canceled && ctx.pending_shot_damage > 0 {
+                for _ in 0..ctx.pending_shot_damage {
+                    let _ = self.resolve_effect_damage(attacker, defender, 1, true, false, None);
+                }
+                ctx.pending_shot_damage = 0;
+            }
+            if result.canceled {
+                self.enqueue_damage_canceled_auto_effects(ctx, attacker, defender);
+            } else {
+                self.enqueue_damage_not_canceled_auto_effects(ctx, attacker, defender);
+            }
             ctx.battle_damage_applied = true;
         }
         self.state.turn.pending_level_up.is_some()
+            || !self.state.turn.stack.is_empty()
+            || !self.state.turn.pending_triggers.is_empty()
+            || self.state.turn.pending_cost.is_some()
+            || self.state.turn.choice.is_some()
     }
 
-    pub(in crate::env) fn enqueue_attack_auto_effects(
+    fn enqueue_attack_auto_effects(
         &mut self,
         ctx: &AttackContext,
         attacker: u8,
+        phase: AttackAutoResolvePhase,
     ) {
         let attacker_slot = ctx.attacker_slot as usize;
         if let Some(card_inst) = self.state.players[attacker as usize].stage[attacker_slot].card {
             let card_id = card_inst.id;
+            let source_ref = Some(TargetRef {
+                player: attacker,
+                zone: TargetZone::Stage,
+                index: ctx.attacker_slot,
+                card_id,
+                instance_id: card_inst.instance_id,
+            });
             let db = self.db.clone();
             if db.get(card_id).is_none() {
                 return;
             }
-            let specs = db.iter_card_abilities_in_canonical_order(card_id);
-            for (ability_index, spec) in specs.iter().enumerate() {
+            let total_abilities = self.live_stage_ability_count(attacker, ctx.attacker_slot);
+            for ability_index in 0..total_abilities {
+                let Some(live) =
+                    self.live_stage_ability_at(attacker, ctx.attacker_slot, ability_index)
+                else {
+                    continue;
+                };
+                let spec = live.spec.clone();
+                let live_effects: Vec<_> = live.effects.to_vec();
+                let live_grant_id = live.grant_id;
                 if spec.kind != AbilityKind::Auto {
                     continue;
                 }
                 if spec.timing() == Some(crate::db::AbilityTiming::AttackDeclaration) {
-                    let effects = db.compiled_effects_for_ability(card_id, ability_index);
-                    for effect in effects {
-                        self.enqueue_effect_spec(attacker, card_id, effect.clone());
+                    if !self.auto_ability_conditions_met(attacker, card_id, &spec) {
+                        continue;
+                    }
+                    let has_trigger_step_effect = live_effects.iter().any(|effect| {
+                        matches!(effect.kind, EffectKind::SetTriggerCheckCount { .. })
+                    });
+                    let should_resolve = match phase {
+                        AttackAutoResolvePhase::TriggerStep => has_trigger_step_effect,
+                        AttackAutoResolvePhase::DamageStep => !has_trigger_step_effect,
+                    };
+                    if !should_resolve {
+                        continue;
+                    }
+                    match phase {
+                        AttackAutoResolvePhase::TriggerStep => {
+                            let cost = self.ability_cost_for_spec(&spec);
+                            if !cost.is_empty() && live_grant_id.is_none() {
+                                let Ok(ability_index_u8) = u8::try_from(ability_index) else {
+                                    continue;
+                                };
+                                let _ = self.resolve_trigger_auto_ability_with_cost(
+                                    attacker,
+                                    card_id,
+                                    ability_index_u8,
+                                );
+                            } else if cost.is_empty() {
+                                for effect in &live_effects {
+                                    self.enqueue_effect_spec_with_source(
+                                        attacker,
+                                        card_id,
+                                        effect.clone(),
+                                        source_ref,
+                                    );
+                                }
+                            }
+                        }
+                        AttackAutoResolvePhase::DamageStep => {
+                            for effect in &live_effects {
+                                self.enqueue_effect_spec_with_source(
+                                    attacker,
+                                    card_id,
+                                    effect.clone(),
+                                    source_ref,
+                                );
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+
+    fn enqueue_stage_auto_effects_for_timing(
+        &mut self,
+        player: u8,
+        slot: u8,
+        timing: crate::db::AbilityTiming,
+    ) {
+        let slot_idx = slot as usize;
+        let Some(card_inst) = self.state.players[player as usize].stage[slot_idx].card else {
+            return;
+        };
+        let card_id = card_inst.id;
+        let source_ref = Some(TargetRef {
+            player,
+            zone: TargetZone::Stage,
+            index: slot,
+            card_id,
+            instance_id: card_inst.instance_id,
+        });
+        let db = self.db.clone();
+        if db.get(card_id).is_none() {
+            return;
+        }
+        let total_abilities = self.live_stage_ability_count(player, slot);
+        for ability_index in 0..total_abilities {
+            let Some(live) = self.live_stage_ability_at(player, slot, ability_index) else {
+                continue;
+            };
+            let spec = live.spec.clone();
+            let live_effects: Vec<_> = live.effects.to_vec();
+            if spec.kind != AbilityKind::Auto || spec.timing() != Some(timing) {
+                continue;
+            }
+            if !self.auto_ability_conditions_met(player, card_id, &spec) {
+                continue;
+            }
+            let AbilityTemplate::AbilityDef(def) = &spec.template else {
+                continue;
+            };
+            if !def.cost.is_empty() {
+                continue;
+            }
+            for effect in &live_effects {
+                self.enqueue_effect_spec_with_source(player, card_id, effect.clone(), source_ref);
+            }
+        }
+    }
+
+    fn enqueue_other_attack_declaration_auto_effects(&mut self, ctx: &AttackContext, attacker: u8) {
+        let max_slot = if self.curriculum.reduced_stage_mode {
+            1
+        } else {
+            crate::encode::MAX_STAGE
+        };
+        for slot in 0..max_slot {
+            if slot == ctx.attacker_slot as usize {
+                continue;
+            }
+            if slot > u8::MAX as usize {
+                break;
+            }
+            self.enqueue_stage_auto_effects_for_timing(
+                attacker,
+                slot as u8,
+                crate::db::AbilityTiming::OtherAttackDeclaration,
+            );
+        }
+    }
+
+    fn enqueue_damage_canceled_auto_effects(
+        &mut self,
+        ctx: &AttackContext,
+        attacker: u8,
+        defender: u8,
+    ) {
+        self.enqueue_stage_auto_effects_for_timing(
+            attacker,
+            ctx.attacker_slot,
+            crate::db::AbilityTiming::DamageDealtCanceled,
+        );
+        if let Some(def_slot) = ctx.defender_slot {
+            self.enqueue_stage_auto_effects_for_timing(
+                defender,
+                def_slot,
+                crate::db::AbilityTiming::DamageReceivedCanceled,
+            );
+        }
+    }
+
+    fn enqueue_damage_not_canceled_auto_effects(
+        &mut self,
+        ctx: &AttackContext,
+        attacker: u8,
+        defender: u8,
+    ) {
+        self.enqueue_stage_auto_effects_for_timing(
+            attacker,
+            ctx.attacker_slot,
+            crate::db::AbilityTiming::DamageDealtNotCanceled,
+        );
+        if let Some(def_slot) = ctx.defender_slot {
+            self.enqueue_stage_auto_effects_for_timing(
+                defender,
+                def_slot,
+                crate::db::AbilityTiming::DamageReceivedNotCanceled,
+            );
         }
     }
 
@@ -365,7 +634,7 @@ impl GameEnv {
         &mut self,
         intent: DamageIntentLocal,
         modifiers: &mut [DamageModifier],
-    ) -> u32 {
+    ) -> DamageResolveResult {
         let event_id = self.state.turn.next_damage_event_id;
         self.state.turn.next_damage_event_id = self.state.turn.next_damage_event_id.wrapping_add(1);
         self.log_event(Event::DamageIntent {
@@ -522,7 +791,7 @@ impl GameEnv {
             self.check_level_up(intent.target);
         }
         self.state.turn.damage_resolution_target = prev_damage_target;
-        event_id
+        DamageResolveResult { event_id, canceled }
     }
 
     pub(in crate::env) fn resolve_battle_step(&mut self, ctx: &AttackContext) {
@@ -534,50 +803,129 @@ impl GameEnv {
             None => return,
         };
         let mut reversed: Vec<(u8, CardId)> = Vec::new();
+        let mut battle_opponent_reversed_sources: Vec<(u8, CardId)> = Vec::new();
         let atk_power = self.compute_slot_power(attacker, atk_slot);
         let def_power = self.compute_slot_power(defender, def_slot);
+
+        let can_become_reverse = |player: usize, slot: usize| -> bool {
+            if slot >= self.state.players[player].stage.len() {
+                return false;
+            }
+            let Some(card_inst) = self.state.players[player].stage[slot].card else {
+                return false;
+            };
+            !self.state.modifiers.iter().any(|modifier| {
+                modifier.target_player as usize == player
+                    && modifier.target_slot as usize == slot
+                    && modifier.target_card == card_inst.id
+                    && modifier.kind == ModifierKind::CannotBecomeReverse
+                    && modifier.magnitude != 0
+            })
+        };
+
+        let defender_can_reverse = can_become_reverse(defender, def_slot);
+        let attacker_can_reverse = can_become_reverse(attacker, atk_slot);
+
+        let maybe_move_reversed_to_memory =
+            |source_player: usize,
+             source_slot: usize,
+             target_player: usize,
+             target_slot: usize,
+             this: &mut GameEnv| {
+                if !this.slot_has_active_modifier_kind(
+                    source_player as u8,
+                    source_slot as u8,
+                    ModifierKind::BattleOpponentMoveToMemoryOnReverse,
+                ) {
+                    return;
+                }
+                if target_slot >= this.state.players[target_player].stage.len() {
+                    return;
+                }
+                let Some(target_card_inst) =
+                    this.state.players[target_player].stage[target_slot].card
+                else {
+                    return;
+                };
+                let target_ref = TargetRef {
+                    player: target_player as u8,
+                    zone: TargetZone::Stage,
+                    index: target_slot as u8,
+                    card_id: target_card_inst.id,
+                    instance_id: target_card_inst.instance_id,
+                };
+                let _ = this.move_stage_target_to_memory(target_ref);
+            };
+
         if atk_power > def_power {
-            self.state.players[defender].stage[def_slot].status = StageStatus::Reverse;
-            self.log_event(Event::ReversalCommitted {
-                player: defender as u8,
-                slot: def_slot as u8,
-                cause_damage_event: ctx.last_damage_event_id,
-            });
-            if let Some(card_inst) = self.state.players[defender].stage[def_slot].card {
-                reversed.push((defender as u8, card_inst.id));
+            if defender_can_reverse {
+                self.state.players[defender].stage[def_slot].status = StageStatus::Reverse;
+                self.log_event(Event::ReversalCommitted {
+                    player: defender as u8,
+                    slot: def_slot as u8,
+                    cause_damage_event: ctx.last_damage_event_id,
+                });
+                if let Some(card_inst) = self.state.players[defender].stage[def_slot].card {
+                    reversed.push((defender as u8, card_inst.id));
+                }
+                if let Some(card_inst) = self.state.players[attacker].stage[atk_slot].card {
+                    battle_opponent_reversed_sources.push((attacker as u8, card_inst.id));
+                }
+                maybe_move_reversed_to_memory(attacker, atk_slot, defender, def_slot, self);
             }
         } else if atk_power < def_power {
-            self.state.players[attacker].stage[atk_slot].status = StageStatus::Reverse;
-            self.log_event(Event::ReversalCommitted {
-                player: attacker as u8,
-                slot: atk_slot as u8,
-                cause_damage_event: ctx.last_damage_event_id,
-            });
-            if let Some(card_inst) = self.state.players[attacker].stage[atk_slot].card {
-                reversed.push((attacker as u8, card_inst.id));
+            if attacker_can_reverse {
+                self.state.players[attacker].stage[atk_slot].status = StageStatus::Reverse;
+                self.log_event(Event::ReversalCommitted {
+                    player: attacker as u8,
+                    slot: atk_slot as u8,
+                    cause_damage_event: ctx.last_damage_event_id,
+                });
+                if let Some(card_inst) = self.state.players[attacker].stage[atk_slot].card {
+                    reversed.push((attacker as u8, card_inst.id));
+                }
+                if let Some(card_inst) = self.state.players[defender].stage[def_slot].card {
+                    battle_opponent_reversed_sources.push((defender as u8, card_inst.id));
+                }
+                maybe_move_reversed_to_memory(defender, def_slot, attacker, atk_slot, self);
             }
         } else {
-            self.state.players[defender].stage[def_slot].status = StageStatus::Reverse;
-            self.state.players[attacker].stage[atk_slot].status = StageStatus::Reverse;
-            self.log_event(Event::ReversalCommitted {
-                player: defender as u8,
-                slot: def_slot as u8,
-                cause_damage_event: ctx.last_damage_event_id,
-            });
-            self.log_event(Event::ReversalCommitted {
-                player: attacker as u8,
-                slot: atk_slot as u8,
-                cause_damage_event: ctx.last_damage_event_id,
-            });
-            if let Some(card_inst) = self.state.players[defender].stage[def_slot].card {
-                reversed.push((defender as u8, card_inst.id));
+            if defender_can_reverse {
+                self.state.players[defender].stage[def_slot].status = StageStatus::Reverse;
+                self.log_event(Event::ReversalCommitted {
+                    player: defender as u8,
+                    slot: def_slot as u8,
+                    cause_damage_event: ctx.last_damage_event_id,
+                });
+                if let Some(card_inst) = self.state.players[defender].stage[def_slot].card {
+                    reversed.push((defender as u8, card_inst.id));
+                }
+                if let Some(card_inst) = self.state.players[attacker].stage[atk_slot].card {
+                    battle_opponent_reversed_sources.push((attacker as u8, card_inst.id));
+                }
+                maybe_move_reversed_to_memory(attacker, atk_slot, defender, def_slot, self);
             }
-            if let Some(card_inst) = self.state.players[attacker].stage[atk_slot].card {
-                reversed.push((attacker as u8, card_inst.id));
+            if attacker_can_reverse {
+                self.state.players[attacker].stage[atk_slot].status = StageStatus::Reverse;
+                self.log_event(Event::ReversalCommitted {
+                    player: attacker as u8,
+                    slot: atk_slot as u8,
+                    cause_damage_event: ctx.last_damage_event_id,
+                });
+                if let Some(card_inst) = self.state.players[attacker].stage[atk_slot].card {
+                    reversed.push((attacker as u8, card_inst.id));
+                }
+                if let Some(card_inst) = self.state.players[defender].stage[def_slot].card {
+                    battle_opponent_reversed_sources.push((defender as u8, card_inst.id));
+                }
+                maybe_move_reversed_to_memory(defender, def_slot, attacker, atk_slot, self);
             }
         }
         if !reversed.is_empty() {
             self.queue_on_reverse_triggers(&reversed);
+        }
+        if !battle_opponent_reversed_sources.is_empty() {
+            self.queue_battle_opponent_reverse_triggers(&battle_opponent_reversed_sources);
         }
     }
 

@@ -2,8 +2,9 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::config::{CurriculumConfig, EnvConfig};
-use crate::db::{CardDb, CardId, CardType};
+use crate::db::CardDb;
 use crate::encode::{OBS_LEN, PER_PLAYER_BLOCK_LEN};
+use crate::error::EnvError;
 use crate::events::Event;
 use crate::replay::{ReplayConfig, ReplayWriter};
 use crate::state::{GameState, Phase};
@@ -12,37 +13,9 @@ use crate::util::Rng64;
 use super::{ActionCache, DebugConfig, EngineErrorCode, EnvScratch, GameEnv, StepOutcome};
 
 impl GameEnv {
-    fn validate_deck_lists(db: &CardDb, deck_lists: &[Vec<CardId>; 2]) {
-        for (player, deck) in deck_lists.iter().enumerate() {
-            assert!(
-                deck.len() == crate::encode::MAX_DECK,
-                "Deck {player} has {} cards (must be {})",
-                deck.len(),
-                crate::encode::MAX_DECK
-            );
-            let mut climax_count = 0usize;
-            let mut counts: std::collections::HashMap<CardId, usize> =
-                std::collections::HashMap::new();
-            for &card_id in deck {
-                let card = db
-                    .get(card_id)
-                    .unwrap_or_else(|| panic!("Deck {player} contains unknown card id {card_id}"));
-                if card.card_type == CardType::Climax {
-                    climax_count += 1;
-                }
-                *counts.entry(card_id).or_insert(0) += 1;
-            }
-            assert!(
-                climax_count <= 8,
-                "Deck {player} has {climax_count} climax cards (max 8)"
-            );
-            for (card_id, count) in counts {
-                assert!(
-                    count <= 4,
-                    "Deck {player} has {count} copies of card {card_id} (max 4)"
-                );
-            }
-        }
+    fn validate_deck_lists(db: &CardDb, config: &EnvConfig) -> Result<(), EnvError> {
+        config.validate_with_db(db)?;
+        Ok(())
     }
 
     /// Construct a new environment and immediately reset it to a valid decision.
@@ -65,7 +38,7 @@ impl GameEnv {
     ///     ReplayConfig::default(),
     ///     None,
     ///     0,
-    /// );
+    /// )?;
     ///
     /// let outcome = env.apply_action_id(weiss_core::encode::PASS_ACTION_ID)?;
     /// # Ok::<(), anyhow::Error>(())
@@ -78,15 +51,15 @@ impl GameEnv {
         replay_config: ReplayConfig,
         replay_writer: Option<ReplayWriter>,
         env_id: u32,
-    ) -> Self {
-        Self::validate_deck_lists(&db, &config.deck_lists);
+    ) -> Result<Self, EnvError> {
+        Self::validate_deck_lists(&db, &config)?;
         let starting_player = (seed as u8) & 1;
         let state = GameState::new(
             config.deck_lists[0].clone(),
             config.deck_lists[1].clone(),
             seed,
             starting_player,
-        );
+        )?;
         let mut curriculum = curriculum;
         curriculum.rebuild_cache();
         let mut replay_config = replay_config;
@@ -147,9 +120,37 @@ impl GameEnv {
             debug_event_ring: None,
             validate_state_enabled: std::env::var("WEISS_VALIDATE_STATE").ok().as_deref()
                 == Some("1"),
+            fault_latched: None,
         };
-        env.reset();
-        env
+        let reset_outcome = env.reset();
+        if env.is_fault_latched() || reset_outcome.info.engine_error {
+            return Err(EnvError::InitialResetFault {
+                code: reset_outcome.info.engine_error_code,
+            });
+        }
+        Ok(env)
+    }
+
+    /// Compatibility helper for tests/benches.
+    pub fn new_or_panic(
+        db: Arc<CardDb>,
+        config: EnvConfig,
+        curriculum: CurriculumConfig,
+        seed: u64,
+        replay_config: ReplayConfig,
+        replay_writer: Option<ReplayWriter>,
+        env_id: u32,
+    ) -> Self {
+        Self::new(
+            db,
+            config,
+            curriculum,
+            seed,
+            replay_config,
+            replay_writer,
+            env_id,
+        )
+        .expect("GameEnv::new_or_panic failed")
     }
 
     /// Reset the environment and return a full observation.
@@ -198,13 +199,31 @@ impl GameEnv {
         let starting_player = if (episode_seed & 1) == 1 { 1 } else { 0 };
         self.episode_seed = episode_seed;
         self.episode_index = self.episode_index.wrapping_add(1);
-        Self::validate_deck_lists(&self.db, &self.config.deck_lists);
-        self.state = GameState::new(
+        if Self::validate_deck_lists(&self.db, &self.config).is_err() {
+            return self.latch_fault(
+                EngineErrorCode::ResetError,
+                None,
+                super::FaultSource::Reset,
+                copy_obs,
+            );
+        }
+        self.state = match GameState::new(
             self.config.deck_lists[0].clone(),
             self.config.deck_lists[1].clone(),
             episode_seed,
             starting_player,
-        );
+        ) {
+            Ok(state) => state,
+            Err(err) => {
+                eprintln!("reset GameState::new failed: {err}");
+                return self.latch_fault(
+                    EngineErrorCode::ResetError,
+                    None,
+                    super::FaultSource::Reset,
+                    copy_obs,
+                );
+            }
+        };
         self.slot_power_cache = [[0; crate::encode::MAX_STAGE]; 2];
         self.slot_power_dirty = [[true; crate::encode::MAX_STAGE]; 2];
         self.slot_power_cache_card = [[None; crate::encode::MAX_STAGE]; 2];
@@ -223,6 +242,7 @@ impl GameEnv {
         self.last_illegal_action = false;
         self.last_engine_error = false;
         self.last_engine_error_code = EngineErrorCode::None;
+        self.fault_latched = None;
         self.last_perspective = self.state.turn.starting_player;
         self.pending_damage_delta = [0, 0];
         self.obs_dirty = true;
@@ -258,14 +278,21 @@ impl GameEnv {
 
         self.advance_until_decision();
         self.update_action_cache();
-        self.maybe_validate_state("reset");
+        if self.maybe_validate_state("reset") || self.is_fault_latched() {
+            return self.build_fault_step_outcome(copy_obs);
+        }
         self.build_outcome_with_obs(0.0, copy_obs)
     }
 
     pub(crate) fn clear_status_flags(&mut self) {
         self.last_illegal_action = false;
-        self.last_engine_error = false;
-        self.last_engine_error_code = EngineErrorCode::None;
+        if let Some(record) = self.fault_latched {
+            self.last_engine_error = true;
+            self.last_engine_error_code = record.code;
+        } else {
+            self.last_engine_error = false;
+            self.last_engine_error_code = EngineErrorCode::None;
+        }
     }
 
     /// Update debug settings for this environment instance.

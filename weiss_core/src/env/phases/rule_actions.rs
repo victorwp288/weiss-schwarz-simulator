@@ -98,10 +98,9 @@ impl GameEnv {
                     }
                 }
                 if self.state.players[p].climax.len() > 1 {
-                    let last = self.state.players[p]
-                        .climax
-                        .pop()
-                        .expect("climax non-empty");
+                    let Some(last) = self.state.players[p].climax.pop() else {
+                        continue;
+                    };
                     let extra = std::mem::take(&mut self.state.players[p].climax);
                     for card in extra {
                         self.move_card_between_zones(

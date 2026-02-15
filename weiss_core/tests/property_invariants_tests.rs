@@ -70,7 +70,7 @@ fn make_env(seed: u64) -> GameEnv {
         observation_visibility: ObservationVisibility::Public,
         end_condition_policy: Default::default(),
     };
-    GameEnv::new(
+    GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),

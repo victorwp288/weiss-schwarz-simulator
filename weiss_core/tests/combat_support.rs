@@ -20,6 +20,7 @@ pub const CARD_COUNTER_CANCEL: u32 = 4;
 pub const CARD_COUNTER_REDUCE: u32 = 5;
 pub const CARD_CLIMAX: u32 = 6;
 pub const CARD_TRIGGER_MULTI: u32 = 7;
+pub const CARD_TRIGGER_DRAW: u32 = 25;
 pub const CARD_END_DRAW: u32 = 8;
 pub const CARD_EVENT_DAMAGE: u32 = 9;
 pub const CARD_MULTI_EFFECT_ATTACK: u32 = 10;
@@ -31,6 +32,9 @@ pub const CARD_TRIGGER_TREASURE: u32 = 15;
 pub const CARD_TRIGGER_STANDBY: u32 = 16;
 pub const CARD_CANNOT_ATTACK: u32 = 17;
 pub const CARD_COUNTER_DOUBLE_REDUCE: u32 = 18;
+pub const CARD_TRIGGER_SHOT: u32 = 22;
+pub const CARD_TRIGGER_CHOICE: u32 = 23;
+pub const CARD_TRIGGER_POOL: u32 = 24;
 
 fn make_instance(card_id: u32, owner: u8, zone_tag: u32, index: usize) -> CardInstance {
     let instance_id = ((owner as u32) << 24) | (zone_tag << 16) | (index as u32);
@@ -155,6 +159,22 @@ pub fn make_db() -> Arc<CardDb> {
             power: 500,
             soul: 1,
             triggers: vec![TriggerIcon::Soul, TriggerIcon::Draw],
+            traits: vec![],
+            abilities: vec![],
+            ability_defs: vec![],
+            counter_timing: false,
+            raw_text: None,
+        },
+        CardStatic {
+            id: CARD_TRIGGER_DRAW,
+            card_set: None,
+            card_type: CardType::Character,
+            color: CardColor::Red,
+            level: 0,
+            cost: 0,
+            power: 500,
+            soul: 1,
+            triggers: vec![TriggerIcon::Draw],
             traits: vec![],
             abilities: vec![],
             ability_defs: vec![],
@@ -311,6 +331,54 @@ pub fn make_db() -> Arc<CardDb> {
             power: 500,
             soul: 1,
             triggers: vec![TriggerIcon::Standby],
+            traits: vec![],
+            abilities: vec![],
+            ability_defs: vec![],
+            counter_timing: false,
+            raw_text: None,
+        },
+        CardStatic {
+            id: CARD_TRIGGER_SHOT,
+            card_set: None,
+            card_type: CardType::Character,
+            color: CardColor::Red,
+            level: 0,
+            cost: 0,
+            power: 500,
+            soul: 1,
+            triggers: vec![TriggerIcon::Shot],
+            traits: vec![],
+            abilities: vec![],
+            ability_defs: vec![],
+            counter_timing: false,
+            raw_text: None,
+        },
+        CardStatic {
+            id: CARD_TRIGGER_CHOICE,
+            card_set: None,
+            card_type: CardType::Character,
+            color: CardColor::Red,
+            level: 0,
+            cost: 0,
+            power: 500,
+            soul: 1,
+            triggers: vec![TriggerIcon::Choice],
+            traits: vec![],
+            abilities: vec![],
+            ability_defs: vec![],
+            counter_timing: false,
+            raw_text: None,
+        },
+        CardStatic {
+            id: CARD_TRIGGER_POOL,
+            card_set: None,
+            card_type: CardType::Character,
+            color: CardColor::Red,
+            level: 0,
+            cost: 0,
+            power: 500,
+            soul: 1,
+            triggers: vec![TriggerIcon::Pool],
             traits: vec![],
             abilities: vec![],
             ability_defs: vec![],

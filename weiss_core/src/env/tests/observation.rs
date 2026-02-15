@@ -8,7 +8,10 @@ use crate::encode::{
     PER_PLAYER_STAGE, PER_PLAYER_STOCK_TOP, PER_PLAYER_WAITING_TOP,
 };
 use crate::legal::ActionDesc;
-use crate::state::{ChoiceReason, ChoiceState, EncoreRequest, PriorityState, TimingWindow};
+use crate::state::{
+    ChoiceReason, ChoiceState, EncoreRequest, ModifierDuration, ModifierKind, PriorityState,
+    TimingWindow,
+};
 
 #[test]
 fn public_observation_masks_opponent_last_action_params() {
@@ -243,4 +246,48 @@ fn observation_encoded_from_actor_and_self_block_first() {
         opp_hand,
         env.state.players[1 - decision_player].hand.len() as i32
     );
+}
+
+#[test]
+fn observation_exposes_effective_soul_and_side_attack_flag() {
+    let mut env = make_env();
+    let _ = env.reset_no_copy();
+    let mut next_id = 1u32;
+    let card = make_instance(1, 0, &mut next_id);
+    env.state.players[0].stage[0].card = Some(card);
+    env.state.players[0].stage[0].status = crate::state::StageStatus::Stand;
+    let _ = env.add_modifier(
+        1,
+        0,
+        0,
+        ModifierKind::Soul,
+        2,
+        ModifierDuration::UntilEndOfTurn,
+    );
+    let _ = env.add_modifier(
+        1,
+        0,
+        0,
+        ModifierKind::CannotSideAttack,
+        1,
+        ModifierDuration::UntilEndOfTurn,
+    );
+
+    let mut obs = vec![0; OBS_LEN];
+    encode_observation(
+        &env.state,
+        &env.db,
+        &env.curriculum,
+        0,
+        env.decision.as_ref(),
+        env.last_action_desc.as_ref(),
+        env.last_action_player,
+        env.config.observation_visibility,
+        &mut obs,
+    );
+
+    let slot0 = OBS_HEADER_LEN + PER_PLAYER_COUNTS;
+    assert_eq!(obs[slot0 + 4], 1);
+    assert_eq!(obs[slot0 + 5], 3);
+    assert_eq!(obs[slot0 + 6], 0);
 }

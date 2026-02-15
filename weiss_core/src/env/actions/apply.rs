@@ -30,18 +30,20 @@ impl GameEnv {
         action_id: usize,
         copy_obs: bool,
     ) -> Result<super::super::StepOutcome> {
+        if self.is_fault_latched() {
+            return Ok(self.build_fault_step_outcome(copy_obs));
+        }
         self.last_illegal_action = false;
         self.last_engine_error = false;
         self.last_engine_error_code = super::super::EngineErrorCode::None;
-        if self.decision.is_none() {
+        let Some(decision) = self.decision.as_ref() else {
             return Err(anyhow!("No pending decision"));
-        }
-        self.last_perspective = self.decision.as_ref().unwrap().player;
+        };
+        self.last_perspective = decision.player;
         let action = match self.action_for_id(action_id) {
             Some(action) => action,
             None => {
-                let player = self.decision.as_ref().unwrap().player;
-                return self.handle_illegal_action(player, "Invalid action id", copy_obs);
+                return self.handle_illegal_action(decision.player, "Invalid action id", copy_obs);
             }
         };
         self.apply_action_internal(action, copy_obs)
@@ -150,7 +152,9 @@ impl GameEnv {
             self.decision = None;
             self.state.turn.decision_count += 1;
             self.update_action_cache();
-            self.maybe_validate_state("post_concede");
+            if self.maybe_validate_state("post_concede") || self.is_fault_latched() {
+                return Ok(self.build_fault_step_outcome(copy_obs));
+            }
             reward += self.compute_reward(decision.player, &self.pending_damage_delta);
             return Ok(self.build_outcome_with_obs(reward, copy_obs));
         }
@@ -324,6 +328,30 @@ impl GameEnv {
                         return self.handle_illegal_action(
                             decision.player,
                             "Move requires a source slot with a card",
+                            copy_obs,
+                        );
+                    }
+                    if self.slot_has_active_modifier_kind(
+                        decision.player,
+                        from_slot,
+                        crate::state::ModifierKind::CannotMoveStagePosition,
+                    ) {
+                        return self.handle_illegal_action(
+                            decision.player,
+                            "Source slot card cannot move",
+                            copy_obs,
+                        );
+                    }
+                    if self.state.players[p].stage[ts].card.is_some()
+                        && self.slot_has_active_modifier_kind(
+                            decision.player,
+                            to_slot,
+                            crate::state::ModifierKind::CannotMoveStagePosition,
+                        )
+                    {
+                        return self.handle_illegal_action(
+                            decision.player,
+                            "Destination slot card cannot move",
                             copy_obs,
                         );
                     }
@@ -655,7 +683,9 @@ impl GameEnv {
 
         self.advance_until_decision();
         self.update_action_cache();
-        self.maybe_validate_state("post_action");
+        if self.maybe_validate_state("post_action") || self.is_fault_latched() {
+            return Ok(self.build_fault_step_outcome(copy_obs));
+        }
 
         reward += self.compute_reward(decision.player, &self.pending_damage_delta);
         Ok(self.build_outcome_with_obs(reward, copy_obs))

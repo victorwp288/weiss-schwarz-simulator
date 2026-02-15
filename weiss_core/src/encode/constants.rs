@@ -1,11 +1,13 @@
 //! Encoding constants for observations and action ids.
 //!
 //! These values are part of the stable encoding contract. See docs/encodings.md.
+#![allow(missing_docs)]
+
 use crate::state::REVEAL_HISTORY_LEN;
 
 /// Observation encoding version.
-// Changelog: https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/encodings_changelog.md#obs_encoding_version-1
-pub const OBS_ENCODING_VERSION: u32 = 1;
+// Changelog: https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/encodings_changelog.md#obs_encoding_version-2
+pub const OBS_ENCODING_VERSION: u32 = 2;
 /// Action encoding version.
 // Changelog: https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/encodings_changelog.md#action_encoding_version-1
 pub const ACTION_ENCODING_VERSION: u32 = 1;
@@ -98,7 +100,7 @@ pub const OBS_CONTEXT_CHOICE_ACTIVE: usize = 1;
 pub const OBS_CONTEXT_STACK_NONEMPTY: usize = 2;
 pub const OBS_CONTEXT_ENCORE_PENDING: usize = 3;
 pub const PER_PLAYER_COUNTS: usize = 9;
-pub const PER_STAGE_SLOT: usize = 5;
+pub const PER_STAGE_SLOT: usize = 7;
 pub const PER_PLAYER_STAGE: usize = MAX_STAGE * PER_STAGE_SLOT;
 pub const PER_PLAYER_CLIMAX_TOP: usize = 1;
 pub const PER_PLAYER_LEVEL: usize = MAX_LEVEL;

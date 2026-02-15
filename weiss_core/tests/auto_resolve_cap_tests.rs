@@ -64,7 +64,7 @@ fn replay_config() -> ReplayConfig {
 #[test]
 fn auto_resolve_cap_exceeded_sets_engine_error() {
     let db = make_db();
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         make_config(),
         CurriculumConfig::default(),
@@ -85,6 +85,7 @@ fn auto_resolve_cap_exceeded_sets_engine_error() {
     let payload = EffectPayload {
         spec,
         targets: Vec::new(),
+        source_ref: None,
     };
 
     let count = (STACK_AUTO_RESOLVE_CAP + 1) as usize;

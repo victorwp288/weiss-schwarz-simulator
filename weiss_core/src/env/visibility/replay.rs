@@ -43,7 +43,10 @@ impl GameEnv {
         let raw_id = action_id_for(&action)
             .and_then(|id| u16::try_from(id).ok())
             .unwrap_or(REPLAY_ACTION_ID_UNKNOWN);
-        let public_id = action_id_for(self.replay_actions.last().expect("logged action"))
+        let public_id = self
+            .replay_actions
+            .last()
+            .and_then(action_id_for)
             .and_then(|id| u16::try_from(id).ok())
             .unwrap_or(REPLAY_ACTION_ID_UNKNOWN);
         self.replay_action_ids_raw.push(raw_id);

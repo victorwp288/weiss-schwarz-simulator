@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use crate::db::CardId;
 use crate::state::{
     AttackType, ChoiceOptionRef, ChoiceReason, DamageModifierKind, DamageType, ModifierDuration,

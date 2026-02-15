@@ -91,8 +91,10 @@ impl GameEnv {
                 slot.power_mod_turn = 0;
                 slot.cannot_attack = false;
                 slot.attack_cost = 0;
+                slot.played_from_hand_this_turn = false;
             }
         }
+        self.state.turn.cannot_use_auto_encore = [false; 2];
         self.mark_all_slot_power_dirty();
         let mut removed: Vec<u32> = Vec::new();
         self.state.modifiers.retain(|m| {
@@ -112,9 +114,20 @@ impl GameEnv {
                 reason: ModifierRemoveReason::EndOfTurn,
             });
         }
+        let current_turn_number = self.state.turn.turn_number;
+        self.state
+            .turn
+            .granted_abilities
+            .retain(|grant| grant.expires_turn_number != current_turn_number);
+        self.prune_granted_abilities();
         self.state.turn.derived_attack = None;
         self.mark_continuous_modifiers_dirty();
-        self.maybe_validate_state("end_phase_expire");
+        if self.maybe_validate_state("end_phase_expire") {
+            debug_assert!(
+                self.is_fault_latched(),
+                "validation failure should latch a deferred fault"
+            );
+        }
     }
 
     pub(in crate::env) fn finish_end_phase(&mut self, player: u8) {
@@ -147,6 +160,11 @@ impl GameEnv {
         self.state.turn.pending_resolution_cleanup.clear();
         self.state.turn.turn_number = self.state.turn.turn_number.saturating_add(1);
         self.log_event(Event::EndTurn { player });
-        self.maybe_validate_state("end_phase_finish");
+        if self.maybe_validate_state("end_phase_finish") {
+            debug_assert!(
+                self.is_fault_latched(),
+                "validation failure should latch a deferred fault"
+            );
+        }
     }
 }

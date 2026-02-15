@@ -5,9 +5,8 @@ use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
 use crate::encode::{ACTION_SPACE_SIZE, OBS_LEN, SPEC_HASH};
-use crate::env::StepOutcome;
+use crate::env::{EngineErrorCode, StepOutcome};
 use crate::legal::ActionDesc;
-use crate::GameEnv;
 
 use super::core::EnvPool;
 use super::outputs::{
@@ -43,25 +42,20 @@ fn empty_outcome() -> StepOutcome {
 }
 
 impl EnvPool {
-    const PAR_CHUNK_SIZE: usize = 64;
-    pub(super) fn par_chunk_size(&self) -> usize {
-        let Some(threads) = self.thread_pool_size else {
-            return Self::PAR_CHUNK_SIZE;
-        };
-        let num_envs = self.envs.len().max(1);
-        let target_chunks = threads.saturating_mul(4).max(1);
-        let chunk = num_envs.div_ceil(target_chunks);
-        chunk.clamp(8, 256)
-    }
-
-    pub(super) fn panic_message(panic: Box<dyn std::any::Any + Send>) -> String {
-        if let Some(msg) = panic.downcast_ref::<&str>() {
-            (*msg).to_string()
-        } else if let Some(msg) = panic.downcast_ref::<String>() {
-            msg.clone()
-        } else {
-            "unknown panic".to_string()
-        }
+    pub(super) fn panic_fingerprint_from_meta(
+        env_id: u32,
+        episode_index: u32,
+        episode_seed: u64,
+        decision_id: u32,
+        code: EngineErrorCode,
+    ) -> u64 {
+        let mut bytes = Vec::with_capacity(32);
+        bytes.extend_from_slice(&env_id.to_le_bytes());
+        bytes.extend_from_slice(&episode_index.to_le_bytes());
+        bytes.extend_from_slice(&episode_seed.to_le_bytes());
+        bytes.extend_from_slice(&decision_id.to_le_bytes());
+        bytes.push(code as u8);
+        crate::fingerprint::hash_bytes(&bytes)
     }
 
     pub(super) fn ensure_outcomes_scratch(&mut self) {
@@ -76,25 +70,6 @@ impl EnvPool {
         if self.legal_counts_scratch.len() != len {
             self.legal_counts_scratch = vec![0usize; len];
         }
-    }
-
-    pub(super) fn fill_outcomes_for_flags(
-        envs: &mut [GameEnv],
-        outcomes: &mut [StepOutcome],
-        flags: &[bool],
-    ) -> Result<()> {
-        if flags.len() != envs.len() || outcomes.len() != envs.len() {
-            anyhow::bail!("reset flags size mismatch");
-        }
-        for ((slot, env), reset) in outcomes.iter_mut().zip(envs.iter_mut()).zip(flags.iter()) {
-            *slot = if *reset {
-                env.reset_no_copy()
-            } else {
-                env.clear_status_flags();
-                env.build_outcome_no_copy(0.0)
-            };
-        }
-        Ok(())
     }
 
     pub(super) fn debug_compute_fingerprints(&mut self) -> bool {
@@ -157,8 +132,10 @@ impl EnvPool {
         }
         let words_per_env = crate::encode::ACTION_SPACE_WORDS;
         let mut bits = vec![0u64; self.envs.len() * words_per_env];
-        self.action_mask_bits_batch_into(&mut bits)
-            .expect("mask bits buffer size mismatch");
+        if let Err(err) = self.action_mask_bits_batch_into(&mut bits) {
+            eprintln!("action_mask_bits_batch_into failed: {err}");
+            return Vec::new();
+        }
         bits
     }
 
@@ -210,7 +187,9 @@ impl EnvPool {
                         let legal = env.action_ids_cache();
                         if legal.is_empty() {
                             error_flag.store(true, Ordering::Relaxed);
-                            let mut guard = error_store.lock().expect("error store poisoned");
+                            let mut guard = error_store
+                                .lock()
+                                .unwrap_or_else(|poison| poison.into_inner());
                             if guard.is_none() {
                                 *guard = Some(anyhow!("no legal actions for env {idx}"));
                             }
@@ -221,7 +200,10 @@ impl EnvPool {
                     });
             });
             if error_flag.load(Ordering::Relaxed) {
-                let err = error_store.lock().expect("error store poisoned").take();
+                let err = error_store
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner())
+                    .take();
                 if let Some(err) = err {
                     return Err(err);
                 }
@@ -262,7 +244,9 @@ impl EnvPool {
                         let legal = env.action_ids_cache();
                         if legal.is_empty() {
                             error_flag.store(true, Ordering::Relaxed);
-                            let mut guard = error_store.lock().expect("error store poisoned");
+                            let mut guard = error_store
+                                .lock()
+                                .unwrap_or_else(|poison| poison.into_inner());
                             if guard.is_none() {
                                 *guard = Some(anyhow!("no legal actions for env {idx}"));
                             }
@@ -272,7 +256,10 @@ impl EnvPool {
                     });
             });
             if error_flag.load(Ordering::Relaxed) {
-                let err = error_store.lock().expect("error store poisoned").take();
+                let err = error_store
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner())
+                    .take();
                 if let Some(err) = err {
                     return Err(err);
                 }
@@ -348,7 +335,9 @@ impl EnvPool {
                         let legal = env.action_ids_cache();
                         if legal.is_empty() {
                             error_flag.store(true, Ordering::Relaxed);
-                            let mut guard = error_store.lock().expect("error store poisoned");
+                            let mut guard = error_store
+                                .lock()
+                                .unwrap_or_else(|poison| poison.into_inner());
                             if guard.is_none() {
                                 *guard = Some(anyhow!("no legal actions for env {idx}"));
                             }
@@ -359,7 +348,10 @@ impl EnvPool {
                     });
             });
             if error_flag.load(Ordering::Relaxed) {
-                let err = error_store.lock().expect("error store poisoned").take();
+                let err = error_store
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner())
+                    .take();
                 if let Some(err) = err {
                     return Err(err);
                 }
@@ -383,20 +375,11 @@ impl EnvPool {
         }
         self.ensure_legal_counts_scratch();
         let counts = &mut self.legal_counts_scratch;
-        if let Some(pool) = self.thread_pool.as_ref() {
-            let envs = &self.envs;
-            pool.install(|| {
-                counts
-                    .par_iter_mut()
-                    .zip(envs.par_iter())
-                    .for_each(|(slot, env)| {
-                        *slot = env.action_ids_cache().len();
-                    });
-            });
-        } else {
-            for (slot, env) in counts.iter_mut().zip(self.envs.iter()) {
-                *slot = env.action_ids_cache().len();
-            }
+        // This path is called every policy step in legal-id workflows.
+        // Per-env work here is tiny (cache length read), and rayon setup/coordination
+        // dominates at typical batch sizes, so keep this pass serial.
+        for (slot, env) in counts.iter_mut().zip(self.envs.iter()) {
+            *slot = env.action_ids_cache().len();
         }
         offsets[0] = 0;
         let mut total = 0usize;
@@ -754,14 +737,31 @@ impl EnvPool {
             out.rewards[i] = outcome.reward;
             out.terminated[i] = outcome.terminated;
             out.truncated[i] = outcome.truncated;
+            let engine_status = if outcome.info.engine_error {
+                outcome.info.engine_error_code
+            } else {
+                env.last_engine_error_code as u8
+            };
+            out.engine_status[i] = engine_status;
+            let keep_fault_actor = engine_status != EngineErrorCode::None as u8
+                && (env.fault_actor().is_some() || outcome.info.actor != crate::encode::ACTOR_NONE);
             out.actor[i] = if outcome.terminated || outcome.truncated {
-                crate::encode::ACTOR_NONE
+                if keep_fault_actor {
+                    env.fault_actor()
+                        .or_else(|| {
+                            (outcome.info.actor != crate::encode::ACTOR_NONE)
+                                .then_some(outcome.info.actor as u8)
+                        })
+                        .map(|a| a as i8)
+                        .unwrap_or(crate::encode::ACTOR_NONE)
+                } else {
+                    crate::encode::ACTOR_NONE
+                }
             } else {
                 outcome.info.actor
             };
             out.decision_kind[i] = outcome.info.decision_kind;
             out.decision_id[i] = env.decision_id();
-            out.engine_status[i] = env.last_engine_error_code as u8;
             out.spec_hash[i] = SPEC_HASH;
             debug_assert!(
                 out.terminated[i] || out.truncated[i] || (out.actor[i] == 0 || out.actor[i] == 1)
@@ -816,14 +816,31 @@ impl EnvPool {
             out.rewards[i] = outcome.reward;
             out.terminated[i] = outcome.terminated;
             out.truncated[i] = outcome.truncated;
+            let engine_status = if outcome.info.engine_error {
+                outcome.info.engine_error_code
+            } else {
+                env.last_engine_error_code as u8
+            };
+            out.engine_status[i] = engine_status;
+            let keep_fault_actor = engine_status != EngineErrorCode::None as u8
+                && (env.fault_actor().is_some() || outcome.info.actor != crate::encode::ACTOR_NONE);
             out.actor[i] = if outcome.terminated || outcome.truncated {
-                crate::encode::ACTOR_NONE
+                if keep_fault_actor {
+                    env.fault_actor()
+                        .or_else(|| {
+                            (outcome.info.actor != crate::encode::ACTOR_NONE)
+                                .then_some(outcome.info.actor as u8)
+                        })
+                        .map(|a| a as i8)
+                        .unwrap_or(crate::encode::ACTOR_NONE)
+                } else {
+                    crate::encode::ACTOR_NONE
+                }
             } else {
                 outcome.info.actor
             };
             out.decision_kind[i] = outcome.info.decision_kind;
             out.decision_id[i] = env.decision_id();
-            out.engine_status[i] = env.last_engine_error_code as u8;
             out.spec_hash[i] = SPEC_HASH;
             debug_assert!(
                 out.terminated[i] || out.truncated[i] || (out.actor[i] == 0 || out.actor[i] == 1)
@@ -879,14 +896,31 @@ impl EnvPool {
             out.rewards[i] = outcome.reward;
             out.terminated[i] = outcome.terminated;
             out.truncated[i] = outcome.truncated;
+            let engine_status = if outcome.info.engine_error {
+                outcome.info.engine_error_code
+            } else {
+                env.last_engine_error_code as u8
+            };
+            out.engine_status[i] = engine_status;
+            let keep_fault_actor = engine_status != EngineErrorCode::None as u8
+                && (env.fault_actor().is_some() || outcome.info.actor != crate::encode::ACTOR_NONE);
             out.actor[i] = if outcome.terminated || outcome.truncated {
-                crate::encode::ACTOR_NONE
+                if keep_fault_actor {
+                    env.fault_actor()
+                        .or_else(|| {
+                            (outcome.info.actor != crate::encode::ACTOR_NONE)
+                                .then_some(outcome.info.actor as u8)
+                        })
+                        .map(|a| a as i8)
+                        .unwrap_or(crate::encode::ACTOR_NONE)
+                } else {
+                    crate::encode::ACTOR_NONE
+                }
             } else {
                 outcome.info.actor
             };
             out.decision_kind[i] = outcome.info.decision_kind;
             out.decision_id[i] = env.decision_id();
-            out.engine_status[i] = env.last_engine_error_code as u8;
             out.spec_hash[i] = SPEC_HASH;
             let legal_ids = env.action_ids_cache();
             let next = legal_cursor.saturating_add(legal_ids.len());
@@ -925,14 +959,31 @@ impl EnvPool {
             out.rewards[i] = outcome.reward;
             out.terminated[i] = outcome.terminated;
             out.truncated[i] = outcome.truncated;
+            let engine_status = if outcome.info.engine_error {
+                outcome.info.engine_error_code
+            } else {
+                env.last_engine_error_code as u8
+            };
+            out.engine_status[i] = engine_status;
+            let keep_fault_actor = engine_status != EngineErrorCode::None as u8
+                && (env.fault_actor().is_some() || outcome.info.actor != crate::encode::ACTOR_NONE);
             out.actor[i] = if outcome.terminated || outcome.truncated {
-                crate::encode::ACTOR_NONE
+                if keep_fault_actor {
+                    env.fault_actor()
+                        .or_else(|| {
+                            (outcome.info.actor != crate::encode::ACTOR_NONE)
+                                .then_some(outcome.info.actor as u8)
+                        })
+                        .map(|a| a as i8)
+                        .unwrap_or(crate::encode::ACTOR_NONE)
+                } else {
+                    crate::encode::ACTOR_NONE
+                }
             } else {
                 outcome.info.actor
             };
             out.decision_kind[i] = outcome.info.decision_kind;
             out.decision_id[i] = env.decision_id();
-            out.engine_status[i] = env.last_engine_error_code as u8;
             out.spec_hash[i] = SPEC_HASH;
             debug_assert!(
                 out.terminated[i] || out.truncated[i] || (out.actor[i] == 0 || out.actor[i] == 1)

@@ -137,7 +137,7 @@ fn make_env() -> GameEnv {
         observation_visibility: ObservationVisibility::Public,
         end_condition_policy: Default::default(),
     };
-    GameEnv::new(
+    GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -165,6 +165,7 @@ fn make_noop_stack_item(id: u32) -> StackItem {
         payload: EffectPayload {
             spec,
             targets: Vec::new(),
+            source_ref: None,
         },
     }
 }
@@ -219,7 +220,7 @@ fn make_env_with_replay(replay_config: ReplayConfig) -> GameEnv {
         observation_visibility: ObservationVisibility::Public,
         end_condition_policy: Default::default(),
     };
-    GameEnv::new(
+    GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),

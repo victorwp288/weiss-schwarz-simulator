@@ -1,410 +1,3 @@
-use super::*;
-use crate::config::*;
-use crate::db::*;
-use crate::effects::*;
-use crate::env::{EngineErrorCode, CHECK_TIMING_QUIESCENCE_CAP};
-use crate::events::*;
-use crate::replay::ReplayEvent;
-use crate::state::*;
-
-#[test]
-fn stack_group_ordering_stable() {
-    let mut env = make_env();
-    let spec_a = EffectSpec {
-        id: EffectId::new(EffectSourceKind::System, 2, 0, 0),
-        kind: EffectKind::Draw { count: 1 },
-        target: None,
-        optional: false,
-    };
-    let spec_b = EffectSpec {
-        id: EffectId::new(EffectSourceKind::System, 1, 0, 0),
-        kind: EffectKind::Draw { count: 1 },
-        target: None,
-        optional: false,
-    };
-    let item_a = StackItem {
-        id: 2,
-        controller: 0,
-        source_id: 2,
-        effect_id: spec_a.id,
-        payload: EffectPayload {
-            spec: spec_a,
-            targets: Vec::new(),
-        },
-    };
-    let item_b = StackItem {
-        id: 1,
-        controller: 0,
-        source_id: 1,
-        effect_id: spec_b.id,
-        payload: EffectPayload {
-            spec: spec_b,
-            targets: Vec::new(),
-        },
-    };
-    env.enqueue_stack_items(vec![item_a, item_b]);
-    let order = env.state.turn.stack_order.as_ref().expect("stack order");
-    assert_eq!(order.items[0].source_id, 1);
-    assert_eq!(order.items[1].source_id, 2);
-}
-
-#[test]
-fn target_candidate_ordering_by_zone() {
-    let mut env = make_env();
-    let p = 0usize;
-    let owner = p as u8;
-    let mut next_id = 1u32;
-    env.state.players[p].hand = vec![
-        make_instance(1, owner, &mut next_id),
-        make_instance(2, owner, &mut next_id),
-        make_instance(1, owner, &mut next_id),
-    ];
-    env.state.players[p].waiting_room = vec![
-        make_instance(1, owner, &mut next_id),
-        make_instance(2, owner, &mut next_id),
-        make_instance(1, owner, &mut next_id),
-    ];
-    env.state.players[p].clock = vec![
-        make_instance(1, owner, &mut next_id),
-        make_instance(2, owner, &mut next_id),
-    ];
-    env.state.players[p].level = vec![
-        make_instance(2, owner, &mut next_id),
-        make_instance(1, owner, &mut next_id),
-    ];
-    env.state.players[p].stock = vec![
-        make_instance(1, owner, &mut next_id),
-        make_instance(2, owner, &mut next_id),
-        make_instance(1, owner, &mut next_id),
-    ];
-    env.state.players[p].memory = vec![make_instance(1, owner, &mut next_id)];
-    env.state.players[p].climax = vec![make_instance(2, owner, &mut next_id)];
-    env.state.players[p].resolution = vec![
-        make_instance(1, owner, &mut next_id),
-        make_instance(2, owner, &mut next_id),
-    ];
-    env.state.players[p].deck = vec![
-        make_instance(1, owner, &mut next_id),
-        make_instance(2, owner, &mut next_id),
-        make_instance(1, owner, &mut next_id),
-        make_instance(2, owner, &mut next_id),
-    ];
-    env.state.players[p].stage = [
-        {
-            let mut s = StageSlot::empty();
-            s.card = Some(make_instance(1, owner, &mut next_id));
-            s
-        },
-        {
-            let mut s = StageSlot::empty();
-            s.card = Some(make_instance(2, owner, &mut next_id));
-            s
-        },
-        StageSlot::empty(),
-        StageSlot::empty(),
-        StageSlot::empty(),
-    ];
-
-    let spec = |zone| TargetSpec {
-        zone,
-        side: TargetSide::SelfSide,
-        slot_filter: TargetSlotFilter::Any,
-        card_type: None,
-        card_trait: None,
-        level_max: None,
-        cost_max: None,
-        count: 3,
-        limit: None,
-        source_only: false,
-        reveal_to_controller: false,
-    };
-
-    let stage = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Stage), &[]);
-    assert_eq!(
-        stage.iter().map(|t| t.index).collect::<Vec<_>>(),
-        vec![0, 1]
-    );
-
-    let waiting = enumerate_targets_for_test(&env, owner, &spec(TargetZone::WaitingRoom), &[]);
-    assert_eq!(
-        waiting.iter().map(|t| t.index).collect::<Vec<_>>(),
-        vec![0, 1, 2]
-    );
-
-    let hand = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Hand), &[]);
-    assert_eq!(
-        hand.iter().map(|t| t.index).collect::<Vec<_>>(),
-        vec![0, 1, 2]
-    );
-
-    let deck = enumerate_targets_for_test(&env, owner, &spec(TargetZone::DeckTop), &[]);
-    assert_eq!(
-        deck.iter().map(|t| t.index).collect::<Vec<_>>(),
-        vec![0, 1, 2, 3]
-    );
-
-    let clock = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Clock), &[]);
-    assert_eq!(
-        clock.iter().map(|t| t.index).collect::<Vec<_>>(),
-        vec![0, 1]
-    );
-
-    let level = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Level), &[]);
-    assert_eq!(
-        level.iter().map(|t| t.index).collect::<Vec<_>>(),
-        vec![0, 1]
-    );
-
-    let stock = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Stock), &[]);
-    assert_eq!(
-        stock.iter().map(|t| t.index).collect::<Vec<_>>(),
-        vec![0, 1, 2]
-    );
-
-    let memory = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Memory), &[]);
-    assert_eq!(memory.iter().map(|t| t.index).collect::<Vec<_>>(), vec![0]);
-
-    let climax = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Climax), &[]);
-    assert_eq!(climax.iter().map(|t| t.index).collect::<Vec<_>>(), vec![0]);
-
-    let resolution = enumerate_targets_for_test(&env, owner, &spec(TargetZone::Resolution), &[]);
-    assert_eq!(
-        resolution.iter().map(|t| t.index).collect::<Vec<_>>(),
-        vec![0, 1]
-    );
-}
-
-#[test]
-fn target_slot_filters_back_row_and_specific_slot() {
-    let mut env = make_env();
-    let owner = 0u8;
-    let mut next_id = 1u32;
-    env.state.players[0].stage = [
-        {
-            let mut s = StageSlot::empty();
-            s.card = Some(make_instance(1, owner, &mut next_id));
-            s
-        },
-        {
-            let mut s = StageSlot::empty();
-            s.card = Some(make_instance(2, owner, &mut next_id));
-            s
-        },
-        StageSlot::empty(),
-        {
-            let mut s = StageSlot::empty();
-            s.card = Some(make_instance(1, owner, &mut next_id));
-            s
-        },
-        {
-            let mut s = StageSlot::empty();
-            s.card = Some(make_instance(2, owner, &mut next_id));
-            s
-        },
-    ];
-
-    let back_row = TargetSpec {
-        zone: TargetZone::Stage,
-        side: TargetSide::SelfSide,
-        slot_filter: TargetSlotFilter::BackRow,
-        card_type: None,
-        card_trait: None,
-        level_max: None,
-        cost_max: None,
-        count: 2,
-        limit: None,
-        source_only: false,
-        reveal_to_controller: false,
-    };
-    let back_targets = enumerate_targets_for_test(&env, owner, &back_row, &[]);
-    assert_eq!(
-        back_targets.iter().map(|t| t.index).collect::<Vec<_>>(),
-        vec![3, 4]
-    );
-
-    let specific = TargetSpec {
-        zone: TargetZone::Stage,
-        side: TargetSide::SelfSide,
-        slot_filter: TargetSlotFilter::SpecificSlot(1),
-        card_type: None,
-        card_trait: None,
-        level_max: None,
-        cost_max: None,
-        count: 1,
-        limit: None,
-        source_only: false,
-        reveal_to_controller: false,
-    };
-    let specific_targets = enumerate_targets_for_test(&env, owner, &specific, &[]);
-    assert_eq!(
-        specific_targets.iter().map(|t| t.index).collect::<Vec<_>>(),
-        vec![1]
-    );
-}
-
-#[test]
-fn target_filters_apply_deterministically() {
-    let cards = vec![
-        CardStatic {
-            id: 1,
-            card_set: None,
-            card_type: CardType::Character,
-            color: CardColor::Red,
-            level: 0,
-            cost: 0,
-            power: 500,
-            soul: 1,
-            triggers: vec![],
-            traits: vec![10],
-            abilities: vec![],
-            ability_defs: vec![],
-            counter_timing: false,
-            raw_text: None,
-        },
-        CardStatic {
-            id: 2,
-            card_set: None,
-            card_type: CardType::Character,
-            color: CardColor::Red,
-            level: 2,
-            cost: 1,
-            power: 500,
-            soul: 1,
-            triggers: vec![],
-            traits: vec![20],
-            abilities: vec![],
-            ability_defs: vec![],
-            counter_timing: false,
-            raw_text: None,
-        },
-        CardStatic {
-            id: 3,
-            card_set: None,
-            card_type: CardType::Character,
-            color: CardColor::Red,
-            level: 1,
-            cost: 2,
-            power: 500,
-            soul: 1,
-            triggers: vec![],
-            traits: vec![10],
-            abilities: vec![],
-            ability_defs: vec![],
-            counter_timing: false,
-            raw_text: None,
-        },
-    ];
-    let mut cards = cards;
-    add_clone_cards(&mut cards);
-    let db = Arc::new(CardDb::new(cards).expect("db build"));
-    let config = EnvConfig {
-        deck_lists: [
-            legalize_deck(vec![1, 2, 3], &[1, 2, 3]),
-            legalize_deck(vec![1, 2, 3], &[1, 2, 3]),
-        ],
-        deck_ids: [1, 2],
-        max_decisions: 200,
-        max_ticks: 1000,
-        reward: RewardConfig::default(),
-        error_policy: ErrorPolicy::LenientTerminate,
-        observation_visibility: ObservationVisibility::Public,
-        end_condition_policy: Default::default(),
-    };
-    let mut env = GameEnv::new(
-        db,
-        config,
-        CurriculumConfig::default(),
-        7,
-        ReplayConfig::default(),
-        None,
-        0,
-    );
-    let _ = env.reset_no_copy();
-    let mut next_id = 1u32;
-    env.state.players[0].waiting_room = vec![
-        make_instance(1, 0, &mut next_id),
-        make_instance(2, 0, &mut next_id),
-        make_instance(3, 0, &mut next_id),
-    ];
-    let spec = TargetSpec {
-        zone: TargetZone::WaitingRoom,
-        side: TargetSide::SelfSide,
-        slot_filter: TargetSlotFilter::Any,
-        card_type: Some(CardType::Character),
-        card_trait: Some(10),
-        level_max: Some(1),
-        cost_max: Some(1),
-        count: 1,
-        limit: None,
-        source_only: false,
-        reveal_to_controller: false,
-    };
-    let targets = enumerate_targets_for_test(&env, 0, &spec, &[]);
-    let ids: Vec<u32> = targets.iter().map(|t| t.card_id).collect();
-    assert_eq!(ids, vec![1]);
-}
-
-#[test]
-fn target_selection_uses_snapshot_candidates() {
-    let mut env = make_env();
-    let _ = env.reset_no_copy();
-    let mut next_id = 1u32;
-    let top = make_instance(1, 0, &mut next_id);
-    let below = make_instance(2, 0, &mut next_id);
-    env.state.players[0].deck = vec![below, top];
-
-    let spec = TargetSpec {
-        zone: TargetZone::DeckTop,
-        side: TargetSide::SelfSide,
-        slot_filter: TargetSlotFilter::Any,
-        card_type: None,
-        card_trait: None,
-        level_max: None,
-        cost_max: None,
-        count: 1,
-        limit: Some(2),
-        source_only: false,
-        reveal_to_controller: false,
-    };
-    let effect_spec = EffectSpec {
-        id: EffectId::new(EffectSourceKind::System, 1, 0, 0),
-        kind: EffectKind::MoveToHand,
-        target: Some(spec.clone()),
-        optional: false,
-    };
-    env.start_target_selection(
-        0,
-        1,
-        spec,
-        PendingTargetEffect::EffectPending {
-            instance_id: 1,
-            payload: EffectPayload {
-                spec: effect_spec,
-                targets: Vec::new(),
-            },
-        },
-        false,
-    );
-    let before = env
-        .state
-        .turn
-        .target_selection
-        .as_ref()
-        .expect("selection")
-        .candidates
-        .clone();
-    env.state.players[0].deck.reverse();
-    let after = env
-        .state
-        .turn
-        .target_selection
-        .as_ref()
-        .expect("selection")
-        .candidates
-        .clone();
-    assert_eq!(before, after);
-}
-
 #[test]
 fn move_to_waiting_room_from_stage_removes_card() {
     let mut env = make_env();
@@ -422,6 +15,7 @@ fn move_to_waiting_room_from_stage_removes_card() {
         card_trait: None,
         level_max: None,
         cost_max: None,
+        card_ids: Vec::new(),
         count: 1,
         limit: None,
         source_only: false,
@@ -440,6 +34,7 @@ fn move_to_waiting_room_from_stage_removes_card() {
     let payload = EffectPayload {
         spec: effect_spec,
         targets: vec![target],
+        source_ref: None,
     };
     env.resolve_effect_payload(0, 1, &payload);
 
@@ -468,6 +63,7 @@ fn move_to_stock_from_deck_top_moves_top_card() {
         card_trait: None,
         level_max: None,
         cost_max: None,
+        card_ids: Vec::new(),
         count: 1,
         limit: Some(1),
         source_only: false,
@@ -486,6 +82,7 @@ fn move_to_stock_from_deck_top_moves_top_card() {
     let payload = EffectPayload {
         spec: effect_spec,
         targets: vec![target],
+        source_ref: None,
     };
     env.resolve_effect_payload(0, 2, &payload);
 
@@ -511,6 +108,7 @@ fn move_to_clock_from_hand_moves_card() {
         card_trait: None,
         level_max: None,
         cost_max: None,
+        card_ids: Vec::new(),
         count: 1,
         limit: None,
         source_only: false,
@@ -529,6 +127,7 @@ fn move_to_clock_from_hand_moves_card() {
     let payload = EffectPayload {
         spec: effect_spec,
         targets: vec![target],
+        source_ref: None,
     };
     env.resolve_effect_payload(0, 3, &payload);
 
@@ -554,6 +153,7 @@ fn rest_and_stand_target_updates_stage_status() {
         card_trait: None,
         level_max: None,
         cost_max: None,
+        card_ids: Vec::new(),
         count: 1,
         limit: None,
         source_only: false,
@@ -572,6 +172,7 @@ fn rest_and_stand_target_updates_stage_status() {
     let rest_payload = EffectPayload {
         spec: rest_spec,
         targets: vec![target],
+        source_ref: None,
     };
     env.resolve_effect_payload(0, 4, &rest_payload);
     assert_eq!(env.state.players[0].stage[0].status, StageStatus::Rest);
@@ -589,6 +190,7 @@ fn rest_and_stand_target_updates_stage_status() {
     let stand_payload = EffectPayload {
         spec: stand_spec,
         targets: vec![target],
+        source_ref: None,
     };
     env.resolve_effect_payload(0, 5, &stand_payload);
     assert_eq!(env.state.players[0].stage[0].status, StageStatus::Stand);
@@ -600,20 +202,26 @@ fn activated_ability_costs_apply_in_order() {
         kind: AbilityKind::Activated,
         timing: Some(AbilityTiming::BeginMainPhase),
         effects: vec![EffectTemplate::Draw { count: 1 }],
+        effect_optional: Vec::new(),
         targets: Vec::new(),
         cost: AbilityCost {
             stock: 1,
             rest_self: true,
             rest_other: 0,
+            sacrifice_from_stage: 0,
             discard_from_hand: 1,
             clock_from_hand: 0,
             clock_from_deck_top: 0,
             reveal_from_hand: 1,
+            move_self_to_waiting_room: false,
+            return_self_to_hand: false,
         },
+        conditions: Default::default(),
         target_card_type: None,
         target_trait: None,
         target_level_max: None,
         target_cost_max: None,
+        target_card_ids: Vec::new(),
         target_limit: None,
     };
     let card = CardStatic {
@@ -646,7 +254,7 @@ fn activated_ability_costs_apply_in_order() {
         observation_visibility: ObservationVisibility::Public,
         end_condition_policy: Default::default(),
     };
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -702,6 +310,122 @@ fn activated_ability_costs_apply_in_order() {
 }
 
 #[test]
+fn clock_from_deck_top_cost_aborts_when_draw_registers_loss() {
+    let ability_def = AbilityDef {
+        kind: AbilityKind::Activated,
+        timing: Some(AbilityTiming::BeginMainPhase),
+        effects: vec![EffectTemplate::Draw { count: 1 }],
+        effect_optional: Vec::new(),
+        targets: Vec::new(),
+        cost: AbilityCost {
+            stock: 0,
+            rest_self: false,
+            rest_other: 0,
+            sacrifice_from_stage: 0,
+            discard_from_hand: 0,
+            clock_from_hand: 0,
+            clock_from_deck_top: 1,
+            reveal_from_hand: 0,
+            move_self_to_waiting_room: false,
+            return_self_to_hand: false,
+        },
+        conditions: Default::default(),
+        target_card_type: None,
+        target_trait: None,
+        target_level_max: None,
+        target_cost_max: None,
+        target_card_ids: Vec::new(),
+        target_limit: None,
+    };
+    let card = CardStatic {
+        id: 1,
+        card_set: None,
+        card_type: CardType::Character,
+        color: CardColor::Red,
+        level: 0,
+        cost: 0,
+        power: 500,
+        soul: 1,
+        triggers: vec![],
+        traits: vec![],
+        abilities: vec![],
+        ability_defs: vec![ability_def],
+        counter_timing: false,
+        raw_text: None,
+    };
+    let mut cards = vec![card];
+    add_clone_cards(&mut cards);
+    let db = Arc::new(CardDb::new(cards).expect("db"));
+    let deck = legalize_deck(vec![1u32; 50], &[1]);
+    let config = EnvConfig {
+        deck_lists: [deck.clone(), deck],
+        deck_ids: [1, 2],
+        max_decisions: 50,
+        max_ticks: 1000,
+        reward: RewardConfig::default(),
+        error_policy: ErrorPolicy::Strict,
+        observation_visibility: ObservationVisibility::Public,
+        end_condition_policy: Default::default(),
+    };
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        9,
+        ReplayConfig::default(),
+        None,
+        0,
+    );
+    let _ = env.reset_no_copy();
+
+    let mut next_id = 1u32;
+    let source = make_instance(1, 0, &mut next_id);
+    env.state.players[0].stage[0].card = Some(source);
+    env.state.players[0].stage[0].status = StageStatus::Stand;
+    env.state.players[0].deck.clear();
+    env.state.players[0].waiting_room.clear();
+    env.state.players[0].clock.clear();
+
+    // Keep depth at zero to exercise the draw path that can register terminal loss.
+    env.state.turn.cost_payment_depth = 0;
+    env.state.turn.pending_cost = Some(CostPaymentState {
+        controller: 0,
+        source_id: source.id,
+        source_instance_id: source.instance_id,
+        source_slot: Some(0),
+        ability_index: 0,
+        remaining: AbilityCost {
+            stock: 0,
+            rest_self: false,
+            rest_other: 0,
+            sacrifice_from_stage: 0,
+            discard_from_hand: 0,
+            clock_from_hand: 0,
+            clock_from_deck_top: 1,
+            reveal_from_hand: 0,
+            move_self_to_waiting_room: false,
+            return_self_to_hand: false,
+        },
+        current_step: None,
+        outcome: CostPaymentOutcome::ResolveAbility,
+    });
+
+    env.start_cost_choice();
+
+    assert!(matches!(
+        env.state.terminal,
+        Some(TerminalResult::Win { winner: 1 })
+    ));
+    assert!(env.state.turn.pending_cost.is_none());
+    assert_eq!(env.state.turn.cost_payment_depth, 0);
+    assert!(
+        env.state.turn.stack.is_empty(),
+        "cost abort should prevent ability resolution"
+    );
+    assert!(env.state.players[0].clock.is_empty());
+}
+
+#[test]
 fn random_discard_is_deterministic() {
     let mut env_a = make_env();
     let mut env_b = make_env();
@@ -730,6 +454,7 @@ fn random_discard_is_deterministic() {
     let payload = EffectPayload {
         spec: effect_spec.clone(),
         targets: Vec::new(),
+        source_ref: None,
     };
     env_a.resolve_effect_payload(0, 1, &payload);
     env_b.resolve_effect_payload(0, 1, &payload);
@@ -787,6 +512,7 @@ fn random_mill_is_deterministic() {
     let payload = EffectPayload {
         spec: effect_spec,
         targets: Vec::new(),
+        source_ref: None,
     };
     env_a.resolve_effect_payload(0, 2, &payload);
     env_b.resolve_effect_payload(0, 2, &payload);
@@ -842,6 +568,7 @@ fn heal_moves_clock_to_waiting_room() {
             card_trait: None,
             level_max: None,
             cost_max: None,
+            card_ids: Vec::new(),
             count: 1,
             limit: None,
             source_only: false,
@@ -852,6 +579,7 @@ fn heal_moves_clock_to_waiting_room() {
     let payload = EffectPayload {
         spec,
         targets: vec![target],
+        source_ref: None,
     };
     env.resolve_effect_payload(0, 10, &payload);
     assert!(env.state.players[0].clock.is_empty());
@@ -885,6 +613,7 @@ fn mill_top_moves_cards_to_waiting_room_in_order() {
     let payload = EffectPayload {
         spec,
         targets: Vec::new(),
+        source_ref: None,
     };
     env.resolve_effect_payload(0, 11, &payload);
     assert_eq!(env.state.players[0].waiting_room.len(), 2);
@@ -930,7 +659,11 @@ fn swap_stage_slots_effect_swaps_cards() {
         target: None,
         optional: false,
     };
-    let payload = EffectPayload { spec, targets };
+    let payload = EffectPayload {
+        spec,
+        targets,
+        source_ref: None,
+    };
     env.resolve_effect_payload(0, 12, &payload);
     assert_eq!(
         env.state.players[0].stage[0].card.unwrap().instance_id,
@@ -950,6 +683,7 @@ fn reveal_zone_top_logs_reveal_event() {
         ..Default::default()
     };
     let mut env = make_env_with_replay(replay_config);
+    let _ = env.reset_no_copy();
     env.curriculum.enable_visibility_policies = true;
     env.recording = true;
     env.replay_events.clear();
@@ -971,6 +705,7 @@ fn reveal_zone_top_logs_reveal_event() {
     let payload = EffectPayload {
         spec: effect_spec,
         targets: Vec::new(),
+        source_ref: None,
     };
     env.resolve_effect_payload(0, 3, &payload);
 
@@ -1000,6 +735,7 @@ fn stock_charge_moves_cards_from_deck_to_stock() {
     let payload = EffectPayload {
         spec: effect_spec,
         targets: Vec::new(),
+        source_ref: None,
     };
     env.resolve_effect_payload(0, 6, &payload);
 
@@ -1079,7 +815,7 @@ fn rule_actions_remove_non_character_from_stage() {
         observation_visibility: ObservationVisibility::Public,
         end_condition_policy: Default::default(),
     };
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -1095,188 +831,4 @@ fn rule_actions_remove_non_character_from_stage() {
     env.advance_until_decision();
     assert!(env.state.players[0].stage[0].card.is_none());
     assert!(env.state.players[0].waiting_room.iter().any(|c| c.id == 2));
-}
-
-#[test]
-fn trigger_group_ordering_is_stable_and_grouped_event_logged() {
-    let mut env = make_env();
-    env.recording = true;
-    env.canonical_events.clear();
-    env.replay_events.clear();
-
-    let effects = vec![
-        TriggerEffect::Bounce,
-        TriggerEffect::Soul,
-        TriggerEffect::Draw,
-    ];
-    env.queue_trigger_group(0, 1, effects);
-
-    let pending: Vec<TriggerEffect> = env
-        .state
-        .turn
-        .pending_triggers
-        .iter()
-        .map(|t| t.effect)
-        .collect();
-    assert_eq!(
-        pending,
-        vec![
-            TriggerEffect::Soul,
-            TriggerEffect::Draw,
-            TriggerEffect::Bounce
-        ]
-    );
-
-    let grouped = env
-        .canonical_events
-        .iter()
-        .find_map(|event| match event {
-            Event::TriggerGrouped {
-                group_id,
-                trigger_ids,
-            } => Some((*group_id, trigger_ids.clone())),
-            _ => None,
-        })
-        .expect("TriggerGrouped event");
-    let pending_ids: Vec<u32> = env
-        .state
-        .turn
-        .pending_triggers
-        .iter()
-        .map(|t| t.id)
-        .collect();
-    assert_eq!(grouped.1, pending_ids);
-}
-
-#[test]
-fn trigger_quiescence_cap_sets_timeout_and_error_code() {
-    let mut env = make_env();
-    env.curriculum.enable_priority_windows = false;
-    env.decision = None;
-    env.state.turn.choice = None;
-    env.state.turn.priority = None;
-    env.state.turn.stack_order = None;
-    env.state.turn.pending_triggers.clear();
-
-    let cap = CHECK_TIMING_QUIESCENCE_CAP;
-    let mut stack = Vec::with_capacity(cap as usize + 1);
-    for id in 0..=cap {
-        stack.push(make_noop_stack_item(id + 1));
-    }
-    env.state.turn.stack = stack;
-
-    env.resolve_quiescence_until_decision();
-
-    assert_eq!(env.state.terminal, Some(TerminalResult::Timeout));
-    assert!(env.last_engine_error);
-    assert_eq!(
-        env.last_engine_error_code,
-        EngineErrorCode::TriggerQuiescenceCap
-    );
-}
-
-#[test]
-fn trigger_pipeline_resolves_under_load_without_quiescence_cap() {
-    let mut env = make_env();
-    env.curriculum.enable_priority_windows = false;
-    env.curriculum.enable_triggers = true;
-    env.decision = None;
-    env.state.turn.choice = None;
-    env.state.turn.priority = None;
-    env.state.turn.stack_order = None;
-    env.state.turn.pending_triggers.clear();
-    env.state.turn.pending_triggers_sorted = true;
-
-    for _ in 0..32 {
-        env.queue_trigger_group(0, 1, vec![TriggerEffect::Soul]);
-    }
-
-    env.resolve_quiescence_until_decision();
-
-    assert!(env.state.terminal.is_none());
-    assert!(!env.last_engine_error);
-    assert!(env.state.turn.pending_triggers.is_empty());
-    assert!(env.state.turn.stack.is_empty());
-}
-
-#[test]
-fn alternate_end_conditions_simultaneous_loss_policies() {
-    let mut env = make_env();
-    env.curriculum.use_alternate_end_conditions = true;
-
-    env.state.turn.active_player = 0;
-    env.config.end_condition_policy.simultaneous_loss = SimultaneousLossPolicy::Draw;
-    env.config
-        .end_condition_policy
-        .allow_draw_on_simultaneous_loss = true;
-    env.state.turn.pending_losses = [true, true];
-    env.resolve_pending_losses();
-    assert!(matches!(env.state.terminal, Some(TerminalResult::Draw)));
-
-    env.state.terminal = None;
-    env.state.turn.pending_losses = [true, true];
-    env.config.end_condition_policy.simultaneous_loss = SimultaneousLossPolicy::ActivePlayerWins;
-    env.resolve_pending_losses();
-    assert!(matches!(
-        env.state.terminal,
-        Some(TerminalResult::Win { winner: 0 })
-    ));
-
-    env.state.terminal = None;
-    env.state.turn.pending_losses = [true, true];
-    env.config.end_condition_policy.simultaneous_loss = SimultaneousLossPolicy::NonActivePlayerWins;
-    env.resolve_pending_losses();
-    assert!(matches!(
-        env.state.terminal,
-        Some(TerminalResult::Win { winner: 1 })
-    ));
-
-    env.state.terminal = None;
-    env.state.turn.pending_losses = [true, true];
-    env.config.end_condition_policy.simultaneous_loss = SimultaneousLossPolicy::Draw;
-    env.config
-        .end_condition_policy
-        .allow_draw_on_simultaneous_loss = false;
-    env.resolve_pending_losses();
-    assert!(matches!(
-        env.state.terminal,
-        Some(TerminalResult::Win { winner: 0 })
-    ));
-}
-
-#[test]
-fn terminal_rewards_are_zero_sum() {
-    let mut env = make_env();
-    env.state.terminal = Some(TerminalResult::Win { winner: 0 });
-    let r0 = env.terminal_reward_for(0);
-    let r1 = env.terminal_reward_for(1);
-    assert!((r0 + r1).abs() < 1e-6);
-    env.state.terminal = Some(TerminalResult::Draw);
-    assert_eq!(env.terminal_reward_for(0), 0.0);
-    assert_eq!(env.terminal_reward_for(1), 0.0);
-}
-
-#[test]
-fn shaping_reward_is_antisymmetric() {
-    let mut env = make_env();
-    env.config.reward.enable_shaping = true;
-    env.state.terminal = None;
-    let delta = [2, 1];
-    let r0 = env.compute_reward(0, &delta);
-    let r1 = env.compute_reward(1, &delta);
-    assert!((r0 + r1).abs() < 1e-6);
-}
-
-#[test]
-fn terminal_and_timeout_flags_are_distinct() {
-    let mut env = make_env();
-    env.state.terminal = Some(TerminalResult::Timeout);
-    let timeout_outcome = env.build_outcome_with_obs(0.0, true);
-    assert!(timeout_outcome.truncated);
-    assert!(!timeout_outcome.terminated);
-
-    env.state.terminal = Some(TerminalResult::Win { winner: 0 });
-    let win_outcome = env.build_outcome_with_obs(0.0, true);
-    assert!(win_outcome.terminated);
-    assert!(!win_outcome.truncated);
 }

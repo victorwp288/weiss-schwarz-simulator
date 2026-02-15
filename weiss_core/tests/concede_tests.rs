@@ -20,7 +20,7 @@ fn concede_is_always_legal_and_ends_immediately() {
     };
     let mut curriculum = default_curriculum();
     curriculum.allow_concede = true;
-    let mut env = GameEnv::new(db, config, curriculum, 77, replay_config, None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 77, replay_config, None, 0);
 
     assert!(env
         .legal_actions()

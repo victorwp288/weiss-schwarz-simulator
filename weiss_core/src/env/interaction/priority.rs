@@ -57,11 +57,15 @@ impl GameEnv {
                     if self.db.get(card_id).is_none() {
                         continue;
                     }
-                    let specs = self.db.iter_card_abilities_in_canonical_order(card_id);
-                    for (idx, spec) in specs.iter().enumerate() {
+                    let total_abilities = self.live_stage_ability_count(player, slot as u8);
+                    for idx in 0..total_abilities {
                         if idx >= MAX_ABILITIES_PER_CARD || idx > u8::MAX as usize {
                             break;
                         }
+                        let Some(live) = self.live_stage_ability_at(player, slot as u8, idx) else {
+                            continue;
+                        };
+                        let spec = live.spec;
                         if spec.kind != AbilityKind::Activated {
                             continue;
                         }
@@ -69,11 +73,7 @@ impl GameEnv {
                         if !self.can_pay_ability_cost(player, slot as u8, card_inst, cost) {
                             continue;
                         }
-                        if self
-                            .db
-                            .compiled_effects_for_ability(card_id, idx)
-                            .is_empty()
-                        {
+                        if live.effects.is_empty() {
                             continue;
                         }
                         let bit = slot * MAX_ABILITIES_PER_CARD + idx;
@@ -108,6 +108,14 @@ impl GameEnv {
                 }
                 if self.curriculum.enable_counters {
                     let p = &self.state.players[player as usize];
+                    let backup_locked = p.stage.iter().enumerate().any(|(slot, slot_state)| {
+                        slot_state.card.is_some()
+                            && self.slot_has_active_modifier_kind(
+                                player,
+                                slot as u8,
+                                crate::state::ModifierKind::CannotPlayBackupFromHand,
+                            )
+                    });
                     // Deterministic priority ordering: hand index ascending.
                     for (hand_index, card_inst) in p.hand.iter().enumerate() {
                         if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
@@ -120,6 +128,7 @@ impl GameEnv {
                             continue;
                         }
                         if self.is_counter_card(card)
+                            && !backup_locked
                             && self.meets_level_requirement(player, card)
                             && self.meets_color_requirement(player, card)
                             && self.meets_cost_requirement(player, card)

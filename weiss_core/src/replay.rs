@@ -9,6 +9,8 @@ use std::sync::mpsc::{self, Sender};
 use std::thread;
 
 const MAGIC: &[u8; 4] = b"WSR1";
+const FLAG_COMPRESSED: u8 = 1 << 0;
+const FLAG_PAYLOAD_LEN_U64: u8 = 1 << 1;
 /// Current replay schema version.
 pub const REPLAY_SCHEMA_VERSION: u32 = 2;
 /// Sentinel id for unknown or unmappable actions in replays.
@@ -205,6 +207,15 @@ impl ReplayWriter {
 }
 
 fn write_replay_file(path: &Path, data: &ReplayData, compress: bool) -> Result<()> {
+    let mut file = File::create(path)?;
+    write_replay_to_writer(&mut file, data, compress)
+}
+
+fn write_replay_to_writer<W: Write>(
+    writer: &mut W,
+    data: &ReplayData,
+    compress: bool,
+) -> Result<()> {
     let base = postcard::to_stdvec(data)?;
     let payload = if compress {
         #[cfg(feature = "replay-zstd")]
@@ -218,32 +229,60 @@ fn write_replay_file(path: &Path, data: &ReplayData, compress: bool) -> Result<(
     } else {
         base
     };
-    let mut file = File::create(path)?;
-    file.write_all(MAGIC)?;
-    let flags: u8 = if compress { 1 } else { 0 };
-    file.write_all(&[flags])?;
-    let len = payload.len() as u32;
-    file.write_all(&len.to_le_bytes())?;
-    file.write_all(&payload)?;
+    let mut len_bytes = Vec::with_capacity(8);
+    let len_flag = write_payload_len(&mut len_bytes, payload.len())?;
+    let mut flags = if compress { FLAG_COMPRESSED } else { 0 };
+    flags |= len_flag;
+    writer.write_all(MAGIC)?;
+    writer.write_all(&[flags])?;
+    writer.write_all(&len_bytes)?;
+    writer.write_all(&payload)?;
     Ok(())
+}
+
+fn write_payload_len<W: Write>(writer: &mut W, payload_len: usize) -> Result<u8> {
+    let len = u64::try_from(payload_len).context("Replay payload length exceeds u64 range")?;
+    if len > u64::from(u32::MAX) {
+        writer.write_all(&len.to_le_bytes())?;
+        Ok(FLAG_PAYLOAD_LEN_U64)
+    } else {
+        writer.write_all(&(len as u32).to_le_bytes())?;
+        Ok(0)
+    }
+}
+
+fn read_payload_len<R: Read>(reader: &mut R, flags: u8) -> Result<usize> {
+    let len = if (flags & FLAG_PAYLOAD_LEN_U64) != 0 {
+        let mut len_bytes = [0u8; 8];
+        reader.read_exact(&mut len_bytes)?;
+        u64::from_le_bytes(len_bytes)
+    } else {
+        let mut len_bytes = [0u8; 4];
+        reader.read_exact(&mut len_bytes)?;
+        u64::from(u32::from_le_bytes(len_bytes))
+    };
+    usize::try_from(len).context("Replay payload length exceeds platform limits")
 }
 
 /// Read and decode a replay file from disk.
 pub fn read_replay_file(path: &Path) -> Result<ReplayData> {
     let mut file = File::open(path)?;
+    read_replay_from_reader(&mut file)
+}
+
+fn read_replay_from_reader<R: Read>(reader: &mut R) -> Result<ReplayData> {
     let mut magic = [0u8; 4];
-    file.read_exact(&mut magic)?;
+    reader.read_exact(&mut magic)?;
     if &magic != MAGIC {
         anyhow::bail!("Invalid replay magic");
     }
     let mut flag = [0u8; 1];
-    file.read_exact(&mut flag)?;
-    let mut len_bytes = [0u8; 4];
-    file.read_exact(&mut len_bytes)?;
-    let len = u32::from_le_bytes(len_bytes) as usize;
+    reader.read_exact(&mut flag)?;
+    let flags = flag[0];
+    let len = read_payload_len(reader, flags)?;
     let mut payload = vec![0u8; len];
-    file.read_exact(&mut payload)?;
-    let compressed = (flag[0] & 1) == 1;
+    reader.read_exact(&mut payload)?;
+    let compressed = (flags & FLAG_COMPRESSED) != 0;
     if compressed {
         #[cfg(feature = "replay-zstd")]
         {
@@ -256,4 +295,105 @@ pub fn read_replay_file(path: &Path) -> Result<ReplayData> {
     }
     let data: ReplayData = postcard::from_bytes(&payload)?;
     Ok(data)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    fn sample_replay_data() -> ReplayData {
+        ReplayData {
+            header: EpisodeHeader {
+                obs_version: 1,
+                action_version: 1,
+                replay_version: REPLAY_SCHEMA_VERSION,
+                seed: 7,
+                base_seed: 0,
+                episode_seed: 0,
+                spec_hash: 0,
+                starting_player: 0,
+                deck_ids: [11, 22],
+                curriculum_id: "test".to_string(),
+                config_hash: 99,
+                fingerprint_algo: String::new(),
+                env_id: 3,
+                episode_index: 4,
+            },
+            body: EpisodeBody {
+                actions: vec![ActionDesc::Pass],
+                action_ids: vec![17],
+                events: None,
+                steps: vec![StepMeta {
+                    actor: 0,
+                    decision_kind: crate::legal::DecisionKind::Main,
+                    illegal_action: false,
+                    engine_error: false,
+                }],
+                final_state: Some(ReplayFinal {
+                    terminal: None,
+                    state_hash: 123,
+                    decision_count: 1,
+                    tick_count: 2,
+                }),
+            },
+        }
+    }
+
+    fn assert_replay_eq(actual: &ReplayData, expected: &ReplayData) {
+        let actual_bytes = postcard::to_stdvec(actual).expect("serialize actual");
+        let expected_bytes = postcard::to_stdvec(expected).expect("serialize expected");
+        assert_eq!(actual_bytes, expected_bytes);
+    }
+
+    #[test]
+    fn replay_reader_accepts_legacy_u32_payload_len() {
+        let replay = sample_replay_data();
+        let payload = postcard::to_stdvec(&replay).expect("serialize replay");
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(MAGIC);
+        bytes.push(0);
+        bytes.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&payload);
+        let decoded =
+            read_replay_from_reader(&mut Cursor::new(bytes)).expect("decode legacy replay");
+        assert_replay_eq(&decoded, &replay);
+    }
+
+    #[test]
+    fn replay_reader_accepts_u64_payload_len_header() {
+        let replay = sample_replay_data();
+        let payload = postcard::to_stdvec(&replay).expect("serialize replay");
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(MAGIC);
+        bytes.push(FLAG_PAYLOAD_LEN_U64);
+        bytes.extend_from_slice(&(payload.len() as u64).to_le_bytes());
+        bytes.extend_from_slice(&payload);
+        let decoded = read_replay_from_reader(&mut Cursor::new(bytes)).expect("decode replay");
+        assert_replay_eq(&decoded, &replay);
+    }
+
+    #[test]
+    fn payload_len_codec_uses_u64_without_truncation() {
+        if usize::BITS <= 32 {
+            return;
+        }
+        let len = (u32::MAX as usize) + 9;
+        let mut bytes = Vec::new();
+        let len_flag = write_payload_len(&mut bytes, len).expect("encode length");
+        assert_eq!(len_flag, FLAG_PAYLOAD_LEN_U64);
+        assert_eq!(bytes.len(), 8);
+        let decoded =
+            read_payload_len(&mut Cursor::new(bytes), len_flag).expect("decode encoded length");
+        assert_eq!(decoded, len);
+    }
+
+    #[test]
+    fn replay_write_read_roundtrip_small_payload() {
+        let replay = sample_replay_data();
+        let mut bytes = Vec::new();
+        write_replay_to_writer(&mut bytes, &replay, false).expect("write replay");
+        let decoded = read_replay_from_reader(&mut Cursor::new(bytes)).expect("read replay");
+        assert_replay_eq(&decoded, &replay);
+    }
 }

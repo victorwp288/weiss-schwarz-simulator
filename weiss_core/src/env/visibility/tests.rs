@@ -60,7 +60,7 @@ fn make_env() -> GameEnv {
         enable_visibility_policies: true,
         ..Default::default()
     };
-    GameEnv::new(db, config, curriculum, 9, ReplayConfig::default(), None, 0)
+    GameEnv::new_or_panic(db, config, curriculum, 9, ReplayConfig::default(), None, 0)
 }
 
 #[test]

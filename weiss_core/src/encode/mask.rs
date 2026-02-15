@@ -57,7 +57,8 @@ pub fn fill_action_mask_sparse(
     for action in actions.iter() {
         if let Some(id) = action_id_for(action) {
             if id < mask.len() {
-                let id_u16 = u16::try_from(id).expect("action id out of u16 range");
+                let id_u16 =
+                    u16::try_from(id).expect("action id out of u16 range despite mask.len() guard");
                 if write_mask {
                     mask[id] = 1;
                 }

@@ -20,7 +20,7 @@ fn reversed_stage_cleanup_emits_zone_move() {
         ..Default::default()
     };
     let replay_config = replay_config();
-    let mut env = GameEnv::new(db, config, curriculum, 55, replay_config, None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 55, replay_config, None, 0);
 
     setup_player_state(
         &mut env,

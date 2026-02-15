@@ -10,7 +10,7 @@ use crate::state::{CardInstanceId, GameState, Phase};
 use crate::util::Rng64;
 
 use super::cache::{ActionCache, EnvScratch};
-use super::types::{DebugConfig, EngineErrorCode};
+use super::types::{DebugConfig, EngineErrorCode, FaultRecord};
 
 /// A single Weiss Schwarz environment instance with deterministic RNG state.
 pub struct GameEnv {
@@ -96,4 +96,5 @@ pub struct GameEnv {
     pub(crate) debug: DebugConfig,
     pub(crate) debug_event_ring: Option<[super::debug_events::EventRing; 2]>,
     pub(crate) validate_state_enabled: bool,
+    pub(crate) fault_latched: Option<FaultRecord>,
 }

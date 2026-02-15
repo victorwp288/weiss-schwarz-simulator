@@ -26,7 +26,7 @@ fn replay_roundtrip_headers() {
         ..Default::default()
     };
     let writer = ReplayWriter::new(&replay_config).unwrap();
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         default_curriculum(),
@@ -75,7 +75,7 @@ fn replay_actions_reproduce_state_and_events() {
         sample_rate: 1.0,
         ..Default::default()
     };
-    let mut env_a = GameEnv::new(
+    let mut env_a = GameEnv::new_or_panic(
         db.clone(),
         config.clone(),
         default_curriculum(),
@@ -100,7 +100,8 @@ fn replay_actions_reproduce_state_and_events() {
     let expected_state = state_fingerprint(&env_a.state);
     let expected_events = events_fingerprint(env_a.canonical_events());
 
-    let mut env_b = GameEnv::new(db, config, default_curriculum(), 99, replay_config, None, 0);
+    let mut env_b =
+        GameEnv::new_or_panic(db, config, default_curriculum(), 99, replay_config, None, 0);
     for action in actions {
         if env_b.state.terminal.is_some() {
             break;
@@ -132,7 +133,7 @@ fn replay_roundtrip_full_visibility_reproduces_state() {
         ..Default::default()
     };
     let writer = ReplayWriter::new(&replay_config).unwrap();
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db.clone(),
         config.clone(),
         default_curriculum(),
@@ -175,7 +176,7 @@ fn replay_roundtrip_full_visibility_reproduces_state() {
         .expect("final_state")
         .state_hash;
     assert_eq!(recorded_state, expected_state);
-    let mut replay_env = GameEnv::new(
+    let mut replay_env = GameEnv::new_or_panic(
         db,
         config,
         default_curriculum(),

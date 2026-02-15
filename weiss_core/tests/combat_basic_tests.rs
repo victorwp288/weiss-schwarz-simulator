@@ -15,7 +15,7 @@ fn direct_attack_adds_soul() {
     let mut curriculum = default_curriculum();
     curriculum.enable_triggers = false;
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 11, Default::default(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 11, Default::default(), None, 0);
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::Pass).unwrap();
@@ -48,7 +48,7 @@ fn side_attack_reduces_damage() {
     let mut curriculum = default_curriculum();
     curriculum.enable_triggers = false;
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 12, Default::default(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 12, Default::default(), None, 0);
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::Pass).unwrap();
@@ -118,7 +118,7 @@ fn damage_cancel_on_climax() {
     let mut curriculum = default_curriculum();
     curriculum.enable_triggers = false;
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 15, Default::default(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 15, Default::default(), None, 0);
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::Pass).unwrap();

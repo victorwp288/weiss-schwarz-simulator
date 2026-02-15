@@ -31,7 +31,7 @@ fn state_hash_stable_across_runs() {
     let deck_b = vec![1; 50];
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig::default();
-    let mut env_a = GameEnv::new(
+    let mut env_a = GameEnv::new_or_panic(
         db.clone(),
         config.clone(),
         curriculum.clone(),
@@ -40,7 +40,7 @@ fn state_hash_stable_across_runs() {
         None,
         0,
     );
-    let mut env_b = GameEnv::new(db, config, curriculum, 99, Default::default(), None, 0);
+    let mut env_b = GameEnv::new_or_panic(db, config, curriculum, 99, Default::default(), None, 0);
 
     for _ in 0..6 {
         let action = env_a

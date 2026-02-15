@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use std::fs;
 use std::path::Path;
 
@@ -7,7 +9,7 @@ use super::store::CardDb;
 
 const WSDB_MAGIC: &[u8; 4] = b"WSDB";
 /// Current wsdb schema version.
-pub const WSDB_SCHEMA_VERSION: u32 = 1;
+pub const WSDB_SCHEMA_VERSION: u32 = 2;
 
 impl CardDb {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -30,7 +32,9 @@ impl CardDb {
         );
         if version != WSDB_SCHEMA_VERSION {
             anyhow::bail!(
-                "Unsupported card db schema version {version}, expected {WSDB_SCHEMA_VERSION}"
+                "Unsupported card db schema version {version}, expected {WSDB_SCHEMA_VERSION}. \
+                 This build only loads WSDB v2 files; regenerate the card DB with the current \
+                 parser-v2 rule-pack pipeline."
             );
         }
         let payload = &bytes[8..];

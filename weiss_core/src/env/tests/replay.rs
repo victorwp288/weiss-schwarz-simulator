@@ -94,6 +94,7 @@ fn public_replay_no_hidden_zone_leaks() {
         card_trait: None,
         level_max: None,
         cost_max: None,
+        card_ids: Vec::new(),
         count: 1,
         limit: None,
         source_only: false,
@@ -118,6 +119,7 @@ fn public_replay_no_hidden_zone_leaks() {
             payload: EffectPayload {
                 spec: effect_spec,
                 targets: Vec::new(),
+                source_ref: None,
             },
         },
         allow_skip: false,
@@ -277,6 +279,7 @@ fn reveal_one_copy_does_not_unmask_duplicates() {
         card_trait: None,
         level_max: None,
         cost_max: None,
+        card_ids: Vec::new(),
         count: 1,
         limit: None,
         source_only: false,
@@ -301,6 +304,7 @@ fn reveal_one_copy_does_not_unmask_duplicates() {
             payload: EffectPayload {
                 spec: effect_spec,
                 targets: Vec::new(),
+                source_ref: None,
             },
         },
         allow_skip: false,

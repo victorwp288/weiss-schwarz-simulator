@@ -114,8 +114,20 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    let mut effective_level = i32::from(card.level);
+                    for modifier in &state.modifiers {
+                        if modifier.target_player != target_player
+                            || modifier.target_slot as usize != slot
+                            || modifier.target_card != card_inst.id
+                            || modifier.kind != crate::state::ModifierKind::Level
+                        {
+                            continue;
+                        }
+                        effective_level = effective_level.saturating_add(modifier.magnitude);
+                    }
+                    effective_level = effective_level.max(0);
                     if let Some(level_max) = spec.level_max {
-                        if card.level > level_max {
+                        if effective_level > i32::from(level_max) {
                             continue;
                         }
                     }
@@ -123,6 +135,21 @@ impl GameEnv {
                         if card.cost > cost_max {
                             continue;
                         }
+                    }
+                    if !spec.card_ids.is_empty() && !spec.card_ids.contains(&card_inst.id) {
+                        continue;
+                    }
+                    if target_player != controller
+                        && state.modifiers.iter().any(|modifier| {
+                            modifier.target_player == target_player
+                                && modifier.target_slot as usize == slot
+                                && modifier.target_card == card_inst.id
+                                && modifier.kind
+                                    == crate::state::ModifierKind::CannotBeChosenByOpponentEffects
+                                && modifier.magnitude != 0
+                        })
+                    {
+                        continue;
                     }
                     if selected.iter().any(|t| {
                         t.player == target_player
@@ -175,6 +202,9 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if !spec.card_ids.is_empty() && !spec.card_ids.contains(&card_inst.id) {
+                        continue;
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::WaitingRoom
@@ -223,6 +253,9 @@ impl GameEnv {
                         if card.cost > cost_max {
                             continue;
                         }
+                    }
+                    if !spec.card_ids.is_empty() && !spec.card_ids.contains(&card_inst.id) {
+                        continue;
                     }
                     if selected.iter().any(|t| {
                         t.player == target_player
@@ -278,6 +311,9 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if !spec.card_ids.is_empty() && !spec.card_ids.contains(&card_inst.id) {
+                        continue;
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::DeckTop
@@ -295,15 +331,20 @@ impl GameEnv {
                 }
             }
             TargetZone::Clock => {
-                for (idx, card_inst) in state.players[target_player as usize]
-                    .clock
-                    .iter()
-                    .copied()
-                    .enumerate()
-                {
+                let clock = &state.players[target_player as usize].clock;
+                let max_count = match spec.limit {
+                    Some(limit) => std::cmp::min(clock.len(), limit as usize),
+                    None => clock.len(),
+                };
+                // Deterministic target ordering: top clock first.
+                for offset in 0..max_count {
+                    let idx = clock.len().saturating_sub(1 + offset);
                     if idx > u8::MAX as usize {
                         break;
                     }
+                    let Some(card_inst) = clock.get(idx).copied() else {
+                        continue;
+                    };
                     let Some(card) = db.get(card_inst.id) else {
                         continue;
                     };
@@ -326,6 +367,9 @@ impl GameEnv {
                         if card.cost > cost_max {
                             continue;
                         }
+                    }
+                    if !spec.card_ids.is_empty() && !spec.card_ids.contains(&card_inst.id) {
+                        continue;
                     }
                     if selected.iter().any(|t| {
                         t.player == target_player
@@ -376,6 +420,9 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if !spec.card_ids.is_empty() && !spec.card_ids.contains(&card_inst.id) {
+                        continue;
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::Level
@@ -424,6 +471,9 @@ impl GameEnv {
                         if card.cost > cost_max {
                             continue;
                         }
+                    }
+                    if !spec.card_ids.is_empty() && !spec.card_ids.contains(&card_inst.id) {
+                        continue;
                     }
                     if selected.iter().any(|t| {
                         t.player == target_player
@@ -474,6 +524,9 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if !spec.card_ids.is_empty() && !spec.card_ids.contains(&card_inst.id) {
+                        continue;
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::Memory
@@ -523,6 +576,9 @@ impl GameEnv {
                             continue;
                         }
                     }
+                    if !spec.card_ids.is_empty() && !spec.card_ids.contains(&card_inst.id) {
+                        continue;
+                    }
                     if selected.iter().any(|t| {
                         t.player == target_player
                             && t.zone == TargetZone::Climax
@@ -571,6 +627,9 @@ impl GameEnv {
                         if card.cost > cost_max {
                             continue;
                         }
+                    }
+                    if !spec.card_ids.is_empty() && !spec.card_ids.contains(&card_inst.id) {
+                        continue;
                     }
                     if selected.iter().any(|t| {
                         t.player == target_player

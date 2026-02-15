@@ -5,7 +5,7 @@ use crate::db::TriggerIcon;
 use crate::events::{ChoiceOptionSnapshot, ChoiceSkipReason, Event, Zone};
 use crate::state::{
     ChoiceOptionRef, ChoiceReason, ChoiceState, ChoiceZone, PendingTrigger, TargetRef, TargetSide,
-    TargetZone,
+    TargetZone, TriggerEffect,
 };
 
 impl GameEnv {
@@ -318,6 +318,103 @@ impl GameEnv {
                 let effects = self.compile_trigger_icon_effects(TriggerIcon::Treasure, ctx);
                 for effect in effects {
                     self.enqueue_effect_spec(player, ctx.source_card, effect);
+                }
+            }
+            ChoiceReason::TriggerDrawSelect => {
+                if option.zone == ChoiceZone::Skip {
+                    resolve_pending_trigger(self);
+                    return;
+                }
+                let ctx = TriggerCompileContext {
+                    source_card: pending_trigger.as_ref().map(|t| t.source_card).unwrap_or(0),
+                    standby_slot: None,
+                    treasure_take_stock: None,
+                };
+                let effects = self.compile_trigger_icon_effects(TriggerIcon::Draw, ctx);
+                for effect in effects {
+                    self.enqueue_effect_spec(player, ctx.source_card, effect);
+                }
+            }
+            ChoiceReason::BrainstormDrawSelect => {
+                if option.zone == ChoiceZone::Skip {
+                    resolve_pending_trigger(self);
+                    return;
+                }
+                self.draw_to_hand(player, 1);
+            }
+            ChoiceReason::TriggerChoiceSelect => {
+                if option.zone == ChoiceZone::Skip {
+                    resolve_pending_trigger(self);
+                    return;
+                }
+                if option.zone != ChoiceZone::WaitingRoom {
+                    resolve_pending_trigger(self);
+                    return;
+                }
+                let Some(index) = option.index else {
+                    resolve_pending_trigger(self);
+                    return;
+                };
+                let idx = index as usize;
+                let p = player as usize;
+                if idx >= self.state.players[p].waiting_room.len() {
+                    resolve_pending_trigger(self);
+                    return;
+                }
+                let Some(card) = self.state.players[p].waiting_room.get(idx).copied() else {
+                    resolve_pending_trigger(self);
+                    return;
+                };
+                if card.instance_id != option.instance_id {
+                    resolve_pending_trigger(self);
+                    return;
+                }
+                let target_slot = option.target_slot.unwrap_or(0);
+                if target_slot != 0 && target_slot != 1 {
+                    resolve_pending_trigger(self);
+                    return;
+                }
+                let card = self.state.players[p].waiting_room.remove(idx);
+                match target_slot {
+                    0 => self.move_card_between_zones(
+                        player,
+                        card,
+                        crate::events::Zone::WaitingRoom,
+                        crate::events::Zone::Hand,
+                        None,
+                        None,
+                    ),
+                    1 => self.move_card_between_zones(
+                        player,
+                        card,
+                        crate::events::Zone::WaitingRoom,
+                        crate::events::Zone::Stock,
+                        None,
+                        None,
+                    ),
+                    _ => unreachable!("target_slot validated before removal"),
+                }
+            }
+            ChoiceReason::TriggerAutoCostSelect => {
+                if option.zone == ChoiceZone::Skip {
+                    resolve_pending_trigger(self);
+                    return;
+                }
+                let Some(trigger) = pending_trigger.as_ref() else {
+                    resolve_pending_trigger(self);
+                    return;
+                };
+                let TriggerEffect::AutoAbility { ability_index } = trigger.effect else {
+                    resolve_pending_trigger(self);
+                    return;
+                };
+                if !self.resolve_trigger_auto_ability_with_cost(
+                    player,
+                    trigger.source_card,
+                    ability_index,
+                ) {
+                    resolve_pending_trigger(self);
+                    return;
                 }
             }
             ChoiceReason::StackOrderSelect => {

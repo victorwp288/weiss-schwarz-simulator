@@ -10,11 +10,16 @@ mod serialization;
 mod store;
 mod types;
 
+pub(crate) use ability::compile_effects_from_def;
 pub use ability::{
-    AbilityCost, AbilityDef, AbilityKind, AbilitySpec, AbilityTemplate, AbilityTemplateTag,
-    AbilityTiming,
+    AbilityCost, AbilityDef, AbilityDefClimaxAreaCondition, AbilityDefConditions, AbilityKind,
+    AbilitySpec, AbilityTemplate, AbilityTemplateTag, AbilityTiming,
 };
 pub use card::CardStatic;
 pub use serialization::WSDB_SCHEMA_VERSION;
 pub use store::CardDb;
-pub use types::{CardColor, CardId, CardType, EffectTemplate, TargetTemplate, TriggerIcon};
+pub use types::{
+    BattleOpponentMoveDestination, BattleOpponentMovePreludeAction, BrainstormMode, CardColor,
+    CardId, CardType, ConditionTurn, CountCmp, CountZone, EffectTemplate, GrantDuration,
+    TargetTemplate, TriggerIcon, ZoneCountCondition,
+};

@@ -88,7 +88,7 @@ impl EnvPool {
                 }
             }
             if threshold > 0.0 {
-                out[i] = *legal.last().unwrap() as u32;
+                out[i] = legal[legal.len() - 1] as u32;
             }
         }
         Ok(())

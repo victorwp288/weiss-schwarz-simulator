@@ -90,7 +90,7 @@ fn determinism_default_config() {
         ..Default::default()
     };
 
-    let mut env_a = GameEnv::new(
+    let mut env_a = GameEnv::new_or_panic(
         db.clone(),
         config.clone(),
         CurriculumConfig::default(),
@@ -99,7 +99,7 @@ fn determinism_default_config() {
         None,
         0,
     );
-    let mut env_b = GameEnv::new(
+    let mut env_b = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -159,7 +159,7 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
         enable_priority_windows: false,
         ..Default::default()
     };
-    let mut env_off = GameEnv::new(
+    let mut env_off = GameEnv::new_or_panic(
         db.clone(),
         config.clone(),
         curriculum_off,
@@ -186,7 +186,7 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
         enable_visibility_policies: true,
         ..Default::default()
     };
-    let mut env_on_a = GameEnv::new(
+    let mut env_on_a = GameEnv::new_or_panic(
         db.clone(),
         config.clone(),
         curriculum_on.clone(),
@@ -195,7 +195,8 @@ fn determinism_with_flags_enabled_and_window_events_gated() {
         None,
         0,
     );
-    let mut env_on_b = GameEnv::new(db, config, curriculum_on, 456, replay_config, None, 0);
+    let mut env_on_b =
+        GameEnv::new_or_panic(db, config, curriculum_on, 456, replay_config, None, 0);
 
     let (kinds_a, masks_a, actions_a, hash_a, replay_hash_a) = run_episode(&mut env_on_a, 40);
     let (kinds_b, masks_b, actions_b, hash_b, replay_hash_b) = run_episode(&mut env_on_b, 40);
@@ -255,7 +256,7 @@ fn determinism_with_episode_seed_reset() {
     };
 
     let episode_seed = 424242u64;
-    let mut env_a = GameEnv::new(
+    let mut env_a = GameEnv::new_or_panic(
         db.clone(),
         config.clone(),
         CurriculumConfig::default(),
@@ -266,7 +267,7 @@ fn determinism_with_episode_seed_reset() {
     );
     env_a.reset_with_episode_seed(episode_seed);
 
-    let mut env_b = GameEnv::new(
+    let mut env_b = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),

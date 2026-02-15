@@ -11,7 +11,7 @@ fn full_turn_cycle_golden() {
     let deck_a = vec![1; 50];
     let deck_b = vec![1; 50];
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         default_curriculum(),

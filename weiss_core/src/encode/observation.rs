@@ -135,6 +135,70 @@ pub(crate) fn encode_obs_player_block_into(
     let p = player_index as usize;
     let mut offset = 0;
     let player = &state.players[p];
+    let mut slot_card_ids = [0u32; MAX_STAGE];
+    let mut slot_soul_mods = [0i32; MAX_STAGE];
+    let mut slot_side_attack_allowed = [0i32; MAX_STAGE];
+    for (slot, slot_state) in player.stage.iter().enumerate() {
+        let card_id = slot_state.card.map(|c| c.id).unwrap_or(0);
+        slot_card_ids[slot] = card_id;
+        slot_side_attack_allowed[slot] = i32::from(card_id != 0);
+    }
+    let mut has_soul_mods = false;
+    let mut has_cannot_side_mods = false;
+    for modifier in &state.modifiers {
+        match modifier.kind {
+            ModifierKind::Soul => has_soul_mods = true,
+            ModifierKind::CannotSideAttack => has_cannot_side_mods = true,
+            _ => {}
+        }
+        if has_soul_mods && has_cannot_side_mods {
+            break;
+        }
+    }
+    if has_soul_mods {
+        for modifier in &state.modifiers {
+            if modifier.kind != ModifierKind::Soul || modifier.target_player as usize != p {
+                continue;
+            }
+            let slot = modifier.target_slot as usize;
+            if slot >= MAX_STAGE {
+                continue;
+            }
+            let card_id = slot_card_ids[slot];
+            if card_id == 0 || modifier.target_card != card_id {
+                continue;
+            }
+            slot_soul_mods[slot] = slot_soul_mods[slot].saturating_add(modifier.magnitude);
+        }
+    }
+    if let Some(derived) = state.turn.derived_attack.as_ref() {
+        for (slot, card_id) in slot_card_ids.iter().enumerate() {
+            if *card_id == 0 {
+                continue;
+            }
+            slot_side_attack_allowed[slot] =
+                i32::from(!derived.per_player[p][slot].cannot_side_attack);
+        }
+    } else if has_cannot_side_mods {
+        for modifier in &state.modifiers {
+            if modifier.kind != ModifierKind::CannotSideAttack
+                || modifier.target_player as usize != p
+            {
+                continue;
+            }
+            let slot = modifier.target_slot as usize;
+            if slot >= MAX_STAGE {
+                continue;
+            }
+            let card_id = slot_card_ids[slot];
+            if card_id == 0 || modifier.target_card != card_id {
+                continue;
+            }
+            if modifier.magnitude != 0 {
+                slot_side_attack_allowed[slot] = 0;
+            }
+        }
+    }
     out[offset] = player.level.len() as i32;
     out[offset + 1] = player.clock.len() as i32;
     out[offset + 2] = player.deck.len() as i32;
@@ -158,19 +222,24 @@ pub(crate) fn encode_obs_player_block_into(
             0
         };
         let has_attacked = if slot_state.has_attacked { 1 } else { 0 };
-        let (power, soul) = if let Some(card_inst) = slot_state.card {
-            let power = slot_powers[p][slot];
-            let soul = db.soul_by_id(card_inst.id) as i32;
-            (power, soul)
-        } else {
-            (0, 0)
-        };
+        let (power, soul, effective_soul, side_attack_allowed) =
+            if let Some(card_inst) = slot_state.card {
+                let power = slot_powers[p][slot];
+                let soul = db.soul_by_id(card_inst.id) as i32;
+                let effective_soul = soul.saturating_add(slot_soul_mods[slot]).max(0);
+                let side_attack_allowed = slot_side_attack_allowed[slot];
+                (power, soul, effective_soul, side_attack_allowed)
+            } else {
+                (0, 0, 0, 0)
+            };
         let base = offset + slot * PER_STAGE_SLOT;
         out[base] = card_id;
         out[base + 1] = status;
         out[base + 2] = has_attacked;
         out[base + 3] = power;
         out[base + 4] = soul;
+        out[base + 5] = effective_soul;
+        out[base + 6] = side_attack_allowed;
     }
     offset += PER_PLAYER_STAGE;
 

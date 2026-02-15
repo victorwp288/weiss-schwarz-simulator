@@ -5,7 +5,7 @@ use crate::legal::DecisionKind;
 use crate::state::{CardInstance, CardInstanceId, Phase};
 
 use super::debug_fingerprints;
-use super::GameEnv;
+use super::{EngineErrorCode, FaultSource, GameEnv};
 
 impl GameEnv {
     pub(crate) fn should_validate_state(&self) -> bool {
@@ -15,13 +15,21 @@ impl GameEnv {
         self.validate_state_enabled
     }
 
-    pub(crate) fn maybe_validate_state(&self, context: &str) {
+    pub(crate) fn maybe_validate_state(&mut self, context: &str) -> bool {
         if !self.should_validate_state() {
-            return;
+            return false;
         }
         if let Err(err) = self.validate_state() {
-            panic!("validate_state failed at {context}: {err}");
+            eprintln!("State validation failed in {context}: {err}");
+            let actor = self.decision.as_ref().map(|d| d.player);
+            self.latch_fault_deferred(
+                EngineErrorCode::InvariantViolation,
+                actor,
+                FaultSource::Step,
+            );
+            return true;
         }
+        false
     }
 
     /// Run expensive invariants checks over the full game state.
@@ -224,6 +232,21 @@ impl GameEnv {
                         &mut errors,
                         &card,
                         &format!("p{zone_player} stage[{slot_idx}]"),
+                    );
+                }
+                for marker in &slot.markers {
+                    consume(
+                        &mut counts,
+                        &mut errors,
+                        marker.owner,
+                        marker.id,
+                        &format!("p{zone_player} stage[{slot_idx}] marker"),
+                    );
+                    check_instance(
+                        &mut instance_ids,
+                        &mut errors,
+                        marker,
+                        &format!("p{zone_player} stage[{slot_idx}] marker"),
                     );
                 }
             }

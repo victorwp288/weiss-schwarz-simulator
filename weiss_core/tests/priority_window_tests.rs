@@ -105,7 +105,7 @@ fn main_pass_skips_priority_when_disabled_but_main_actions_remain() {
         enable_priority_windows: false,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 5, replay_config, None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 5, replay_config, None, 0);
 
     let card = env.state.players[0].deck.pop().expect("deck card");
     env.state.players[0].hand.push(card);
@@ -138,7 +138,7 @@ fn priority_window_closes_with_no_actions() {
         sample_rate: 1.0,
         ..Default::default()
     };
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -174,7 +174,7 @@ fn priority_single_action_autopick_does_not_repeat() {
         priority_allow_pass: false,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 100, replay_config, None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 100, replay_config, None, 0);
 
     env.config.deck_lists = [vec![CARD_ACT, CARD_BASIC], vec![CARD_BASIC]];
     for player in 0..2 {

@@ -1,5 +1,8 @@
-use crate::db::CardId;
-use crate::effects::{EffectId, EffectPayload, ReplacementSpec};
+#![allow(missing_docs)]
+
+use crate::db::{AbilitySpec, CardId};
+use crate::effects::{EffectId, EffectPayload, EffectSpec, ReplacementSpec};
+use crate::error::StateError;
 use crate::util::Rng64;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -129,7 +132,11 @@ pub enum StageStatus {
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct StageSlot {
     pub card: Option<CardInstance>,
+    #[serde(default)]
+    pub markers: Vec<CardInstance>,
     pub status: StageStatus,
+    #[serde(default)]
+    pub played_from_hand_this_turn: bool,
     pub power_mod_battle: i32,
     pub power_mod_turn: i32,
     pub has_attacked: bool,
@@ -142,7 +149,9 @@ impl StageSlot {
     pub fn empty() -> Self {
         Self {
             card: None,
+            markers: Vec::new(),
             status: StageStatus::Stand,
+            played_from_hand_this_turn: false,
             power_mod_battle: 0,
             power_mod_turn: 0,
             has_attacked: false,
@@ -209,10 +218,13 @@ pub enum TriggerEffect {
     Draw,
     Shot,
     Bounce,
+    Choice,
+    Pool,
     Treasure,
     Gate,
     Standby,
     AutoAbility { ability_index: u8 },
+    GrantedAutoAbility { grant_id: u64 },
 }
 
 /// Zones that can be targeted by effects.
@@ -255,10 +267,11 @@ pub struct TargetSpec {
     pub card_type: Option<crate::db::CardType>,
     #[serde(default)]
     pub card_trait: Option<u16>,
-    #[serde(default)]
     pub level_max: Option<u8>,
     #[serde(default)]
     pub cost_max: Option<u8>,
+    #[serde(default)]
+    pub card_ids: Vec<CardId>,
     pub count: u8,
     #[serde(default)]
     pub limit: Option<u8>,
@@ -333,6 +346,10 @@ pub struct StackOrderState {
 pub enum ChoiceReason {
     TriggerStandbySelect,
     TriggerTreasureSelect,
+    TriggerDrawSelect,
+    TriggerChoiceSelect,
+    TriggerAutoCostSelect,
+    BrainstormDrawSelect,
     StackOrderSelect,
     PriorityActionSelect,
     CostPayment,
@@ -344,10 +361,21 @@ pub enum ChoiceReason {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CostStepKind {
     RestOther,
+    SacrificeFromStage,
     DiscardFromHand,
     ClockFromHand,
     ClockFromDeckTop,
     RevealFromHand,
+}
+
+/// Result to execute when staged cost payment finishes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum CostPaymentOutcome {
+    #[default]
+    ResolveAbility,
+    EncoreKeep {
+        slot: u8,
+    },
 }
 
 /// State for a multi-step cost payment.
@@ -360,6 +388,8 @@ pub struct CostPaymentState {
     pub ability_index: u8,
     pub remaining: crate::db::AbilityCost,
     pub current_step: Option<CostStepKind>,
+    #[serde(default)]
+    pub outcome: CostPaymentOutcome,
 }
 
 /// Zones that choices can draw from.
@@ -412,13 +442,17 @@ pub struct AttackContext {
     pub attack_type: AttackType,
     pub trigger_card: Option<CardId>,
     pub trigger_instance_id: Option<CardInstanceId>,
+    pub trigger_checks_total: u8,
+    pub trigger_checks_resolved: u8,
     pub damage: i32,
     pub counter_allowed: bool,
     pub counter_played: bool,
     pub counter_power: i32,
     pub damage_modifiers: Vec<DamageModifier>,
+    pub pending_shot_damage: u8,
     pub next_modifier_id: u32,
     pub last_damage_event_id: Option<u32>,
+    pub auto_trigger_enqueued: bool,
     pub auto_damage_enqueued: bool,
     pub battle_damage_applied: bool,
     pub step: AttackStep,
@@ -450,6 +484,10 @@ pub struct TriggerOrderState {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DerivedAttackSlot {
     pub cannot_attack: bool,
+    #[serde(default)]
+    pub cannot_side_attack: bool,
+    #[serde(default)]
+    pub cannot_frontal_attack: bool,
     pub attack_cost: u8,
 }
 
@@ -458,6 +496,8 @@ impl DerivedAttackSlot {
     pub fn empty() -> Self {
         Self {
             cannot_attack: false,
+            cannot_side_attack: false,
+            cannot_frontal_attack: false,
             attack_cost: 0,
         }
     }
@@ -542,8 +582,20 @@ impl PlayerState {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ModifierKind {
     Power,
+    Soul,
+    Level,
     AttackCost,
     CannotAttack,
+    CannotSideAttack,
+    CannotFrontalAttack,
+    CannotBecomeReverse,
+    CannotBeChosenByOpponentEffects,
+    CannotMoveStagePosition,
+    CannotPlayEventsFromHand,
+    CannotPlayBackupFromHand,
+    CannotStandDuringStandPhase,
+    BattleOpponentMoveToMemoryOnReverse,
+    EncoreStockCost,
 }
 
 /// Modifier duration semantics.
@@ -579,6 +631,19 @@ pub struct ModifierInstance {
     pub insertion: u32,
 }
 
+/// Runtime granted ability attached to a specific stage card instance.
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub struct GrantedAbilityInstance {
+    pub grant_id: u64,
+    pub target_player: u8,
+    pub target_slot: u8,
+    pub target_instance_id: CardInstanceId,
+    pub spec: AbilitySpec,
+    pub compiled_effects: Vec<EffectSpec>,
+    /// Turn number at which this grant expires during end-phase cleanup.
+    pub expires_turn_number: u32,
+}
+
 /// Turn-level state tracking.
 #[derive(Clone, Debug, Hash)]
 pub struct TurnState {
@@ -608,6 +673,9 @@ pub struct TurnState {
     pub damage_resolution_target: Option<u8>,
     pub cost_payment_depth: u8,
     pub pending_resolution_cleanup: Vec<(u8, CardInstanceId)>,
+    pub cannot_use_auto_encore: [bool; 2],
+    pub granted_abilities: Vec<GrantedAbilityInstance>,
+    pub next_grant_id: u64,
     pub phase_step: u8,
     pub attack_phase_begin_done: bool,
     pub attack_decl_check_done: bool,
@@ -646,22 +714,36 @@ pub struct GameState {
 
 impl GameState {
     /// Build a new game state with the given decks and seed.
-    pub fn new(deck_a: Vec<CardId>, deck_b: Vec<CardId>, seed: u64, starting_player: u8) -> Self {
-        assert!(
-            deck_a.len() == crate::encode::MAX_DECK,
-            "Deck A must contain exactly {} cards",
-            crate::encode::MAX_DECK
-        );
-        assert!(
-            deck_b.len() == crate::encode::MAX_DECK,
-            "Deck B must contain exactly {} cards",
-            crate::encode::MAX_DECK
-        );
+    pub fn new(
+        deck_a: Vec<CardId>,
+        deck_b: Vec<CardId>,
+        seed: u64,
+        starting_player: u8,
+    ) -> Result<Self, StateError> {
+        if starting_player > 1 {
+            return Err(StateError::InvalidStartingPlayer {
+                got: starting_player,
+            });
+        }
+        if deck_a.len() != crate::encode::MAX_DECK {
+            return Err(StateError::DeckLength {
+                owner: 0,
+                got: deck_a.len(),
+                expected: crate::encode::MAX_DECK,
+            });
+        }
+        if deck_b.len() != crate::encode::MAX_DECK {
+            return Err(StateError::DeckLength {
+                owner: 1,
+                got: deck_b.len(),
+                expected: crate::encode::MAX_DECK,
+            });
+        }
         let rng = Rng64::new(seed);
         let mut next_instance_id: CardInstanceId = 1;
         let deck_a = Self::build_deck(deck_a, 0, &mut next_instance_id);
         let deck_b = Self::build_deck(deck_b, 1, &mut next_instance_id);
-        Self {
+        Ok(Self {
             players: [PlayerState::new(deck_a), PlayerState::new(deck_b)],
             reveal_history: [RevealHistory::new(), RevealHistory::new()],
             turn: TurnState {
@@ -706,6 +788,9 @@ impl GameState {
                 damage_resolution_target: None,
                 cost_payment_depth: 0,
                 pending_resolution_cleanup: Vec::new(),
+                cannot_use_auto_encore: [false; 2],
+                granted_abilities: Vec::new(),
+                next_grant_id: 1,
                 phase_step: 0,
                 attack_phase_begin_done: false,
                 attack_decl_check_done: false,
@@ -718,7 +803,17 @@ impl GameState {
             replacements: Vec::new(),
             next_replacement_insertion: 1,
             terminal: None,
-        }
+        })
+    }
+
+    /// Compatibility helper for test/bench scaffolding.
+    pub fn new_or_panic(
+        deck_a: Vec<CardId>,
+        deck_b: Vec<CardId>,
+        seed: u64,
+        starting_player: u8,
+    ) -> Self {
+        Self::new(deck_a, deck_b, seed, starting_player).expect("GameState::new_or_panic failed")
     }
 
     fn build_deck(
@@ -733,5 +828,34 @@ impl GameState {
                 CardInstance::new(id, owner, instance_id)
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RevealHistory, REVEAL_HISTORY_LEN};
+
+    #[test]
+    fn reveal_history_chronology_before_wrap() {
+        let mut history = RevealHistory::new();
+        history.push(10);
+        history.push(20);
+        history.push(30);
+        let mut out = [0i32; REVEAL_HISTORY_LEN];
+        history.write_chronological(&mut out);
+        assert_eq!(&out[..3], &[10, 20, 30]);
+        assert!(out[3..].iter().all(|entry| *entry == 0));
+    }
+
+    #[test]
+    fn reveal_history_chronology_after_wrap_keeps_latest_entries() {
+        let mut history = RevealHistory::new();
+        for card in 1..=(REVEAL_HISTORY_LEN as u32 + 3) {
+            history.push(card);
+        }
+        let mut out = [0i32; REVEAL_HISTORY_LEN];
+        history.write_chronological(&mut out);
+        let expected: Vec<i32> = (4..=(REVEAL_HISTORY_LEN as i32 + 3)).collect();
+        assert_eq!(out.as_slice(), expected.as_slice());
     }
 }

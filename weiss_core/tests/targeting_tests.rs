@@ -390,7 +390,7 @@ fn target_opponent_front_row_ordering() {
         enable_priority_windows: true,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 99, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 99, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -475,7 +475,7 @@ fn target_opponent_stage_ordering() {
         enable_priority_windows: true,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 101, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 101, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -550,7 +550,7 @@ fn target_opponent_back_row_ordering() {
         enable_priority_windows: true,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 102, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 102, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -619,7 +619,7 @@ fn multi_target_selection_no_duplicates() {
         enable_priority_windows: true,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 100, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 100, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -693,7 +693,7 @@ fn target_choice_truncation_metadata() {
         enable_priority_windows: true,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 101, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 101, replay_config(), None, 0);
 
     let waiting_room: Vec<u32> = env.config.deck_lists[0]
         .iter()

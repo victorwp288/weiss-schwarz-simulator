@@ -14,7 +14,7 @@ fn trigger_orders_when_both_players_trigger() {
     let deck_a = build_deck_list(20, &[CARD_END_DRAW]);
     let deck_b = build_deck_list(20, &[CARD_END_DRAW]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -77,7 +77,7 @@ fn trigger_order_active_resolves_before_opponent_order() {
     let deck_a = build_deck_list(20, &[CARD_BASIC]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -121,7 +121,7 @@ fn trigger_order_active_resolves_before_opponent_order() {
             group_id: 42,
             player: 0,
             source_card: CARD_BASIC,
-            effect: TriggerEffect::Draw,
+            effect: TriggerEffect::Soul,
             effect_id: None,
         },
         PendingTrigger {
@@ -185,7 +185,7 @@ fn player_orders_own_simultaneous_triggers_decision() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 21, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 21, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -228,6 +228,19 @@ fn player_orders_own_simultaneous_triggers_decision() {
     env.apply_action(ActionDesc::TriggerOrder { index: 1 })
         .unwrap();
 
+    if env.decision.as_ref().map(|d| d.kind) == Some(DecisionKind::Choice) {
+        let choice = env.state.turn.choice.as_ref().expect("draw choice");
+        let skip_idx = choice
+            .options
+            .iter()
+            .position(|opt| opt.zone == weiss_core::state::ChoiceZone::Skip)
+            .expect("skip option");
+        env.apply_action(ActionDesc::ChoiceSelect {
+            index: skip_idx as u8,
+        })
+        .unwrap();
+    }
+
     let resolved: Vec<TriggerEffect> = env
         .replay_events
         .iter()
@@ -251,7 +264,7 @@ fn trigger_source_leaves_play_last_known_info() {
     let deck_a = build_deck_list(20, &[CARD_END_DRAW, CARD_END_DRAW_DOUBLE]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),

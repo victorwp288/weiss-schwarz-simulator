@@ -25,8 +25,39 @@ pub fn hash_bytes(bytes: &[u8]) -> u64 {
 
 /// Hash a serializable value using postcard + blake3.
 pub fn hash_postcard<T: Serialize + ?Sized>(value: &T) -> u64 {
-    let bytes = postcard::to_allocvec(value).expect("fingerprint serialization failed");
-    hash_bytes(&bytes)
+    match postcard::to_allocvec(value) {
+        Ok(bytes) => hash_bytes(&bytes),
+        Err(err) => {
+            debug_assert!(
+                false,
+                "fingerprint serialization failed for {}: {err}",
+                std::any::type_name::<T>()
+            );
+            match serde_json::to_vec(value) {
+                Ok(json_bytes) => {
+                    eprintln!(
+                        "postcard serialization failed for {}, using JSON fallback: {err}",
+                        std::any::type_name::<T>()
+                    );
+                    return hash_bytes(&json_bytes);
+                }
+                Err(json_err) => {
+                    eprintln!(
+                        "fingerprint serialization failed for {}: postcard={err}; json={json_err}",
+                        std::any::type_name::<T>()
+                    );
+                    // Last-resort fallback when both postcard and JSON serialization fail.
+                    let mut fallback = b"fingerprint-serialization-error:".to_vec();
+                    fallback.extend_from_slice(std::any::type_name::<T>().as_bytes());
+                    fallback.extend_from_slice(b":postcard=");
+                    fallback.extend_from_slice(err.to_string().as_bytes());
+                    fallback.extend_from_slice(b":json=");
+                    fallback.extend_from_slice(json_err.to_string().as_bytes());
+                    return hash_bytes(&fallback);
+                }
+            }
+        }
+    }
 }
 
 /// Compute a stable fingerprint for env config + curriculum.
@@ -113,6 +144,7 @@ struct CanonicalCurriculumConfig {
     enable_level_up_choice: bool,
     enable_activated_abilities: bool,
     enable_continuous_modifiers: bool,
+    enable_approx_effects: bool,
     enable_priority_windows: bool,
     enable_visibility_policies: bool,
     use_alternate_end_conditions: bool,
@@ -155,6 +187,7 @@ impl CanonicalCurriculumConfig {
             enable_level_up_choice: curriculum.enable_level_up_choice,
             enable_activated_abilities: curriculum.enable_activated_abilities,
             enable_continuous_modifiers: curriculum.enable_continuous_modifiers,
+            enable_approx_effects: curriculum.enable_approx_effects,
             enable_priority_windows: curriculum.enable_priority_windows,
             enable_visibility_policies: curriculum.enable_visibility_policies,
             use_alternate_end_conditions: curriculum.use_alternate_end_conditions,
@@ -274,6 +307,7 @@ struct CanonicalTurnState {
     damage_resolution_target: Option<u8>,
     cost_payment_depth: u8,
     pending_resolution_cleanup: Vec<(u8, crate::state::CardInstanceId)>,
+    cannot_use_auto_encore: [bool; 2],
     phase_step: u8,
     attack_phase_begin_done: bool,
     attack_decl_check_done: bool,
@@ -323,6 +357,7 @@ impl CanonicalTurnState {
             damage_resolution_target: turn.damage_resolution_target,
             cost_payment_depth: turn.cost_payment_depth,
             pending_resolution_cleanup: turn.pending_resolution_cleanup.clone(),
+            cannot_use_auto_encore: turn.cannot_use_auto_encore,
             phase_step: turn.phase_step,
             attack_phase_begin_done: turn.attack_phase_begin_done,
             attack_decl_check_done: turn.attack_decl_check_done,

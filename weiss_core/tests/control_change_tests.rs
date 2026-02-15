@@ -349,7 +349,7 @@ fn control_change_allows_attack() {
         enable_priority_windows: true,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 130, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 130, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -412,9 +412,10 @@ fn control_persists_after_leaving_stage() {
     let config = make_config(deck_a, deck_b);
     let curriculum = CurriculumConfig {
         enable_priority_windows: true,
+        enable_encore: false,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 131, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 131, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -447,22 +448,21 @@ fn control_persists_after_leaving_stage() {
 
     env.apply_action(ActionDesc::Pass).unwrap();
     choose_priority_activation(&mut env);
-    assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Climax);
-    env.apply_action(ActionDesc::Pass).unwrap();
-    env.apply_action(ActionDesc::Attack {
-        slot: 2,
-        attack_type: AttackType::Direct,
-    })
-    .unwrap();
-    assert_eq!(env.decision.as_ref().unwrap().kind, DecisionKind::Choice);
-    env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
-        .unwrap();
 
-    let controlled_in_hand = env.state.players[0]
-        .hand
+    let controlled_on_stage = env.state.players[0].stage[0]
+        .card
+        .expect("controlled card on stage");
+    assert_eq!(controlled_on_stage.owner, 1);
+    assert_eq!(controlled_on_stage.controller, 0);
+    env.state.players[0].stage[0].status = StageStatus::Reverse;
+    force_attack_decision(&mut env, 0);
+    env.apply_action(ActionDesc::Pass).unwrap();
+
+    let controlled_in_waiting_room = env.state.players[0]
+        .waiting_room
         .iter()
         .find(|c| c.id == CARD_BASIC && c.owner == 1)
         .map(|c| c.controller)
         .unwrap_or(1);
-    assert_eq!(controlled_in_hand, 0);
+    assert_eq!(controlled_in_waiting_room, 0);
 }

@@ -174,6 +174,10 @@ impl GameEnv {
             payload: EffectPayload {
                 spec: item.payload.spec.clone(),
                 targets,
+                source_ref: item
+                    .payload
+                    .source_ref
+                    .map(|target| self.sanitize_target_ref(ctx, target)),
             },
         }
     }

@@ -96,7 +96,7 @@ fn choice_paging_navigates_and_selects_deterministically() {
         ..Default::default()
     };
 
-    let mut env_a = GameEnv::new(
+    let mut env_a = GameEnv::new_or_panic(
         db.clone(),
         config.clone(),
         CurriculumConfig::default(),
@@ -105,7 +105,7 @@ fn choice_paging_navigates_and_selects_deterministically() {
         None,
         0,
     );
-    let mut env_b = GameEnv::new(
+    let mut env_b = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),

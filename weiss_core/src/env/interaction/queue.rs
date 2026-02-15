@@ -1,9 +1,9 @@
 use super::super::GameEnv;
-use crate::db::AbilityKind;
+use crate::db::{AbilityKind, AbilityTiming};
 use crate::effects::{EffectId, EffectKind, EffectSourceKind, EffectSpec};
 use crate::encode::MAX_ABILITIES_PER_CARD;
 use crate::events::{RevealAudience, RevealReason, Zone};
-use crate::state::{AttackType, CostPaymentState, TargetRef, TargetZone};
+use crate::state::{AttackType, CostPaymentOutcome, CostPaymentState, TargetRef, TargetZone};
 use anyhow::{anyhow, Result};
 
 impl GameEnv {
@@ -37,28 +37,22 @@ impl GameEnv {
             return Err(anyhow!("Card missing in db"));
         }
         let idx = ability_index as usize;
-        let spec_kind = db
-            .iter_card_abilities_in_canonical_order(card_id)
-            .get(idx)
-            .map(|spec| spec.kind);
         if idx >= MAX_ABILITIES_PER_CARD {
             return Err(anyhow!("Ability index out of range"));
         }
-        let Some(spec_kind) = spec_kind else {
+        let Some(live) = self.live_stage_ability_at(player, slot, idx) else {
             return Err(anyhow!("Ability index out of range"));
         };
+        let spec_kind = live.spec.kind;
         if spec_kind != AbilityKind::Activated {
             return Err(anyhow!("Ability is not activated"));
         }
-        let spec = db
-            .iter_card_abilities_in_canonical_order(card_id)
-            .get(idx)
-            .ok_or_else(|| anyhow!("Ability index out of range"))?;
+        let spec = live.spec;
         let mut cost = self.ability_cost_for_spec(spec);
         if !self.can_pay_ability_cost(player, slot, card_inst, cost) {
             return Err(anyhow!("Activated ability cost not payable"));
         }
-        let effects = db.compiled_effects_for_ability(card_id, idx);
+        let effects: Vec<EffectSpec> = live.effects.to_vec();
         if effects.is_empty() {
             return Err(anyhow!("Activated ability has no effects"));
         }
@@ -74,6 +68,7 @@ impl GameEnv {
                 ability_index,
                 remaining: cost,
                 current_step: None,
+                outcome: CostPaymentOutcome::ResolveAbility,
             });
             self.start_cost_choice();
             return Ok(true);
@@ -86,8 +81,9 @@ impl GameEnv {
             instance_id: card_inst.instance_id,
         });
         for effect in effects {
-            self.enqueue_effect_spec_with_source(player, card_id, effect.clone(), source_ref);
+            self.enqueue_effect_spec_with_source(player, card_id, effect, source_ref);
         }
+        self.queue_timing_triggers(AbilityTiming::UseAct);
         Ok(false)
     }
 
@@ -121,6 +117,22 @@ impl GameEnv {
             .ok_or_else(|| anyhow!("Card missing in db"))?;
         if !self.card_set_allowed(card) {
             return Err(anyhow!("Card set not allowed"));
+        }
+        let backup_locked =
+            self.state.players[p]
+                .stage
+                .iter()
+                .enumerate()
+                .any(|(slot, slot_state)| {
+                    slot_state.card.is_some()
+                        && self.slot_has_active_modifier_kind(
+                            player,
+                            slot as u8,
+                            crate::state::ModifierKind::CannotPlayBackupFromHand,
+                        )
+                });
+        if backup_locked {
+            return Err(anyhow!("Cannot play backups from hand"));
         }
         if !self.is_counter_card(card) {
             return Err(anyhow!("Card is not a counter"));

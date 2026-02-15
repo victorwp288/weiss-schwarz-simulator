@@ -274,7 +274,8 @@ pub fn observation_spec() -> ObservationSpec {
         start: PER_PLAYER_COUNTS,
         len: PER_PLAYER_STAGE,
         visibility: "public",
-        description: "stage slots (card id, status, has_attacked, power, soul)",
+        description:
+            "stage slots (card id, status, has_attacked, power, base soul, effective soul, side-attack-allowed)",
     };
 
     let climax = ObsSliceSpec {

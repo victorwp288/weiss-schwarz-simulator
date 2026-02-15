@@ -1,4 +1,5 @@
-use crate::db::CardId;
+use crate::db::{CardDb, CardId, CardType};
+use crate::error::ConfigError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -108,6 +109,50 @@ impl EnvConfig {
     /// Compute a stable hash for this config and curriculum pair.
     pub fn config_hash(&self, curriculum: &CurriculumConfig) -> u64 {
         crate::fingerprint::config_fingerprint(self, curriculum)
+    }
+
+    /// Validate deck lists against hard game constraints and known card ids.
+    pub fn validate_with_db(&self, db: &CardDb) -> Result<(), ConfigError> {
+        for (player, deck) in self.deck_lists.iter().enumerate() {
+            if deck.len() != crate::encode::MAX_DECK {
+                return Err(ConfigError::DeckLength {
+                    player: player as u8,
+                    got: deck.len(),
+                    expected: crate::encode::MAX_DECK,
+                });
+            }
+            let mut climax_count = 0usize;
+            let mut counts: std::collections::HashMap<CardId, usize> =
+                std::collections::HashMap::new();
+            for &card_id in deck {
+                let card = db.get(card_id).ok_or(ConfigError::UnknownCardId {
+                    player: player as u8,
+                    card_id,
+                })?;
+                if card.card_type == CardType::Climax {
+                    climax_count += 1;
+                }
+                *counts.entry(card_id).or_insert(0) += 1;
+            }
+            if climax_count > 8 {
+                return Err(ConfigError::ClimaxCount {
+                    player: player as u8,
+                    got: climax_count,
+                    max: 8,
+                });
+            }
+            for (card_id, count) in counts {
+                if count > 4 {
+                    return Err(ConfigError::CardCopyCount {
+                        player: player as u8,
+                        card_id,
+                        got: count,
+                        max: 4,
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -219,6 +264,9 @@ pub struct CurriculumConfig {
     /// Enable continuous modifiers.
     pub enable_continuous_modifiers: bool,
     #[serde(default)]
+    /// Enable approximated non-combat effects listed in docs/approximation_policy.md.
+    pub enable_approx_effects: bool,
+    #[serde(default)]
     /// Enable explicit priority windows.
     pub enable_priority_windows: bool,
     #[serde(default)]
@@ -283,6 +331,7 @@ impl Default for CurriculumConfig {
             enable_level_up_choice: true,
             enable_activated_abilities: true,
             enable_continuous_modifiers: true,
+            enable_approx_effects: false,
             enable_priority_windows: false,
             enable_visibility_policies: false,
             use_alternate_end_conditions: false,

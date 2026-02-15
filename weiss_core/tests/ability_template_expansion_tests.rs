@@ -4,17 +4,28 @@ use weiss_core::config::{
     CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
 };
 use weiss_core::db::{
-    AbilityCost, AbilityDef, AbilityKind, AbilityTemplate, AbilityTiming, CardColor, CardDb,
-    CardStatic, CardType, EffectTemplate, TargetTemplate,
+    AbilityCost, AbilityDef, AbilityKind, AbilityTemplate, AbilityTiming, BrainstormMode,
+    CardColor, CardDb, CardStatic, CardType, EffectTemplate, TargetTemplate, TriggerIcon,
 };
 use weiss_core::env::GameEnv;
 use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
-use weiss_core::state::{AttackType, CardInstance, ChoiceReason, Phase, StageSlot, StageStatus};
+use weiss_core::state::{
+    AttackType, CardInstance, ChoiceReason, ChoiceZone, Phase, StageSlot, StageStatus,
+};
 
 const CARD_TEMPLATE_STOCK_CHARGE: u32 = 20;
 const CARD_TEMPLATE_MILL_TOP: u32 = 21;
 const CARD_TEMPLATE_HEAL: u32 = 22;
 const CARD_TEMPLATE_ON_REVERSE_DRAW: u32 = 23;
+const CARD_TEMPLATE_BRAINSTORM_DRAW: u32 = 24;
+const CARD_TEMPLATE_BRAINSTORM_SALVAGE: u32 = 25;
+const CARD_TEST_CLIMAX: u32 = 26;
+const CARD_TEST_EVENT: u32 = 27;
+const CARD_TEMPLATE_BOND: u32 = 28;
+const CARD_DEF_ON_PLAY_BOTTOM_DECK_TOP: u32 = 29;
+const CARD_DEF_ON_REVERSE_BATTLE_REVERSE: u32 = 30;
+const CARD_DEF_ON_REVERSE_BATTLE_BOTTOM_DECK: u32 = 31;
+const CARD_DEF_CLIMAX_STANDBY: u32 = 32;
 
 fn make_db() -> Arc<CardDb> {
     let mut cards = Vec::new();
@@ -64,12 +75,15 @@ fn make_db() -> Arc<CardDb> {
         kind: AbilityKind::Auto,
         timing: Some(AbilityTiming::OnPlay),
         effects: vec![EffectTemplate::StockCharge { count: 2 }],
+        effect_optional: Vec::new(),
         targets: vec![],
         cost: AbilityCost::default(),
+        conditions: Default::default(),
         target_card_type: None,
         target_trait: None,
         target_level_max: None,
         target_cost_max: None,
+        target_card_ids: Vec::new(),
         target_limit: None,
     }];
     cards.push(CardStatic {
@@ -133,6 +147,259 @@ fn make_db() -> Arc<CardDb> {
         traits: vec![],
         abilities: vec![AbilityTemplate::AutoOnReverseDraw { count: 1 }],
         ability_defs: vec![],
+        counter_timing: false,
+        raw_text: None,
+    });
+    cards.push(CardStatic {
+        id: CARD_TEMPLATE_BRAINSTORM_DRAW,
+        card_set: None,
+        card_type: CardType::Character,
+        color: CardColor::Blue,
+        level: 0,
+        cost: 0,
+        power: 500,
+        soul: 1,
+        triggers: vec![],
+        traits: vec![],
+        abilities: vec![],
+        ability_defs: vec![AbilityDef {
+            kind: AbilityKind::Auto,
+            timing: Some(AbilityTiming::OnPlay),
+            effects: vec![EffectTemplate::Brainstorm {
+                reveal_count: 4,
+                per_climax: 1,
+                mode: BrainstormMode::Draw,
+            }],
+            effect_optional: Vec::new(),
+            targets: vec![],
+            cost: AbilityCost::default(),
+            conditions: Default::default(),
+            target_card_type: None,
+            target_trait: None,
+            target_level_max: None,
+            target_cost_max: None,
+            target_card_ids: Vec::new(),
+            target_limit: None,
+        }],
+        counter_timing: false,
+        raw_text: None,
+    });
+    cards.push(CardStatic {
+        id: CARD_TEMPLATE_BRAINSTORM_SALVAGE,
+        card_set: None,
+        card_type: CardType::Character,
+        color: CardColor::Blue,
+        level: 0,
+        cost: 0,
+        power: 500,
+        soul: 1,
+        triggers: vec![],
+        traits: vec![],
+        abilities: vec![],
+        ability_defs: vec![AbilityDef {
+            kind: AbilityKind::Auto,
+            timing: Some(AbilityTiming::OnPlay),
+            effects: vec![EffectTemplate::Brainstorm {
+                reveal_count: 4,
+                per_climax: 1,
+                mode: BrainstormMode::SalvageCharacter,
+            }],
+            effect_optional: Vec::new(),
+            targets: vec![],
+            cost: AbilityCost::default(),
+            conditions: Default::default(),
+            target_card_type: None,
+            target_trait: None,
+            target_level_max: None,
+            target_cost_max: None,
+            target_card_ids: Vec::new(),
+            target_limit: None,
+        }],
+        counter_timing: false,
+        raw_text: None,
+    });
+    cards.push(CardStatic {
+        id: CARD_TEST_CLIMAX,
+        card_set: None,
+        card_type: CardType::Climax,
+        color: CardColor::Red,
+        level: 0,
+        cost: 0,
+        power: 0,
+        soul: 0,
+        triggers: vec![],
+        traits: vec![],
+        abilities: vec![],
+        ability_defs: vec![],
+        counter_timing: false,
+        raw_text: None,
+    });
+    cards.push(CardStatic {
+        id: CARD_TEST_EVENT,
+        card_set: None,
+        card_type: CardType::Event,
+        color: CardColor::Blue,
+        level: 0,
+        cost: 0,
+        power: 0,
+        soul: 0,
+        triggers: vec![],
+        traits: vec![],
+        abilities: vec![],
+        ability_defs: vec![],
+        counter_timing: false,
+        raw_text: None,
+    });
+    cards.push(CardStatic {
+        id: CARD_TEMPLATE_BOND,
+        card_set: None,
+        card_type: CardType::Character,
+        color: CardColor::Yellow,
+        level: 0,
+        cost: 0,
+        power: 500,
+        soul: 1,
+        triggers: vec![],
+        traits: vec![],
+        abilities: vec![AbilityTemplate::Bond {
+            cost: AbilityCost {
+                discard_from_hand: 1,
+                ..AbilityCost::default()
+            },
+            count: 1,
+            target_ids: vec![1],
+        }],
+        ability_defs: vec![],
+        counter_timing: false,
+        raw_text: None,
+    });
+    cards.push(CardStatic {
+        id: CARD_DEF_ON_PLAY_BOTTOM_DECK_TOP,
+        card_set: None,
+        card_type: CardType::Character,
+        color: CardColor::Blue,
+        level: 0,
+        cost: 0,
+        power: 500,
+        soul: 1,
+        triggers: vec![],
+        traits: vec![],
+        abilities: vec![],
+        ability_defs: vec![AbilityDef {
+            kind: AbilityKind::Auto,
+            timing: Some(AbilityTiming::OnPlay),
+            effects: vec![EffectTemplate::MoveToDeckBottom],
+            effect_optional: vec![false],
+            targets: vec![TargetTemplate::SelfDeckTop],
+            cost: AbilityCost::default(),
+            conditions: Default::default(),
+            target_card_type: None,
+            target_trait: None,
+            target_level_max: None,
+            target_cost_max: None,
+            target_card_ids: Vec::new(),
+            target_limit: Some(1),
+        }],
+        counter_timing: false,
+        raw_text: None,
+    });
+    cards.push(CardStatic {
+        id: CARD_DEF_ON_REVERSE_BATTLE_REVERSE,
+        card_set: None,
+        card_type: CardType::Character,
+        color: CardColor::Green,
+        level: 0,
+        cost: 0,
+        power: 500,
+        soul: 1,
+        triggers: vec![],
+        traits: vec![],
+        abilities: vec![],
+        ability_defs: vec![AbilityDef {
+            kind: AbilityKind::Auto,
+            timing: Some(AbilityTiming::OnReverse),
+            effects: vec![EffectTemplate::BattleOpponentReverseIf {
+                max_level: Some(0),
+                max_cost: None,
+                level_gt_opponent_level: false,
+            }],
+            effect_optional: vec![false],
+            targets: vec![],
+            cost: AbilityCost::default(),
+            conditions: Default::default(),
+            target_card_type: None,
+            target_trait: None,
+            target_level_max: None,
+            target_cost_max: None,
+            target_card_ids: Vec::new(),
+            target_limit: None,
+        }],
+        counter_timing: false,
+        raw_text: None,
+    });
+    cards.push(CardStatic {
+        id: CARD_DEF_ON_REVERSE_BATTLE_BOTTOM_DECK,
+        card_set: None,
+        card_type: CardType::Character,
+        color: CardColor::Yellow,
+        level: 0,
+        cost: 0,
+        power: 500,
+        soul: 1,
+        triggers: vec![],
+        traits: vec![],
+        abilities: vec![],
+        ability_defs: vec![AbilityDef {
+            kind: AbilityKind::Auto,
+            timing: Some(AbilityTiming::OnReverse),
+            effects: vec![EffectTemplate::BattleOpponentMoveToDeckBottomIf {
+                max_level: None,
+                max_cost: Some(0),
+                level_gt_opponent_level: false,
+            }],
+            effect_optional: vec![false],
+            targets: vec![],
+            cost: AbilityCost::default(),
+            conditions: Default::default(),
+            target_card_type: None,
+            target_trait: None,
+            target_level_max: None,
+            target_cost_max: None,
+            target_card_ids: Vec::new(),
+            target_limit: None,
+        }],
+        counter_timing: false,
+        raw_text: None,
+    });
+    cards.push(CardStatic {
+        id: CARD_DEF_CLIMAX_STANDBY,
+        card_set: None,
+        card_type: CardType::Climax,
+        color: CardColor::Red,
+        level: 0,
+        cost: 0,
+        power: 0,
+        soul: 0,
+        triggers: vec![],
+        traits: vec![],
+        abilities: vec![],
+        ability_defs: vec![AbilityDef {
+            kind: AbilityKind::Auto,
+            timing: Some(AbilityTiming::OnPlay),
+            effects: vec![EffectTemplate::TriggerIcon {
+                icon: TriggerIcon::Standby,
+            }],
+            effect_optional: vec![false],
+            targets: vec![],
+            cost: AbilityCost::default(),
+            conditions: Default::default(),
+            target_card_type: None,
+            target_trait: None,
+            target_level_max: None,
+            target_cost_max: None,
+            target_card_ids: Vec::new(),
+            target_limit: None,
+        }],
         counter_timing: false,
         raw_text: None,
     });
@@ -316,6 +583,18 @@ fn set_main_decision(env: &mut GameEnv, player: u8) {
     });
 }
 
+fn set_climax_decision(env: &mut GameEnv, player: u8) {
+    env.state.turn.phase = Phase::Climax;
+    env.state.turn.active_player = player;
+    env.state.turn.starting_player = player;
+    env.state.turn.mulligan_done = [true, true];
+    env.decision = Some(Decision {
+        player,
+        kind: DecisionKind::Climax,
+        focus_slot: None,
+    });
+}
+
 fn set_attack_decision(env: &mut GameEnv, player: u8) {
     env.state.turn.phase = Phase::Attack;
     env.state.turn.active_player = player;
@@ -344,11 +623,235 @@ fn set_attack_decision(env: &mut GameEnv, player: u8) {
 }
 
 #[test]
+fn ability_def_on_play_move_to_deck_bottom_moves_top_card() {
+    let db = make_db();
+    let deck = make_deck_with_card(CARD_DEF_ON_PLAY_BOTTOM_DECK_TOP);
+    let config = make_config(deck.clone(), deck);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        14,
+        Default::default(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![CARD_DEF_ON_PLAY_BOTTOM_DECK_TOP],
+        vec![],
+        vec![],
+        vec![1, 2],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+
+    let top_before = env.state.players[0]
+        .deck
+        .last()
+        .expect("top deck card")
+        .instance_id;
+
+    set_main_decision(&mut env, 0);
+    env.apply_action(ActionDesc::MainPlayCharacter {
+        hand_index: 0,
+        stage_slot: 0,
+    })
+    .unwrap();
+
+    assert_eq!(env.state.players[0].deck[0].instance_id, top_before);
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn ability_def_on_reverse_can_reverse_battle_opponent() {
+    let db = make_db();
+    let deck = make_deck_with_card(CARD_DEF_ON_REVERSE_BATTLE_REVERSE);
+    let config = make_config(deck.clone(), deck);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        15,
+        Default::default(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, 1)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![(0, CARD_DEF_ON_REVERSE_BATTLE_REVERSE)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    env.state.players[0].stage[0].power_mod_turn = 1000;
+    assert!(env.state.players[1].stage[0].card.is_some());
+    env.curriculum.enable_counters = false;
+    env.curriculum.enable_priority_windows = false;
+    set_attack_decision(&mut env, 0);
+    env.apply_action(ActionDesc::Attack {
+        slot: 0,
+        attack_type: AttackType::Frontal,
+    })
+    .unwrap();
+
+    assert!(env.state.players[0].stage[0].card.is_some());
+    assert_eq!(env.state.players[0].stage[0].status, StageStatus::Reverse);
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn ability_def_on_reverse_can_bottom_deck_battle_opponent() {
+    let db = make_db();
+    let deck = make_deck_with_card(CARD_DEF_ON_REVERSE_BATTLE_BOTTOM_DECK);
+    let config = make_config(deck.clone(), deck);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        16,
+        Default::default(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, 1)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![(0, CARD_DEF_ON_REVERSE_BATTLE_BOTTOM_DECK)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    env.state.players[0].stage[0].power_mod_turn = 1000;
+    assert!(env.state.players[1].stage[0].card.is_some());
+    let attacker_instance_id = env.state.players[0].stage[0]
+        .card
+        .expect("attacker")
+        .instance_id;
+
+    env.curriculum.enable_counters = false;
+    env.curriculum.enable_priority_windows = false;
+    set_attack_decision(&mut env, 0);
+    env.apply_action(ActionDesc::Attack {
+        slot: 0,
+        attack_type: AttackType::Frontal,
+    })
+    .unwrap();
+    assert!(env.state.players[0].stage[0].card.is_none());
+    assert_eq!(
+        env.state.players[0]
+            .deck
+            .first()
+            .expect("deck bottom card")
+            .instance_id,
+        attacker_instance_id
+    );
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn ability_def_on_climax_play_can_perform_standby() {
+    let db = make_db();
+    let deck = make_deck_with_card(CARD_DEF_CLIMAX_STANDBY);
+    let config = make_config(deck.clone(), deck);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        17,
+        Default::default(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![CARD_DEF_CLIMAX_STANDBY],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![1],
+        vec![],
+        vec![],
+    );
+
+    set_climax_decision(&mut env, 0);
+    env.apply_action(ActionDesc::ClimaxPlay { hand_index: 0 })
+        .unwrap();
+
+    assert_eq!(
+        env.decision.as_ref().map(|d| d.kind),
+        Some(DecisionKind::Choice)
+    );
+    let choice = env.state.turn.choice.as_ref().expect("standby choice");
+    assert_eq!(choice.reason, ChoiceReason::TriggerStandbySelect);
+
+    env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
+        .unwrap();
+
+    let slot0 = &env.state.players[0].stage[0];
+    assert!(slot0.card.is_some());
+    assert_eq!(slot0.status, StageStatus::Rest);
+    assert!(!env.state.players[0]
+        .waiting_room
+        .iter()
+        .any(|card| card.id == 1));
+    env.validate_state().unwrap();
+}
+
+#[test]
 fn auto_on_play_salvage_moves_waiting_room_card() {
     let db = make_db();
     let deck = make_deck_list();
     let config = make_config(deck.clone(), deck);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -384,11 +887,92 @@ fn auto_on_play_salvage_moves_waiting_room_card() {
 }
 
 #[test]
+fn auto_on_play_bond_pays_cost_and_salvages_named_target() {
+    let db = make_db();
+    let bond_specs = db.iter_card_abilities_in_canonical_order(CARD_TEMPLATE_BOND);
+    assert_eq!(bond_specs.len(), 1);
+    assert_eq!(
+        bond_specs[0]
+            .template
+            .activation_cost_spec()
+            .discard_from_hand,
+        1
+    );
+    let deck = make_deck_with_card(CARD_TEMPLATE_BOND);
+    let config = make_config(deck.clone(), deck);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        101,
+        Default::default(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![CARD_TEMPLATE_BOND, 9],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![2, 1],
+        vec![],
+        vec![],
+    );
+
+    set_main_decision(&mut env, 0);
+    env.apply_action(ActionDesc::MainPlayCharacter {
+        hand_index: 0,
+        stage_slot: 0,
+    })
+    .unwrap();
+
+    let choice = env.state.turn.choice.as_ref().expect("bond pay choice");
+    assert_eq!(choice.reason, ChoiceReason::TriggerAutoCostSelect);
+    env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
+        .unwrap();
+
+    if env
+        .state
+        .turn
+        .choice
+        .as_ref()
+        .is_some_and(|choice| choice.reason == ChoiceReason::CostPayment)
+    {
+        env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
+            .unwrap();
+    }
+
+    if let Some(choice) = env.state.turn.choice.as_ref() {
+        if choice.reason == ChoiceReason::TargetSelect {
+            let candidates: Vec<u32> = choice
+                .options
+                .iter()
+                .filter(|opt| opt.zone != ChoiceZone::Skip)
+                .map(|opt| opt.card_id)
+                .collect();
+            assert!(!candidates.is_empty());
+            assert!(candidates.iter().all(|id| *id == 1));
+            env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
+                .unwrap();
+        }
+    }
+
+    let hand_ids: Vec<u32> = env.state.players[0].hand.iter().map(|c| c.id).collect();
+    assert!(hand_ids.contains(&1));
+    assert!(!hand_ids.contains(&2));
+}
+
+#[test]
 fn auto_on_play_search_deck_top_limits_candidates() {
     let db = make_db();
     let deck = make_deck_list();
     let config = make_config(deck.clone(), deck);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -450,7 +1034,7 @@ fn auto_on_play_reveal_deck_top_logs_reveal_events() {
         sample_rate: 1.0,
         ..Default::default()
     };
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -506,7 +1090,7 @@ fn paid_activated_ability_requires_stock() {
         priority_autopick_single_action: false,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, curriculum, 4, Default::default(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 4, Default::default(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -546,7 +1130,7 @@ fn paid_activated_ability_requires_stock() {
     assert!(has_free);
     assert!(!has_paid);
 
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         env.db.clone(),
         make_config(make_deck_list(), make_deck_list()),
         CurriculumConfig {
@@ -605,7 +1189,7 @@ fn ability_def_on_play_stock_charge_moves_cards() {
     let db = make_db();
     let deck = make_deck_list();
     let config = make_config(deck.clone(), deck);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -657,7 +1241,7 @@ fn auto_on_play_stock_charge_template_moves_cards() {
     let db = make_db();
     let deck = make_deck_with_card(CARD_TEMPLATE_STOCK_CHARGE);
     let config = make_config(deck.clone(), deck);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -699,7 +1283,7 @@ fn auto_on_play_mill_top_template_moves_cards() {
     let db = make_db();
     let deck = make_deck_with_card(CARD_TEMPLATE_MILL_TOP);
     let config = make_config(deck.clone(), deck);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -745,7 +1329,7 @@ fn auto_on_play_heal_template_moves_clock() {
     let db = make_db();
     let deck = make_deck_with_card(CARD_TEMPLATE_HEAL);
     let config = make_config(deck.clone(), deck);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -789,7 +1373,7 @@ fn auto_on_reverse_draw_triggers_on_reversal() {
     let db = make_db();
     let deck = make_deck_with_card(CARD_TEMPLATE_ON_REVERSE_DRAW);
     let config = make_config(deck.clone(), deck);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -844,7 +1428,7 @@ fn auto_on_reverse_draw_respects_curriculum_toggle() {
     let db = make_db();
     let deck = make_deck_with_card(CARD_TEMPLATE_ON_REVERSE_DRAW);
     let config = make_config(deck.clone(), deck);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig {
@@ -895,4 +1479,151 @@ fn auto_on_reverse_draw_respects_curriculum_toggle() {
 
     assert_eq!(env.state.players[1].hand.len(), 0);
     env.validate_state().unwrap();
+}
+
+#[test]
+fn auto_on_play_brainstorm_draw_uses_optional_choices() {
+    let db = make_db();
+    let mut deck = make_deck_with_card(CARD_TEMPLATE_BRAINSTORM_DRAW);
+    deck[0] = CARD_TEST_CLIMAX;
+    deck[1] = CARD_TEST_CLIMAX;
+    let config = make_config(deck.clone(), deck);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        12,
+        Default::default(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![CARD_TEMPLATE_BRAINSTORM_DRAW],
+        vec![],
+        vec![],
+        vec![CARD_TEST_CLIMAX, 1, CARD_TEST_CLIMAX, 1],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+
+    set_main_decision(&mut env, 0);
+    env.apply_action(ActionDesc::MainPlayCharacter {
+        hand_index: 0,
+        stage_slot: 0,
+    })
+    .unwrap();
+
+    let choice = env
+        .state
+        .turn
+        .choice
+        .as_ref()
+        .expect("brainstorm draw choice");
+    assert_eq!(choice.reason, ChoiceReason::BrainstormDrawSelect);
+    env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
+        .unwrap();
+
+    let choice = env
+        .state
+        .turn
+        .choice
+        .as_ref()
+        .expect("second brainstorm draw choice");
+    assert_eq!(choice.reason, ChoiceReason::BrainstormDrawSelect);
+    env.apply_action(ActionDesc::ChoiceSelect { index: 1 })
+        .unwrap();
+
+    assert_eq!(env.state.players[0].hand.len(), 1);
+    let climax_milled = env.state.players[0]
+        .waiting_room
+        .iter()
+        .filter(|c| c.id == CARD_TEST_CLIMAX)
+        .count();
+    assert_eq!(climax_milled, 2);
+}
+
+#[test]
+fn auto_on_play_brainstorm_salvage_moves_characters_from_waiting_room() {
+    let db = make_db();
+    let mut deck = make_deck_with_card(CARD_TEMPLATE_BRAINSTORM_SALVAGE);
+    deck[0] = CARD_TEST_CLIMAX;
+    deck[1] = CARD_TEST_CLIMAX;
+    deck[2] = CARD_TEST_EVENT;
+    deck[3] = CARD_TEST_EVENT;
+    let config = make_config(deck.clone(), deck);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        13,
+        Default::default(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![CARD_TEMPLATE_BRAINSTORM_SALVAGE],
+        vec![],
+        vec![],
+        vec![
+            CARD_TEST_CLIMAX,
+            CARD_TEST_EVENT,
+            CARD_TEST_CLIMAX,
+            CARD_TEST_EVENT,
+        ],
+        vec![],
+        vec![],
+        vec![5, 6],
+        vec![],
+        vec![],
+    );
+
+    set_main_decision(&mut env, 0);
+    env.apply_action(ActionDesc::MainPlayCharacter {
+        hand_index: 0,
+        stage_slot: 0,
+    })
+    .unwrap();
+
+    let first = env
+        .state
+        .turn
+        .choice
+        .as_ref()
+        .expect("first salvage choice");
+    assert_eq!(first.reason, ChoiceReason::TargetSelect);
+    let first_idx = first
+        .options
+        .iter()
+        .position(|opt| opt.card_id == 5)
+        .expect("card 5 target option");
+    env.apply_action(ActionDesc::ChoiceSelect {
+        index: first_idx as u8,
+    })
+    .unwrap();
+
+    if let Some(second) = env.state.turn.choice.as_ref() {
+        assert_eq!(second.reason, ChoiceReason::TargetSelect);
+        let second_idx = second
+            .options
+            .iter()
+            .position(|opt| opt.card_id == 6)
+            .expect("card 6 target option");
+        env.apply_action(ActionDesc::ChoiceSelect {
+            index: second_idx as u8,
+        })
+        .unwrap();
+    }
+
+    let hand_ids: Vec<u32> = env.state.players[0].hand.iter().map(|c| c.id).collect();
+    assert!(hand_ids.contains(&5));
+    assert!(!env.state.players[0].waiting_room.iter().any(|c| c.id == 5));
 }

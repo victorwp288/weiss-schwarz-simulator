@@ -5,9 +5,19 @@ use crate::state::StageStatus;
 impl GameEnv {
     pub(in crate::env) fn resolve_stand_phase(&mut self, player: u8) {
         let p = player as usize;
-        for slot in &mut self.state.players[p].stage {
-            if slot.card.is_some() {
+        for slot_idx in 0..self.state.players[p].stage.len() {
+            let has_card = self.state.players[p].stage[slot_idx].card.is_some();
+            let blocked = has_card
+                && self.slot_has_active_modifier_kind(
+                    player,
+                    slot_idx as u8,
+                    crate::state::ModifierKind::CannotStandDuringStandPhase,
+                );
+            let slot = &mut self.state.players[p].stage[slot_idx];
+            if has_card && !blocked {
                 slot.status = StageStatus::Stand;
+            }
+            if has_card {
                 slot.has_attacked = false;
             }
             slot.power_mod_battle = 0;

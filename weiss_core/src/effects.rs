@@ -1,6 +1,11 @@
+#![allow(missing_docs)]
+
 use serde::{Deserialize, Serialize};
 
-use crate::db::{CardId, TriggerIcon};
+use crate::db::{
+    BattleOpponentMoveDestination, BattleOpponentMovePreludeAction, BrainstormMode, CardId,
+    ConditionTurn, GrantDuration, TriggerIcon, ZoneCountCondition,
+};
 use crate::events::RevealAudience;
 use crate::state::{
     DamageType, ModifierDuration, ModifierKind, TargetSide, TargetSpec, TargetZone,
@@ -86,11 +91,84 @@ pub enum EffectKind {
         magnitude: i32,
         duration: ModifierDuration,
     },
+    GrantAbilityDef {
+        ability: Box<crate::db::AbilityDef>,
+        duration: GrantDuration,
+    },
+    AddPowerIfTargetLevelAtLeast {
+        amount: i32,
+        min_level: u8,
+        duration: ModifierDuration,
+    },
+    AddPowerByTargetLevel {
+        multiplier: i32,
+        duration: ModifierDuration,
+    },
+    AddPowerIfBattleOpponentLevelAtLeast {
+        amount: i32,
+        min_level: u8,
+        duration: ModifierDuration,
+    },
+    AddSoulIfBattleOpponentLevelAtLeast {
+        amount: i32,
+        min_level: u8,
+        duration: ModifierDuration,
+    },
+    AddPowerIfBattleOpponentLevelExact {
+        amount: i32,
+        level: u8,
+        duration: ModifierDuration,
+    },
+    AddPowerIfOtherAttackerMatches {
+        amount: i32,
+        duration: ModifierDuration,
+        attacker_card_ids: Vec<CardId>,
+    },
+    AddSoulIfMiddleCenter {
+        amount: i32,
+    },
+    FacingOpponentAddSoul {
+        amount: i32,
+    },
+    FacingOpponentAddModifier {
+        kind: ModifierKind,
+        magnitude: i32,
+        duration: ModifierDuration,
+    },
+    SelfAddModifierIfFacingOpponent {
+        kind: ModifierKind,
+        magnitude: i32,
+        duration: ModifierDuration,
+        max_level: Option<u8>,
+        max_cost: Option<u8>,
+        level_gt_source_level: bool,
+    },
+    ConditionalAddModifier {
+        kind: ModifierKind,
+        magnitude: i32,
+        duration: ModifierDuration,
+        turn: Option<ConditionTurn>,
+        zone_count: Option<ZoneCountCondition>,
+        require_source_marker: bool,
+        per_source_marker: bool,
+        per_zone_count: bool,
+        exclude_source: bool,
+    },
     MoveToHand,
     MoveToWaitingRoom,
     MoveToStock,
     MoveToClock,
+    MoveToMemory,
+    MoveToDeckBottom,
+    MoveWaitingRoomCardToSourceSlot,
+    RecycleWaitingRoomToDeckShuffle,
+    ResetStockFromDeckTop {
+        target: TargetSide,
+    },
+    MoveToMarker,
+    MoveTopDeckToMarker,
     Heal,
+    HealIfSourcePlayedFromHandThisTurn,
     RestTarget,
     StandTarget,
     StockCharge {
@@ -103,6 +181,10 @@ pub enum EffectKind {
     MoveStageSlot {
         slot: u8,
     },
+    MoveThisToOpenCenter {
+        require_facing: bool,
+    },
+    MoveThisToOpenBack,
     SwapStageSlots,
     RandomDiscardFromHand {
         target: TargetSide,
@@ -118,7 +200,31 @@ pub enum EffectKind {
         count: u8,
         audience: RevealAudience,
     },
+    RevealTopIfLevelAtLeastMoveThisToHand {
+        min_level: u8,
+    },
+    RevealTopIfLevelAtLeastRestThis {
+        min_level: u8,
+    },
+    RevealTopIfLevelAtLeastMoveTopToStock {
+        min_level: u8,
+    },
+    LookTopDeckReorder {
+        count: u8,
+    },
+    LookTopCardTopOrWaitingRoom,
+    LookTopCardTopOrBottom,
+    SearchTopDeckToHandLevelAtLeastMillRest {
+        look_count: u8,
+        choose_count: u8,
+        min_level: u8,
+    },
+    RevealTopAndSalvageByRevealedLevel {
+        count: u8,
+        climax_level: u8,
+    },
     MoveTriggerCardToHand,
+    MoveTriggerCardToStock,
     ChangeController {
         new_controller: TargetSide,
     },
@@ -131,12 +237,68 @@ pub enum EffectKind {
     ModifyPendingAttackDamage {
         delta: i32,
     },
+    EnableShotDamage {
+        amount: u8,
+    },
     TriggerIcon {
         icon: TriggerIcon,
     },
     RevealDeckTop {
         count: u8,
         audience: RevealAudience,
+    },
+    Brainstorm {
+        reveal_count: u8,
+        per_climax: u8,
+        mode: BrainstormMode,
+    },
+    BrainstormDrawChoice,
+    SetTriggerCheckCount {
+        count: u8,
+    },
+    RestThisIfNoOtherRestCenter,
+    BattleOpponentReverseIf {
+        max_level: Option<u8>,
+        max_cost: Option<u8>,
+        level_gt_opponent_level: bool,
+    },
+    BattleOpponentMoveToDeckBottomIf {
+        max_level: Option<u8>,
+        max_cost: Option<u8>,
+        level_gt_opponent_level: bool,
+    },
+    BattleOpponentMoveToStockThenBottomStockToWaitingRoomIf {
+        max_level: Option<u8>,
+        max_cost: Option<u8>,
+        level_gt_opponent_level: bool,
+    },
+    BattleOpponentMoveToClockAfterClockTopToWaitingRoomIf {
+        max_level: Option<u8>,
+        max_cost: Option<u8>,
+        level_gt_opponent_level: bool,
+    },
+    BattleOpponentMoveToMemoryIf {
+        max_level: Option<u8>,
+        max_cost: Option<u8>,
+        level_gt_opponent_level: bool,
+    },
+    BattleOpponentMoveToClockIf {
+        max_level: Option<u8>,
+        max_cost: Option<u8>,
+        level_gt_opponent_level: bool,
+    },
+    BattleOpponentMove {
+        destination: BattleOpponentMoveDestination,
+        prelude: Option<BattleOpponentMovePreludeAction>,
+        max_level: Option<u8>,
+        max_cost: Option<u8>,
+        level_gt_opponent_level: bool,
+    },
+    BattleOpponentTopDeckToStockIf {
+        min_level: u8,
+    },
+    CannotUseAutoEncoreForPlayer {
+        target: TargetSide,
     },
     CounterBackup {
         power: i32,
@@ -153,10 +315,18 @@ impl EffectKind {
         matches!(
             self,
             EffectKind::AddModifier { .. }
+                | EffectKind::GrantAbilityDef { .. }
+                | EffectKind::AddPowerIfTargetLevelAtLeast { .. }
+                | EffectKind::AddPowerByTargetLevel { .. }
+                | EffectKind::ConditionalAddModifier { .. }
                 | EffectKind::MoveToHand
                 | EffectKind::MoveToWaitingRoom
                 | EffectKind::MoveToStock
                 | EffectKind::MoveToClock
+                | EffectKind::MoveToMemory
+                | EffectKind::MoveToDeckBottom
+                | EffectKind::MoveWaitingRoomCardToSourceSlot
+                | EffectKind::MoveToMarker
                 | EffectKind::Heal
                 | EffectKind::RestTarget
                 | EffectKind::StandTarget
@@ -164,6 +334,9 @@ impl EffectKind {
                 | EffectKind::SwapStageSlots
                 | EffectKind::ChangeController { .. }
                 | EffectKind::Standby { .. }
+                | EffectKind::LookTopDeckReorder { .. }
+                | EffectKind::LookTopCardTopOrWaitingRoom
+                | EffectKind::LookTopCardTopOrBottom
         )
     }
 
@@ -210,9 +383,36 @@ impl EffectKind {
                     | TargetZone::Resolution
                     | TargetZone::Clock
             ),
+            EffectKind::MoveToMemory => matches!(
+                zone,
+                TargetZone::Stage
+                    | TargetZone::Hand
+                    | TargetZone::DeckTop
+                    | TargetZone::Clock
+                    | TargetZone::Level
+                    | TargetZone::Stock
+                    | TargetZone::WaitingRoom
+                    | TargetZone::Climax
+                    | TargetZone::Resolution
+                    | TargetZone::Memory
+            ),
+            EffectKind::MoveToDeckBottom => {
+                matches!(zone, TargetZone::Stage | TargetZone::DeckTop)
+            }
+            EffectKind::MoveWaitingRoomCardToSourceSlot => matches!(zone, TargetZone::WaitingRoom),
             EffectKind::Heal => matches!(zone, TargetZone::Clock),
             EffectKind::ChangeController { .. } => matches!(zone, TargetZone::Stage),
-            EffectKind::AddModifier { .. } => matches!(zone, TargetZone::Stage),
+            EffectKind::AddModifier { .. }
+            | EffectKind::GrantAbilityDef { .. }
+            | EffectKind::AddPowerIfTargetLevelAtLeast { .. }
+            | EffectKind::AddPowerByTargetLevel { .. }
+            | EffectKind::ConditionalAddModifier { .. } => {
+                matches!(zone, TargetZone::Stage)
+            }
+            EffectKind::MoveToMarker => matches!(zone, TargetZone::WaitingRoom),
+            EffectKind::LookTopDeckReorder { .. }
+            | EffectKind::LookTopCardTopOrWaitingRoom
+            | EffectKind::LookTopCardTopOrBottom => matches!(zone, TargetZone::DeckTop),
             EffectKind::RestTarget
             | EffectKind::StandTarget
             | EffectKind::MoveStageSlot { .. }
@@ -235,6 +435,9 @@ pub struct EffectPayload {
     pub spec: EffectSpec,
     /// Resolved targets for this effect.
     pub targets: Vec<crate::state::TargetRef>,
+    /// Source reference for source-relative effects.
+    #[serde(default)]
+    pub source_ref: Option<crate::state::TargetRef>,
 }
 
 /// Hook point for replacement effects.

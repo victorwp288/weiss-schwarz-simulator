@@ -72,7 +72,7 @@ fn build_db() -> Arc<CardDb> {
 }
 
 fn base_state(seed: u64) -> GameState {
-    let mut state = GameState::new(
+    let mut state = GameState::new_or_panic(
         vec![CARD_CHAR; weiss_core::encode::MAX_DECK],
         vec![CARD_CHAR; weiss_core::encode::MAX_DECK],
         seed,
@@ -294,7 +294,9 @@ fn action_space_ids_are_reachable() {
             for slot in 0..max_slot {
                 state.players[0].stage[slot] = StageSlot {
                     card: Some(make_instance(CARD_CHAR, 0, 9, slot)),
+                    markers: Vec::new(),
                     status: StageStatus::Reverse,
+                    played_from_hand_this_turn: false,
                     power_mod_battle: 0,
                     power_mod_turn: 0,
                     has_attacked: false,

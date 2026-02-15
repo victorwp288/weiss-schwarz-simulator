@@ -32,12 +32,15 @@ fn make_db() -> Arc<CardDb> {
         kind: AbilityKind::Activated,
         timing: Some(AbilityTiming::BeginMainPhase),
         effects: vec![EffectTemplate::Draw { count: 1 }],
+        effect_optional: Vec::new(),
         targets: Vec::new(),
         cost: AbilityCost::default(),
+        conditions: Default::default(),
         target_card_type: None,
         target_trait: None,
         target_level_max: None,
         target_cost_max: None,
+        target_card_ids: Vec::new(),
         target_limit: None,
     };
     let mut cards = vec![
@@ -188,7 +191,7 @@ fn unified_effects_pipeline_coverage() {
     let db = make_db();
 
     // Trigger icon -> stack push.
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db.clone(),
         make_config(vec![CARD_ATTACKER; 10], vec![CARD_ATTACKER; 10]),
         CurriculumConfig::default(),
@@ -239,6 +242,20 @@ fn unified_effects_pipeline_coverage() {
         attack_type: AttackType::Direct,
     })
     .unwrap();
+    let choice = env.state.turn.choice.as_ref().expect("draw trigger choice");
+    assert_eq!(
+        choice.reason,
+        weiss_core::state::ChoiceReason::TriggerDrawSelect
+    );
+    let draw_idx = choice
+        .options
+        .iter()
+        .position(|opt| opt.zone != weiss_core::state::ChoiceZone::Skip)
+        .expect("draw option");
+    env.apply_action(ActionDesc::ChoiceSelect {
+        index: draw_idx as u8,
+    })
+    .unwrap();
     assert!(env.replay_events.iter().any(|e| {
         matches!(
             e,
@@ -249,7 +266,7 @@ fn unified_effects_pipeline_coverage() {
     }));
 
     // Auto ability -> stack push.
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db.clone(),
         make_config(vec![CARD_FILLER; 10], vec![CARD_FILLER; 10]),
         CurriculumConfig::default(),
@@ -289,7 +306,7 @@ fn unified_effects_pipeline_coverage() {
         enable_priority_windows: true,
         ..Default::default()
     };
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db.clone(),
         make_config(vec![CARD_FILLER; 10], vec![CARD_FILLER; 10]),
         curriculum,
@@ -331,7 +348,7 @@ fn unified_effects_pipeline_coverage() {
     ));
 
     // Refresh penalty logs a direct system event (no stack push).
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db.clone(),
         make_config(vec![CARD_FILLER; 10], vec![CARD_FILLER; 10]),
         CurriculumConfig::default(),

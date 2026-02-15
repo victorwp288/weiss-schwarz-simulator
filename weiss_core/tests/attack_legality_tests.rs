@@ -4,7 +4,7 @@ use combat_support::*;
 use weiss_core::config::CurriculumConfig;
 use weiss_core::env::GameEnv;
 use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
-use weiss_core::state::{AttackType, Phase, StageStatus};
+use weiss_core::state::{AttackType, ModifierDuration, ModifierKind, Phase, StageStatus};
 
 #[test]
 fn cannot_attack_when_rested() {
@@ -13,7 +13,7 @@ fn cannot_attack_when_rested() {
     let deck_a = build_deck_list(20, &[CARD_BASIC]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -55,7 +55,7 @@ fn cannot_attack_with_cannot_attack_status() {
     let deck_a = build_deck_list(20, &[CARD_BASIC]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -97,7 +97,7 @@ fn cannot_attack_from_ability_template() {
     let deck_a = build_deck_list(20, &[CARD_CANNOT_ATTACK]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -163,13 +163,82 @@ fn cannot_attack_from_ability_template() {
 }
 
 #[test]
+fn cannot_side_attack_when_side_attack_restricted() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_BASIC]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        161,
+        replay_config(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_BASIC)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![(0, CARD_BASIC)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    env.add_modifier(
+        CARD_BASIC,
+        0,
+        0,
+        ModifierKind::CannotSideAttack,
+        1,
+        ModifierDuration::UntilEndOfTurn,
+    )
+    .expect("failed to add CannotSideAttack modifier");
+    force_attack_decision(&mut env, 0);
+
+    assert!(env
+        .apply_action(ActionDesc::Attack {
+            slot: 0,
+            attack_type: AttackType::Side
+        })
+        .is_err());
+    assert!(env
+        .apply_action(ActionDesc::Attack {
+            slot: 0,
+            attack_type: AttackType::Frontal
+        })
+        .is_ok());
+    env.validate_state().unwrap();
+}
+
+#[test]
 fn attack_target_must_be_legal_lane() {
     enable_validate();
     let db = make_db();
     let deck_a = build_deck_list(20, &[CARD_BASIC]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -223,7 +292,7 @@ fn attack_cost_must_be_payable() {
     let deck_a = build_deck_list(20, &[CARD_BASIC]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -284,7 +353,7 @@ fn cannot_declare_attack_twice_if_once_per_turn() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 19, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 19, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -327,6 +396,70 @@ fn cannot_declare_attack_twice_if_once_per_turn() {
         .apply_action(ActionDesc::Attack {
             slot: 0,
             attack_type: AttackType::Frontal
+        })
+        .is_err());
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn starting_player_first_turn_can_only_attack_once() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_BASIC]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        20,
+        replay_config(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_BASIC), (1, CARD_BASIC)],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    force_attack_decision(&mut env, 0);
+    env.state.turn.turn_number = 0;
+
+    env.apply_action(ActionDesc::Attack {
+        slot: 0,
+        attack_type: AttackType::Direct,
+    })
+    .unwrap();
+    assert_eq!(
+        env.decision.as_ref().unwrap().kind,
+        DecisionKind::AttackDeclaration
+    );
+    assert!(env
+        .apply_action(ActionDesc::Attack {
+            slot: 1,
+            attack_type: AttackType::Direct
         })
         .is_err());
     env.validate_state().unwrap();

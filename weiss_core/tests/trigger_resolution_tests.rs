@@ -15,7 +15,7 @@ fn trigger_gate_choice_skipped_no_candidates() {
     let deck_a = build_deck_list(20, &[CARD_TRIGGER_GATE, CARD_HIGH_POWER, CARD_CLIMAX]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -83,7 +83,7 @@ fn trigger_gate_choice_autopicked_single_candidate() {
     );
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -157,7 +157,7 @@ fn trigger_gate_choice_manual_multiple_candidates() {
     );
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -228,7 +228,7 @@ fn trigger_bounce_choice_moves_stage_card() {
     let deck_a = build_deck_list(20, &[CARD_TRIGGER_BOUNCE, CARD_HIGH_POWER]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -243,7 +243,7 @@ fn trigger_bounce_choice_moves_stage_card() {
         0,
         vec![],
         vec![],
-        vec![(0, CARD_BASIC), (1, CARD_HIGH_POWER)],
+        vec![(1, CARD_HIGH_POWER), (2, CARD_BASIC)],
         vec![CARD_TRIGGER_BOUNCE],
         vec![],
         vec![],
@@ -256,7 +256,7 @@ fn trigger_bounce_choice_moves_stage_card() {
         1,
         vec![],
         vec![],
-        vec![],
+        vec![(0, CARD_BASIC), (1, CARD_BASIC)],
         vec![],
         vec![],
         vec![],
@@ -267,7 +267,7 @@ fn trigger_bounce_choice_moves_stage_card() {
     force_attack_decision(&mut env, 0);
 
     env.apply_action(ActionDesc::Attack {
-        slot: 0,
+        slot: 2,
         attack_type: AttackType::Direct,
     })
     .unwrap();
@@ -275,11 +275,11 @@ fn trigger_bounce_choice_moves_stage_card() {
 
     env.apply_action(ActionDesc::ChoiceSelect { index: 1 })
         .unwrap();
-    assert!(env.state.players[0]
-        .hand
-        .iter()
-        .any(|c| c.id == CARD_HIGH_POWER));
-    assert!(env.state.players[0].stage[1].card.is_none());
+    assert!(env.state.players[1].hand.iter().any(|c| c.id == CARD_BASIC));
+    assert!(env.state.players[1].stage[1].card.is_none());
+    assert!(env.state.players[0].stage[1]
+        .card
+        .is_some_and(|card| card.id == CARD_HIGH_POWER));
     env.validate_state().unwrap();
 }
 
@@ -290,7 +290,7 @@ fn trigger_standby_choice_skipped_no_candidates() {
     let deck_a = build_deck_list(20, &[CARD_TRIGGER_STANDBY, CARD_LEVEL_TWO]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -362,7 +362,7 @@ fn trigger_standby_autopick_single_candidate() {
     let deck_a = build_deck_list(20, &[CARD_TRIGGER_STANDBY, CARD_LEVEL_ONE]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -440,7 +440,7 @@ fn trigger_standby_choice_orders_candidates_and_replaces_when_full() {
     let deck_a = build_deck_list(20, &[CARD_TRIGGER_STANDBY, CARD_LEVEL_ONE, CARD_HIGH_POWER]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -553,7 +553,7 @@ fn trigger_treasure_choice_stock_top_card() {
     let deck_a = build_deck_list(20, &[CARD_TRIGGER_TREASURE]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -654,7 +654,7 @@ fn trigger_treasure_choice_skip() {
     let deck_a = build_deck_list(20, &[CARD_TRIGGER_TREASURE]);
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         CurriculumConfig::default(),
@@ -746,7 +746,7 @@ fn reveal_then_move_zone_is_logged_and_correct() {
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(db, config, curriculum, 23, replay_config(), None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 23, replay_config(), None, 0);
 
     setup_player_state(
         &mut env,
@@ -798,5 +798,265 @@ fn reveal_then_move_zone_is_logged_and_correct() {
         .stock
         .iter()
         .any(|c| c.id == CARD_TRIGGER_MULTI));
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn trigger_draw_requires_yes_no_choice() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_TRIGGER_DRAW, CARD_BASIC]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        90,
+        replay_config(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_BASIC)],
+        vec![CARD_TRIGGER_DRAW, CARD_BASIC],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    force_attack_decision(&mut env, 0);
+
+    env.apply_action(ActionDesc::Attack {
+        slot: 0,
+        attack_type: AttackType::Direct,
+    })
+    .unwrap();
+
+    let choice = env.state.turn.choice.as_ref().expect("draw choice");
+    assert_eq!(choice.reason, ChoiceReason::TriggerDrawSelect);
+    let skip_index = choice
+        .options
+        .iter()
+        .position(|opt| opt.zone == ChoiceZone::Skip)
+        .expect("skip option");
+    env.apply_action(ActionDesc::ChoiceSelect {
+        index: skip_index as u8,
+    })
+    .unwrap();
+
+    assert!(env.state.players[0].hand.is_empty());
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn trigger_shot_is_delayed_until_battle_damage_cancel() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_TRIGGER_SHOT, CARD_BASIC]);
+    let deck_b = build_deck_list(20, &[CARD_CLIMAX, CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        91,
+        replay_config(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_BASIC)],
+        vec![CARD_TRIGGER_SHOT],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![],
+        vec![CARD_CLIMAX, CARD_BASIC],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    force_attack_decision(&mut env, 0);
+
+    env.apply_action(ActionDesc::Attack {
+        slot: 0,
+        attack_type: AttackType::Direct,
+    })
+    .unwrap();
+
+    // Battle damage is canceled by climax, then shot deals 1 cancelable damage.
+    assert_eq!(env.state.players[1].clock.len(), 1);
+    assert_eq!(env.state.players[1].clock[0].id, CARD_BASIC);
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn trigger_pool_moves_top_deck_then_trigger_card_to_stock() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_TRIGGER_POOL, CARD_BASIC]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        92,
+        replay_config(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_BASIC)],
+        vec![CARD_TRIGGER_POOL, CARD_BASIC],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    force_attack_decision(&mut env, 0);
+
+    env.apply_action(ActionDesc::Attack {
+        slot: 0,
+        attack_type: AttackType::Direct,
+    })
+    .unwrap();
+
+    assert_eq!(env.state.players[0].stock.len(), 2);
+    assert_eq!(env.state.players[0].stock[0].id, CARD_BASIC);
+    assert_eq!(env.state.players[0].stock[1].id, CARD_TRIGGER_POOL);
+    env.validate_state().unwrap();
+}
+
+#[test]
+fn trigger_choice_can_move_soul_trigger_character_to_hand() {
+    enable_validate();
+    let db = make_db();
+    let deck_a = build_deck_list(20, &[CARD_TRIGGER_CHOICE, CARD_BASIC, CARD_TRIGGER_MULTI]);
+    let deck_b = build_deck_list(20, &[CARD_BASIC]);
+    let config = make_config(deck_a, deck_b);
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        93,
+        replay_config(),
+        None,
+        0,
+    );
+
+    setup_player_state(
+        &mut env,
+        0,
+        vec![],
+        vec![],
+        vec![(0, CARD_BASIC)],
+        vec![CARD_TRIGGER_CHOICE],
+        vec![],
+        vec![],
+        vec![CARD_TRIGGER_MULTI],
+        vec![],
+        vec![],
+    );
+    setup_player_state(
+        &mut env,
+        1,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
+    force_attack_decision(&mut env, 0);
+
+    env.apply_action(ActionDesc::Attack {
+        slot: 0,
+        attack_type: AttackType::Direct,
+    })
+    .unwrap();
+
+    let choice = env
+        .state
+        .turn
+        .choice
+        .as_ref()
+        .expect("choice trigger choice");
+    assert_eq!(choice.reason, ChoiceReason::TriggerChoiceSelect);
+    let hand_index = choice
+        .options
+        .iter()
+        .position(|opt| opt.zone == ChoiceZone::WaitingRoom && opt.target_slot == Some(0))
+        .expect("move-to-hand option");
+    env.apply_action(ActionDesc::ChoiceSelect {
+        index: hand_index as u8,
+    })
+    .unwrap();
+
+    assert!(env.state.players[0]
+        .hand
+        .iter()
+        .any(|card| card.id == CARD_TRIGGER_MULTI));
+    assert!(env.state.players[0]
+        .waiting_room
+        .iter()
+        .all(|card| card.id != CARD_TRIGGER_MULTI));
     env.validate_state().unwrap();
 }

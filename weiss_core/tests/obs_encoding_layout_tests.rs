@@ -3,15 +3,15 @@ use weiss_core::state::REVEAL_HISTORY_LEN;
 
 #[test]
 fn observation_layout_constants_are_stable() {
-    assert_eq!(OBS_ENCODING_VERSION, 1);
+    assert_eq!(OBS_ENCODING_VERSION, 2);
     assert_eq!(OBS_HEADER_LEN, 16);
     assert_eq!(OBS_REASON_LEN, 8);
     assert_eq!(OBS_REVEAL_LEN, REVEAL_HISTORY_LEN);
     assert_eq!(OBS_CONTEXT_LEN, 4);
     assert_eq!(PER_PLAYER_COUNTS, 9);
-    assert_eq!(PER_STAGE_SLOT, 5);
+    assert_eq!(PER_STAGE_SLOT, 7);
     assert_eq!(MAX_STAGE, 5);
-    assert_eq!(PER_PLAYER_STAGE, 25);
+    assert_eq!(PER_PLAYER_STAGE, 35);
     assert_eq!(PER_PLAYER_CLIMAX_TOP, 1);
     assert_eq!(PER_PLAYER_LEVEL, 4);
     assert_eq!(PER_PLAYER_CLOCK_TOP, 7);

@@ -25,7 +25,8 @@ fn trigger_moves_card_to_stock_and_logs() {
         ..Default::default()
     };
     let writer = Some(ReplayWriter::new(&replay_config).unwrap());
-    let mut env = GameEnv::new(db, config, curriculum, 13, replay_config.clone(), writer, 0);
+    let mut env =
+        GameEnv::new_or_panic(db, config, curriculum, 13, replay_config.clone(), writer, 0);
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::MulliganConfirm).unwrap();
     env.apply_action(ActionDesc::Pass).unwrap();
@@ -58,7 +59,7 @@ fn refresh_penalty_applied() {
     let deck_a = vec![1; 50];
     let deck_b = vec![1; 50];
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         default_curriculum(),
@@ -95,7 +96,8 @@ fn refresh_penalty_event_ordering() {
         sample_rate: 1.0,
         ..Default::default()
     };
-    let mut env = GameEnv::new(db, config, default_curriculum(), 22, replay_config, None, 0);
+    let mut env =
+        GameEnv::new_or_panic(db, config, default_curriculum(), 22, replay_config, None, 0);
     let active = env.state.turn.starting_player as usize;
     let mut deck = Vec::new();
     std::mem::swap(&mut deck, &mut env.state.players[active].deck);
@@ -164,7 +166,7 @@ fn refresh_empty_waiting_room_outside_damage_causes_loss() {
     let deck_a = vec![1; 50];
     let deck_b = vec![1; 50];
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         default_curriculum(),
@@ -196,7 +198,7 @@ fn refresh_empty_waiting_room_during_damage_causes_loss() {
     let deck_a = vec![1; 50];
     let deck_b = vec![1; 50];
     let config = make_config(deck_a, deck_b);
-    let mut env = GameEnv::new(
+    let mut env = GameEnv::new_or_panic(
         db,
         config,
         default_curriculum(),
@@ -249,7 +251,7 @@ fn refresh_penalty_public_reveal_visible() {
     };
     let mut curriculum = default_curriculum();
     curriculum.enable_visibility_policies = true;
-    let mut env = GameEnv::new(db, config, curriculum, 23, replay_config, None, 0);
+    let mut env = GameEnv::new_or_panic(db, config, curriculum, 23, replay_config, None, 0);
     let active = env.state.turn.starting_player as usize;
     let mut deck = Vec::new();
     std::mem::swap(&mut deck, &mut env.state.players[active].deck);
