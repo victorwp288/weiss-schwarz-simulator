@@ -1,0 +1,132 @@
+rules:
+  - id: parser_v2.auto.damage_dealt_canceled_paid_draw_exact
+    description: Exact paid draw when this card's damage is canceled.
+    mode: exact
+    priority: 1225
+    match_on: body
+    timing: DamageDealtCanceled
+    effect_mode: draw_count
+    pattern: "^(?:\\[[^\\]]+\\]\\s*)?when damage dealt by this card is canceled, you may pay the cost\\. if you do, draw (?P<draw_count>\\d+) card(?:s)?\\.?$"
+    metadata:
+      family: paid_draw
+
+  - id: parser_v2.auto.self_turn_reverse_paid_burn_exact
+    description: Exact self-turn paid burn on battle-opponent reverse.
+    mode: exact
+    priority: 1220
+    match_on: body
+    timing: BattleOpponentReverse
+    effect_mode: deal_damage_cancelable_true
+    pattern: "^(?:\\[[^\\]]+\\]\\s*)?during your turn, when this card's battle opponent becomes 【reverse】, you may pay the cost\\. if you do, deal (?P<damage>\\d+) damage to your opponent\\.\\s*\\(damage may be canceled\\)\\.?$"
+    metadata:
+      family: paid_burn
+
+  - id: parser_v2.auto.on_play_or_by_act_heal_top_clock_exact
+    description: Exact on-play or by-ACT top-clock heal.
+    mode: exact
+    priority: 1215
+    match_on: body
+    timing: OnPlay
+    effect_mode: move_to_waiting_room
+    pattern: "^when this card is placed on the stage from your hand or by the 【act】 effect of \"[^\"]+\", you may put the top card of your clock into your waiting room\\.?$"
+    metadata:
+      family: on_play_heal
+      targets:
+        - SelfClock
+      target_limit: 1
+
+  - id: parser_v2.auto.on_play_or_on_leave_paid_salvage_exact
+    description: Exact paid salvage for on-play or on-leave dual trigger lines.
+    mode: exact
+    priority: 1210
+    match_on: body
+    effect_mode: move_to_hand
+    pattern: "^(?:\\[[^\\]]+\\]\\s*)?when this card is placed on the stage from your hand or put into your waiting room from the stage, you may pay the cost\\. if you do, choose (?:up to )?(?:\\d+|one|a|an) character in your waiting room, and return (?:it|them) to your hand\\.?$"
+    metadata:
+      family: paid_salvage
+      targets:
+        - SelfWaitingRoom
+      target_card_type: Character
+
+  - id: parser_v2.auto.attack_named_climax_salvage_exact
+    description: Exact attack trigger salvage with a named-climax gate.
+    mode: exact
+    priority: 1205
+    match_on: body
+    timing: AttackDeclaration
+    effect_mode: move_to_hand
+    pattern: "^when this card attacks, if a card named \"[^\"]+\" is in your climax area, you may choose(?: up to)?(?: (?:\\d+|one|a|an))? character in your waiting room, and return (?:it|them) to your hand\\.?$"
+    metadata:
+      family: attack_climax_salvage
+      targets:
+        - SelfWaitingRoom
+      target_card_type: Character
+
+  - id: parser_v2.auto.change_begin_encore_named_waitingroom_approx
+    description: Approx fallback for Change to a named waiting-room target at encore step.
+    mode: approx
+    priority: 1190
+    match_on: body
+    timing: BeginEncoreStep
+    effect_mode: noop_draw
+    pattern: "^change\\s+\\[[^\\]]+\\]\\s+at the beginning of your encore step,(?:\\s*if this card is 【rest】,\\s*)?you may pay the cost\\. if you do, choose (?:up to )?(?:1|one)\\s*(?:a card named\\s*)?\"[^\"]+\" in your waiting room, and put it on the stage position that this card was on\\.?$"
+    metadata:
+      confidence: approx
+      family: change_encore
+
+  - id: parser_v2.cont.named_fragment_power_and_quoted_approx
+    description: Approx fallback for name-fragment power + quoted extra text.
+    mode: approx
+    priority: 1185
+    match_on: body
+    effect_mode: add_power_self
+    pattern: "^if you have another character with \"[^\"]+\" in its card name, this card gets \\+(?P<amount>\\d+) power and \"[^\"]+\"\\.?$"
+    metadata:
+      confidence: approx
+      family: named_fragment_power
+      targets:
+        - This
+
+  - id: parser_v2.auto.attack_low_board_mill_then_stage_approx
+    description: Approx fallback for low-board conditional mill then stage deploy.
+    mode: approx
+    priority: 1180
+    match_on: body
+    effect_mode: noop_draw
+    pattern: "^when this card attacks, if you have \\d+ or less other characters, you may put the top card of your deck into your waiting room\\. if that card is a level \\d+ or lower character, put that character on any position of your back stage\\.?$"
+    metadata:
+      confidence: approx
+      family: conditional_mill_stage
+
+  - id: parser_v2.auto.attack_no_backstage_mill_then_stage_approx
+    description: Approx fallback for no-backstage conditional mill then stage deploy.
+    mode: approx
+    priority: 1175
+    match_on: body
+    effect_mode: noop_draw
+    pattern: "^when this card attacks, if you do not have another character in your back stage, you may put the top card of your deck into your waiting room\\. if that card is a level \\d+ or lower character, put that character in any position of your back stage\\.?$"
+    metadata:
+      confidence: approx
+      family: conditional_mill_stage
+
+  - id: parser_v2.auto.on_play_reveal_trait_may_burn_approx
+    description: Approx fallback for reveal-top trait gate with optional burn.
+    mode: approx
+    priority: 1170
+    match_on: body
+    effect_mode: noop_draw
+    pattern: "^when this card is placed on the stage from your hand, reveal the top card of your deck\\. if that card is a 《[^》]+》 character, you may deal one damage to your opponent\\. \\(this damage may be canceled\\. the revealed card is returned to its original place\\)\\.?$"
+    metadata:
+      confidence: approx
+      family: reveal_top_conditional
+
+  - id: parser_v2.auto.on_play_reveal_event_or_trait_marker_approx
+    description: Approx fallback for reveal-top event/trait marker conversion.
+    mode: approx
+    priority: 1165
+    match_on: body
+    effect_mode: noop_draw
+    pattern: "^when this card is placed on the stage from your hand, reveal the top card of your deck\\. if that card is an event or a 《[^》]+》 character, you may put it face up underneath this card as a marker\\. \\(otherwise, return it to its original place\\)\\.?$"
+    metadata:
+      confidence: approx
+      family: reveal_top_conditional

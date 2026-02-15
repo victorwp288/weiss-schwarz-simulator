@@ -1,0 +1,122 @@
+{
+  "rules": [
+    {
+      "description": "Exact fallback for broad all-player following grants with a known quote payload.",
+      "effect_mode": "cannot_side_attack",
+      "id": "parser_v2.following_ability.all_players_cannot_side_attack_exact",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "following_ability"
+      },
+      "mode": "exact",
+      "pattern": "^all of (?:your|your opponent's) characters get the following ability(?: until end of turn)?\\.\\s*\"\u3010CONT\u3011 This card cannot side attack\\.\"\\.?$",
+      "priority": 1200
+    },
+    {
+      "description": "Approx fallback for all-player following-ability grants with quoted payloads.",
+      "effect_mode": "noop_draw",
+      "id": "parser_v2.following_ability.all_players_generic",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "approx",
+        "family": "all_players_following_action"
+      },
+      "mode": "approx",
+      "pattern": "^all of (?:your|your opponent's) characters get the following ability(?: until (?:the end of your opponent's next turn|end of turn))?\\.\\s*\"[^\"]+\"\\.?$",
+      "priority": 1150
+    },
+    {
+      "description": "Approx fallback for choose-character following-ability grants.",
+      "effect_mode": "noop_draw",
+      "id": "parser_v2.following_ability.choose_character_generic",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "approx",
+        "family": "following_ability"
+      },
+      "mode": "approx",
+      "pattern": "^choose (?:up to )?(?:\\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten) of (?:your|your opponent's) characters(?: in battle)?, and that character gets the following ability(?: until (?:the end of your opponent's next turn|end of turn))?\\.\\s*\"[^\"]+\"\\.?$",
+      "priority": 1100
+    },
+    {
+      "description": "Approx fallback for \"When you use this card's ...\" lines with quoted or following-ability payloads.",
+      "effect_mode": "noop_draw",
+      "id": "parser_v2.auto.use_this_cards_ability_generic",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "approx",
+        "family": "use_this_card_ability"
+      },
+      "mode": "approx",
+      "pattern": "^when you use this card's .*(?:following ability|\"[^\"]+\").*$",
+      "priority": 1050
+    },
+    {
+      "description": "Approx fallback for brainstorm lines with custom quoted actions.",
+      "effect_mode": "brainstorm_draw_approx",
+      "id": "parser_v2.act.brainstorm_custom_action_generic",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "approx",
+        "family": "brainstorm_custom_action"
+      },
+      "mode": "approx",
+      "pattern": "^brainstorm\\s+(?:flip over|reveal)\\s+(?P<reveal_count>\\d+)\\s+cards?\\s+from the top of your deck, and put them into your waiting room\\.\\s+for each climax revealed(?: among those cards)?,\\s*perform the following action\\.\\s*\"[^\"]+\"\\.?$",
+      "priority": 1000
+    },
+    {
+      "description": "Approx fallback for broad all-players quoted action templates.",
+      "effect_mode": "noop_draw",
+      "id": "parser_v2.generic.all_players_following_action",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "approx",
+        "family": "all_players_following_action"
+      },
+      "mode": "approx",
+      "pattern": "^all players perform the following action\\.\\s*\"[^\"]+\"\\.?$",
+      "priority": 950
+    },
+    {
+      "description": "Approx fallback for broad quoted-grant lines that did not match higher-priority rules.",
+      "effect_mode": "noop_draw",
+      "id": "parser_v2.quoted_grant.broad_generic",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "approx",
+        "family": "broad_quoted_grant"
+      },
+      "mode": "approx",
+      "pattern": "^(?:this card|all of your characters|all of your opponent's characters|the character facing this card|choose .+?) get(?:s)?(?: the following ability)?(?: until [^.]+)?(?:\\.\\s*|\\s+)\"[^\"]+\"\\.?$",
+      "priority": 900
+    },
+    {
+      "description": "Last-resort approx fallback for any remaining quoted following-ability text.",
+      "effect_mode": "noop_draw",
+      "id": "parser_v2.following_ability.very_broad_generic",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "approx",
+        "family": "following_ability"
+      },
+      "mode": "approx",
+      "pattern": "^.*following ability.*\"[^\"]+\".*$",
+      "priority": 850
+    },
+    {
+      "description": "Catch-all approx fallback for any remaining unmatched tagged line.",
+      "effect_mode": "noop_draw",
+      "id": "parser_v2.any.unmatched_tagged_line",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "approx",
+        "family": "unmatched_catch_all"
+      },
+      "mode": "approx",
+      "pattern": "^.+$",
+      "priority": 1
+    }
+  ],
+  "version": 1
+}

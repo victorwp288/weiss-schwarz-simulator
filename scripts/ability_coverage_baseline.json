@@ -1,0 +1,24 @@
+{
+  "profiles": {
+    "strict": {
+      "card_level_all_lines_supported_coverage": 0.3607194662024949,
+      "parse_line_coverage": 0.5264363942712721,
+      "unsupported_lines": 14053
+    },
+    "approx": {
+      "card_level_all_lines_supported_coverage": 0.9960545401798665,
+      "parse_line_coverage": 0.9977085088458298,
+      "unsupported_lines": 68
+    },
+    "none": {
+      "card_level_all_lines_supported_coverage": 0.3607194662024949,
+      "parse_line_coverage": 0.5264363942712721,
+      "unsupported_lines": 14053
+    },
+    "rl_v1": {
+      "card_level_all_lines_supported_coverage": 0.9960545401798665,
+      "parse_line_coverage": 0.9977085088458298,
+      "unsupported_lines": 68
+    }
+  }
+}

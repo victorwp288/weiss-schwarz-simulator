@@ -1,0 +1,1774 @@
+{
+  "comparison": {
+    "card_level_supported_delta_rl_v1_minus_none": 0.03742384682332467,
+    "parse_line_coverage_delta_rl_v1_minus_none": 0.027430497051390057,
+    "unsupported_lines_delta_rl_v1_minus_none": -814
+  },
+  "input_path": "scraper/out/cards_raw.json",
+  "profiles": {
+    "none": {
+      "card_level_all_lines_supported_coverage": 0.2323179576443284,
+      "cards_all_lines_supported": 4004,
+      "cards_with_tagged_lines": 17235,
+      "distinct_unsupported_signatures": 12065,
+      "family_cluster_coverage": {
+        "AssistOrScalingPower": {
+          "coverage": 0.3939254062038405,
+          "supported": 4267,
+          "total": 10832
+        },
+        "BrainstormCustomAction": {
+          "coverage": 0.0,
+          "supported": 0,
+          "total": 98
+        },
+        "ClimaxPlacedBuff": {
+          "coverage": 0.35161290322580646,
+          "supported": 109,
+          "total": 310
+        },
+        "DeckConstructionRule": {
+          "coverage": 0.9482758620689655,
+          "supported": 55,
+          "total": 58
+        },
+        "Experience": {
+          "coverage": 0.16624040920716113,
+          "supported": 65,
+          "total": 391
+        },
+        "FollowingAbilityGrant": {
+          "coverage": 0.024374599101988453,
+          "supported": 38,
+          "total": 1559
+        },
+        "HandText": {
+          "coverage": 0.3453815261044177,
+          "supported": 172,
+          "total": 498
+        },
+        "OnReverseSelfMove": {
+          "coverage": 0.2518518518518518,
+          "supported": 34,
+          "total": 135
+        },
+        "PaidOnPlaySearchSalvage": {
+          "coverage": 0.4641589779985806,
+          "supported": 654,
+          "total": 1409
+        }
+      },
+      "parse_line_coverage": 0.36879528222409436,
+      "profile": "none",
+      "supported_lines": 10944,
+      "supported_lines_by_tag": {
+        "ACT": {
+          "coverage": 0.3641252768111357,
+          "supported": 1151,
+          "total": 3161
+        },
+        "AUTO": {
+          "coverage": 0.2637279888785913,
+          "supported": 4553,
+          "total": 17264
+        },
+        "CONT": {
+          "coverage": 0.5830644263936797,
+          "supported": 5240,
+          "total": 8987
+        },
+        "OTHER": {
+          "coverage": 0.0,
+          "supported": 0,
+          "total": 263
+        }
+      },
+      "top_unsupported_signatures": [
+        {
+          "count": 58,
+          "signature": "\u3010CONT\u3011 All of your opponent's characters get \"<Q>\"."
+        },
+        {
+          "count": 51,
+          "signature": "\u3010AUTO\u3011 When you use this card's \"<Q>\", choose # of your characters in battle, and that character gets the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 48,
+          "signature": "\u3010ACT\u3011 Brainstorm [(#)] Flip over # cards from the top of your deck, and put them into your waiting room. For each climax revealed among those cards, perform the following action. \"<Q>\""
+        },
+        {
+          "count": 39,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is put into your waiting room from the stage, you may pay the cost. If you do, look at up to # cards from the top of your deck, choose up to # level # or higher card from among them, reveal it to your opponent, put it into your hand, and put the rest into your waiting room. (Climax are regarded as level #)"
+        },
+        {
+          "count": 37,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, reveal the top card of your deck, choose # level X or lower character in your waiting room, and return it to your hand. X is equal to the level of the revealed card. (Climax are regarded as level #. Return the revealed card to its original place)"
+        },
+        {
+          "count": 34,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose # of your opponent's characters, and that character gets the following ability until the end of your opponent's next turn. \"<Q>\""
+        },
+        {
+          "count": 32,
+          "signature": "\u3010CONT\u3011 If the character facing this card is cost # or lower, this card cannot become \u3010REVERSE\u3011."
+        },
+        {
+          "count": 31,
+          "signature": "\u3010ACT\u3011 Brainstorm [(#) \u3010REST\u3011 this card] Flip over # cards from the top of your deck, and put them into your waiting room. For each climax revealed among those cards, perform the following action. \"<Q>\""
+        },
+        {
+          "count": 30,
+          "signature": "\u3010AUTO\u3011 At the beginning of your opponent's draw phase, reveal the top card of your deck. If that card is level # or higher, you may return this card to your hand. (Climax are regarded as level #. Return the revealed card to its original place)"
+        },
+        {
+          "count": 25,
+          "signature": "\u3010CONT\u3011 This card gets -# level while on the stage."
+        },
+        {
+          "count": 24,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When this card becomes \u3010REVERSE\u3011 in battle, reveal the top card of your deck. If that card is level # or higher, you may \u3010REST\u3011 this card. (Climax are regarded as level #. Return the revealed card to its original place)"
+        },
+        {
+          "count": 23,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, all players perform the following action. \"<Q>\""
+        },
+        {
+          "count": 23,
+          "signature": "\u3010AUTO\u3011 When your character's trigger check reveals a climax, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 23,
+          "signature": "\u3010CONT\u3011 If the character facing this card is a higher level than this card, this card cannot frontal attack."
+        },
+        {
+          "count": 22,
+          "signature": "\u3010AUTO\u3011 When this card attacks, look at up to # cards from the top of your deck, choose # card from among them, put it on the top of your deck, and put the rest into your waiting room."
+        },
+        {
+          "count": 22,
+          "signature": "\u3010CONT\u3011 This card cannot be chosen by your opponent's effects."
+        },
+        {
+          "count": 22,
+          "signature": "\u3010CONT\u3011 You cannot play events or \"<Q>\" from your hand."
+        },
+        {
+          "count": 20,
+          "signature": "\u3010AUTO\u3011 This ability activates up to one time per turn. When you use an \u3010ACT\u3011, choose one of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 20,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011 in battle, you cannot use \"<Q>\" until end of turn. (You cannot use the \"<Q>\" rule either)"
+        },
+        {
+          "count": 20,
+          "signature": "\u3010CONT\u3011 All of your characters get the following ability. \"<Q>\""
+        },
+        {
+          "count": 20,
+          "signature": "\u3010CONT\u3011 The character facing this card cannot move to another position of the stage."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 During the turn that this card is placed on the stage from your hand, at the beginning of the encore step, you may put the top card of your clock into your waiting room."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When you use an \u3010ACT\u3011, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 When this card attacks, all of your characters get the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose up to # of your opponent's characters, put it into their memory, and your opponent puts that character from their memory on any position of their stage."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 When this card's level # or higher battle opponent becomes \u3010REVERSE\u3011, you may put the top card of your deck into your stock."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 [(#)] At the beginning of the encore step, if you do not have another \u3010REST\u3011 character on your center stage, you may pay the cost. If you do, \u3010REST\u3011 this card."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010CONT\u3011 If there is a marker underneath this card, this card gets +# level and +# power."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010CONT\u3011 If this card is in the middle position of your center stage, this card gets +# soul."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010CONT\u3011 This card gets +# level and +# power for each marker underneath this card."
+        },
+        {
+          "count": 18,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011 in battle, reveal the top card of your deck. If that card is level # or higher, you may return this card to your hand. (Climax are regarded as level #. Return the revealed card to its original place)"
+        },
+        {
+          "count": 18,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand or by the \u3010AUTO\u3011 effect of \"<Q>\", you may put the top card of your clock into your waiting room."
+        },
+        {
+          "count": 18,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, if there is a climax in your climax area, you may put the top card of your deck into your stock."
+        },
+        {
+          "count": 18,
+          "signature": "\u3010AUTO\u3011 [(#) Put # character from your stage into your waiting room] When you use this card's \"<Q>\", you may pay the cost. If you do, choose # of your opponent's characters with level higher than your opponent's level, and put it into their waiting room."
+        },
+        {
+          "count": 18,
+          "signature": "\u3010AUTO\u3011 [(#)] When you use this card's \"<Q>\", you may pay the cost. If you do, return all cards from your waiting room to your deck, and shuffle your deck."
+        },
+        {
+          "count": 18,
+          "signature": "\u3010CONT\u3011 The character facing this card gets \"<Q>\"."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Look at up to # cards from the top of your deck, and put them on the top of your deck in any order."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010AUTO\u3011 Change [(#) Put a card from your hand into your waiting room & Put this card into your waiting room] At the beginning of your climax phase, you may pay the cost. If you do, choose a card named \"<Q>\" in your waiting room, and put it on the stage position that this card was on."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010AUTO\u3011 When this card is frontal attacked, look at the top card of your deck, and put it on the top of your deck or into your waiting room."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, this card gets +# power and the following ability until the end of your opponent's next turn. \"<Q>\"Backup\"<Q>\""
+        },
+        {
+          "count": 17,
+          "signature": "\u3010AUTO\u3011 When you use this card's \"<Q>\", put the top # cards of your deck into your waiting room."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010CONT\u3011 All of your other \"<Q>\" get +# power and \"<Q>\"."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010CONT\u3011 If the number of climax in your waiting room is two or less, this card gets -# level while in your hand."
+        },
+        {
+          "count": 16,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card is placed on the stage from your hand, you may pay the cost. If you do, return all cards from your waiting room to your deck, and shuffle your deck."
+        },
+        {
+          "count": 16,
+          "signature": "\u3010CONT\u3011 [ICON:LINK] Super Dimension Venus"
+        },
+        {
+          "count": 15,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Choose # of your characters, and that character gets +# power until the end of your opponent's next turn."
+        },
+        {
+          "count": 15,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011 in battle, if your memory has # or less cards, you may put this card into your memory."
+        },
+        {
+          "count": 15,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011 in battle, put this card into your memory."
+        },
+        {
+          "count": 15,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, this card gets +X power until end of turn. X is equal to the number of \u300aMusic\u300b characters you have \u00d7#."
+        },
+        {
+          "count": 15,
+          "signature": "\u3010AUTO\u3011 When your other \u300aMusic\u300b character attacks, this card gets +# power until end of turn."
+        },
+        {
+          "count": 15,
+          "signature": "\u3010CONT\u3011 You cannot play event cards or \"<Q>\" from your hand."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Choose one of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Look at the top card of your deck, and put it on the top or at the bottom of your deck."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 At the beginning of your climax phase, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 Resonate [Reveal # \"<Q>\" in your hand] At the beginning of your climax phase, you may pay the cost. If you do, this card gets +# power until end of turn."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011 in battle, put the top card of your deck into your clock, and \u3010REST\u3011 this card."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011, if this card's battle opponent is level # or lower, you may put that character into your opponent's stock. If you do, put a card from the bottom of your opponent's stock into his or her waiting room."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, draw a card, choose a card in your hand, and put it into your waiting room."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, look at up to # cards from the top of your deck, choose up to # event from among them, reveal it to your opponent, put it into your hand, and put the rest into your waiting room. If you put # card into your hand, choose # card in your hand, and put it into your waiting room."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, choose # character in your opponent's center stage, and that character gets -# power until end of turn."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card is placed on the stage from your hand, you may pay the cost. If you do, your opponent puts all of their stock into their waiting room, and puts the same number of cards from the top of their deck into their stock."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, choose # level # or lower character in your waiting room, and put it in any position of your stage."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 \u3010CXCOMBO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, if \"<Q>\" is in your climax area, you may choose # character in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010CONT\u3011 All of your other \"<Q>\" get the following ability. \"<Q>\""
+        },
+        {
+          "count": 14,
+          "signature": "\u3010CONT\u3011 Memory If \"<Q>\" is in your memory, this card gets +# power."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010CONT\u3011 The character facing this card cannot move to another position on the stage."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010CONT\u3011 You can put up to # cards with the same card name as this card into your deck."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Choose # of your characters, and that character gets the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. During the turn that this card is placed on the stage from your hand, when damage dealt by this card is canceled, put the top card of your deck into your waiting room, and deal X damage to your opponent. X is equal to the level of that card +#. (Climax are regarded as level #. Damage may be canceled)"
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When you use an \u3010ACT\u3011, this card gets +# power until end of turn."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 When this card attacks, if the character facing this card is level # or higher, this card gets +# power and +# soul until end of turn."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011, if the level of this card's battle opponent is higher than your opponent's level, you may put that character into your opponent's memory."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011, if this card's battle opponent is level # or lower, you may put that character into your opponent's stock. If you do, put the bottom card of your opponent's stock into his or her waiting room."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose up to # of your opponent's characters, put it into their memory, and your opponent puts that character from their memory in any position of their stage."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, you may pay the cost. If you do, choose # character in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010CONT\u3011 All of your other \"<Q>\" get +# power and the following ability. \"<Q>\""
+        },
+        {
+          "count": 13,
+          "signature": "\u3010CONT\u3011 Assist All of your characters in front of this card get +X power. X is equal to # multiplied by the number of characters you have with \"<Q>\"."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010CONT\u3011 If the character facing this card is level # or higher, this card gets +# power."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010CONT\u3011 This card gets -# level while in the stage."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose # of your other \u300aMusic\u300b characters, and that character gets +X power until end of turn. X is equal to the number of other \u300aMusic\u300b characters you have \u00d7#."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When this card attacks, if you have # or less other characters, you may put the top card of your deck into your waiting room. If that card is a level # or lower character, put it on any position of your back stage."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose # of your opponent's characters, and that character gets the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, draw # card, choose # card in your hand, and put it into your waiting room."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, look at up to # cards from the top of your deck, put them on the top of your deck in any order, choose up to # of your opponent's characters, and return it to their hand."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When you level up, put this card into your waiting room."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, search your deck for up to # \"<Q>\", reveal it to your opponent, put it into your hand, and shuffle your deck."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 \u3010CXCOMBO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, if \"<Q>\" is in your climax area, you may put that character into your opponent's clock."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010CONT\u3011 If all of your characters are \u300aMusic\u300b, this card gets +# power."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010CONT\u3011 If there is a marker underneath this card, this card gets +# power and the following ability. \"<Q>\""
+        },
+        {
+          "count": 12,
+          "signature": "\u3010CONT\u3011 If you have # or less other characters, this card gets +# power."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010CONT\u3011 This card gets +# power for each other \"<Q>\" in your center stage."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010ACT\u3011 [(#) Put # climax from your hand into your waiting room] Choose # character in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010ACT\u3011 [(#)] Draw # card, choose # card in your hand, and put it into your waiting room."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010ACT\u3011 [Put # card from your hand into your waiting room & Put this card into your waiting room] Choose # character in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Draw # card, choose # card in your hand, and put it into your waiting room."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 Encore [(#) Put # character from your stage into your waiting room] (When this card is put into your waiting room from the stage, you may pay the cost. If you do, return this card to its previous stage position as \u3010REST\u3011)"
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When damage dealt by this card is not canceled, this card gets +# power until end of turn."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose # of your other characters, and that character gets +X power until end of turn. X is equal to that character's soul \u00d7#."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card attacks, if you have # or more other \u300aMusic\u300b characters, this card gets +# power until end of turn."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card attacks, \u3010REST\u3011 all of your other \u3010STAND\u3011 characters."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011, if this card's battle opponent is level # or lower, you may put the top card of your opponent's clock into his or her waiting room. If you do, put that character into your opponent's clock."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax revealed among those cards, this card gets +# power until end of turn."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, this card gets +X power until end of turn. X is equal to the number of characters your opponent has \u00d7#."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, you may choose # card in your clock, and return it to your hand. If you do, choose # card in your hand, and put it into your clock."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, you may choose # card in your level and # card in your waiting room, and exchange them."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may put that character into your opponent's memory."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When you use this card's \"<Q>\", if you have a \u300aMusic\u300b character, choose # of your characters in battle, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When your climax is placed on your climax area, choose # of your characters, and that character gets the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 [(#) Put # card from your hand into your waiting room] When this card attacks, you may pay the cost. If you do, this card gets +# power and the following ability until end of turn. \"<Q>\" (Damage may be canceled)"
+        },
+        {
+          "count": 11,
+          "signature": "\u3010CONT\u3011 During this card's battle, all players cannot play \"<Q>\" from their hands."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010CONT\u3011 Experience During your turn, if the total level of the cards in your level is # or higher, this card gets +# power and the following ability. \"<Q>\""
+        },
+        {
+          "count": 11,
+          "signature": "\u3010CONT\u3011 If you do not have another character with \"<Q>\" in its card name, this card cannot \u3010STAND\u3011 during your stand phase."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010CONT\u3011 If you have # or more \u300aMusic\u300b characters, this card gets -# level while in your hand."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 Change [(#) Put this card into your waiting room] At the beginning of your draw phase, you may pay the cost. If you do, choose a card named \"<Q>\" in your waiting room, and put it on the stage position that this card was on."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose # of your other characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, all characters in your opponent's center stage get -# power until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, reveal the top card of your deck. If that card is a \u300aMusic\u300b character, put it into your hand, choose a card in your hand, and put it into your waiting room. (If it is not, return the revealed card to its original place)"
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, reveal the top card of your deck. If that card is level # or lower, put it into your stock. (Otherwise, return it to its original place. Climax are regarded as level #)"
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, this card gets +X power until end of turn. X is equal to # multiplied by the number of \u300aMusic\u300b characters you have."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card is placed on your climax area from your hand, choose up to two of your characters, and those characters get +# power and +# soul until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may look at the top card of your deck. If you do, put that card face down underneath this card as a marker."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may put this card into your memory. If you do, at the beginning of your next draw phase, choose # \"<Q>\" in your memory, and put it on any position of your stage."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When you use this card's \"<Q>\", put the top three cards of your deck into your waiting room."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When your climax is placed on your climax area, choose # of your characters, and that character gets +# power until the end of your opponent's next turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When your other character becomes \u3010REVERSE\u3011 in battle, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card frontal attacks, you may pay the cost. If you do, choose # of your opponent's characters, and that character gets -# level until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is put into your waiting room from the stage, you may pay the cost. If you do, choose # \"<Q>\" in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 [Put # cards from your hand into your waiting room] When you use this card's \"<Q>\", you may pay the cost. If you do, choose # of your opponent's characters with level higher than your opponent's level, and put it into his or her waiting room."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 [Return this card to your hand] When your climax is placed on your climax area, you may pay the cost. If you do, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010CONT\u3011 If a card named \"<Q>\" is in your clock, this card gets -# level while in your hand."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010CONT\u3011 If you do not have another character, this card gets +# level and +# power."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010CONT\u3011 This card gets +# power for each of your other level # or lower characters."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010ACT\u3011 [Put this card into your waiting room] Choose # of your opponent's characters, and return it to their hand."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 At the beginning of your opponent's draw phase, put the top # cards of your deck into your waiting room. If there is a level # or higher card among those cards, you may return this card to your hand. (Climax are regarded as level #)"
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 During this card's battle, when the damage you received is not canceled, this card gets +# power until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 During your opponent's turn, when the damage you received is not canceled, if this card is in your center stage, look at the top card of your deck, and put it on the top of your deck or into your waiting room."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When you use an \u3010ACT\u3011, this card gets the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When a climax is put on your climax area, this card gets +# power until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose # of the following effects, and perform it. \"<Q>\" \"<Q>\""
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose up to # character with level equal to or lower than your level in your hand, put it in any position of your stage, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, perform the following action # times. \"<Q>\""
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, this card gets +# power until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, this card gets +# soul until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, you may choose # level # or lower character in your opponent's center stage, and put it into their waiting room."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a level # or lower character among those cards, this card's soul does not decrease by side attacking until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, reveal the top card of your deck. If that card is level # or higher, put it into your stock. (Otherwise, return it to its original place. Climax are regarded as level #)"
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, you may choose a card named \"<Q>\" in your waiting room, and put it face down underneath this card as a marker."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on your climax area from your hand, choose up to # character with [SOUL] in its trigger icon in your waiting room, return it to your hand, choose up to # of your characters, and those characters get +# soul until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may put the top card of your deck underneath this card as a marker."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When your opponent's climax is placed on their climax area, you may put this card into your stock."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [(#)] During the turn that this card is placed on the stage from your hand, when this card's battle opponent becomes \u3010REVERSE\u3011, you may pay the cost. If you do, put that character into your opponent's clock."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card becomes \u3010REVERSE\u3011 in battle, you may pay the cost. If you do, put this card into your memory."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card is placed on the stage from your hand, you may pay the cost. If you do, choose # of your opponent's characters, and return it to their hand."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, choose # level # or lower character in your waiting room, and put it on any position of your stage."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [Put this card into your waiting room] When your other character is put into your waiting room from the stage, if this card is in your back stage, you may pay the cost. If you do, return that character to its previous stage position as \u3010REST\u3011."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [Return # characters from your waiting room to your deck & Shuffle your deck] When this card is placed on the stage from your hand, you may pay the cost. If you do, this card's soul does not decrease by side attacking until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 \u3010CXCOMBO\u3011 When \"<Q>\" is placed on your climax area, choose # of your other characters, and that character gets the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 During this card's battle, all players cannot play \"<Q>\" from hand."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 During your turn, if all of your characters are \u300aMusic\u300b, this card gets +# power."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 If all of your characters are \u300aPIXAR\u300b, this card gets +# level and +# power."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 If there are no markers underneath this card, this card gets -# power."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 If this card is in your center stage, all of your \u300aMusic\u300b characters get +# power."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 This card gets +# power for each other \u300aMusic\u300b character in your back stage."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 You can put up to eight cards with the same card name as this card in your deck."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010ACT\u3011 [(#) Put this card into your waiting room] Choose # \"<Q>\" in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 At the beginning of your main phase, look at the top card of your deck, and put it on the top of your deck or into your waiting room."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 At the beginning of your opponent's draw phase, if this card is in your center stage, choose one of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When you play an event, this card gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When another of your characters becomes \u3010REVERSE\u3011 in battle, choose one of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose one of your other characters, and that character gets +# level and +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose up to two of your \u300aMusic\u300b characters, and those characters get +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card attacks, if the character facing this card is level # or higher, this card gets +# power until the end of your opponent's next turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose one of your other \u300aMusic\u300b characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, if you have another \u300aMusic\u300b character, this card gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, if your memory has # or less cards, you may choose # \"<Q>\" in your waiting room, and put it into your memory."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, if your opponent's waiting room has # or more climax, \u3010REST\u3011 this card."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax revealed among those cards, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top two cards of your deck into your waiting room. If there is a climax among those cards, \u3010REST\u3011 this card."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put up to # card from the top of your clock into your waiting room, and this card gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, this card gets +X power until end of turn. X is equal to the number of \u300aGame\u300b characters you have \u00d7#."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card or this card's battle opponent becomes \u3010REVERSE\u3011, that character cannot use \"<Q>\" until end of turn. (The \"<Q>\" rule cannot be used either)"
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may put that character into your opponent's stock. If you do, put the bottom card of your opponent's stock into their waiting room."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may put this card into your memory. If you do, at the beginning of your next draw phase, choose # \"<Q>\" in your memory, and put it in any position of your stage."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [(#)] During your opponent's turn, when this card becomes \u3010REVERSE\u3011 in battle, you may pay the cost. If you do, \u3010REST\u3011 this card, and at the beginning of your next encore step, put this card into your waiting room."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card is placed on the stage from your hand, you may pay the cost. If you do, search your deck for up to # \"<Q>\", put it on any position of your stage, and shuffle your deck."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [(#)] When you use this card's \"<Q>\", you may pay the cost. If you do, choose # \"<Q>\" in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [Put # cards from your hand into your waiting room] When you use this card's \"<Q>\", you may pay the cost. If you do, choose # of your opponent's characters with level higher than your opponent's level, and put it into their waiting room."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [Put # climax from your hand into your waiting room & Put # other character from your stage into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, choose # climax in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [Put # climax from your hand into your waiting room] When your character's trigger check reveals a climax, you may pay the cost. If you do, look at up to # cards from the top of your deck, choose up to # card from among them, put it into your hand, and put the rest into your waiting room."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [Put # climax with [GATE] in its trigger icon from your hand into your waiting room] When this card attacks, you may pay the cost. If you do, this card gets +# power and the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 \u3010CXCOMBO\u3011 [Put # \"<Q>\" or \"<Q>\" from your hand into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, choose # \"<Q>\" or \"<Q>\" in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 All of your other \"<Q>\" and \"<Q>\" get +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 During your turn, if you have another \u300aMusic\u300b character, this card gets +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If the character facing this card is cost # or lower, this card gets +# level and +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If the number of colors of your characters on stage is four or more, this card gets +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If there is a marker underneath this card, this card gets +# power and +# soul."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If this card is in the stage, this card's card name will also be regarded as \"<Q>\"."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If you have # or more other \u300aChaldea\u300b or \u300aCamelot\u300b characters, this card gets +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If you have # or more other \u300aDate\u300b or \u300aCelestial Spirit\u300b characters, this card gets +# power."
+        }
+      ],
+      "total_lines": 29675,
+      "unsupported_lines": 18731
+    },
+    "rl_v1": {
+      "card_level_all_lines_supported_coverage": 0.26974180446765306,
+      "cards_all_lines_supported": 4649,
+      "cards_with_tagged_lines": 17235,
+      "distinct_unsupported_signatures": 11744,
+      "family_cluster_coverage": {
+        "AssistOrScalingPower": {
+          "coverage": 0.4163589364844904,
+          "supported": 4510,
+          "total": 10832
+        },
+        "BrainstormCustomAction": {
+          "coverage": 0.9591836734693877,
+          "supported": 94,
+          "total": 98
+        },
+        "ClimaxPlacedBuff": {
+          "coverage": 0.35161290322580646,
+          "supported": 109,
+          "total": 310
+        },
+        "DeckConstructionRule": {
+          "coverage": 0.9482758620689655,
+          "supported": 55,
+          "total": 58
+        },
+        "Experience": {
+          "coverage": 0.16624040920716113,
+          "supported": 65,
+          "total": 391
+        },
+        "FollowingAbilityGrant": {
+          "coverage": 0.1308531109685696,
+          "supported": 204,
+          "total": 1559
+        },
+        "HandText": {
+          "coverage": 0.3453815261044177,
+          "supported": 172,
+          "total": 498
+        },
+        "OnReverseSelfMove": {
+          "coverage": 0.3037037037037037,
+          "supported": 41,
+          "total": 135
+        },
+        "PaidOnPlaySearchSalvage": {
+          "coverage": 0.4641589779985806,
+          "supported": 654,
+          "total": 1409
+        }
+      },
+      "parse_line_coverage": 0.3962257792754844,
+      "profile": "rl_v1",
+      "supported_lines": 11758,
+      "supported_lines_by_tag": {
+        "ACT": {
+          "coverage": 0.3938627016766846,
+          "supported": 1245,
+          "total": 3161
+        },
+        "AUTO": {
+          "coverage": 0.30091519925857274,
+          "supported": 5195,
+          "total": 17264
+        },
+        "CONT": {
+          "coverage": 0.5917436296873262,
+          "supported": 5318,
+          "total": 8987
+        },
+        "OTHER": {
+          "coverage": 0.0,
+          "supported": 0,
+          "total": 263
+        }
+      },
+      "top_unsupported_signatures": [
+        {
+          "count": 39,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is put into your waiting room from the stage, you may pay the cost. If you do, look at up to # cards from the top of your deck, choose up to # level # or higher card from among them, reveal it to your opponent, put it into your hand, and put the rest into your waiting room. (Climax are regarded as level #)"
+        },
+        {
+          "count": 37,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, reveal the top card of your deck, choose # level X or lower character in your waiting room, and return it to your hand. X is equal to the level of the revealed card. (Climax are regarded as level #. Return the revealed card to its original place)"
+        },
+        {
+          "count": 32,
+          "signature": "\u3010CONT\u3011 If the character facing this card is cost # or lower, this card cannot become \u3010REVERSE\u3011."
+        },
+        {
+          "count": 30,
+          "signature": "\u3010AUTO\u3011 At the beginning of your opponent's draw phase, reveal the top card of your deck. If that card is level # or higher, you may return this card to your hand. (Climax are regarded as level #. Return the revealed card to its original place)"
+        },
+        {
+          "count": 25,
+          "signature": "\u3010CONT\u3011 This card gets -# level while on the stage."
+        },
+        {
+          "count": 24,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When this card becomes \u3010REVERSE\u3011 in battle, reveal the top card of your deck. If that card is level # or higher, you may \u3010REST\u3011 this card. (Climax are regarded as level #. Return the revealed card to its original place)"
+        },
+        {
+          "count": 23,
+          "signature": "\u3010AUTO\u3011 When your character's trigger check reveals a climax, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 23,
+          "signature": "\u3010CONT\u3011 If the character facing this card is a higher level than this card, this card cannot frontal attack."
+        },
+        {
+          "count": 22,
+          "signature": "\u3010AUTO\u3011 When this card attacks, look at up to # cards from the top of your deck, choose # card from among them, put it on the top of your deck, and put the rest into your waiting room."
+        },
+        {
+          "count": 22,
+          "signature": "\u3010CONT\u3011 This card cannot be chosen by your opponent's effects."
+        },
+        {
+          "count": 22,
+          "signature": "\u3010CONT\u3011 You cannot play events or \"<Q>\" from your hand."
+        },
+        {
+          "count": 20,
+          "signature": "\u3010AUTO\u3011 This ability activates up to one time per turn. When you use an \u3010ACT\u3011, choose one of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 20,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011 in battle, you cannot use \"<Q>\" until end of turn. (You cannot use the \"<Q>\" rule either)"
+        },
+        {
+          "count": 20,
+          "signature": "\u3010CONT\u3011 The character facing this card cannot move to another position of the stage."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 During the turn that this card is placed on the stage from your hand, at the beginning of the encore step, you may put the top card of your clock into your waiting room."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When you use an \u3010ACT\u3011, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose up to # of your opponent's characters, put it into their memory, and your opponent puts that character from their memory on any position of their stage."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 When this card's level # or higher battle opponent becomes \u3010REVERSE\u3011, you may put the top card of your deck into your stock."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010AUTO\u3011 [(#)] At the beginning of the encore step, if you do not have another \u3010REST\u3011 character on your center stage, you may pay the cost. If you do, \u3010REST\u3011 this card."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010CONT\u3011 If there is a marker underneath this card, this card gets +# level and +# power."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010CONT\u3011 If this card is in the middle position of your center stage, this card gets +# soul."
+        },
+        {
+          "count": 19,
+          "signature": "\u3010CONT\u3011 This card gets +# level and +# power for each marker underneath this card."
+        },
+        {
+          "count": 18,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011 in battle, reveal the top card of your deck. If that card is level # or higher, you may return this card to your hand. (Climax are regarded as level #. Return the revealed card to its original place)"
+        },
+        {
+          "count": 18,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand or by the \u3010AUTO\u3011 effect of \"<Q>\", you may put the top card of your clock into your waiting room."
+        },
+        {
+          "count": 18,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, if there is a climax in your climax area, you may put the top card of your deck into your stock."
+        },
+        {
+          "count": 18,
+          "signature": "\u3010AUTO\u3011 [(#) Put # character from your stage into your waiting room] When you use this card's \"<Q>\", you may pay the cost. If you do, choose # of your opponent's characters with level higher than your opponent's level, and put it into their waiting room."
+        },
+        {
+          "count": 18,
+          "signature": "\u3010CONT\u3011 The character facing this card gets \"<Q>\"."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Look at up to # cards from the top of your deck, and put them on the top of your deck in any order."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010AUTO\u3011 Change [(#) Put a card from your hand into your waiting room & Put this card into your waiting room] At the beginning of your climax phase, you may pay the cost. If you do, choose a card named \"<Q>\" in your waiting room, and put it on the stage position that this card was on."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010AUTO\u3011 When this card is frontal attacked, look at the top card of your deck, and put it on the top of your deck or into your waiting room."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, this card gets +# power and the following ability until the end of your opponent's next turn. \"<Q>\"Backup\"<Q>\""
+        },
+        {
+          "count": 17,
+          "signature": "\u3010CONT\u3011 All of your other \"<Q>\" get +# power and \"<Q>\"."
+        },
+        {
+          "count": 17,
+          "signature": "\u3010CONT\u3011 If the number of climax in your waiting room is two or less, this card gets -# level while in your hand."
+        },
+        {
+          "count": 16,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card is placed on the stage from your hand, you may pay the cost. If you do, return all cards from your waiting room to your deck, and shuffle your deck."
+        },
+        {
+          "count": 16,
+          "signature": "\u3010CONT\u3011 [ICON:LINK] Super Dimension Venus"
+        },
+        {
+          "count": 15,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Choose # of your characters, and that character gets +# power until the end of your opponent's next turn."
+        },
+        {
+          "count": 15,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011 in battle, if your memory has # or less cards, you may put this card into your memory."
+        },
+        {
+          "count": 15,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011 in battle, put this card into your memory."
+        },
+        {
+          "count": 15,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, this card gets +X power until end of turn. X is equal to the number of \u300aMusic\u300b characters you have \u00d7#."
+        },
+        {
+          "count": 15,
+          "signature": "\u3010AUTO\u3011 When your other \u300aMusic\u300b character attacks, this card gets +# power until end of turn."
+        },
+        {
+          "count": 15,
+          "signature": "\u3010CONT\u3011 You cannot play event cards or \"<Q>\" from your hand."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Choose one of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Look at the top card of your deck, and put it on the top or at the bottom of your deck."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 At the beginning of your climax phase, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 Resonate [Reveal # \"<Q>\" in your hand] At the beginning of your climax phase, you may pay the cost. If you do, this card gets +# power until end of turn."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card attacks, all of your characters get the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011 in battle, put the top card of your deck into your clock, and \u3010REST\u3011 this card."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011, if this card's battle opponent is level # or lower, you may put that character into your opponent's stock. If you do, put a card from the bottom of your opponent's stock into his or her waiting room."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, draw a card, choose a card in your hand, and put it into your waiting room."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, look at up to # cards from the top of your deck, choose up to # event from among them, reveal it to your opponent, put it into your hand, and put the rest into your waiting room. If you put # card into your hand, choose # card in your hand, and put it into your waiting room."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, choose # character in your opponent's center stage, and that character gets -# power until end of turn."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card is placed on the stage from your hand, you may pay the cost. If you do, your opponent puts all of their stock into their waiting room, and puts the same number of cards from the top of their deck into their stock."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, choose # level # or lower character in your waiting room, and put it in any position of your stage."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010AUTO\u3011 \u3010CXCOMBO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, if \"<Q>\" is in your climax area, you may choose # character in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010CONT\u3011 All of your other \"<Q>\" get the following ability. \"<Q>\""
+        },
+        {
+          "count": 14,
+          "signature": "\u3010CONT\u3011 Memory If \"<Q>\" is in your memory, this card gets +# power."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010CONT\u3011 The character facing this card cannot move to another position on the stage."
+        },
+        {
+          "count": 14,
+          "signature": "\u3010CONT\u3011 You can put up to # cards with the same card name as this card into your deck."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Choose # of your characters, and that character gets the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. During the turn that this card is placed on the stage from your hand, when damage dealt by this card is canceled, put the top card of your deck into your waiting room, and deal X damage to your opponent. X is equal to the level of that card +#. (Climax are regarded as level #. Damage may be canceled)"
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When you use an \u3010ACT\u3011, this card gets +# power until end of turn."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 When this card attacks, if the character facing this card is level # or higher, this card gets +# power and +# soul until end of turn."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011, if the level of this card's battle opponent is higher than your opponent's level, you may put that character into your opponent's memory."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011, if this card's battle opponent is level # or lower, you may put that character into your opponent's stock. If you do, put the bottom card of your opponent's stock into his or her waiting room."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose up to # of your opponent's characters, put it into their memory, and your opponent puts that character from their memory in any position of their stage."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, you may pay the cost. If you do, choose # character in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010CONT\u3011 All of your other \"<Q>\" get +# power and the following ability. \"<Q>\""
+        },
+        {
+          "count": 13,
+          "signature": "\u3010CONT\u3011 Assist All of your characters in front of this card get +X power. X is equal to # multiplied by the number of characters you have with \"<Q>\"."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010CONT\u3011 If the character facing this card is level # or higher, this card gets +# power."
+        },
+        {
+          "count": 13,
+          "signature": "\u3010CONT\u3011 This card gets -# level while in the stage."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose # of your other \u300aMusic\u300b characters, and that character gets +X power until end of turn. X is equal to the number of other \u300aMusic\u300b characters you have \u00d7#."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When this card attacks, if you have # or less other characters, you may put the top card of your deck into your waiting room. If that card is a level # or lower character, put it on any position of your back stage."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, draw # card, choose # card in your hand, and put it into your waiting room."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, look at up to # cards from the top of your deck, put them on the top of your deck in any order, choose up to # of your opponent's characters, and return it to their hand."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 When you level up, put this card into your waiting room."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, search your deck for up to # \"<Q>\", reveal it to your opponent, put it into your hand, and shuffle your deck."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010AUTO\u3011 \u3010CXCOMBO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, if \"<Q>\" is in your climax area, you may put that character into your opponent's clock."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010CONT\u3011 If all of your characters are \u300aMusic\u300b, this card gets +# power."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010CONT\u3011 If there is a marker underneath this card, this card gets +# power and the following ability. \"<Q>\""
+        },
+        {
+          "count": 12,
+          "signature": "\u3010CONT\u3011 If you have # or less other characters, this card gets +# power."
+        },
+        {
+          "count": 12,
+          "signature": "\u3010CONT\u3011 This card gets +# power for each other \"<Q>\" in your center stage."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010ACT\u3011 [(#) Put # climax from your hand into your waiting room] Choose # character in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010ACT\u3011 [(#)] Draw # card, choose # card in your hand, and put it into your waiting room."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010ACT\u3011 [Put # card from your hand into your waiting room & Put this card into your waiting room] Choose # character in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Draw # card, choose # card in your hand, and put it into your waiting room."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 Encore [(#) Put # character from your stage into your waiting room] (When this card is put into your waiting room from the stage, you may pay the cost. If you do, return this card to its previous stage position as \u3010REST\u3011)"
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When damage dealt by this card is not canceled, this card gets +# power until end of turn."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose # of your other characters, and that character gets +X power until end of turn. X is equal to that character's soul \u00d7#."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card attacks, if you have # or more other \u300aMusic\u300b characters, this card gets +# power until end of turn."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card attacks, \u3010REST\u3011 all of your other \u3010STAND\u3011 characters."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card becomes \u3010REVERSE\u3011, if this card's battle opponent is level # or lower, you may put the top card of your opponent's clock into his or her waiting room. If you do, put that character into your opponent's clock."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax revealed among those cards, this card gets +# power until end of turn."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, this card gets +X power until end of turn. X is equal to the number of characters your opponent has \u00d7#."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, you may choose # card in your clock, and return it to your hand. If you do, choose # card in your hand, and put it into your clock."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, you may choose # card in your level and # card in your waiting room, and exchange them."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may put that character into your opponent's memory."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 When your climax is placed on your climax area, choose # of your characters, and that character gets the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 11,
+          "signature": "\u3010AUTO\u3011 [(#) Put # card from your hand into your waiting room] When this card attacks, you may pay the cost. If you do, this card gets +# power and the following ability until end of turn. \"<Q>\" (Damage may be canceled)"
+        },
+        {
+          "count": 11,
+          "signature": "\u3010CONT\u3011 During this card's battle, all players cannot play \"<Q>\" from their hands."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010CONT\u3011 Experience During your turn, if the total level of the cards in your level is # or higher, this card gets +# power and the following ability. \"<Q>\""
+        },
+        {
+          "count": 11,
+          "signature": "\u3010CONT\u3011 If you do not have another character with \"<Q>\" in its card name, this card cannot \u3010STAND\u3011 during your stand phase."
+        },
+        {
+          "count": 11,
+          "signature": "\u3010CONT\u3011 If you have # or more \u300aMusic\u300b characters, this card gets -# level while in your hand."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 Change [(#) Put this card into your waiting room] At the beginning of your draw phase, you may pay the cost. If you do, choose a card named \"<Q>\" in your waiting room, and put it on the stage position that this card was on."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose # of your other characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, all characters in your opponent's center stage get -# power until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, reveal the top card of your deck. If that card is a \u300aMusic\u300b character, put it into your hand, choose a card in your hand, and put it into your waiting room. (If it is not, return the revealed card to its original place)"
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, reveal the top card of your deck. If that card is level # or lower, put it into your stock. (Otherwise, return it to its original place. Climax are regarded as level #)"
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, this card gets +X power until end of turn. X is equal to # multiplied by the number of \u300aMusic\u300b characters you have."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card is placed on your climax area from your hand, choose up to two of your characters, and those characters get +# power and +# soul until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may look at the top card of your deck. If you do, put that card face down underneath this card as a marker."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may put this card into your memory. If you do, at the beginning of your next draw phase, choose # \"<Q>\" in your memory, and put it on any position of your stage."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When your climax is placed on your climax area, choose # of your characters, and that character gets +# power until the end of your opponent's next turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 When your other character becomes \u3010REVERSE\u3011 in battle, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card frontal attacks, you may pay the cost. If you do, choose # of your opponent's characters, and that character gets -# level until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is put into your waiting room from the stage, you may pay the cost. If you do, choose # \"<Q>\" in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010AUTO\u3011 [Return this card to your hand] When your climax is placed on your climax area, you may pay the cost. If you do, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010CONT\u3011 If a card named \"<Q>\" is in your clock, this card gets -# level while in your hand."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010CONT\u3011 If you do not have another character, this card gets +# level and +# power."
+        },
+        {
+          "count": 10,
+          "signature": "\u3010CONT\u3011 This card gets +# power for each of your other level # or lower characters."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010ACT\u3011 [Put this card into your waiting room] Choose # of your opponent's characters, and return it to their hand."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 At the beginning of your opponent's draw phase, put the top # cards of your deck into your waiting room. If there is a level # or higher card among those cards, you may return this card to your hand. (Climax are regarded as level #)"
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 During this card's battle, when the damage you received is not canceled, this card gets +# power until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 During your opponent's turn, when the damage you received is not canceled, if this card is in your center stage, look at the top card of your deck, and put it on the top of your deck or into your waiting room."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When you use an \u3010ACT\u3011, this card gets the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When a climax is put on your climax area, this card gets +# power until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose # of the following effects, and perform it. \"<Q>\" \"<Q>\""
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose up to # character with level equal to or lower than your level in your hand, put it in any position of your stage, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, perform the following action # times. \"<Q>\""
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, this card gets +# power until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, this card gets +# soul until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax among those cards, you may choose # level # or lower character in your opponent's center stage, and put it into their waiting room."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a level # or lower character among those cards, this card's soul does not decrease by side attacking until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, reveal the top card of your deck. If that card is level # or higher, put it into your stock. (Otherwise, return it to its original place. Climax are regarded as level #)"
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, you may choose a card named \"<Q>\" in your waiting room, and put it face down underneath this card as a marker."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card is placed on your climax area from your hand, choose up to # character with [SOUL] in its trigger icon in your waiting room, return it to your hand, choose up to # of your characters, and those characters get +# soul until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may put the top card of your deck underneath this card as a marker."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 When your opponent's climax is placed on their climax area, you may put this card into your stock."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [(#)] During the turn that this card is placed on the stage from your hand, when this card's battle opponent becomes \u3010REVERSE\u3011, you may pay the cost. If you do, put that character into your opponent's clock."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card becomes \u3010REVERSE\u3011 in battle, you may pay the cost. If you do, put this card into your memory."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card is placed on the stage from your hand, you may pay the cost. If you do, choose # of your opponent's characters, and return it to their hand."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [Put # card from your hand into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, choose # level # or lower character in your waiting room, and put it on any position of your stage."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [Put this card into your waiting room] When your other character is put into your waiting room from the stage, if this card is in your back stage, you may pay the cost. If you do, return that character to its previous stage position as \u3010REST\u3011."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 [Return # characters from your waiting room to your deck & Shuffle your deck] When this card is placed on the stage from your hand, you may pay the cost. If you do, this card's soul does not decrease by side attacking until end of turn."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010AUTO\u3011 \u3010CXCOMBO\u3011 When \"<Q>\" is placed on your climax area, choose # of your other characters, and that character gets the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 During this card's battle, all players cannot play \"<Q>\" from hand."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 During your turn, if all of your characters are \u300aMusic\u300b, this card gets +# power."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 If all of your characters are \u300aPIXAR\u300b, this card gets +# level and +# power."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 If there are no markers underneath this card, this card gets -# power."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 If this card is in your center stage, all of your \u300aMusic\u300b characters get +# power."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 This card gets +# power for each other \u300aMusic\u300b character in your back stage."
+        },
+        {
+          "count": 9,
+          "signature": "\u3010CONT\u3011 You can put up to eight cards with the same card name as this card in your deck."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010ACT\u3011 [(#) Put this card into your waiting room] Choose # \"<Q>\" in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 At the beginning of your main phase, look at the top card of your deck, and put it on the top of your deck or into your waiting room."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 At the beginning of your opponent's draw phase, if this card is in your center stage, choose one of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When you play an event, this card gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When another of your characters becomes \u3010REVERSE\u3011 in battle, choose one of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose one of your other characters, and that character gets +# level and +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose up to two of your \u300aMusic\u300b characters, and those characters get +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card attacks, if the character facing this card is level # or higher, this card gets +# power until the end of your opponent's next turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, choose one of your other \u300aMusic\u300b characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, if you have another \u300aMusic\u300b character, this card gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, if your memory has # or less cards, you may choose # \"<Q>\" in your waiting room, and put it into your memory."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, if your opponent's waiting room has # or more climax, \u3010REST\u3011 this card."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top # cards of your deck into your waiting room. If there is a climax revealed among those cards, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put the top two cards of your deck into your waiting room. If there is a climax among those cards, \u3010REST\u3011 this card."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, put up to # card from the top of your clock into your waiting room, and this card gets +# power until end of turn."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card is placed on the stage from your hand, this card gets +X power until end of turn. X is equal to the number of \u300aGame\u300b characters you have \u00d7#."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card or this card's battle opponent becomes \u3010REVERSE\u3011, that character cannot use \"<Q>\" until end of turn. (The \"<Q>\" rule cannot be used either)"
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may put that character into your opponent's stock. If you do, put the bottom card of your opponent's stock into their waiting room."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 When this card's battle opponent becomes \u3010REVERSE\u3011, you may put this card into your memory. If you do, at the beginning of your next draw phase, choose # \"<Q>\" in your memory, and put it in any position of your stage."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [(#)] During your opponent's turn, when this card becomes \u3010REVERSE\u3011 in battle, you may pay the cost. If you do, \u3010REST\u3011 this card, and at the beginning of your next encore step, put this card into your waiting room."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [(#)] When this card is placed on the stage from your hand, you may pay the cost. If you do, search your deck for up to # \"<Q>\", put it on any position of your stage, and shuffle your deck."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [Put # climax from your hand into your waiting room & Put # other character from your stage into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, choose # climax in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [Put # climax from your hand into your waiting room] When your character's trigger check reveals a climax, you may pay the cost. If you do, look at up to # cards from the top of your deck, choose up to # card from among them, put it into your hand, and put the rest into your waiting room."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 [Put # climax with [GATE] in its trigger icon from your hand into your waiting room] When this card attacks, you may pay the cost. If you do, this card gets +# power and the following ability until end of turn. \"<Q>\""
+        },
+        {
+          "count": 8,
+          "signature": "\u3010AUTO\u3011 \u3010CXCOMBO\u3011 [Put # \"<Q>\" or \"<Q>\" from your hand into your waiting room] When this card is placed on the stage from your hand, you may pay the cost. If you do, choose # \"<Q>\" or \"<Q>\" in your waiting room, and return it to your hand."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 All of your other \"<Q>\" and \"<Q>\" get +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 During your turn, if you have another \u300aMusic\u300b character, this card gets +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If the character facing this card is cost # or lower, this card gets +# level and +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If the number of colors of your characters on stage is four or more, this card gets +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If there is a marker underneath this card, this card gets +# power and +# soul."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If this card is in the stage, this card's card name will also be regarded as \"<Q>\"."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If you have # or more other \u300aChaldea\u300b or \u300aCamelot\u300b characters, this card gets +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If you have # or more other \u300aDate\u300b or \u300aCelestial Spirit\u300b characters, this card gets +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 If you have another \"<Q>\" in your center stage, this card gets +# power."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010CONT\u3011 This card gets +X power. X is equal to # multiplied by the level of the character facing this card."
+        },
+        {
+          "count": 8,
+          "signature": "\u3010COUNTER\u3011 Put this card into your memory."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010ACT\u3011 [\u3010REST\u3011 this card] Choose # character in your opponent's center stage, and that character gets -# power until end of turn."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 Accelerate [Put the top card of your deck into your clock] At the beginning of your climax phase, you may pay the cost. If you do, this card gets +# power until end of turn."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 At the beginning of your climax phase, your opponent may put the top # cards of their stock into their waiting room. If they do, this card cannot frontal attack until end of turn."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 At the beginning of your opponent's attack phase, you may choose # character in your opponent's center stage, and move it to another open position of their center stage."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 At the beginning of your opponent's attack phase, you may put the top card of your deck into your waiting room. If that card is a \u300aMusic\u300b character, you may move this card to an open position of your center stage."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 At the beginning of your opponent's draw phase, if this card is in your center stage, choose # of your characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 Change [Put this card into your waiting room] At the beginning of your climax phase, you may pay the cost. If you do, choose # \"<Q>\" in your waiting room, and put it in the stage position that this card was in. (This ability does not activate if this card is not in the stage at the beginning of the climax phase)"
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 Memory When you use this card's \"<Q>\", if the number of \u300aMagic\u300b characters in your memory is two or more, choose one of your characters in battle, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 This ability activates up to # time per turn. When your other \"<Q>\" is placed on the stage from your hand, you may put the top card of your deck into your stock."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 This ability activates up to one time per turn. When you use an \u3010ACT\u3011, this card gets +# power until end of turn."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose # of your \u300ahololive\u300b characters, and that character gets +# power until end of turn."
+        },
+        {
+          "count": 7,
+          "signature": "\u3010AUTO\u3011 When this card attacks, choose one of your other characters, and that character gets +# power until end of turn."
+        }
+      ],
+      "total_lines": 29675,
+      "unsupported_lines": 17917
+    }
+  }
+}
