@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scraper.convert import (
+from scraper.convert import (  # noqa: E402
     APPROX_PROFILE_APPROX,
     APPROX_PROFILE_STRICT,
     AbilityParseStats,

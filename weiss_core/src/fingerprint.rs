@@ -39,7 +39,7 @@ pub fn hash_postcard<T: Serialize + ?Sized>(value: &T) -> u64 {
                         "postcard serialization failed for {}, using JSON fallback: {err}",
                         std::any::type_name::<T>()
                     );
-                    return hash_bytes(&json_bytes);
+                    hash_bytes(&json_bytes)
                 }
                 Err(json_err) => {
                     eprintln!(
@@ -53,7 +53,7 @@ pub fn hash_postcard<T: Serialize + ?Sized>(value: &T) -> u64 {
                     fallback.extend_from_slice(err.to_string().as_bytes());
                     fallback.extend_from_slice(b":json=");
                     fallback.extend_from_slice(json_err.to_string().as_bytes());
-                    return hash_bytes(&fallback);
+                    hash_bytes(&fallback)
                 }
             }
         }

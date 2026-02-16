@@ -53,9 +53,7 @@ def parse_bencher(path: Path) -> Tuple[Dict[str, Tuple[float, float]], Dict[str,
 def parse_python_throughput(path: Path) -> Dict[str, float]:
     throughput: Dict[str, float] = {}
     section = "default"
-    line_re = re.compile(
-        r"^([A-Za-z0-9_()/\-]+):.*\(([0-9][0-9,]*(?:\.[0-9]+)?)\s+env-steps/sec\)"
-    )
+    line_re = re.compile(r"^([A-Za-z0-9_()/\-]+):.*\(([0-9][0-9,]*(?:\.[0-9]+)?)\s+env-steps/sec\)")
 
     def normalize_section(raw_section: str) -> str:
         token = raw_section.strip().lower()
@@ -193,8 +191,7 @@ def main() -> int:
         missing_alloc_metrics = sorted(set(baseline_allocs.keys()) - set(current_allocs.keys()))
         if missing_alloc_metrics:
             failures.append(
-                "missing allocation metrics in current output: "
-                + ", ".join(missing_alloc_metrics)
+                "missing allocation metrics in current output: " + ", ".join(missing_alloc_metrics)
             )
 
         shared_allocs = sorted(set(baseline_allocs.keys()) & set(current_allocs.keys()))

@@ -1812,10 +1812,7 @@ def parse_abilities(
         if value is None or isinstance(value, (str, int, float, bool)):
             return value
         if isinstance(value, dict):
-            return {
-                str(k): normalize_trace_value(v)
-                for k, v in value.items()
-            }
+            return {str(k): normalize_trace_value(v) for k, v in value.items()}
         if isinstance(value, (list, tuple, set)):
             return [normalize_trace_value(v) for v in value]
         return str(value)

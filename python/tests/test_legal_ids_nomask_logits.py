@@ -155,14 +155,20 @@ def test_i16_legal_ids_logit_helpers_select_and_sample_deterministic():
     select_logits = np.full((1, pool_a.action_space), -1.0, dtype=np.float32)
     select_logits[0, target] = 5.0
 
-    step_sel_a, actions_sel_a = weiss_sim.step_rl_select_from_logits_i16_legal_ids(pool_a, select_logits)
-    step_sel_b, actions_sel_b = weiss_sim.step_rl_select_from_logits_i16_legal_ids(pool_b, select_logits)
+    step_sel_a, actions_sel_a = weiss_sim.step_rl_select_from_logits_i16_legal_ids(
+        pool_a, select_logits
+    )
+    step_sel_b, actions_sel_b = weiss_sim.step_rl_select_from_logits_i16_legal_ids(
+        pool_b, select_logits
+    )
 
     assert int(actions_sel_a[0]) == target
     assert np.array_equal(actions_sel_a, actions_sel_b)
     assert np.array_equal(step_sel_a.obs, step_sel_b.obs)
 
-    legal_after_select = set(_env_legal_ids(step_sel_a.legal_ids, step_sel_a.legal_offsets).tolist())
+    legal_after_select = set(
+        _env_legal_ids(step_sel_a.legal_ids, step_sel_a.legal_offsets).tolist()
+    )
     sample_logits = np.zeros((1, pool_a.action_space), dtype=np.float32)
     seeds = np.array([551], dtype=np.uint64)
 
