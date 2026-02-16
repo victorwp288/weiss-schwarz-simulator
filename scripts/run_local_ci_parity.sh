@@ -37,6 +37,11 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 127
 fi
 
+if ! command -v git >/dev/null 2>&1; then
+  echo "ERROR: git is required for local parity checks." >&2
+  exit 127
+fi
+
 if ! "$PYTHON_BIN" -c "import pip_audit" >/dev/null 2>&1; then
   echo "ERROR: pip-audit is required for local parity checks." >&2
   exit 127
@@ -89,29 +94,43 @@ if [[ "$SKIP_BENCHMARKS" == "1" ]]; then
   echo
   echo "==> Benchmarks skipped (SKIP_BENCHMARKS=1)"
 else
-  run "Capture perf baselines" cp benchmark/benches.txt /tmp/wss_perf_before_benches.txt
-  run "Capture python perf baseline" cp benchmark/python_bench.txt /tmp/wss_perf_before_python_bench.txt
-  log_step "Rust benches (core + alloc)"
-  cargo bench -p weiss_core --bench core_benches -- --output-format bencher > /tmp/wss_perf_after_benches.txt
-  cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher >> /tmp/wss_perf_after_benches.txt
+  PERF_BASE_REF="${PERF_BASE_REF:-HEAD}"
+  PERF_BASE_WORKTREE=""
+  PERF_BASE_SNAPSHOT_DIR="$(mktemp -d /tmp/wss_perf_base.XXXXXX)"
+  PERF_HEAD_SNAPSHOT_DIR="$(mktemp -d /tmp/wss_perf_head.XXXXXX)"
 
-  log_step "Python boundary bench"
-  PYTHONPATH=python "$PYTHON_BIN" python/examples/bench_python_boundary.py \
-    --num-envs 128 \
-    --steps 2000 \
-    --warmup 200 \
-    --reset-reps 200 \
-    --mode both | tee /tmp/wss_perf_after_python_bench.txt
+  cleanup_perf_workdirs() {
+    if [[ -n "${PERF_BASE_WORKTREE:-}" ]]; then
+      git worktree remove --force "$PERF_BASE_WORKTREE" >/dev/null 2>&1 || true
+      rm -rf "$PERF_BASE_WORKTREE" >/dev/null 2>&1 || true
+    fi
+    rm -rf "$PERF_BASE_SNAPSHOT_DIR" "$PERF_HEAD_SNAPSHOT_DIR"
+  }
 
+  trap cleanup_perf_workdirs EXIT
+  PERF_BASE_WORKTREE="$(mktemp -d /tmp/wss_perf_base_worktree.XXXXXX)"
+  run "Prepare perf base worktree (${PERF_BASE_REF})" \
+    git worktree add --detach "$PERF_BASE_WORKTREE" "$PERF_BASE_REF"
+  run "Build perf baseline python extension" \
+    "$PYTHON_BIN" -m maturin develop --release --manifest-path "$PERF_BASE_WORKTREE/weiss_py/Cargo.toml"
+  run "Capture perf baseline snapshot" \
+    env PYTHON_BIN="$PYTHON_BIN" "$ROOT_DIR/scripts/run_perf_snapshot.sh" "$PERF_BASE_SNAPSHOT_DIR" "$PERF_BASE_WORKTREE"
+  run "Build perf head python extension" \
+    "$PYTHON_BIN" -m maturin develop --release --manifest-path "$ROOT_DIR/weiss_py/Cargo.toml"
+  run "Capture perf head snapshot" \
+    env PYTHON_BIN="$PYTHON_BIN" "$ROOT_DIR/scripts/run_perf_snapshot.sh" "$PERF_HEAD_SNAPSHOT_DIR" "$ROOT_DIR"
   run "Performance budget gate" \
     "$PYTHON_BIN" scripts/check_perf_budget.py \
-    --baseline-benches /tmp/wss_perf_before_benches.txt \
-    --current-benches /tmp/wss_perf_after_benches.txt \
-    --baseline-python /tmp/wss_perf_before_python_bench.txt \
-    --current-python /tmp/wss_perf_after_python_bench.txt \
+    --baseline-benches "$PERF_BASE_SNAPSHOT_DIR/benches.txt" \
+    --current-benches "$PERF_HEAD_SNAPSHOT_DIR/benches.txt" \
+    --baseline-python "$PERF_BASE_SNAPSHOT_DIR/python_bench.txt" \
+    --current-python "$PERF_HEAD_SNAPSHOT_DIR/python_bench.txt" \
     --max-core-regression-pct 15 \
     --max-python-regression-pct 10 \
     --require-zero-alloc
+
+  trap - EXIT
+  cleanup_perf_workdirs
 fi
 
 run "Cargo audit" cargo audit

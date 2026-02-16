@@ -9,8 +9,8 @@ use crate::encode::{
 };
 use crate::legal::ActionDesc;
 use crate::state::{
-    ChoiceReason, ChoiceState, EncoreRequest, ModifierDuration, ModifierKind, PriorityState,
-    TimingWindow,
+    ChoiceReason, ChoiceState, DerivedAttackState, EncoreRequest, ModifierDuration, ModifierKind,
+    PriorityState, TimingWindow,
 };
 
 #[test]
@@ -290,4 +290,70 @@ fn observation_exposes_effective_soul_and_side_attack_flag() {
     assert_eq!(obs[slot0 + 4], 1);
     assert_eq!(obs[slot0 + 5], 3);
     assert_eq!(obs[slot0 + 6], 0);
+}
+
+#[test]
+fn observation_exposes_default_soul_and_side_attack_without_modifiers() {
+    let mut env = make_env();
+    let _ = env.reset_no_copy();
+    let mut next_id = 1u32;
+    let card = make_instance(1, 0, &mut next_id);
+    env.state.players[0].stage[0].card = Some(card);
+    env.state.players[0].stage[0].status = crate::state::StageStatus::Stand;
+
+    let mut obs = vec![0; OBS_LEN];
+    encode_observation(
+        &env.state,
+        &env.db,
+        &env.curriculum,
+        0,
+        env.decision.as_ref(),
+        env.last_action_desc.as_ref(),
+        env.last_action_player,
+        env.config.observation_visibility,
+        &mut obs,
+    );
+
+    let slot0 = OBS_HEADER_LEN + PER_PLAYER_COUNTS;
+    assert_eq!(obs[slot0 + 4], 1);
+    assert_eq!(obs[slot0 + 5], 1);
+    assert_eq!(obs[slot0 + 6], 1);
+}
+
+#[test]
+fn observation_prefers_derived_attack_side_flag_over_modifier_scan() {
+    let mut env = make_env();
+    let _ = env.reset_no_copy();
+    let mut next_id = 1u32;
+    let card = make_instance(1, 0, &mut next_id);
+    env.state.players[0].stage[0].card = Some(card);
+    env.state.players[0].stage[0].status = crate::state::StageStatus::Stand;
+    let _ = env.add_modifier(
+        1,
+        0,
+        0,
+        ModifierKind::CannotSideAttack,
+        1,
+        ModifierDuration::UntilEndOfTurn,
+    );
+
+    let mut derived = DerivedAttackState::new();
+    derived.per_player[0][0].cannot_side_attack = false;
+    env.state.turn.derived_attack = Some(derived);
+
+    let mut obs = vec![0; OBS_LEN];
+    encode_observation(
+        &env.state,
+        &env.db,
+        &env.curriculum,
+        0,
+        env.decision.as_ref(),
+        env.last_action_desc.as_ref(),
+        env.last_action_player,
+        env.config.observation_visibility,
+        &mut obs,
+    );
+
+    let slot0 = OBS_HEADER_LEN + PER_PLAYER_COUNTS;
+    assert_eq!(obs[slot0 + 6], 1);
 }

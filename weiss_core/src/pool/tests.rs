@@ -208,6 +208,34 @@ fn strict_pool_step_panic_isolated_to_single_env() {
 }
 
 #[test]
+fn strict_pool_step_panic_isolated_to_single_env_with_thread_pool() {
+    let db = make_db();
+    let config = make_config(make_deck());
+    let curriculum = CurriculumConfig::default();
+    let mut pool = EnvPool::new_debug(
+        4,
+        db,
+        config,
+        curriculum,
+        1701,
+        Some(2),
+        DebugConfig::default(),
+    )
+    .expect("pool");
+    let mut out = BatchOutMinimalBuffers::new(pool.envs.len());
+    pool.reset_into(&mut out.view_mut()).expect("reset");
+
+    pool.envs[2].obs_buf.clear();
+    let actions = first_legal_actions(&pool);
+    pool.step_into(&actions, &mut out.view_mut()).expect("step");
+
+    assert_eq!(out.engine_status[2], EngineErrorCode::Panic as u8);
+    for idx in [0usize, 1, 3] {
+        assert_eq!(out.engine_status[idx], EngineErrorCode::None as u8);
+    }
+}
+
+#[test]
 fn strict_pool_faults_do_not_abort_batch() {
     let db = make_db();
     let config = make_config(make_deck());
@@ -284,6 +312,34 @@ fn reset_panic_isolated_to_single_env() {
     assert!(out.truncated[1]);
     assert!(!out.terminated[1]);
     assert_eq!(out.engine_status[0], EngineErrorCode::None as u8);
+}
+
+#[test]
+fn reset_panic_isolated_to_single_env_with_thread_pool() {
+    let db = make_db();
+    let config = make_config(make_deck());
+    let curriculum = CurriculumConfig::default();
+    let mut pool = EnvPool::new_debug(
+        4,
+        db,
+        config,
+        curriculum,
+        1702,
+        Some(2),
+        DebugConfig::default(),
+    )
+    .expect("pool");
+    let mut out = BatchOutMinimalBuffers::new(pool.envs.len());
+    pool.reset_into(&mut out.view_mut()).expect("reset");
+
+    pool.envs[3].player_block_cache_self[0].clear();
+    pool.reset_indices_into(&[3], &mut out.view_mut())
+        .expect("reset indices");
+
+    assert_eq!(out.engine_status[3], EngineErrorCode::ResetPanic as u8);
+    for idx in [0usize, 1, 2] {
+        assert_eq!(out.engine_status[idx], EngineErrorCode::None as u8);
+    }
 }
 
 #[test]

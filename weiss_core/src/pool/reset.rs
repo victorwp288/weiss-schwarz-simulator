@@ -25,6 +25,8 @@ struct ResetSlotTemplate {
     pool_seed: u64,
 }
 
+#[cold]
+#[inline(never)]
 fn fallback_reset_panic_outcome(reward: f32) -> StepOutcome {
     StepOutcome {
         obs: vec![0; crate::encode::OBS_LEN],
@@ -47,6 +49,8 @@ fn fallback_reset_panic_outcome(reward: f32) -> StepOutcome {
     }
 }
 
+#[cold]
+#[inline(never)]
 fn latch_fallback_reset_fault(
     env: &mut GameEnv,
     env_id: u32,

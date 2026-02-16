@@ -13,6 +13,8 @@ use super::outputs::{
 use crate::encode::{ACTION_SPACE_SIZE, OBS_LEN};
 use crate::env::{EngineErrorCode, EnvInfo, FaultSource, GameEnv, StepOutcome};
 
+#[cold]
+#[inline(never)]
 fn fallback_panic_outcome(
     actor: Option<u8>,
     reward: f32,
@@ -41,6 +43,8 @@ fn fallback_panic_outcome(
     }
 }
 
+#[cold]
+#[inline(never)]
 fn latch_fallback_step_fault(
     env: &mut GameEnv,
     env_id: u32,
@@ -74,7 +78,7 @@ fn latch_fallback_step_fault(
 }
 
 impl EnvPool {
-    const STEP_PARALLEL_MIN_ENVS: usize = 1024;
+    const STEP_PARALLEL_MIN_ENVS: usize = 256;
 
     fn step_batch_outcomes(&mut self, action_ids: &[u32]) -> Result<()> {
         if action_ids.len() != self.envs.len() {

@@ -17,6 +17,64 @@ use crate::state::{AttackType, CardInstance, GameState, ModifierKind, StageSlot,
 const MAX_HAND: usize = crate::encode::MAX_HAND;
 const MAX_STAGE: usize = 5;
 
+#[derive(Clone, Copy)]
+struct StageModifierCache {
+    cannot_play_events_from_hand: bool,
+    cannot_move_stage_position: [bool; MAX_STAGE],
+    encore_stock_cost_min: [Option<usize>; MAX_STAGE],
+}
+
+impl StageModifierCache {
+    #[inline(always)]
+    fn build(state: &GameState, player: usize) -> Self {
+        let mut cache = Self {
+            cannot_play_events_from_hand: false,
+            cannot_move_stage_position: [false; MAX_STAGE],
+            encore_stock_cost_min: [None; MAX_STAGE],
+        };
+        if state.modifiers.is_empty() {
+            return cache;
+        }
+        let stage = &state.players[player].stage;
+        let stage_len = stage.len().min(MAX_STAGE);
+        let mut slot_card_ids = [0u32; MAX_STAGE];
+        for (slot, slot_state) in stage.iter().take(stage_len).enumerate() {
+            slot_card_ids[slot] = slot_state.card.map(|c| c.id).unwrap_or(0);
+        }
+        for modifier in &state.modifiers {
+            if modifier.target_player as usize != player || modifier.magnitude == 0 {
+                continue;
+            }
+            let slot = modifier.target_slot as usize;
+            if slot >= stage_len {
+                continue;
+            }
+            let card_id = slot_card_ids[slot];
+            if card_id == 0 || modifier.target_card != card_id {
+                continue;
+            }
+            match modifier.kind {
+                ModifierKind::CannotPlayEventsFromHand => {
+                    cache.cannot_play_events_from_hand = true;
+                }
+                ModifierKind::CannotMoveStagePosition => {
+                    cache.cannot_move_stage_position[slot] = true;
+                }
+                ModifierKind::EncoreStockCost if modifier.magnitude > 0 => {
+                    let cost = modifier.magnitude as usize;
+                    let entry = &mut cache.encore_stock_cost_min[slot];
+                    *entry = Some(match *entry {
+                        Some(existing) => existing.min(cost),
+                        None => cost,
+                    });
+                }
+                _ => {}
+            }
+        }
+        cache
+    }
+}
+
 /// Player decision kinds exposed to callers.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DecisionKind {
@@ -190,6 +248,7 @@ fn can_pay_encore_for_slot(
     curriculum: &CurriculumConfig,
     player: usize,
     slot: usize,
+    modifier_cache: Option<&StageModifierCache>,
 ) -> bool {
     if state.turn.cannot_use_auto_encore[player] {
         return false;
@@ -202,21 +261,34 @@ fn can_pay_encore_for_slot(
     };
     let stock_len = state.players[player].stock.len();
     let mut min_stock_cost = if stock_len >= 3 { Some(3usize) } else { None };
-    for modifier in &state.modifiers {
-        if modifier.target_player as usize != player || modifier.target_slot as usize != slot {
-            continue;
+    if let Some(cache) = modifier_cache {
+        if let Some(cost) = cache
+            .encore_stock_cost_min
+            .get(slot)
+            .and_then(|entry| *entry)
+        {
+            min_stock_cost = Some(match min_stock_cost {
+                Some(existing) => existing.min(cost),
+                None => cost,
+            });
         }
-        if modifier.target_card != card_inst.id {
-            continue;
+    } else {
+        for modifier in &state.modifiers {
+            if modifier.target_player as usize != player || modifier.target_slot as usize != slot {
+                continue;
+            }
+            if modifier.target_card != card_inst.id {
+                continue;
+            }
+            if modifier.kind != ModifierKind::EncoreStockCost || modifier.magnitude <= 0 {
+                continue;
+            }
+            let cost = modifier.magnitude as usize;
+            min_stock_cost = Some(match min_stock_cost {
+                Some(existing) => existing.min(cost),
+                None => cost,
+            });
         }
-        if modifier.kind != ModifierKind::EncoreStockCost || modifier.magnitude <= 0 {
-            continue;
-        }
-        let cost = modifier.magnitude as usize;
-        min_stock_cost = Some(match min_stock_cost {
-            Some(existing) => existing.min(cost),
-            None => cost,
-        });
     }
     if let Some(cost) = min_stock_cost {
         if stock_len >= cost {
@@ -236,34 +308,6 @@ fn can_pay_encore_for_slot(
                 curriculum.enforce_cost_requirement,
             )
         })
-}
-
-#[inline(always)]
-fn slot_has_modifier_kind(
-    state: &GameState,
-    player: usize,
-    slot: usize,
-    kind: ModifierKind,
-) -> bool {
-    if slot >= state.players[player].stage.len() {
-        return false;
-    }
-    let Some(card_inst) = state.players[player].stage[slot].card else {
-        return false;
-    };
-    state.modifiers.iter().any(|modifier| {
-        modifier.target_player as usize == player
-            && modifier.target_slot as usize == slot
-            && modifier.target_card == card_inst.id
-            && modifier.kind == kind
-            && modifier.magnitude != 0
-    })
-}
-
-#[inline(always)]
-fn player_has_stage_modifier_kind(state: &GameState, player: usize, kind: ModifierKind) -> bool {
-    let max_slot = state.players[player].stage.len();
-    (0..max_slot).any(|slot| slot_has_modifier_kind(state, player, slot, kind))
 }
 
 /// Compute legal action ids for a decision into a reusable buffer.
@@ -306,16 +350,13 @@ pub fn legal_action_ids_cached_into(
         }
         DecisionKind::Main => {
             let p = &state.players[player];
+            let modifier_cache = StageModifierCache::build(state, player);
             let max_slot = if curriculum.reduced_stage_mode {
                 1
             } else {
                 MAX_STAGE
             };
-            let events_locked = player_has_stage_modifier_kind(
-                state,
-                player,
-                ModifierKind::CannotPlayEventsFromHand,
-            );
+            let events_locked = modifier_cache.cannot_play_events_from_hand;
             for (hand_index, card_inst) in p.hand.iter().enumerate() {
                 if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                     break;
@@ -361,6 +402,9 @@ pub fn legal_action_ids_cached_into(
                     if from_slot.card.is_some()
                         && is_character_slot(from_slot, db)
                         && (to_slot.card.is_none() || is_character_slot(to_slot, db))
+                        && !modifier_cache.cannot_move_stage_position[from]
+                        && (to_slot.card.is_none()
+                            || !modifier_cache.cannot_move_stage_position[to])
                     {
                         let to_index = if to < from { to } else { to - 1 };
                         let id = MAIN_MOVE_BASE + from * (MAX_STAGE - 1) + to_index;
@@ -429,9 +473,17 @@ pub fn legal_action_ids_cached_into(
         }
         DecisionKind::Encore => {
             let p = &state.players[player];
+            let modifier_cache = StageModifierCache::build(state, player);
             for slot in 0..p.stage.len() {
                 if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
-                    if can_pay_encore_for_slot(state, db, curriculum, player, slot) {
+                    if can_pay_encore_for_slot(
+                        state,
+                        db,
+                        curriculum,
+                        player,
+                        slot,
+                        Some(&modifier_cache),
+                    ) {
                         push_id(out, ENCORE_PAY_BASE + slot);
                     }
                     push_id(out, ENCORE_DECLINE_BASE + slot);
@@ -705,16 +757,13 @@ pub fn legal_actions_cached_into(
         }
         DecisionKind::Main => {
             let p = &state.players[player];
+            let modifier_cache = StageModifierCache::build(state, player);
             let max_slot = if curriculum.reduced_stage_mode {
                 1
             } else {
                 MAX_STAGE
             };
-            let events_locked = player_has_stage_modifier_kind(
-                state,
-                player,
-                ModifierKind::CannotPlayEventsFromHand,
-            );
+            let events_locked = modifier_cache.cannot_play_events_from_hand;
             for (hand_index, card_inst) in p.hand.iter().enumerate() {
                 if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                     break;
@@ -766,19 +815,9 @@ pub fn legal_actions_cached_into(
                     if from_slot.card.is_some()
                         && is_character_slot(from_slot, db)
                         && (to_slot.card.is_none() || is_character_slot(to_slot, db))
-                        && !slot_has_modifier_kind(
-                            state,
-                            player,
-                            from,
-                            ModifierKind::CannotMoveStagePosition,
-                        )
+                        && !modifier_cache.cannot_move_stage_position[from]
                         && (to_slot.card.is_none()
-                            || !slot_has_modifier_kind(
-                                state,
-                                player,
-                                to,
-                                ModifierKind::CannotMoveStagePosition,
-                            ))
+                            || !modifier_cache.cannot_move_stage_position[to])
                     {
                         actions.push(ActionDesc::MainMove {
                             from_slot: from as u8,
@@ -827,9 +866,17 @@ pub fn legal_actions_cached_into(
         }
         DecisionKind::Encore => {
             let p = &state.players[player];
+            let modifier_cache = StageModifierCache::build(state, player);
             for slot in 0..p.stage.len() {
                 if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
-                    if can_pay_encore_for_slot(state, db, curriculum, player, slot) {
+                    if can_pay_encore_for_slot(
+                        state,
+                        db,
+                        curriculum,
+                        player,
+                        slot,
+                        Some(&modifier_cache),
+                    ) {
                         actions.push(ActionDesc::EncorePay { slot: slot as u8 });
                     }
                     actions.push(ActionDesc::EncoreDecline { slot: slot as u8 });

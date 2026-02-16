@@ -179,6 +179,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -194,28 +196,37 @@ jobs:
         run: |
           python -m pip install -U pip
           python -m pip install maturin numpy
-      - name: Build + install extension (perf)
-        run: python -m maturin develop --release --manifest-path weiss_py/Cargo.toml
-      - name: Capture baseline snapshots
+      - name: Resolve baseline commit
+        id: resolve-base
         run: |
-          mkdir -p /tmp/wss_perf_before /tmp/wss_perf_after
-          cp benchmark/benches.txt /tmp/wss_perf_before/benches.txt
-          cp benchmark/python_bench.txt /tmp/wss_perf_before/python_bench.txt
-      - name: Run rust benches
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch --no-tags --prune origin "${{ github.base_ref }}"
+            BASE_SHA="$(git merge-base HEAD "origin/${{ github.base_ref }}")"
+          else
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              BASE_SHA="$(git rev-parse HEAD^)"
+            else
+              BASE_SHA="$GITHUB_SHA"
+            fi
+          fi
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "Resolved perf baseline commit: $BASE_SHA"
+      - name: Prepare perf worktrees
         run: |
-          cargo bench -p weiss_core --bench core_benches -- --output-format bencher | tee /tmp/wss_perf_after/benches.txt
-          cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher | tee -a /tmp/wss_perf_after/benches.txt
-      - name: Run python boundary bench
+          rm -rf /tmp/wss_base /tmp/wss_head /tmp/wss_perf_before /tmp/wss_perf_after
+          git worktree add --detach /tmp/wss_head "$GITHUB_SHA"
+          git worktree add --detach /tmp/wss_base "${{ steps.resolve-base.outputs.base_sha }}"
+      - name: Snapshot baseline (base commit)
         run: |
-          PYTHONPATH=python python python/examples/bench_python_boundary.py \
-            --num-envs 128 \
-            --steps 2000 \
-            --warmup 200 \
-            --reset-reps 200 \
-            --mode both | tee /tmp/wss_perf_after/python_bench.txt
+          python -m maturin develop --release --manifest-path /tmp/wss_base/weiss_py/Cargo.toml
+          bash "$GITHUB_WORKSPACE/scripts/run_perf_snapshot.sh" /tmp/wss_perf_before /tmp/wss_base
+      - name: Snapshot current (head commit)
+        run: |
+          python -m maturin develop --release --manifest-path /tmp/wss_head/weiss_py/Cargo.toml
+          bash "$GITHUB_WORKSPACE/scripts/run_perf_snapshot.sh" /tmp/wss_perf_after /tmp/wss_head
       - name: Enforce perf budget
         run: |
-          python scripts/check_perf_budget.py \
+          python /tmp/wss_head/scripts/check_perf_budget.py \
             --baseline-benches /tmp/wss_perf_before/benches.txt \
             --current-benches /tmp/wss_perf_after/benches.txt \
             --baseline-python /tmp/wss_perf_before/python_bench.txt \
@@ -223,3 +234,9 @@ jobs:
             --max-core-regression-pct 15 \
             --max-python-regression-pct 10 \
             --require-zero-alloc
+      - name: Cleanup perf worktrees
+        if: always()
+        run: |
+          git worktree remove --force /tmp/wss_base || true
+          git worktree remove --force /tmp/wss_head || true
+          rm -rf /tmp/wss_base /tmp/wss_head

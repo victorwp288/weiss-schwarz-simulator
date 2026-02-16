@@ -143,21 +143,10 @@ pub(crate) fn encode_obs_player_block_into(
         slot_card_ids[slot] = card_id;
         slot_side_attack_allowed[slot] = i32::from(card_id != 0);
     }
-    let mut has_soul_mods = false;
-    let mut has_cannot_side_mods = false;
-    for modifier in &state.modifiers {
-        match modifier.kind {
-            ModifierKind::Soul => has_soul_mods = true,
-            ModifierKind::CannotSideAttack => has_cannot_side_mods = true,
-            _ => {}
-        }
-        if has_soul_mods && has_cannot_side_mods {
-            break;
-        }
-    }
-    if has_soul_mods {
+    let use_derived_attack = state.turn.derived_attack.is_some();
+    if !state.modifiers.is_empty() {
         for modifier in &state.modifiers {
-            if modifier.kind != ModifierKind::Soul || modifier.target_player as usize != p {
+            if modifier.target_player as usize != p {
                 continue;
             }
             let slot = modifier.target_slot as usize;
@@ -168,7 +157,17 @@ pub(crate) fn encode_obs_player_block_into(
             if card_id == 0 || modifier.target_card != card_id {
                 continue;
             }
-            slot_soul_mods[slot] = slot_soul_mods[slot].saturating_add(modifier.magnitude);
+            match modifier.kind {
+                ModifierKind::Soul => {
+                    slot_soul_mods[slot] = slot_soul_mods[slot].saturating_add(modifier.magnitude);
+                }
+                ModifierKind::CannotSideAttack
+                    if !use_derived_attack && modifier.magnitude != 0 =>
+                {
+                    slot_side_attack_allowed[slot] = 0;
+                }
+                _ => {}
+            }
         }
     }
     if let Some(derived) = state.turn.derived_attack.as_ref() {
@@ -178,25 +177,6 @@ pub(crate) fn encode_obs_player_block_into(
             }
             slot_side_attack_allowed[slot] =
                 i32::from(!derived.per_player[p][slot].cannot_side_attack);
-        }
-    } else if has_cannot_side_mods {
-        for modifier in &state.modifiers {
-            if modifier.kind != ModifierKind::CannotSideAttack
-                || modifier.target_player as usize != p
-            {
-                continue;
-            }
-            let slot = modifier.target_slot as usize;
-            if slot >= MAX_STAGE {
-                continue;
-            }
-            let card_id = slot_card_ids[slot];
-            if card_id == 0 || modifier.target_card != card_id {
-                continue;
-            }
-            if modifier.magnitude != 0 {
-                slot_side_attack_allowed[slot] = 0;
-            }
         }
     }
     out[offset] = player.level.len() as i32;
