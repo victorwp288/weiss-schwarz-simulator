@@ -2,6 +2,19 @@
 
 This file is maintained by Release Please.
 
+## [0.3.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.2.1...v0.3.0) (2026-02-16)
+
+
+### Features
+
+* **python:** expand RL status API and split pyo3 bindings ([e1b6156](https://github.com/victorwp288/weiss-schwarz-simulator/commit/e1b6156735a2912b05479fbe4edeb59ff74ba637))
+* **scraper:** add parser v2 rulepacks and coverage reporting ([10fc352](https://github.com/victorwp288/weiss-schwarz-simulator/commit/10fc352be7528d8724794271a37491669eb6f850))
+
+
+### Bug Fixes
+
+* **ci:** resolve clippy/ruff failures and perf venv setup ([576da0b](https://github.com/victorwp288/weiss-schwarz-simulator/commit/576da0bf97eaac49a350de6e7d81a6090c9f2044))
+
 ## [0.2.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.1.3...v0.2.0) (2026-02-04)
 
 
