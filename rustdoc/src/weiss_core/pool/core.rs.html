@@ -300,22 +300,38 @@
 <a href=#300 id=300 data-nosnippet>300</a>            .collect()
 <a href=#301 id=301 data-nosnippet>301</a>    }
 <a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a>    <span class="doccomment">/// Enable replay sampling for all envs in the pool.
-<a href=#304 id=304 data-nosnippet>304</a>    </span><span class="kw">pub fn </span>enable_replay_sampling(<span class="kw-2">&amp;mut </span><span class="self">self</span>, config: ReplayConfig) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#305 id=305 data-nosnippet>305</a>        <span class="kw">let </span><span class="kw-2">mut </span>config = config;
-<a href=#306 id=306 data-nosnippet>306</a>        config.rebuild_cache();
-<a href=#307 id=307 data-nosnippet>307</a>        <span class="kw">let </span>writer = <span class="kw">if </span>config.enabled {
-<a href=#308 id=308 data-nosnippet>308</a>            <span class="prelude-val">Some</span>(ReplayWriter::new(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>)
-<a href=#309 id=309 data-nosnippet>309</a>        } <span class="kw">else </span>{
-<a href=#310 id=310 data-nosnippet>310</a>            <span class="prelude-val">None
-<a href=#311 id=311 data-nosnippet>311</a>        </span>};
-<a href=#312 id=312 data-nosnippet>312</a>        <span class="self">self</span>.template_replay_config = config.clone();
-<a href=#313 id=313 data-nosnippet>313</a>        <span class="self">self</span>.template_replay_writer = writer.clone();
-<a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">for </span>env <span class="kw">in </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.envs {
-<a href=#315 id=315 data-nosnippet>315</a>            env.replay_config = config.clone();
-<a href=#316 id=316 data-nosnippet>316</a>            env.replay_writer = writer.clone();
-<a href=#317 id=317 data-nosnippet>317</a>        }
-<a href=#318 id=318 data-nosnippet>318</a>        <span class="prelude-val">Ok</span>(())
-<a href=#319 id=319 data-nosnippet>319</a>    }
-<a href=#320 id=320 data-nosnippet>320</a>}
+<a href=#303 id=303 data-nosnippet>303</a>    <span class="doccomment">/// Decision counts for each env in the pool.
+<a href=#304 id=304 data-nosnippet>304</a>    </span><span class="kw">pub fn </span>decision_count_batch(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u32&gt; {
+<a href=#305 id=305 data-nosnippet>305</a>        <span class="self">self</span>.envs
+<a href=#306 id=306 data-nosnippet>306</a>            .iter()
+<a href=#307 id=307 data-nosnippet>307</a>            .map(|env| env.state.turn.decision_count)
+<a href=#308 id=308 data-nosnippet>308</a>            .collect()
+<a href=#309 id=309 data-nosnippet>309</a>    }
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a>    <span class="doccomment">/// Tick counts for each env in the pool.
+<a href=#312 id=312 data-nosnippet>312</a>    </span><span class="kw">pub fn </span>tick_count_batch(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u32&gt; {
+<a href=#313 id=313 data-nosnippet>313</a>        <span class="self">self</span>.envs
+<a href=#314 id=314 data-nosnippet>314</a>            .iter()
+<a href=#315 id=315 data-nosnippet>315</a>            .map(|env| env.state.turn.tick_count)
+<a href=#316 id=316 data-nosnippet>316</a>            .collect()
+<a href=#317 id=317 data-nosnippet>317</a>    }
+<a href=#318 id=318 data-nosnippet>318</a>
+<a href=#319 id=319 data-nosnippet>319</a>    <span class="doccomment">/// Enable replay sampling for all envs in the pool.
+<a href=#320 id=320 data-nosnippet>320</a>    </span><span class="kw">pub fn </span>enable_replay_sampling(<span class="kw-2">&amp;mut </span><span class="self">self</span>, config: ReplayConfig) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+<a href=#321 id=321 data-nosnippet>321</a>        <span class="kw">let </span><span class="kw-2">mut </span>config = config;
+<a href=#322 id=322 data-nosnippet>322</a>        config.rebuild_cache();
+<a href=#323 id=323 data-nosnippet>323</a>        <span class="kw">let </span>writer = <span class="kw">if </span>config.enabled {
+<a href=#324 id=324 data-nosnippet>324</a>            <span class="prelude-val">Some</span>(ReplayWriter::new(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>)
+<a href=#325 id=325 data-nosnippet>325</a>        } <span class="kw">else </span>{
+<a href=#326 id=326 data-nosnippet>326</a>            <span class="prelude-val">None
+<a href=#327 id=327 data-nosnippet>327</a>        </span>};
+<a href=#328 id=328 data-nosnippet>328</a>        <span class="self">self</span>.template_replay_config = config.clone();
+<a href=#329 id=329 data-nosnippet>329</a>        <span class="self">self</span>.template_replay_writer = writer.clone();
+<a href=#330 id=330 data-nosnippet>330</a>        <span class="kw">for </span>env <span class="kw">in </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.envs {
+<a href=#331 id=331 data-nosnippet>331</a>            env.replay_config = config.clone();
+<a href=#332 id=332 data-nosnippet>332</a>            env.replay_writer = writer.clone();
+<a href=#333 id=333 data-nosnippet>333</a>        }
+<a href=#334 id=334 data-nosnippet>334</a>        <span class="prelude-val">Ok</span>(())
+<a href=#335 id=335 data-nosnippet>335</a>    }
+<a href=#336 id=336 data-nosnippet>336</a>}
 </code></pre></div></section></main></body></html>

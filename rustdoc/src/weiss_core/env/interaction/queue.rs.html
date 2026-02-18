@@ -49,14 +49,14 @@
 <a href=#49 id=49 data-nosnippet>49</a>        }
 <a href=#50 id=50 data-nosnippet>50</a>        <span class="kw">let </span>spec = live.spec;
 <a href=#51 id=51 data-nosnippet>51</a>        <span class="kw">let </span><span class="kw-2">mut </span>cost = <span class="self">self</span>.ability_cost_for_spec(spec);
-<a href=#52 id=52 data-nosnippet>52</a>        <span class="kw">if </span>!<span class="self">self</span>.can_pay_ability_cost(player, slot, card_inst, cost) {
+<a href=#52 id=52 data-nosnippet>52</a>        <span class="kw">if </span>!<span class="self">self</span>.can_pay_ability_cost(player, <span class="prelude-val">Some</span>(slot), card_inst, <span class="kw-2">&amp;</span>cost) {
 <a href=#53 id=53 data-nosnippet>53</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"Activated ability cost not payable"</span>));
 <a href=#54 id=54 data-nosnippet>54</a>        }
 <a href=#55 id=55 data-nosnippet>55</a>        <span class="kw">let </span>effects: Vec&lt;EffectSpec&gt; = live.effects.to_vec();
 <a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">if </span>effects.is_empty() {
 <a href=#57 id=57 data-nosnippet>57</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"Activated ability has no effects"</span>));
 <a href=#58 id=58 data-nosnippet>58</a>        }
-<a href=#59 id=59 data-nosnippet>59</a>        <span class="self">self</span>.pay_ability_cost_immediate(player, slot, card_inst, <span class="kw-2">&amp;mut </span>cost)<span class="question-mark">?</span>;
+<a href=#59 id=59 data-nosnippet>59</a>        <span class="self">self</span>.pay_ability_cost_immediate(player, <span class="prelude-val">Some</span>(slot), card_inst, <span class="kw-2">&amp;mut </span>cost)<span class="question-mark">?</span>;
 <a href=#60 id=60 data-nosnippet>60</a>        <span class="kw">if </span><span class="self">Self</span>::next_cost_step(<span class="kw-2">&amp;</span>cost).is_some() {
 <a href=#61 id=61 data-nosnippet>61</a>            <span class="self">self</span>.state.turn.cost_payment_depth =
 <a href=#62 id=62 data-nosnippet>62</a>                <span class="self">self</span>.state.turn.cost_payment_depth.saturating_add(<span class="number">1</span>);

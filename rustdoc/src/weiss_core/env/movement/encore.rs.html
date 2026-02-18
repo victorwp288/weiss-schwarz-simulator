@@ -31,8 +31,8 @@
 <a href=#31 id=31 data-nosnippet>31</a>                <span class="kw">continue</span>;
 <a href=#32 id=32 data-nosnippet>32</a>            }
 <a href=#33 id=33 data-nosnippet>33</a>            <span class="kw">let </span>cost = <span class="kw">match </span><span class="kw-2">&amp;</span>live.spec.template {
-<a href=#34 id=34 data-nosnippet>34</a>                AbilityTemplate::EncoreVariant { cost } =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>cost),
-<a href=#35 id=35 data-nosnippet>35</a>                AbilityTemplate::AbilityDef(def) =&gt; <span class="prelude-val">Some</span>(def.cost),
+<a href=#34 id=34 data-nosnippet>34</a>                AbilityTemplate::EncoreVariant { cost } =&gt; <span class="prelude-val">Some</span>(cost.clone()),
+<a href=#35 id=35 data-nosnippet>35</a>                AbilityTemplate::AbilityDef(def) =&gt; <span class="prelude-val">Some</span>(def.cost.clone()),
 <a href=#36 id=36 data-nosnippet>36</a>                <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
 <a href=#37 id=37 data-nosnippet>37</a>            };
 <a href=#38 id=38 data-nosnippet>38</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(cost) = cost {
@@ -170,7 +170,7 @@
 <a href=#170 id=170 data-nosnippet>170</a>            <span class="kw">let </span><span class="prelude-val">Some</span>((ability_index, <span class="kw-2">mut </span>variant_cost)) = <span class="self">self
 <a href=#171 id=171 data-nosnippet>171</a>                </span>.encore_variant_costs(player, slot)
 <a href=#172 id=172 data-nosnippet>172</a>                .into_iter()
-<a href=#173 id=173 data-nosnippet>173</a>                .find(|(<span class="kw">_</span>, cost)| <span class="self">self</span>.can_pay_ability_cost(player, slot, card_inst, <span class="kw-2">*</span>cost))
+<a href=#173 id=173 data-nosnippet>173</a>                .find(|(<span class="kw">_</span>, cost)| <span class="self">self</span>.can_pay_ability_cost(player, <span class="prelude-val">Some</span>(slot), card_inst, cost))
 <a href=#174 id=174 data-nosnippet>174</a>            <span class="kw">else </span>{
 <a href=#175 id=175 data-nosnippet>175</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"Encore cost unpaid"</span>));
 <a href=#176 id=176 data-nosnippet>176</a>            };
@@ -178,7 +178,7 @@
 <a href=#178 id=178 data-nosnippet>178</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"Encore slot empty"</span>));
 <a href=#179 id=179 data-nosnippet>179</a>            }
 <a href=#180 id=180 data-nosnippet>180</a>
-<a href=#181 id=181 data-nosnippet>181</a>            <span class="self">self</span>.pay_ability_cost_immediate(player, slot, card_inst, <span class="kw-2">&amp;mut </span>variant_cost)<span class="question-mark">?</span>;
+<a href=#181 id=181 data-nosnippet>181</a>            <span class="self">self</span>.pay_ability_cost_immediate(player, <span class="prelude-val">Some</span>(slot), card_inst, <span class="kw-2">&amp;mut </span>variant_cost)<span class="question-mark">?</span>;
 <a href=#182 id=182 data-nosnippet>182</a>            <span class="kw">if </span><span class="self">Self</span>::next_cost_step(<span class="kw-2">&amp;</span>variant_cost).is_some() {
 <a href=#183 id=183 data-nosnippet>183</a>                <span class="self">self</span>.state.turn.cost_payment_depth =
 <a href=#184 id=184 data-nosnippet>184</a>                    <span class="self">self</span>.state.turn.cost_payment_depth.saturating_add(<span class="number">1</span>);
