@@ -170,7 +170,7 @@ impl GameEnv {
             let Some((ability_index, mut variant_cost)) = self
                 .encore_variant_costs(player, slot)
                 .into_iter()
-                .find(|(_, cost)| self.can_pay_ability_cost(player, slot, card_inst, *cost))
+                .find(|(_, cost)| self.can_pay_ability_cost(player, Some(slot), card_inst, *cost))
             else {
                 return Err(anyhow!("Encore cost unpaid"));
             };
@@ -178,7 +178,7 @@ impl GameEnv {
                 return Err(anyhow!("Encore slot empty"));
             }
 
-            self.pay_ability_cost_immediate(player, slot, card_inst, &mut variant_cost)?;
+            self.pay_ability_cost_immediate(player, Some(slot), card_inst, &mut variant_cost)?;
             if Self::next_cost_step(&variant_cost).is_some() {
                 self.state.turn.cost_payment_depth =
                     self.state.turn.cost_payment_depth.saturating_add(1);

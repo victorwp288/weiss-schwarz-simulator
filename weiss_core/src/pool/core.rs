@@ -300,6 +300,22 @@ impl EnvPool {
             .collect()
     }
 
+    /// Decision counts for each env in the pool.
+    pub fn decision_count_batch(&self) -> Vec<u32> {
+        self.envs
+            .iter()
+            .map(|env| env.state.turn.decision_count)
+            .collect()
+    }
+
+    /// Tick counts for each env in the pool.
+    pub fn tick_count_batch(&self) -> Vec<u32> {
+        self.envs
+            .iter()
+            .map(|env| env.state.turn.tick_count)
+            .collect()
+    }
+
     /// Enable replay sampling for all envs in the pool.
     pub fn enable_replay_sampling(&mut self, config: ReplayConfig) -> Result<()> {
         let mut config = config;

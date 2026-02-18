@@ -38,26 +38,17 @@ maturin develop --release --manifest-path weiss_py/Cargo.toml
 
 ### Minimal step loop
 
-Use a real `.wsdb` path on your machine. The `db_path` below is a placeholder and the
-`legal_deck` ids must exist in that database.
-
-If you are working from source, you can use the fixture DB:
-
-```bash
-db_path="python/tests/fixtures/cards.wsdb"
-```
+`EnvPool.new_rl_train/new_rl_eval/new_debug` now default to the bundled `.wsdb` shipped with
+the package. Pass `db_path=...` only when you want to override with your own database.
 
 ```python
-from pathlib import Path
 import numpy as np
 import weiss_sim
 
-db_path = Path("/path/to/your/cards.wsdb")
 legal_deck = (list(range(1, 14)) * 4)[:50]
 
 pool = weiss_sim.EnvPool.new_rl_train(
     32,
-    str(db_path),
     deck_lists=[legal_deck, legal_deck],
     deck_ids=[1, 2],
     seed=0,
@@ -67,6 +58,51 @@ out = buf.reset()
 
 actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
 out = buf.step(actions)
+```
+
+### New High-Level API (v1)
+
+For a zero-config surface with strict contracts and optional overrides:
+
+```python
+import numpy as np
+import weiss_sim
+
+sim = weiss_sim.train(num_envs=32, seed=0)
+reset = sim.reset()
+actions = np.full((32,), weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
+step = sim.step(actions)
+
+# Keep hidden info masked by default; opt into debugging visibility/metadata when needed.
+debug_sim = weiss_sim.evaluate(
+    num_envs=4,
+    observation_visibility="full",
+    reveal_opponent_hand_stock_counts=True,
+)
+```
+
+Key helpers:
+
+- `weiss_sim.create(...)`
+- `weiss_sim.train(...)`
+- `weiss_sim.evaluate(...)`
+- `weiss_sim.cards.search(...)`
+- `weiss_sim.cards.get(...)`
+- `weiss_sim.cards.resolve_deck(...)`
+- `weiss_sim.db_info(...)`
+
+`card_pool="parsed_only"` validates card support against packaged catalog data and requires DB hash
+compatibility. If you override `db_path` with a different DB, `create()/train()/evaluate()` fail fast
+with `DbMismatchError` instead of silently applying mismatched parsed-only rules.
+
+Optional override:
+
+```python
+pool = weiss_sim.EnvPool.new_rl_train(
+    32,
+    db_path="/path/to/your/cards.wsdb",
+    deck_lists=[legal_deck, legal_deck],
+)
 ```
 
 For training-safe loop semantics and contract details, read [`docs/rl_contract.md`](docs/rl_contract.md).

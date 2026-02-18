@@ -33,7 +33,7 @@ mod tests {
     use super::*;
     use crate::ActionDesc;
 
-    const OBS_SPEC_HASH: u64 = 8384740602551659921;
+    const OBS_SPEC_HASH: u64 = 3922564485128559020;
     const ACTION_SPEC_HASH: u64 = 2958398628847112153;
 
     #[test]

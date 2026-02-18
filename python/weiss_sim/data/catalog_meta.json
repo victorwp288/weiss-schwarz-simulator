@@ -1,0 +1,9 @@
+{
+  "approx_supported_count": 17167,
+  "cards_raw_path": "/Users/vwp/code/weiss-schwarz-simulator/scraper/out/cards_raw.json",
+  "catalog_count": 18474,
+  "catalog_db_sha256": "69c51fa1b163b5b54926b9ba5953581ed47d7245b9cb1fa70dd8e026e447d36b",
+  "coverage_report_path": "/Users/vwp/code/weiss-schwarz-simulator/scraper/out/ability_coverage_report.json",
+  "schema_version": 1,
+  "strict_supported_count": 6217
+}

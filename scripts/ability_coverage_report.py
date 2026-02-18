@@ -203,6 +203,7 @@ def analyze_profile(
     supported_by_provenance: Counter = Counter()
     cards_with_tagged_lines = 0
     cards_all_lines_supported = 0
+    cards_all_lines_supported_ids: set[int] = set()
 
     for rec in records:
         text = rec.get("raw_text") or rec.get("text") or ""
@@ -249,6 +250,9 @@ def analyze_profile(
                 unsupported[ability_signature(line)] += 1
         if card_ok:
             cards_all_lines_supported += 1
+            card_id = rec.get("id")
+            if isinstance(card_id, int):
+                cards_all_lines_supported_ids.add(card_id)
 
     by_tag: Dict[str, Any] = {}
     for tag, count in sorted(tag_total.items()):
@@ -315,6 +319,7 @@ def analyze_profile(
         },
         "cards_with_tagged_lines": int(cards_with_tagged_lines),
         "cards_all_lines_supported": int(cards_all_lines_supported),
+        "cards_all_lines_supported_ids": sorted(cards_all_lines_supported_ids),
         "card_level_all_lines_supported_coverage": (
             (float(cards_all_lines_supported) / float(cards_with_tagged_lines))
             if cards_with_tagged_lines

@@ -52,8 +52,10 @@ impl GameEnv {
     }
 
     pub(in crate::env) fn replay_visibility_context(&self) -> VisibilityContext {
-        let policies_enabled = self.curriculum.enable_visibility_policies;
-        let mode = self.config.observation_visibility;
+        let (mode, policies_enabled) = match self.replay_config.visibility_mode {
+            ReplayVisibilityMode::Full => (crate::config::ObservationVisibility::Full, false),
+            ReplayVisibilityMode::Public => (crate::config::ObservationVisibility::Public, true),
+        };
         let viewer = None;
         VisibilityContext {
             viewer,

@@ -1,14 +1,36 @@
 mod engine_support;
 
 use std::fs;
-use std::thread::sleep;
-use std::time::Duration;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use engine_support::*;
 use weiss_core::env::GameEnv;
 use weiss_core::fingerprint::{events_fingerprint, state_fingerprint};
 use weiss_core::legal::ActionDesc;
 use weiss_core::replay::{read_replay_file, ReplayConfig, ReplayVisibilityMode, ReplayWriter};
+
+fn replay_files_in(dir: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for entry in fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().map(|s| s == "wsr").unwrap_or(false) {
+            files.push(path);
+        }
+    }
+    files
+}
+
+fn wait_for_replay_files(dir: &Path, timeout: Duration) -> Vec<PathBuf> {
+    let start = Instant::now();
+    loop {
+        let files = replay_files_in(dir);
+        if !files.is_empty() || start.elapsed() >= timeout {
+            return files;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
 
 #[test]
 fn replay_roundtrip_headers() {
@@ -42,15 +64,7 @@ fn replay_roundtrip_headers() {
     env.apply_action(ActionDesc::Pass).unwrap();
     env.apply_action(ActionDesc::Pass).unwrap();
     env.finish_episode_replay();
-    sleep(Duration::from_millis(50));
-
-    let mut files = Vec::new();
-    for entry in fs::read_dir(replay_dir).unwrap() {
-        let path = entry.unwrap().path();
-        if path.extension().map(|s| s == "wsr").unwrap_or(false) {
-            files.push(path);
-        }
-    }
+    let files = wait_for_replay_files(&replay_dir, Duration::from_secs(2));
     assert!(!files.is_empty());
     let data = read_replay_file(&files[0]).unwrap();
     assert_eq!(
@@ -73,6 +87,7 @@ fn replay_actions_reproduce_state_and_events() {
     let replay_config = ReplayConfig {
         enabled: true,
         sample_rate: 1.0,
+        visibility_mode: ReplayVisibilityMode::Full,
         ..Default::default()
     };
     let mut env_a = GameEnv::new_or_panic(
@@ -96,7 +111,7 @@ fn replay_actions_reproduce_state_and_events() {
         env_a.apply_action(action).unwrap();
     }
 
-    let actions = env_a.replay_actions.clone();
+    let actions = env_a.replay_actions_raw.clone();
     let expected_state = state_fingerprint(&env_a.state);
     let expected_events = events_fingerprint(env_a.canonical_events());
 
@@ -156,15 +171,7 @@ fn replay_roundtrip_full_visibility_reproduces_state() {
     let expected_state = state_fingerprint(&env.state);
     let expected_actions = env.replay_actions_raw.clone();
     env.finish_episode_replay();
-    sleep(Duration::from_millis(50));
-
-    let mut files = Vec::new();
-    for entry in fs::read_dir(replay_dir).unwrap() {
-        let path = entry.unwrap().path();
-        if path.extension().map(|s| s == "wsr").unwrap_or(false) {
-            files.push(path);
-        }
-    }
+    let files = wait_for_replay_files(&replay_dir, Duration::from_secs(2));
     assert!(!files.is_empty());
     let data = read_replay_file(&files[0]).unwrap();
     assert_eq!(data.body.actions, expected_actions);
@@ -204,4 +211,47 @@ fn replay_roundtrip_full_visibility_reproduces_state() {
             events_fingerprint(replay_env.canonical_events())
         );
     }
+}
+
+#[test]
+fn replay_store_actions_false_records_events_only() {
+    let db = make_db();
+    let deck_a = vec![1; 50];
+    let deck_b = vec![1; 50];
+    let config = make_config(deck_a, deck_b);
+    let replay_dir = temp_dir("roundtrip_events_only");
+    let replay_config = ReplayConfig {
+        enabled: true,
+        sample_rate: 1.0,
+        out_dir: replay_dir.clone(),
+        compress: false,
+        visibility_mode: ReplayVisibilityMode::Full,
+        store_actions: false,
+        ..Default::default()
+    };
+    let writer = ReplayWriter::new(&replay_config).unwrap();
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        default_curriculum(),
+        33,
+        replay_config,
+        Some(writer),
+        0,
+    );
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
+    env.apply_action(ActionDesc::MulliganConfirm).unwrap();
+    env.apply_action(ActionDesc::Pass).unwrap();
+    env.finish_episode_replay();
+
+    let files = wait_for_replay_files(&replay_dir, Duration::from_secs(2));
+    assert!(!files.is_empty());
+    let data = read_replay_file(&files[0]).unwrap();
+    assert!(data.body.actions.is_empty());
+    assert!(data.body.action_ids.is_empty());
+    assert!(data
+        .body
+        .events
+        .as_ref()
+        .is_some_and(|events| !events.is_empty()));
 }

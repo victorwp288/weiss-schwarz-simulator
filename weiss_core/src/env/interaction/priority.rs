@@ -70,7 +70,7 @@ impl GameEnv {
                             continue;
                         }
                         let cost = spec.template.activation_cost_spec();
-                        if !self.can_pay_ability_cost(player, slot as u8, card_inst, cost) {
+                        if !self.can_pay_ability_cost(player, Some(slot as u8), card_inst, cost) {
                             continue;
                         }
                         if live.effects.is_empty() {

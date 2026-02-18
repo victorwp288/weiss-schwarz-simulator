@@ -38,7 +38,13 @@ Changelog = "https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/CH
 manifest-path = "weiss_py/Cargo.toml"
 python-source = "python"
 module-name = "weiss_sim"
-include = ["LICENSE-APACHE", "LICENSE-MIT"]
+include = [
+  "LICENSE-APACHE",
+  "LICENSE-MIT",
+  "python/weiss_sim/data/*.json",
+  "python/weiss_sim/data/*.json.gz",
+  "python/weiss_sim/data/*.wsdb",
+]
 
 [tool.ruff]
 required-version = "0.12.12"

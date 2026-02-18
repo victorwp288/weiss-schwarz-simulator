@@ -155,6 +155,7 @@ struct CanonicalCurriculumConfig {
     enforce_color_requirement: bool,
     enforce_cost_requirement: bool,
     allow_concede: bool,
+    reveal_opponent_hand_stock_counts: bool,
     memory_is_public: bool,
 }
 
@@ -198,6 +199,7 @@ impl CanonicalCurriculumConfig {
             enforce_color_requirement: curriculum.enforce_color_requirement,
             enforce_cost_requirement: curriculum.enforce_cost_requirement,
             allow_concede: curriculum.allow_concede,
+            reveal_opponent_hand_stock_counts: curriculum.reveal_opponent_hand_stock_counts,
             memory_is_public: curriculum.memory_is_public,
         }
     }

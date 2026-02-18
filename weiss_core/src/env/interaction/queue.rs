@@ -49,14 +49,14 @@ impl GameEnv {
         }
         let spec = live.spec;
         let mut cost = self.ability_cost_for_spec(spec);
-        if !self.can_pay_ability_cost(player, slot, card_inst, cost) {
+        if !self.can_pay_ability_cost(player, Some(slot), card_inst, cost) {
             return Err(anyhow!("Activated ability cost not payable"));
         }
         let effects: Vec<EffectSpec> = live.effects.to_vec();
         if effects.is_empty() {
             return Err(anyhow!("Activated ability has no effects"));
         }
-        self.pay_ability_cost_immediate(player, slot, card_inst, &mut cost)?;
+        self.pay_ability_cost_immediate(player, Some(slot), card_inst, &mut cost)?;
         if Self::next_cost_step(&cost).is_some() {
             self.state.turn.cost_payment_depth =
                 self.state.turn.cost_payment_depth.saturating_add(1);

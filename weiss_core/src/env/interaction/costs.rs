@@ -15,12 +15,15 @@ impl GameEnv {
     pub(in crate::env) fn can_pay_ability_cost(
         &self,
         player: u8,
-        slot: u8,
+        source_slot: Option<u8>,
         source: CardInstance,
         cost: AbilityCost,
     ) -> bool {
         let p = player as usize;
         if cost.rest_self {
+            let Some(slot) = source_slot else {
+                return false;
+            };
             let slot_idx = slot as usize;
             if slot_idx >= self.state.players[p].stage.len() {
                 return false;
@@ -36,7 +39,7 @@ impl GameEnv {
         if cost.rest_other > 0 {
             let mut available = 0usize;
             for (idx, slot_state) in self.state.players[p].stage.iter().enumerate() {
-                if idx == slot as usize {
+                if source_slot == Some(idx as u8) {
                     continue;
                 }
                 if slot_state.card.is_some() && slot_state.status == StageStatus::Stand {
@@ -50,7 +53,7 @@ impl GameEnv {
         if cost.sacrifice_from_stage > 0 {
             let mut available = 0usize;
             for (idx, slot_state) in self.state.players[p].stage.iter().enumerate() {
-                if idx == slot as usize {
+                if source_slot == Some(idx as u8) {
                     continue;
                 }
                 if slot_state.card.is_some() {
@@ -65,6 +68,9 @@ impl GameEnv {
             return false;
         }
         if cost.move_self_to_waiting_room || cost.return_self_to_hand {
+            let Some(slot) = source_slot else {
+                return false;
+            };
             let slot_idx = slot as usize;
             if slot_idx >= self.state.players[p].stage.len() {
                 return false;
@@ -97,12 +103,15 @@ impl GameEnv {
     pub(in crate::env) fn pay_ability_cost_immediate(
         &mut self,
         player: u8,
-        slot: u8,
+        source_slot: Option<u8>,
         source: CardInstance,
         cost: &mut AbilityCost,
     ) -> Result<()> {
         let p = player as usize;
         if cost.rest_self {
+            let Some(slot) = source_slot else {
+                return Err(anyhow!("Cost rest requires source slot"));
+            };
             let slot_idx = slot as usize;
             if slot_idx >= self.state.players[p].stage.len() {
                 return Err(anyhow!("Cost rest slot out of range"));
@@ -125,6 +134,9 @@ impl GameEnv {
             ));
         }
         if cost.move_self_to_waiting_room || cost.return_self_to_hand {
+            let Some(slot) = source_slot else {
+                return Err(anyhow!("Cost source requires stage slot"));
+            };
             let slot_idx = slot as usize;
             if slot_idx >= self.state.players[p].stage.len() {
                 return Err(anyhow!("Cost source slot out of range"));

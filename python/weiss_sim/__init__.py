@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import numpy as np
 
 from .weiss_sim import (
@@ -49,6 +48,32 @@ from .rl import (
     step_rl_sample_from_logits_i16_legal_ids,
     step_rl_sample_from_logits_i16_legal_ids_into,
 )
+from .api import create, db_info, evaluate, export_spec_bundle, train
+from .catalog import cards
+from .config_types import CurriculumOverrides, DeckInput, EndConditionOverrides
+from .league import (
+    AgentSummary,
+    ClockGreedSummary,
+    FirstPlayerBiasSummary,
+    MatchRecord,
+    rank_agents,
+    records_from_step,
+    round_robin_schedule,
+    sample_population_schedule,
+    summarize_clock_greed_from_replay,
+    summarize_first_player_bias,
+    summarize_records,
+)
+from .errors import (
+    CardLookupError,
+    ConfigConflictError,
+    DbMismatchError,
+    DeckSpecError,
+    DeckValidationError,
+    WeissSimError,
+)
+from .runner import SimRunner
+from .types import CardRef, ResetBatch, StepBatch
 
 _PROFILE_FAST = "fast"
 _PROFILE_BALANCED = "balanced"
@@ -71,10 +96,121 @@ def _prepare_pool_for_legal_ids(pool: EnvPool) -> None:
     pool.set_output_mask_bits_enabled(False)
 
 
+def _resolve_pool_options(
+    *,
+    profile: str,
+    output_masks: bool | None,
+    use_i16: bool | None,
+    legal_ids: bool | None,
+    unsafe_i16: bool | None,
+) -> tuple[bool, bool, bool, bool]:
+    _, profile_masks, profile_i16, profile_legal_ids, profile_unsafe_i16 = _resolve_profile(profile)
+    resolved_output_masks = profile_masks if output_masks is None else bool(output_masks)
+    resolved_use_i16 = profile_i16 if use_i16 is None else bool(use_i16)
+    resolved_legal_ids = profile_legal_ids if legal_ids is None else bool(legal_ids)
+    resolved_unsafe_i16 = profile_unsafe_i16 if unsafe_i16 is None else bool(unsafe_i16)
+    if resolved_legal_ids:
+        if resolved_output_masks:
+            raise ValueError("legal_ids requires output_masks=False")
+        if resolved_use_i16 is False:
+            raise ValueError("legal_ids currently requires use_i16=True")
+        resolved_output_masks = False
+        resolved_use_i16 = True
+    if resolved_unsafe_i16 and not resolved_use_i16:
+        raise ValueError("unsafe_i16 requires use_i16=True")
+    return resolved_output_masks, resolved_use_i16, resolved_legal_ids, resolved_unsafe_i16
+
+
+def _select_pool_buffers(
+    pool: EnvPool,
+    *,
+    output_masks: bool,
+    use_i16: bool,
+    legal_ids: bool,
+    rollout_steps: int | None,
+):
+    if rollout_steps is not None:
+        if legal_ids:
+            return pool, EnvPoolTrajectoryBuffersI16LegalIds(pool, rollout_steps)
+        if use_i16:
+            return pool, EnvPoolTrajectoryBuffersI16(pool, rollout_steps)
+        if output_masks:
+            return pool, EnvPoolTrajectoryBuffers(pool, rollout_steps)
+        return pool, EnvPoolTrajectoryBuffersNoMask(pool, rollout_steps)
+    if legal_ids:
+        return pool, EnvPoolBuffersI16LegalIds(pool)
+    if use_i16:
+        return pool, EnvPoolBuffersI16(pool)
+    if output_masks:
+        return pool, EnvPoolBuffers(pool)
+    return pool, EnvPoolBuffersNoMask(pool)
+
+
+def _make_pool(
+    *,
+    constructor,
+    num_envs: int,
+    db_path: str | None,
+    deck_lists,
+    deck_ids,
+    max_decisions: int,
+    max_ticks: int,
+    seed: int,
+    curriculum_json: str | None,
+    reward_json: str | None,
+    error_policy: str | None,
+    num_threads: int | None,
+    debug_fingerprint_every_n: int,
+    debug_event_ring_capacity: int,
+    profile: str,
+    output_masks: bool | None,
+    use_i16: bool | None,
+    legal_ids: bool | None,
+    unsafe_i16: bool | None,
+    rollout_steps: int | None,
+):
+    if deck_lists is None:
+        raise ValueError("deck_lists is required")
+    output_masks_v, use_i16_v, legal_ids_v, unsafe_i16_v = _resolve_pool_options(
+        profile=profile,
+        output_masks=output_masks,
+        use_i16=use_i16,
+        legal_ids=legal_ids,
+        unsafe_i16=unsafe_i16,
+    )
+    pool = constructor(
+        num_envs,
+        db_path,
+        deck_lists,
+        deck_ids=deck_ids,
+        max_decisions=max_decisions,
+        max_ticks=max_ticks,
+        seed=seed,
+        curriculum_json=curriculum_json,
+        reward_json=reward_json,
+        error_policy=error_policy,
+        num_threads=num_threads,
+        output_masks=output_masks_v,
+        debug_fingerprint_every_n=debug_fingerprint_every_n,
+        debug_event_ring_capacity=debug_event_ring_capacity,
+    )
+    if legal_ids_v:
+        _prepare_pool_for_legal_ids(pool)
+    if unsafe_i16_v:
+        pool.set_i16_clamp_enabled(False)
+    return _select_pool_buffers(
+        pool,
+        output_masks=output_masks_v,
+        use_i16=use_i16_v,
+        legal_ids=legal_ids_v,
+        rollout_steps=rollout_steps,
+    )
+
+
 def make_train_pool(
     num_envs: int,
-    db_path: str,
-    deck_lists,
+    db_path: str | None = None,
+    deck_lists=None,
     deck_ids=None,
     max_decisions: int = 2000,
     max_ticks: int = 100_000,
@@ -103,28 +239,11 @@ def make_train_pool(
 
     Returns: (pool, buffers)
     """
-    _, profile_masks, profile_i16, profile_legal_ids, profile_unsafe_i16 = _resolve_profile(profile)
-    if output_masks is None:
-        output_masks = profile_masks
-    if use_i16 is None:
-        use_i16 = profile_i16
-    if legal_ids is None:
-        legal_ids = profile_legal_ids
-    if unsafe_i16 is None:
-        unsafe_i16 = profile_unsafe_i16
-    if legal_ids:
-        if output_masks:
-            raise ValueError("legal_ids requires output_masks=False")
-        if use_i16 is False:
-            raise ValueError("legal_ids currently requires use_i16=True")
-        output_masks = False
-        use_i16 = True
-    if unsafe_i16 and not use_i16:
-        raise ValueError("unsafe_i16 requires use_i16=True")
-    pool = EnvPool.new_rl_train(
-        num_envs,
-        db_path,
-        deck_lists,
+    return _make_pool(
+        constructor=EnvPool.new_rl_train,
+        num_envs=num_envs,
+        db_path=db_path,
+        deck_lists=deck_lists,
         deck_ids=deck_ids,
         max_decisions=max_decisions,
         max_ticks=max_ticks,
@@ -133,35 +252,21 @@ def make_train_pool(
         reward_json=reward_json,
         error_policy=error_policy,
         num_threads=num_threads,
-        output_masks=output_masks,
         debug_fingerprint_every_n=debug_fingerprint_every_n,
         debug_event_ring_capacity=debug_event_ring_capacity,
+        profile=profile,
+        output_masks=output_masks,
+        use_i16=use_i16,
+        legal_ids=legal_ids,
+        unsafe_i16=unsafe_i16,
+        rollout_steps=rollout_steps,
     )
-    if legal_ids:
-        _prepare_pool_for_legal_ids(pool)
-    if unsafe_i16:
-        pool.set_i16_clamp_enabled(False)
-    if rollout_steps is not None:
-        if legal_ids:
-            return pool, EnvPoolTrajectoryBuffersI16LegalIds(pool, rollout_steps)
-        if use_i16:
-            return pool, EnvPoolTrajectoryBuffersI16(pool, rollout_steps)
-        if output_masks:
-            return pool, EnvPoolTrajectoryBuffers(pool, rollout_steps)
-        return pool, EnvPoolTrajectoryBuffersNoMask(pool, rollout_steps)
-    if legal_ids:
-        return pool, EnvPoolBuffersI16LegalIds(pool)
-    if use_i16:
-        return pool, EnvPoolBuffersI16(pool)
-    if output_masks:
-        return pool, EnvPoolBuffers(pool)
-    return pool, EnvPoolBuffersNoMask(pool)
 
 
 def make_eval_pool(
     num_envs: int,
-    db_path: str,
-    deck_lists,
+    db_path: str | None = None,
+    deck_lists=None,
     deck_ids=None,
     max_decisions: int = 2000,
     max_ticks: int = 100_000,
@@ -190,28 +295,11 @@ def make_eval_pool(
 
     Returns: (pool, buffers)
     """
-    _, profile_masks, profile_i16, profile_legal_ids, profile_unsafe_i16 = _resolve_profile(profile)
-    if output_masks is None:
-        output_masks = profile_masks
-    if use_i16 is None:
-        use_i16 = profile_i16
-    if legal_ids is None:
-        legal_ids = profile_legal_ids
-    if unsafe_i16 is None:
-        unsafe_i16 = profile_unsafe_i16
-    if legal_ids:
-        if output_masks:
-            raise ValueError("legal_ids requires output_masks=False")
-        if use_i16 is False:
-            raise ValueError("legal_ids currently requires use_i16=True")
-        output_masks = False
-        use_i16 = True
-    if unsafe_i16 and not use_i16:
-        raise ValueError("unsafe_i16 requires use_i16=True")
-    pool = EnvPool.new_rl_eval(
-        num_envs,
-        db_path,
-        deck_lists,
+    return _make_pool(
+        constructor=EnvPool.new_rl_eval,
+        num_envs=num_envs,
+        db_path=db_path,
+        deck_lists=deck_lists,
         deck_ids=deck_ids,
         max_decisions=max_decisions,
         max_ticks=max_ticks,
@@ -220,29 +308,15 @@ def make_eval_pool(
         reward_json=reward_json,
         error_policy=error_policy,
         num_threads=num_threads,
-        output_masks=output_masks,
         debug_fingerprint_every_n=debug_fingerprint_every_n,
         debug_event_ring_capacity=debug_event_ring_capacity,
+        profile=profile,
+        output_masks=output_masks,
+        use_i16=use_i16,
+        legal_ids=legal_ids,
+        unsafe_i16=unsafe_i16,
+        rollout_steps=rollout_steps,
     )
-    if legal_ids:
-        _prepare_pool_for_legal_ids(pool)
-    if unsafe_i16:
-        pool.set_i16_clamp_enabled(False)
-    if rollout_steps is not None:
-        if legal_ids:
-            return pool, EnvPoolTrajectoryBuffersI16LegalIds(pool, rollout_steps)
-        if use_i16:
-            return pool, EnvPoolTrajectoryBuffersI16(pool, rollout_steps)
-        if output_masks:
-            return pool, EnvPoolTrajectoryBuffers(pool, rollout_steps)
-        return pool, EnvPoolTrajectoryBuffersNoMask(pool, rollout_steps)
-    if legal_ids:
-        return pool, EnvPoolBuffersI16LegalIds(pool)
-    if use_i16:
-        return pool, EnvPoolBuffersI16(pool)
-    if output_masks:
-        return pool, EnvPoolBuffers(pool)
-    return pool, EnvPoolBuffersNoMask(pool)
 
 
 class _EngineStatusMixin:
@@ -748,12 +822,7 @@ class EnvPoolTrajectoryBuffersNoMask(_EngineStatusMixin):
 
 
 def spec_bundle():
-    return {
-        "policy_version": POLICY_VERSION,
-        "spec_hash": SPEC_HASH,
-        "observation": json.loads(observation_spec_json()),
-        "action": json.loads(action_spec_json()),
-    }
+    return export_spec_bundle()
 
 
 __all__ = [
@@ -809,5 +878,35 @@ __all__ = [
     "make_train_pool",
     "make_eval_pool",
     "spec_bundle",
+    "export_spec_bundle",
+    "db_info",
+    "create",
+    "train",
+    "evaluate",
+    "cards",
+    "SimRunner",
+    "CurriculumOverrides",
+    "EndConditionOverrides",
+    "DeckInput",
+    "MatchRecord",
+    "AgentSummary",
+    "FirstPlayerBiasSummary",
+    "ClockGreedSummary",
+    "round_robin_schedule",
+    "sample_population_schedule",
+    "records_from_step",
+    "summarize_records",
+    "summarize_first_player_bias",
+    "summarize_clock_greed_from_replay",
+    "rank_agents",
+    "CardRef",
+    "ResetBatch",
+    "StepBatch",
+    "WeissSimError",
+    "DeckSpecError",
+    "CardLookupError",
+    "DeckValidationError",
+    "ConfigConflictError",
+    "DbMismatchError",
     "__version__",
 ]

@@ -607,14 +607,13 @@ impl GameEnv {
             return false;
         };
         let mut cost = self.ability_cost_for_spec(spec);
-        let slot_for_cost = source_slot.unwrap_or(0);
 
         if !cost.is_empty() {
-            if !self.can_pay_ability_cost(player, slot_for_cost, source_inst, cost) {
+            if !self.can_pay_ability_cost(player, source_slot, source_inst, cost) {
                 return false;
             }
             if self
-                .pay_ability_cost_immediate(player, slot_for_cost, source_inst, &mut cost)
+                .pay_ability_cost_immediate(player, source_slot, source_inst, &mut cost)
                 .is_err()
             {
                 return false;
@@ -671,12 +670,9 @@ impl GameEnv {
             true
         } else {
             match self.trigger_auto_source_context(trigger.player, trigger.source_card) {
-                Some((source_slot, source_inst)) => self.can_pay_ability_cost(
-                    trigger.player,
-                    source_slot.unwrap_or(0),
-                    source_inst,
-                    cost,
-                ),
+                Some((source_slot, source_inst)) => {
+                    self.can_pay_ability_cost(trigger.player, source_slot, source_inst, cost)
+                }
                 None => false,
             }
         };

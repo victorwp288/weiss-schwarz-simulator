@@ -296,6 +296,9 @@ pub struct CurriculumConfig {
     #[serde(default)]
     /// Allow players to concede.
     pub allow_concede: bool,
+    #[serde(default)]
+    /// Expose opponent hand/stock counts in public observations.
+    pub reveal_opponent_hand_stock_counts: bool,
     #[serde(default = "default_true")]
     /// Treat memory zone as public information.
     pub memory_is_public: bool,
@@ -342,6 +345,7 @@ impl Default for CurriculumConfig {
             enforce_color_requirement: true,
             enforce_cost_requirement: true,
             allow_concede: false,
+            reveal_opponent_hand_stock_counts: false,
             memory_is_public: true,
             allowed_card_sets_cache: None,
         }

@@ -5,7 +5,7 @@ use crate::db::{CardColor, CardDb, CardStatic, CardType};
 use crate::env::GameEnv;
 use crate::events::Event;
 use crate::legal::ActionDesc;
-use crate::replay::{ReplayConfig, ReplayEvent};
+use crate::replay::{ReplayConfig, ReplayEvent, ReplayVisibilityMode};
 use crate::state::{ChoiceOptionRef, ChoiceReason, ChoiceZone};
 use std::sync::Arc;
 
@@ -126,5 +126,35 @@ fn sanitize_action_masks_hidden_indices() {
     match masked {
         ActionDesc::MulliganSelect { hand_index } => assert_eq!(hand_index, u8::MAX),
         _ => panic!("unexpected masked action"),
+    }
+}
+
+#[test]
+fn replay_public_mode_sanitizes_even_when_observation_is_full() {
+    let mut env = make_env();
+    env.config.observation_visibility = ObservationVisibility::Full;
+    env.curriculum.enable_visibility_policies = false;
+    env.replay_config.visibility_mode = ReplayVisibilityMode::Public;
+    let ctx = env.replay_visibility_context();
+    let action = ActionDesc::MulliganSelect { hand_index: 2 };
+    let masked = env.sanitize_action_for_viewer(&action, 0, ctx);
+    match masked {
+        ActionDesc::MulliganSelect { hand_index } => assert_eq!(hand_index, u8::MAX),
+        _ => panic!("unexpected masked action"),
+    }
+}
+
+#[test]
+fn replay_full_mode_stays_unsanitized_even_when_observation_is_public() {
+    let mut env = make_env();
+    env.config.observation_visibility = ObservationVisibility::Public;
+    env.curriculum.enable_visibility_policies = true;
+    env.replay_config.visibility_mode = ReplayVisibilityMode::Full;
+    let ctx = env.replay_visibility_context();
+    let action = ActionDesc::MulliganSelect { hand_index: 2 };
+    let kept = env.sanitize_action_for_viewer(&action, 0, ctx);
+    match kept {
+        ActionDesc::MulliganSelect { hand_index } => assert_eq!(hand_index, 2),
+        _ => panic!("unexpected action"),
     }
 }

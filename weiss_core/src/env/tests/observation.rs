@@ -159,9 +159,11 @@ fn cached_path_refreshes_and_uses_opponent_block() {
 
     let self_hand = obs[OBS_HEADER_LEN + 3];
     let opp_hand = obs[OBS_HEADER_LEN + PER_PLAYER_BLOCK_LEN + 3];
+    let opp_stock = obs[OBS_HEADER_LEN + PER_PLAYER_BLOCK_LEN + 4];
 
     assert_eq!(self_hand, env.state.players[perspective].hand.len() as i32);
-    assert_eq!(opp_hand, env.state.players[opponent].hand.len() as i32);
+    assert_eq!(opp_hand, 0);
+    assert_eq!(opp_stock, 0);
 }
 
 #[test]
@@ -238,6 +240,39 @@ fn observation_encoded_from_actor_and_self_block_first() {
 
     let self_hand = outcome.obs[OBS_HEADER_LEN + 3];
     let opp_hand = outcome.obs[OBS_HEADER_LEN + PER_PLAYER_BLOCK_LEN + 3];
+    let opp_stock = outcome.obs[OBS_HEADER_LEN + PER_PLAYER_BLOCK_LEN + 4];
+    assert_eq!(
+        self_hand,
+        env.state.players[decision_player].hand.len() as i32
+    );
+    assert_eq!(opp_hand, 0);
+    assert_eq!(opp_stock, 0);
+}
+
+#[test]
+fn observation_can_expose_opponent_hand_count_with_override() {
+    let mut env = make_env();
+    env.curriculum.reveal_opponent_hand_stock_counts = true;
+    env.advance_until_decision();
+    let decision_player = env.decision.as_ref().expect("decision").player as usize;
+    env.state.players[0].hand.truncate(2);
+    env.state.players[1].hand.truncate(5);
+    while env.state.players[0].stock.len() < 2 {
+        let card = env.state.players[0].deck.pop().expect("player 0 deck");
+        env.state.players[0].stock.push(card);
+    }
+    while env.state.players[1].stock.len() < 3 {
+        let card = env.state.players[1].deck.pop().expect("player 1 deck");
+        env.state.players[1].stock.push(card);
+    }
+    env.touch_player_obs(0);
+    env.touch_player_obs(1);
+
+    let outcome = env.build_outcome_with_obs(0.0, true);
+    let self_hand = outcome.obs[OBS_HEADER_LEN + 3];
+    let opp_hand = outcome.obs[OBS_HEADER_LEN + PER_PLAYER_BLOCK_LEN + 3];
+    let self_stock = outcome.obs[OBS_HEADER_LEN + 4];
+    let opp_stock = outcome.obs[OBS_HEADER_LEN + PER_PLAYER_BLOCK_LEN + 4];
     assert_eq!(
         self_hand,
         env.state.players[decision_player].hand.len() as i32
@@ -245,6 +280,14 @@ fn observation_encoded_from_actor_and_self_block_first() {
     assert_eq!(
         opp_hand,
         env.state.players[1 - decision_player].hand.len() as i32
+    );
+    assert_eq!(
+        self_stock,
+        env.state.players[decision_player].stock.len() as i32
+    );
+    assert_eq!(
+        opp_stock,
+        env.state.players[1 - decision_player].stock.len() as i32
     );
 }
 

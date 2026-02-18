@@ -538,6 +538,12 @@ fn build_cases_for_update() -> Vec<TranscriptCase> {
     ]
 }
 
+fn read_expected_transcripts() -> TranscriptFile {
+    let path = fixture_path();
+    let bytes = fs::read(&path).expect("read golden transcript");
+    serde_json::from_slice(&bytes).expect("parse golden transcript")
+}
+
 #[test]
 #[cfg_attr(not(feature = "test-harness"), ignore)]
 fn golden_transcripts() {
@@ -556,8 +562,7 @@ fn golden_transcripts() {
         return;
     }
 
-    let bytes = fs::read(&path).expect("read golden transcript");
-    let expected: TranscriptFile = serde_json::from_slice(&bytes).expect("parse golden transcript");
+    let expected = read_expected_transcripts();
 
     let cases = expected
         .cases
@@ -578,4 +583,32 @@ fn golden_transcripts() {
     };
 
     assert_eq!(expected, file);
+}
+
+#[test]
+fn golden_transcripts_non_harness_cases() {
+    let expected = read_expected_transcripts();
+    let expected_cases: Vec<TranscriptCase> = expected
+        .cases
+        .iter()
+        .filter(|case| !case.header.harness)
+        .cloned()
+        .collect();
+    assert!(
+        !expected_cases.is_empty(),
+        "fixture must include at least one non-harness case"
+    );
+    let cases = expected_cases
+        .iter()
+        .map(|case| {
+            run_case(
+                &case.name,
+                case.seed,
+                case.deck_a.clone(),
+                case.deck_b.clone(),
+                false,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(expected_cases, cases);
 }

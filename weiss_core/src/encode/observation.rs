@@ -104,6 +104,8 @@ pub(crate) fn encode_obs_player_block(
     let hand_visible = visibility == ObservationVisibility::Full || is_self;
     let stock_visible = visibility == ObservationVisibility::Full || is_self;
     let deck_visible = visibility == ObservationVisibility::Full || is_self;
+    let hand_count_visible = private_count_visible(visibility, curriculum, is_self);
+    let stock_count_visible = private_count_visible(visibility, curriculum, is_self);
     let base = OBS_HEADER_LEN + block_index * PER_PLAYER_BLOCK_LEN;
     let block = &mut out[base..base + PER_PLAYER_BLOCK_LEN];
     encode_obs_player_block_into(
@@ -111,7 +113,9 @@ pub(crate) fn encode_obs_player_block(
         db,
         player_index,
         memory_visible,
+        hand_count_visible,
         hand_visible,
+        stock_count_visible,
         stock_visible,
         deck_visible,
         slot_powers,
@@ -125,7 +129,9 @@ pub(crate) fn encode_obs_player_block_into(
     db: &CardDb,
     player_index: u8,
     memory_visible: bool,
+    hand_count_visible: bool,
     hand_visible: bool,
+    stock_count_visible: bool,
     stock_visible: bool,
     deck_visible: bool,
     slot_powers: &[[i32; MAX_STAGE]; 2],
@@ -182,8 +188,16 @@ pub(crate) fn encode_obs_player_block_into(
     out[offset] = player.level.len() as i32;
     out[offset + 1] = player.clock.len() as i32;
     out[offset + 2] = player.deck.len() as i32;
-    out[offset + 3] = player.hand.len() as i32;
-    out[offset + 4] = player.stock.len() as i32;
+    out[offset + 3] = if hand_count_visible {
+        player.hand.len() as i32
+    } else {
+        0
+    };
+    out[offset + 4] = if stock_count_visible {
+        player.stock.len() as i32
+    } else {
+        0
+    };
     out[offset + 5] = player.waiting_room.len() as i32;
     out[offset + 6] = if memory_visible {
         player.memory.len() as i32
@@ -296,6 +310,16 @@ pub(crate) fn encode_obs_player_block_into(
     } else {
         out[offset..offset + MAX_DECK].fill(-1);
     }
+}
+
+fn private_count_visible(
+    visibility: ObservationVisibility,
+    curriculum: &CurriculumConfig,
+    is_self: bool,
+) -> bool {
+    visibility == ObservationVisibility::Full
+        || is_self
+        || curriculum.reveal_opponent_hand_stock_counts
 }
 
 #[allow(clippy::too_many_arguments)]

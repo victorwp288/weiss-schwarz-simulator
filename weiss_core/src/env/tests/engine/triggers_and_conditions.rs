@@ -225,6 +225,95 @@ fn ability_def_climax_gate_rechecked_at_trigger_resolve() {
 }
 
 #[test]
+fn climax_auto_cost_uses_no_synthetic_source_slot_for_rest_other() {
+    let mut env = make_env();
+    let mut cards = env.db.cards.clone();
+    let card = cards
+        .iter_mut()
+        .find(|card| card.id == 1)
+        .expect("card 1 present");
+    card.card_type = CardType::Climax;
+    card.ability_defs = vec![AbilityDef {
+        kind: AbilityKind::Auto,
+        timing: Some(AbilityTiming::BeginMainPhase),
+        effects: vec![EffectTemplate::Draw { count: 1 }],
+        effect_optional: Vec::new(),
+        targets: Vec::new(),
+        cost: AbilityCost {
+            rest_other: 1,
+            ..Default::default()
+        },
+        conditions: AbilityDefConditions::default(),
+        target_card_type: None,
+        target_trait: None,
+        target_level_max: None,
+        target_cost_max: None,
+        target_card_ids: Vec::new(),
+        target_limit: None,
+    }];
+    env.db = Arc::new(CardDb::new(cards).expect("db rebuild"));
+    let _ = env.reset_no_copy();
+
+    let climax_idx = env.state.players[0]
+        .deck
+        .iter()
+        .position(|card| card.id == 1)
+        .expect("climax source");
+    let climax_card = env.state.players[0].deck.remove(climax_idx);
+    env.state.players[0].climax.push(climax_card);
+
+    let stage_idx = env.state.players[0]
+        .deck
+        .iter()
+        .position(|card| card.id != 1)
+        .expect("stage source");
+    let stage_card = env.state.players[0].deck.remove(stage_idx);
+    env.state.players[0].stage[0].card = Some(stage_card);
+    env.state.players[0].stage[0].status = StageStatus::Stand;
+    let second_stage_idx = env.state.players[0]
+        .deck
+        .iter()
+        .position(|card| card.id != 1)
+        .expect("second stage source");
+    let second_stage_card = env.state.players[0].deck.remove(second_stage_idx);
+    env.state.players[0].stage[1].card = Some(second_stage_card);
+    env.state.players[0].stage[1].status = StageStatus::Stand;
+
+    env.queue_timing_triggers(AbilityTiming::BeginMainPhase);
+    let trigger = env
+        .state
+        .turn
+        .pending_triggers
+        .pop()
+        .expect("queued auto trigger");
+    let resolved = env.resolve_trigger(trigger).expect("resolve trigger");
+    assert!(resolved);
+
+    let choice = env.state.turn.choice.as_ref().expect("cost payment choice");
+    assert_eq!(choice.reason, ChoiceReason::CostPayment);
+    assert!(choice
+        .options
+        .iter()
+        .any(|option| option.zone == ChoiceZone::Stage && option.index == Some(0)));
+    assert!(env
+        .state
+        .turn
+        .pending_cost
+        .as_ref()
+        .is_some_and(|cost| cost.source_slot.is_none()));
+
+    let choice = env
+        .state
+        .turn
+        .choice
+        .take()
+        .expect("cost payment choice should remain active");
+    let option = choice.options[0];
+    env.apply_choice_effect(choice.reason, choice.player, option, choice.pending_trigger);
+    assert_eq!(env.state.players[0].stage[0].status, StageStatus::Rest);
+}
+
+#[test]
 fn ability_def_requires_approx_effects_respects_curriculum_gate() {
     let mut env = make_env();
     let mut cards = env.db.cards.clone();
@@ -675,4 +764,3 @@ fn hand_ignore_color_requirement_condition_bypasses_color_gate() {
     let static_card = env.db.get(1).expect("card 1");
     assert!(env.meets_color_requirement(0, static_card));
 }
-

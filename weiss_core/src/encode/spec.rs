@@ -230,14 +230,16 @@ pub fn observation_spec() -> ObservationSpec {
             start: 3,
             len: 1,
             visibility: "private",
-            description: "hand count (private unless full visibility)",
+            description:
+                "hand count (private by default; visible in full mode or when reveal_opponent_hand_stock_counts is enabled)",
         },
         ObsSliceSpec {
             name: "stock_count",
             start: 4,
             len: 1,
             visibility: "private",
-            description: "stock count (private unless full visibility)",
+            description:
+                "stock count (private by default; visible in full mode or when reveal_opponent_hand_stock_counts is enabled)",
         },
         ObsSliceSpec {
             name: "waiting_room_count",

@@ -3,20 +3,133 @@ struct PyEnvPool {
     pool: EnvPool,
 }
 
+enum RlPoolCtor {
+    Train,
+    Eval,
+}
+
+struct ParsedPoolInit {
+    db: Arc<CardDb>,
+    config: EnvConfig,
+    curriculum: CurriculumConfig,
+    error_policy: ErrorPolicy,
+    visibility: ObservationVisibility,
+    num_threads: Option<usize>,
+    debug: DebugConfig,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn parse_pool_init(
+    num_envs: usize,
+    db_path: Option<String>,
+    deck_lists: Option<Vec<Vec<u32>>>,
+    deck_ids: Option<Vec<u32>>,
+    max_decisions: u32,
+    max_ticks: u32,
+    curriculum_json: Option<String>,
+    reward_json: Option<String>,
+    end_condition_policy_json: Option<String>,
+    error_policy: Option<String>,
+    observation_visibility: Option<String>,
+    num_threads: Option<usize>,
+    debug_fingerprint_every_n: u32,
+    debug_event_ring_capacity: usize,
+) -> PyResult<ParsedPoolInit> {
+    if num_envs == 0 {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "num_envs must be > 0",
+        ));
+    }
+    let deck_lists =
+        deck_lists.ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("deck_lists is required"))?;
+    let reward = parse_reward_config(reward_json)?;
+    let end_condition_policy = parse_end_condition_policy(end_condition_policy_json)?;
+    let curriculum = parse_curriculum_config(curriculum_json)?;
+    let error_policy = parse_error_policy(error_policy)?;
+    let visibility = parse_observation_visibility(observation_visibility)?;
+    let (db, config) = build_env_config(
+        db_path,
+        deck_lists,
+        deck_ids,
+        max_decisions,
+        max_ticks,
+        reward,
+        error_policy,
+        visibility,
+        end_condition_policy,
+    )?;
+    let debug = build_debug_config(
+        Some(debug_fingerprint_every_n),
+        Some(debug_event_ring_capacity),
+    );
+    Ok(ParsedPoolInit {
+        db,
+        config,
+        curriculum,
+        error_policy,
+        visibility,
+        num_threads: resolve_num_threads(num_envs, num_threads),
+        debug,
+    })
+}
+
+fn build_rl_pool(
+    ctor: RlPoolCtor,
+    num_envs: usize,
+    seed: u64,
+    init: ParsedPoolInit,
+    output_masks: bool,
+) -> PyResult<PyEnvPool> {
+    let ParsedPoolInit {
+        db,
+        config,
+        mut curriculum,
+        error_policy,
+        visibility,
+        num_threads,
+        debug,
+    } = init;
+    let mut pool = if visibility == ObservationVisibility::Public {
+        match ctor {
+            RlPoolCtor::Train => {
+                EnvPool::new_rl_train(num_envs, db, config, curriculum, seed, num_threads, debug)
+            }
+            RlPoolCtor::Eval => {
+                EnvPool::new_rl_eval(num_envs, db, config, curriculum, seed, num_threads, debug)
+            }
+        }
+    } else {
+        curriculum.enable_visibility_policies = true;
+        curriculum.allow_concede = false;
+        EnvPool::new_debug(num_envs, db, config, curriculum, seed, num_threads, debug)
+    }
+    .map_err(map_pool_init_error)?;
+    // Align behavior across train/eval/debug paths: caller-provided policy always wins.
+    pool.set_error_policy(error_policy);
+    pool.set_output_mask_enabled(output_masks);
+    Ok(PyEnvPool { pool })
+}
+
 #[pymethods]
 impl PyEnvPool {
+    /// Create a pool tuned for RL training defaults.
+    ///
+    /// Public visibility keeps hidden information masked by default. `deck_lists` is required and
+    /// must contain exactly two decks.
     #[classmethod]
     #[pyo3(signature = (
         num_envs,
-        db_path,
-        deck_lists,
+        db_path=None,
+        deck_lists=None,
         deck_ids=None,
         max_decisions=2000,
         max_ticks=100_000,
         seed=0,
         curriculum_json=None,
         reward_json=None,
+        end_condition_policy_json=None,
         error_policy=None,
+        observation_visibility=None,
         num_threads=None,
         output_masks=true,
         debug_fingerprint_every_n=0,
@@ -26,68 +139,58 @@ impl PyEnvPool {
     fn new_rl_train(
         _cls: &Bound<'_, PyType>,
         num_envs: usize,
-        db_path: String,
-        deck_lists: Vec<Vec<u32>>,
+        db_path: Option<String>,
+        deck_lists: Option<Vec<Vec<u32>>>,
         deck_ids: Option<Vec<u32>>,
         max_decisions: u32,
         max_ticks: u32,
         seed: u64,
         curriculum_json: Option<String>,
         reward_json: Option<String>,
+        end_condition_policy_json: Option<String>,
         error_policy: Option<String>,
+        observation_visibility: Option<String>,
         num_threads: Option<usize>,
         output_masks: bool,
         debug_fingerprint_every_n: u32,
         debug_event_ring_capacity: usize,
     ) -> PyResult<Self> {
-        if num_envs == 0 {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "num_envs must be > 0",
-            ));
-        }
-        let reward = parse_reward_config(reward_json)?;
-        let curriculum = parse_curriculum_config(curriculum_json)?;
-        let error_policy = parse_error_policy(error_policy)?;
-        let (db, config) = build_env_config(
+        let init = parse_pool_init(
+            num_envs,
             db_path,
             deck_lists,
             deck_ids,
             max_decisions,
             max_ticks,
-            reward,
+            curriculum_json,
+            reward_json,
+            end_condition_policy_json,
             error_policy,
-            ObservationVisibility::Public,
+            observation_visibility,
+            num_threads,
+            debug_fingerprint_every_n,
+            debug_event_ring_capacity,
         )?;
-        let debug = build_debug_config(
-            Some(debug_fingerprint_every_n),
-            Some(debug_event_ring_capacity),
-        );
-        let mut pool = EnvPool::new_rl_train(
-            num_envs,
-            db,
-            config,
-            curriculum,
-            seed,
-            resolve_num_threads(num_envs, num_threads),
-            debug,
-        )
-        .map_err(map_pool_init_error)?;
-        pool.set_output_mask_enabled(output_masks);
-        Ok(Self { pool })
+        build_rl_pool(RlPoolCtor::Train, num_envs, seed, init, output_masks)
     }
 
+    /// Create a pool tuned for RL evaluation defaults.
+    ///
+    /// Mirrors training constructor semantics but uses evaluation stepping behavior in Rust.
     #[classmethod]
     #[pyo3(signature = (
         num_envs,
-        db_path,
-        deck_lists,
+        db_path=None,
+        deck_lists=None,
         deck_ids=None,
         max_decisions=2000,
         max_ticks=100_000,
         seed=0,
         curriculum_json=None,
         reward_json=None,
+        end_condition_policy_json=None,
         error_policy=None,
+        observation_visibility=None,
         num_threads=None,
         output_masks=true,
         debug_fingerprint_every_n=0,
@@ -97,67 +200,57 @@ impl PyEnvPool {
     fn new_rl_eval(
         _cls: &Bound<'_, PyType>,
         num_envs: usize,
-        db_path: String,
-        deck_lists: Vec<Vec<u32>>,
+        db_path: Option<String>,
+        deck_lists: Option<Vec<Vec<u32>>>,
         deck_ids: Option<Vec<u32>>,
         max_decisions: u32,
         max_ticks: u32,
         seed: u64,
         curriculum_json: Option<String>,
         reward_json: Option<String>,
+        end_condition_policy_json: Option<String>,
         error_policy: Option<String>,
+        observation_visibility: Option<String>,
         num_threads: Option<usize>,
         output_masks: bool,
         debug_fingerprint_every_n: u32,
         debug_event_ring_capacity: usize,
     ) -> PyResult<Self> {
-        if num_envs == 0 {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "num_envs must be > 0",
-            ));
-        }
-        let reward = parse_reward_config(reward_json)?;
-        let curriculum = parse_curriculum_config(curriculum_json)?;
-        let error_policy = parse_error_policy(error_policy)?;
-        let (db, config) = build_env_config(
+        let init = parse_pool_init(
+            num_envs,
             db_path,
             deck_lists,
             deck_ids,
             max_decisions,
             max_ticks,
-            reward,
+            curriculum_json,
+            reward_json,
+            end_condition_policy_json,
             error_policy,
-            ObservationVisibility::Public,
+            observation_visibility,
+            num_threads,
+            debug_fingerprint_every_n,
+            debug_event_ring_capacity,
         )?;
-        let debug = build_debug_config(
-            Some(debug_fingerprint_every_n),
-            Some(debug_event_ring_capacity),
-        );
-        let mut pool = EnvPool::new_rl_eval(
-            num_envs,
-            db,
-            config,
-            curriculum,
-            seed,
-            resolve_num_threads(num_envs, num_threads),
-            debug,
-        )
-        .map_err(map_pool_init_error)?;
-        pool.set_output_mask_enabled(output_masks);
-        Ok(Self { pool })
+        build_rl_pool(RlPoolCtor::Eval, num_envs, seed, init, output_masks)
     }
 
+    /// Create a debug pool with explicit configuration knobs.
+    ///
+    /// Use this when you need direct control over visibility, error policy, and end-condition
+    /// behavior without train/eval policy overrides.
     #[classmethod]
     #[pyo3(signature = (
         num_envs,
-        db_path,
-        deck_lists,
+        db_path=None,
+        deck_lists=None,
         deck_ids=None,
         max_decisions=2000,
         max_ticks=100_000,
         seed=0,
         curriculum_json=None,
         reward_json=None,
+        end_condition_policy_json=None,
         error_policy=None,
         observation_visibility=None,
         num_threads=None,
@@ -168,51 +261,45 @@ impl PyEnvPool {
     fn new_debug(
         _cls: &Bound<'_, PyType>,
         num_envs: usize,
-        db_path: String,
-        deck_lists: Vec<Vec<u32>>,
+        db_path: Option<String>,
+        deck_lists: Option<Vec<Vec<u32>>>,
         deck_ids: Option<Vec<u32>>,
         max_decisions: u32,
         max_ticks: u32,
         seed: u64,
         curriculum_json: Option<String>,
         reward_json: Option<String>,
+        end_condition_policy_json: Option<String>,
         error_policy: Option<String>,
         observation_visibility: Option<String>,
         num_threads: Option<usize>,
         debug_fingerprint_every_n: u32,
         debug_event_ring_capacity: usize,
     ) -> PyResult<Self> {
-        if num_envs == 0 {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "num_envs must be > 0",
-            ));
-        }
-        let reward = parse_reward_config(reward_json)?;
-        let curriculum = parse_curriculum_config(curriculum_json)?;
-        let error_policy = parse_error_policy(error_policy)?;
-        let visibility = parse_observation_visibility(observation_visibility)?;
-        let (db, config) = build_env_config(
+        let init = parse_pool_init(
+            num_envs,
             db_path,
             deck_lists,
             deck_ids,
             max_decisions,
             max_ticks,
-            reward,
+            curriculum_json,
+            reward_json,
+            end_condition_policy_json,
             error_policy,
-            visibility,
+            observation_visibility,
+            num_threads,
+            debug_fingerprint_every_n,
+            debug_event_ring_capacity,
         )?;
-        let debug = build_debug_config(
-            Some(debug_fingerprint_every_n),
-            Some(debug_event_ring_capacity),
-        );
         let pool = EnvPool::new_debug(
             num_envs,
-            db,
-            config,
-            curriculum,
+            init.db,
+            init.config,
+            init.curriculum,
             seed,
-            resolve_num_threads(num_envs, num_threads),
-            debug,
+            init.num_threads,
+            init.debug,
         )
         .map_err(map_pool_init_error)?;
         Ok(Self { pool })
@@ -2922,6 +3009,18 @@ impl PyEnvPool {
     fn starting_player_batch<'py>(&self, py: Python<'py>) -> PyResult<Py<PyArray1<u8>>> {
         let vals = self.pool.starting_player_batch();
         let arr = Array1::<u8>::from(vals);
+        Ok(PyArray1::from_owned_array(py, arr).unbind())
+    }
+
+    fn decision_count_batch<'py>(&self, py: Python<'py>) -> PyResult<Py<PyArray1<u32>>> {
+        let vals = self.pool.decision_count_batch();
+        let arr = Array1::<u32>::from(vals);
+        Ok(PyArray1::from_owned_array(py, arr).unbind())
+    }
+
+    fn tick_count_batch<'py>(&self, py: Python<'py>) -> PyResult<Py<PyArray1<u32>>> {
+        let vals = self.pool.tick_count_batch();
+        let arr = Array1::<u32>::from(vals);
         Ok(PyArray1::from_owned_array(py, arr).unbind())
     }
 

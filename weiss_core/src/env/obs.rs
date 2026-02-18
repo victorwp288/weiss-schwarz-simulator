@@ -29,12 +29,18 @@ impl GameEnv {
         let stock_opp = visibility == ObservationVisibility::Full;
         let deck_self = true;
         let deck_opp = visibility == ObservationVisibility::Full;
+        let hand_count_self = true;
+        let stock_count_self = true;
+        let private_counts_opp = visibility == ObservationVisibility::Full
+            || self.curriculum.reveal_opponent_hand_stock_counts;
         encode_obs_player_block_into(
             &self.state,
             &self.db,
             player,
             memory_self,
+            hand_count_self,
             hand_self,
+            stock_count_self,
             stock_self,
             deck_self,
             &self.slot_power_cache,
@@ -45,7 +51,9 @@ impl GameEnv {
             &self.db,
             player,
             memory_opp,
+            private_counts_opp,
             hand_opp,
+            private_counts_opp,
             stock_opp,
             deck_opp,
             &self.slot_power_cache,

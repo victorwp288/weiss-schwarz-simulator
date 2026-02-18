@@ -30,9 +30,11 @@ use weiss_core::pool::{
 };
 use weiss_core::replay::{ReplayConfig, ReplayVisibilityMode};
 use weiss_core::{
-    CardDb, ConfigError, CurriculumConfig, DebugConfig, EnvConfig, EnvError, EnvPool, RewardConfig,
-    StateError,
+    CardDb, ConfigError, CurriculumConfig, DebugConfig, EndConditionPolicy, EnvConfig, EnvError,
+    EnvPool, RewardConfig, StateError,
 };
+
+const DEFAULT_WSDB_BYTES: &[u8] = include_bytes!("../default_cards.wsdb");
 
 fn parse_reward_config(reward_json: Option<String>) -> PyResult<RewardConfig> {
     if let Some(json) = reward_json {
@@ -87,6 +89,20 @@ fn parse_observation_visibility(
         }
     } else {
         Ok(ObservationVisibility::Public)
+    }
+}
+
+fn parse_end_condition_policy(
+    end_condition_policy_json: Option<String>,
+) -> PyResult<EndConditionPolicy> {
+    if let Some(json) = end_condition_policy_json {
+        serde_json::from_str::<EndConditionPolicy>(&json).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "end_condition_policy_json parse error: {e}"
+            ))
+        })
+    } else {
+        Ok(EndConditionPolicy::default())
     }
 }
 
@@ -148,9 +164,28 @@ fn resolve_num_threads(num_envs: usize, requested_num_threads: Option<usize>) ->
         .map(|threads| threads.min(num_envs.max(1)))
 }
 
+fn load_card_db(db_path: Option<String>) -> PyResult<CardDb> {
+    let db_path = db_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|path| !path.is_empty());
+    match db_path {
+        Some(path) => CardDb::load(path).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Card DB load failed for '{path}': {e}"
+            ))
+        }),
+        None => CardDb::from_wsdb_bytes(DEFAULT_WSDB_BYTES).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Bundled Card DB load failed: {e}"
+            ))
+        }),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_env_config(
-    db_path: String,
+    db_path: Option<String>,
     deck_lists: Vec<Vec<u32>>,
     deck_ids: Option<Vec<u32>>,
     max_decisions: u32,
@@ -158,10 +193,9 @@ fn build_env_config(
     reward: RewardConfig,
     error_policy: ErrorPolicy,
     observation_visibility: ObservationVisibility,
+    end_condition_policy: EndConditionPolicy,
 ) -> PyResult<(Arc<CardDb>, EnvConfig)> {
-    let db = CardDb::load(db_path).map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Card DB load failed: {e}"))
-    })?;
+    let db = load_card_db(db_path)?;
     if deck_lists.len() != 2 {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
             "deck_lists must have length 2",
@@ -186,7 +220,7 @@ fn build_env_config(
         reward,
         error_policy,
         observation_visibility,
-        end_condition_policy: Default::default(),
+        end_condition_policy,
     };
     Ok((Arc::new(db), config))
 }

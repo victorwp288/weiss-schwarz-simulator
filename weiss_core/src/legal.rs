@@ -357,6 +357,7 @@ pub fn legal_action_ids_cached_into(
                 MAX_STAGE
             };
             let events_locked = modifier_cache.cannot_play_events_from_hand;
+            push_id(out, PASS_ACTION_ID);
             for (hand_index, card_inst) in p.hand.iter().enumerate() {
                 if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                     break;
@@ -412,10 +413,10 @@ pub fn legal_action_ids_cached_into(
                     }
                 }
             }
-            push_id(out, PASS_ACTION_ID);
         }
         DecisionKind::Climax => {
             let p = &state.players[player];
+            push_id(out, PASS_ACTION_ID);
             if curriculum.enable_climax_phase {
                 for (hand_index, card_inst) in p.hand.iter().enumerate() {
                     if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
@@ -437,12 +438,12 @@ pub fn legal_action_ids_cached_into(
                     }
                 }
             }
-            push_id(out, PASS_ACTION_ID);
         }
         DecisionKind::AttackDeclaration => {
             if starting_player_first_turn_attack_used(state, decision.player) {
                 push_id(out, PASS_ACTION_ID);
             } else {
+                push_id(out, PASS_ACTION_ID);
                 let max_slot = if curriculum.reduced_stage_mode { 1 } else { 3 };
                 for slot in 0..max_slot {
                     let slot_u8 = slot as u8;
@@ -461,7 +462,6 @@ pub fn legal_action_ids_cached_into(
                         }
                     }
                 }
-                push_id(out, PASS_ACTION_ID);
             }
         }
         DecisionKind::LevelUp => {
@@ -486,6 +486,10 @@ pub fn legal_action_ids_cached_into(
                     ) {
                         push_id(out, ENCORE_PAY_BASE + slot);
                     }
+                }
+            }
+            for slot in 0..p.stage.len() {
+                if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
                     push_id(out, ENCORE_DECLINE_BASE + slot);
                 }
             }
@@ -764,6 +768,7 @@ pub fn legal_actions_cached_into(
                 MAX_STAGE
             };
             let events_locked = modifier_cache.cannot_play_events_from_hand;
+            actions.push(ActionDesc::Pass);
             for (hand_index, card_inst) in p.hand.iter().enumerate() {
                 if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
                     break;
@@ -826,10 +831,10 @@ pub fn legal_actions_cached_into(
                     }
                 }
             }
-            actions.push(ActionDesc::Pass);
         }
         DecisionKind::Climax => {
             let p = &state.players[player];
+            actions.push(ActionDesc::Pass);
             if curriculum.enable_climax_phase {
                 for (hand_index, card_inst) in p.hand.iter().enumerate() {
                     if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
@@ -853,11 +858,10 @@ pub fn legal_actions_cached_into(
                     }
                 }
             }
-            actions.push(ActionDesc::Pass);
         }
         DecisionKind::AttackDeclaration => {
-            legal_attack_actions_into(state, decision.player, curriculum, actions);
             actions.push(ActionDesc::Pass);
+            legal_attack_actions_into(state, decision.player, curriculum, actions);
         }
         DecisionKind::LevelUp => {
             if state.players[player].clock.len() >= 7 {
@@ -879,6 +883,10 @@ pub fn legal_actions_cached_into(
                     ) {
                         actions.push(ActionDesc::EncorePay { slot: slot as u8 });
                     }
+                }
+            }
+            for slot in 0..p.stage.len() {
+                if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
                     actions.push(ActionDesc::EncoreDecline { slot: slot as u8 });
                 }
             }

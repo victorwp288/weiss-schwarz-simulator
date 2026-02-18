@@ -49,6 +49,7 @@ Use this page as the canonical map.
 - [Invariants & Validation](invariants_validation.md): machine-checked constants and debug validation.
 - [Troubleshooting](troubleshooting.md): common build, test, runtime, and determinism issues.
 - [Contributing](contributing.md): PR workflow, quality gates, and documentation standards.
+- [Freeze Preflight (2/3/5)](freeze_preflight_235.md): thesis-freeze checks for perf/coverage gates, environment snapshotting, and contract consistency.
 
 ## Standard Reading Order
 

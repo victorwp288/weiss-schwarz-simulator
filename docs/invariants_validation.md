@@ -37,7 +37,7 @@ These values are checked by repository tooling/tests and should be treated as au
 - `visibility_policies_default`: `false`
 - `priority_windows_default`: `false`
 - `refresh_penalty_default`: `true`
-- `replay_sanitization_requires_visibility_policies`: `true`
+- `replay_sanitization_requires_visibility_policies`: `false`
 - `replay_sanitization_requires_public_visibility`: `true`
 
 Primary checks:
