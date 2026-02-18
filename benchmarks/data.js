@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771231001020,
+  "lastUpdate": 1771410891805,
   "repoUrl": "https://github.com/victorwp288/weiss-schwarz-simulator",
   "entries": {
     "Benchmark": [
@@ -2535,6 +2535,138 @@ window.BENCHMARK_DATA = {
             "name": "alloc_choice_paging_worst_case",
             "value": 175,
             "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "victorwpetersen@gmail.com",
+            "name": "Victor Wejergang Petersen",
+            "username": "victorwp288"
+          },
+          "committer": {
+            "email": "victorwpetersen@gmail.com",
+            "name": "Victor Wejergang Petersen",
+            "username": "victorwp288"
+          },
+          "distinct": true,
+          "id": "7d6ce0f4229d4f2c52e18304c2d248154a5ab62a",
+          "message": "Refresh documentation for updated engine and API behavior",
+          "timestamp": "2026-02-18T11:29:07+01:00",
+          "tree_id": "7126ef54892512da3d84582bd07ed140cd68ac28",
+          "url": "https://github.com/victorwp288/weiss-schwarz-simulator/commit/7d6ce0f4229d4f2c52e18304c2d248154a5ab62a"
+        },
+        "date": 1771410890831,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "advance_until_decision",
+            "value": 51535,
+            "range": "± 267",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_64",
+            "value": 15387,
+            "range": "± 756",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reset_batch_256",
+            "value": 879891,
+            "range": "± 7521",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_off",
+            "value": 80485,
+            "range": "± 610",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_on",
+            "value": 74685,
+            "range": "± 232",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions",
+            "value": 12,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions_forced",
+            "value": 12,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_on",
+            "value": 1225,
+            "range": "± 8226",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_off",
+            "value": 1224,
+            "range": "± 8382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode",
+            "value": 177,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode_forced",
+            "value": 180,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction",
+            "value": 394,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction_forced",
+            "value": 400,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "choice_paging_worst_case_mask",
+            "value": 179,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_legal_actions",
+            "value": 50,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_observation_encode",
+            "value": 118,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_action_masks_batch_into",
+            "value": 874,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_choice_paging_worst_case",
+            "value": 189,
+            "range": "± 1",
             "unit": "ns/iter"
           }
         ]
