@@ -118,22 +118,22 @@ python scripts/check_docs_constants.py
 ## Benchmark snapshot (main)
 
 <!-- BENCHMARKS:START -->
-_Last updated: 2026-02-18 10:49 UTC_
+_Last updated: 2026-02-18 10:58 UTC_
 
 | Benchmark | Time |
 | --- | --- |
-| rust/advance_until_decision | 51344 ns/iter |
-| rust/step_batch_64 | 15396 ns/iter |
-| rust/reset_batch_256 | 898508 ns/iter |
-| rust/step_batch_fast_256_priority_off | 74172 ns/iter |
-| rust/step_batch_fast_256_priority_on | 74081 ns/iter |
+| rust/advance_until_decision | 51573 ns/iter |
+| rust/step_batch_64 | 15566 ns/iter |
+| rust/reset_batch_256 | 893236 ns/iter |
+| rust/step_batch_fast_256_priority_off | 74777 ns/iter |
+| rust/step_batch_fast_256_priority_on | 68299 ns/iter |
 | rust/legal_actions | 13 ns/iter |
 | rust/legal_actions_forced | 12 ns/iter |
-| rust/on_reverse_decision_frequency_on | 1386 ns/iter |
-| rust/on_reverse_decision_frequency_off | 1388 ns/iter |
+| rust/on_reverse_decision_frequency_on | 1186 ns/iter |
+| rust/on_reverse_decision_frequency_off | 1237 ns/iter |
 | rust/observation_encode | 178 ns/iter |
-| rust/observation_encode_forced | 190 ns/iter |
-| rust/mask_construction | 386 ns/iter |
+| rust/observation_encode_forced | 188 ns/iter |
+| rust/mask_construction | 397 ns/iter |
 <!-- BENCHMARKS:END -->
 
 Long-form benchmark docs: [`docs/performance_benchmarks.md`](docs/performance_benchmarks.md)
