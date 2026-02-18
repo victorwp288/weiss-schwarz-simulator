@@ -207,8 +207,20 @@ impl ReplayWriter {
 }
 
 fn write_replay_file(path: &Path, data: &ReplayData, compress: bool) -> Result<()> {
-    let mut file = File::create(path)?;
-    write_replay_to_writer(&mut file, data, compress)
+    // Write to a sidecar temp file first and atomically rename into place so readers never
+    // observe partially-written replay payloads.
+    let mut tmp_path = path.to_path_buf();
+    let tmp_extension = path
+        .extension()
+        .map(|ext| format!("{}.tmp", ext.to_string_lossy()))
+        .unwrap_or_else(|| "tmp".to_string());
+    tmp_path.set_extension(tmp_extension);
+    let mut file = File::create(&tmp_path)?;
+    write_replay_to_writer(&mut file, data, compress)?;
+    file.flush()?;
+    file.sync_all()?;
+    fs::rename(&tmp_path, path)?;
+    Ok(())
 }
 
 fn write_replay_to_writer<W: Write>(
