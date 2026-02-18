@@ -172,9 +172,7 @@ def _normalize_end_condition_policy_json(
 
     unknown = sorted(set(payload.keys()) - _KNOWN_END_CONDITION_KEYS)
     if unknown:
-        raise ConfigConflictError(
-            f"unknown end_condition_policy fields: {', '.join(unknown)}"
-        )
+        raise ConfigConflictError(f"unknown end_condition_policy fields: {', '.join(unknown)}")
 
     normalized: dict[str, object] = {}
     if "simultaneous_loss" in payload:
@@ -351,7 +349,7 @@ def create(
     deck: DeckInput | None = None,
     opponent_deck: DeckInput | None = None,
     db_path: str | None = None,
-    rules_profile: RulesProfile = "approx",
+    rules_profile: RulesProfile = "strict",
     runtime_mode: RuntimeMode = "speed",
     card_pool: CardPoolMode = "parsed_only",
     curriculum: CurriculumOverrides | dict[str, object] | None = None,

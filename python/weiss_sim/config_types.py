@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal, Mapping, Sequence
 
@@ -53,6 +53,8 @@ class CurriculumOverrides:
     priority_autopick_single_action: bool | None = None
     priority_allow_pass: bool | None = None
     strict_priority_mode: bool | None = None
+    enable_legacy_cost_order: bool | None = None
+    enable_legacy_shot_damage_step_only: bool | None = None
     reduced_stage_mode: bool | None = None
     enforce_color_requirement: bool | None = None
     enforce_cost_requirement: bool | None = None
@@ -62,7 +64,9 @@ class CurriculumOverrides:
 
     def to_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {}
-        for key, value in self.__dict__.items():
+        for field in fields(self):
+            key = field.name
+            value = getattr(self, key)
             if value is None:
                 continue
             payload[key] = value
@@ -76,7 +80,9 @@ class EndConditionOverrides:
 
     def to_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {}
-        for key, value in self.__dict__.items():
+        for field in fields(self):
+            key = field.name
+            value = getattr(self, key)
             if value is None:
                 continue
             payload[key] = value

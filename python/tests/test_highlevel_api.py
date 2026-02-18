@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 import weiss_sim
 import weiss_sim.api as api_mod
+import weiss_sim.decks as decks_mod
 import weiss_sim.runner as runner_mod
 
 
@@ -292,6 +293,60 @@ def test_deck_resolve_rejects_invalid_length_and_unknown_id():
             card_pool="all",
         )
 
+    with pytest.raises(weiss_sim.DeckValidationError):
+        weiss_sim.cards.resolve_deck(
+            [17] + [1] * 49,
+            rules_profile="approx",
+            card_pool="all",
+        )
+
+
+def test_deck_resolve_db_probe_does_not_depend_on_starter_cards(monkeypatch, tmp_path: Path):
+    default_wsdb_path = (
+        Path(__file__).resolve().parents[1] / "weiss_sim" / "data" / "default_cards.wsdb"
+    )
+    custom_wsdb = tmp_path / "custom.wsdb"
+    custom_wsdb.write_bytes(default_wsdb_path.read_bytes())
+
+    def fake_new_debug(
+        _num_envs,
+        db_path=None,
+        deck_lists=None,
+        **_kwargs,
+    ):
+        assert db_path == str(custom_wsdb)
+        assert deck_lists is not None
+        if any(card_id == 2 for card_id in deck_lists[0]):
+            raise RuntimeError("unknown card id 2 in player 0 deck")
+        return object()
+
+    monkeypatch.setattr(decks_mod.EnvPool, "new_debug", fake_new_debug)
+
+    deck = [17] + [1] * 49
+    resolved = decks_mod.resolve_deck(
+        deck,
+        rules_profile="approx",
+        card_pool="all",
+        db_path=str(custom_wsdb),
+    )
+    assert resolved == deck
+
+
+def test_deck_resolve_db_probe_surfaces_non_membership_errors(monkeypatch):
+    def fake_new_debug(_num_envs, **_kwargs):
+        raise RuntimeError("Failed to decode card db payload")
+
+    monkeypatch.setattr(decks_mod.EnvPool, "new_debug", fake_new_debug)
+
+    with pytest.raises(
+        weiss_sim.DeckValidationError, match="failed to validate deck against selected DB"
+    ):
+        decks_mod.resolve_deck(
+            [1] * 50,
+            rules_profile="approx",
+            card_pool="all",
+        )
+
 
 def test_auto_sizing_deterministic(monkeypatch):
     monkeypatch.setattr(api_mod.os, "cpu_count", lambda: 20)
@@ -310,11 +365,12 @@ def test_effective_config_and_spec_export_contract():
     with weiss_sim.evaluate(num_envs=2, seed=99, card_pool="all") as sim:
         cfg = sim.effective_config()
         assert cfg["runtime_mode"] == "eval_debug"
-        assert cfg["rules_profile"] == "approx"
+        assert cfg["rules_profile"] == "strict"
         assert cfg["card_pool"] == "all"
         assert cfg["legal_repr"] == "both"
         assert cfg["obs_dtype"] == "i32"
         assert isinstance(cfg["curriculum"], dict)
+        assert cfg["curriculum"]["enable_approx_effects"] is False
         assert isinstance(cfg["db"], dict)
         assert {"db_sha256", "catalog_db_sha256", "matches_catalog"} <= set(cfg["db"].keys())
         assert cfg["reward_timeout_policy"]["timeout_uses_terminal_draw_reward"] is True
@@ -404,6 +460,29 @@ def test_end_condition_policy_invalid_simultaneous_loss_rejected():
             card_pool="all",
             end_condition_policy={"simultaneous_loss": "who_knows"},
         )
+
+
+def test_typed_override_dataclasses_supported():
+    with weiss_sim.evaluate(
+        num_envs=2,
+        seed=91,
+        card_pool="all",
+        curriculum=weiss_sim.CurriculumOverrides(
+            memory_is_public=True,
+            reveal_opponent_hand_stock_counts=True,
+        ),
+        end_condition_policy=weiss_sim.EndConditionOverrides(
+            simultaneous_loss="active_player_wins",
+            allow_draw_on_simultaneous_loss=False,
+        ),
+    ) as sim:
+        cfg = sim.effective_config()
+        assert cfg["curriculum"]["memory_is_public"] is True
+        assert cfg["curriculum"]["reveal_opponent_hand_stock_counts"] is True
+        assert cfg["end_condition_policy"] == {
+            "simultaneous_loss": "ActivePlayerWins",
+            "allow_draw_on_simultaneous_loss": False,
+        }
 
 
 def test_seat_action_helpers_for_switching_and_manual_control():
