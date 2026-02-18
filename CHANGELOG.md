@@ -2,6 +2,13 @@
 
 This file is maintained by Release Please.
 
+## [0.4.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.3.0...v0.4.0) (2026-02-18)
+
+
+### Miscellaneous Chores
+
+* **release:** trigger release-please for 0.4.0 ([f75d3c2](https://github.com/victorwp288/weiss-schwarz-simulator/commit/f75d3c291443b1ffc0cbf060a48a71b93389c840))
+
 ## [0.3.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.2.1...v0.3.0) (2026-02-16)
 
 
