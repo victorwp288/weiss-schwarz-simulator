@@ -95,6 +95,7 @@ impl GameEnv {
             }
         }
         self.state.turn.cannot_use_auto_encore = [false; 2];
+        self.state.turn.rule_overrides.clear();
         self.mark_all_slot_power_dirty();
         let mut removed: Vec<u32> = Vec::new();
         self.state.modifiers.retain(|m| {
@@ -152,6 +153,7 @@ impl GameEnv {
         self.state.turn.end_phase_cleanup_done = false;
         self.state.turn.encore_window_done = false;
         self.state.turn.pending_losses = [false; 2];
+        self.state.turn.rule_overrides.clear();
         self.state.turn.attack_subphase_count = 0;
         self.state.turn.phase_step = 0;
         self.state.turn.attack_phase_begin_done = false;

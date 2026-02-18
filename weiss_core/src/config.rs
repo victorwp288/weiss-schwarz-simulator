@@ -266,7 +266,7 @@ pub struct CurriculumConfig {
     #[serde(default)]
     /// Enable approximated non-combat effects listed in docs/approximation_policy.md.
     pub enable_approx_effects: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     /// Enable explicit priority windows.
     pub enable_priority_windows: bool,
     #[serde(default)]
@@ -275,15 +275,21 @@ pub struct CurriculumConfig {
     #[serde(default)]
     /// Use alternate end-condition handling rules.
     pub use_alternate_end_conditions: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     /// Auto-pick when only one action is available in priority.
     pub priority_autopick_single_action: bool,
     #[serde(default = "default_true")]
     /// Allow pass actions during priority windows.
     pub priority_allow_pass: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     /// Enforce strict priority legality (debug/audit mode).
     pub strict_priority_mode: bool,
+    #[serde(default)]
+    /// Use legacy fixed ability-cost step ordering.
+    pub enable_legacy_cost_order: bool,
+    #[serde(default)]
+    /// Restrict shot trigger bonus damage to battle-damage cancel timing only.
+    pub enable_legacy_shot_damage_step_only: bool,
     #[serde(default)]
     /// Reduce stage size for curriculum experiments.
     pub reduced_stage_mode: bool,
@@ -335,12 +341,14 @@ impl Default for CurriculumConfig {
             enable_activated_abilities: true,
             enable_continuous_modifiers: true,
             enable_approx_effects: false,
-            enable_priority_windows: false,
+            enable_priority_windows: true,
             enable_visibility_policies: false,
             use_alternate_end_conditions: false,
-            priority_autopick_single_action: true,
+            priority_autopick_single_action: false,
             priority_allow_pass: true,
-            strict_priority_mode: false,
+            strict_priority_mode: true,
+            enable_legacy_cost_order: false,
+            enable_legacy_shot_damage_step_only: false,
             reduced_stage_mode: false,
             enforce_color_requirement: true,
             enforce_cost_requirement: true,

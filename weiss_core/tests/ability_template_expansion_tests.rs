@@ -439,6 +439,15 @@ fn make_config(deck_a: Vec<u32>, deck_b: Vec<u32>) -> EnvConfig {
     }
 }
 
+fn template_test_curriculum() -> CurriculumConfig {
+    CurriculumConfig {
+        enable_priority_windows: false,
+        strict_priority_mode: false,
+        priority_autopick_single_action: true,
+        ..CurriculumConfig::default()
+    }
+}
+
 fn make_instance(card_id: u32, owner: u8, zone_tag: u32, index: usize) -> CardInstance {
     let instance_id = ((owner as u32) << 24) | (zone_tag << 16) | (index as u32);
     CardInstance::new(card_id, owner, instance_id)
@@ -630,7 +639,7 @@ fn ability_def_on_play_move_to_deck_bottom_moves_top_card() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         14,
         Default::default(),
         None,
@@ -676,7 +685,7 @@ fn ability_def_on_reverse_can_reverse_battle_opponent() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         15,
         Default::default(),
         None,
@@ -733,7 +742,7 @@ fn ability_def_on_reverse_can_bottom_deck_battle_opponent() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         16,
         Default::default(),
         None,
@@ -801,7 +810,7 @@ fn ability_def_on_climax_play_can_perform_standby() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         17,
         Default::default(),
         None,
@@ -854,7 +863,7 @@ fn auto_on_play_salvage_moves_waiting_room_card() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         1,
         Default::default(),
         None,
@@ -903,7 +912,7 @@ fn auto_on_play_bond_pays_cost_and_salvages_named_target() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         101,
         Default::default(),
         None,
@@ -975,7 +984,7 @@ fn auto_on_play_search_deck_top_limits_candidates() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         2,
         Default::default(),
         None,
@@ -1037,7 +1046,7 @@ fn auto_on_play_reveal_deck_top_logs_reveal_events() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         3,
         replay_config,
         None,
@@ -1192,7 +1201,7 @@ fn ability_def_on_play_stock_charge_moves_cards() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         6,
         Default::default(),
         None,
@@ -1244,7 +1253,7 @@ fn auto_on_play_stock_charge_template_moves_cards() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         7,
         Default::default(),
         None,
@@ -1286,7 +1295,7 @@ fn auto_on_play_mill_top_template_moves_cards() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         8,
         Default::default(),
         None,
@@ -1332,7 +1341,7 @@ fn auto_on_play_heal_template_moves_clock() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         9,
         Default::default(),
         None,
@@ -1376,7 +1385,7 @@ fn auto_on_reverse_draw_triggers_on_reversal() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         10,
         Default::default(),
         None,
@@ -1491,7 +1500,7 @@ fn auto_on_play_brainstorm_draw_uses_optional_choices() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         12,
         Default::default(),
         None,
@@ -1560,7 +1569,7 @@ fn auto_on_play_brainstorm_salvage_moves_characters_from_waiting_room() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        template_test_curriculum(),
         13,
         Default::default(),
         None,

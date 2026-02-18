@@ -817,6 +817,33 @@ pub(crate) fn compile_effects_from_def(
                         exclude_source: *exclude_source,
                     }
                 }
+                EffectTemplate::ConditionalAddSoul {
+                    amount,
+                    turn,
+                    zone_count,
+                    require_source_marker,
+                    per_source_marker,
+                    per_zone_count,
+                    exclude_source,
+                    target_ids,
+                } => {
+                    if !target_ids.is_empty() {
+                        if let Some(spec) = target_spec.as_mut() {
+                            spec.card_ids = target_ids.clone();
+                        }
+                    }
+                    crate::effects::EffectKind::ConditionalAddModifier {
+                        kind: crate::state::ModifierKind::Soul,
+                        magnitude: *amount,
+                        duration: crate::state::ModifierDuration::WhileOnStage,
+                        turn: *turn,
+                        zone_count: zone_count.clone(),
+                        require_source_marker: *require_source_marker,
+                        per_source_marker: *per_source_marker,
+                        per_zone_count: *per_zone_count,
+                        exclude_source: *exclude_source,
+                    }
+                }
                 EffectTemplate::ConditionalAddLevel {
                     amount,
                     turn,
@@ -1085,6 +1112,42 @@ pub(crate) fn compile_effects_from_def(
                 }
                 EffectTemplate::CounterDamageCancel => {
                     crate::effects::EffectKind::CounterDamageCancel
+                }
+                EffectTemplate::SetTerminalOutcome { outcome } => {
+                    crate::effects::EffectKind::SetTerminalOutcome {
+                        outcome: match outcome {
+                            super::types::TerminalOutcomeSpec::WinSelf => {
+                                crate::effects::TerminalOutcomeSpec::WinSelf
+                            }
+                            super::types::TerminalOutcomeSpec::WinOpponent => {
+                                crate::effects::TerminalOutcomeSpec::WinOpponent
+                            }
+                            super::types::TerminalOutcomeSpec::Draw => {
+                                crate::effects::TerminalOutcomeSpec::Draw
+                            }
+                            super::types::TerminalOutcomeSpec::Timeout => {
+                                crate::effects::TerminalOutcomeSpec::Timeout
+                            }
+                        },
+                    }
+                }
+                EffectTemplate::ApplyRuleOverride { kind } => {
+                    crate::effects::EffectKind::ApplyRuleOverride {
+                        kind: match kind {
+                            super::types::RuleOverrideKind::SkipDeckRefreshOrLoss => {
+                                crate::effects::RuleOverrideKind::SkipDeckRefreshOrLoss
+                            }
+                            super::types::RuleOverrideKind::SkipLevelFourLoss => {
+                                crate::effects::RuleOverrideKind::SkipLevelFourLoss
+                            }
+                            super::types::RuleOverrideKind::SkipNonCharacterStageCleanup => {
+                                crate::effects::RuleOverrideKind::SkipNonCharacterStageCleanup
+                            }
+                            super::types::RuleOverrideKind::SkipZeroOrNegativePowerCleanup => {
+                                crate::effects::RuleOverrideKind::SkipZeroOrNegativePowerCleanup
+                            }
+                        },
+                    }
                 }
                 EffectTemplate::TriggerIcon { icon } => {
                     crate::effects::EffectKind::TriggerIcon { icon: *icon }

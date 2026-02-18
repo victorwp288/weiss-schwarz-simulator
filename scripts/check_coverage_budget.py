@@ -134,6 +134,18 @@ def main() -> None:
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
+        "--min-card-coverage-strict",
+        type=float,
+        default=None,
+        help="Optional hard floor for strict-profile card-level all-lines-supported coverage",
+    )
+    parser.add_argument(
+        "--min-card-coverage-none",
+        type=float,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
         "--min-card-coverage-approx",
         type=float,
         default=None,
@@ -207,6 +219,11 @@ def main() -> None:
         if args.min_parse_line_coverage_strict is not None
         else args.min_parse_line_coverage_none
     )
+    min_card_coverage_strict = (
+        args.min_card_coverage_strict
+        if args.min_card_coverage_strict is not None
+        else args.min_card_coverage_none
+    )
     min_card_coverage_approx = (
         args.min_card_coverage_approx
         if args.min_card_coverage_approx is not None
@@ -233,6 +250,7 @@ def main() -> None:
             f"strict parse_line_coverage regressed: current={current_strict_parse:.6f}, baseline={baseline_strict_parse:.6f}"
         )
 
+    current_strict_card = metric(report, "strict", "card_level_all_lines_supported_coverage")
     current_approx_card = metric(report, "approx", "card_level_all_lines_supported_coverage")
     baseline_approx_card = metric(baseline, "approx", "card_level_all_lines_supported_coverage")
     if current_approx_card + tol < baseline_approx_card:
@@ -253,6 +271,10 @@ def main() -> None:
     ):
         failures.append(
             f"strict parse_line_coverage below floor: current={current_strict_parse:.6f}, floor={min_parse_line_coverage_strict:.6f}"
+        )
+    if min_card_coverage_strict is not None and current_strict_card < min_card_coverage_strict:
+        failures.append(
+            f"strict card coverage below floor: current={current_strict_card:.6f}, floor={min_card_coverage_strict:.6f}"
         )
     if min_card_coverage_approx is not None and current_approx_card < min_card_coverage_approx:
         failures.append(

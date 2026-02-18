@@ -4,6 +4,10 @@ use crate::db::CardType;
 use crate::events::Zone;
 
 impl GameEnv {
+    fn has_rule_override(&self, kind: crate::effects::RuleOverrideKind) -> bool {
+        self.state.turn.rule_overrides.contains(&kind)
+    }
+
     pub(in crate::env) fn resolve_rule_actions_until_stable(&mut self) {
         loop {
             if self.state.terminal.is_some() {
@@ -15,7 +19,9 @@ impl GameEnv {
             let mut progressed = false;
             for player in 0..2u8 {
                 let p = player as usize;
-                if self.state.players[p].deck.is_empty() && self.state.turn.cost_payment_depth == 0
+                if !self.has_rule_override(crate::effects::RuleOverrideKind::SkipDeckRefreshOrLoss)
+                    && self.state.players[p].deck.is_empty()
+                    && self.state.turn.cost_payment_depth == 0
                 {
                     if self.state.players[p].waiting_room.is_empty() {
                         self.register_loss(player);
@@ -45,33 +51,47 @@ impl GameEnv {
                         }
                     }
                 }
-
-                let mut slot_idx = 0usize;
-                while slot_idx < self.state.players[p].stage.len() {
-                    let card = self.state.players[p].stage[slot_idx].card;
-                    if let Some(card) = card {
-                        let is_character = self
-                            .db
-                            .get(card.id)
-                            .map(|c| c.card_type == CardType::Character)
-                            .unwrap_or(false);
-                        if !is_character {
-                            self.send_stage_to_waiting_room(player, slot_idx as u8);
-                            progressed = true;
-                        }
-                    }
-                    slot_idx += 1;
+                if !self.has_rule_override(crate::effects::RuleOverrideKind::SkipLevelFourLoss)
+                    && self.state.players[p].level.len() >= 4
+                {
+                    self.register_loss(player);
+                    progressed = true;
                 }
-                let mut slot_idx = 0usize;
-                while slot_idx < self.state.players[p].stage.len() {
-                    if self.state.players[p].stage[slot_idx].card.is_some() {
-                        let power = self.compute_slot_power(p, slot_idx);
-                        if power <= 0 {
-                            self.send_stage_to_waiting_room(player, slot_idx as u8);
-                            progressed = true;
+
+                if !self.has_rule_override(
+                    crate::effects::RuleOverrideKind::SkipNonCharacterStageCleanup,
+                ) {
+                    let mut slot_idx = 0usize;
+                    while slot_idx < self.state.players[p].stage.len() {
+                        let card = self.state.players[p].stage[slot_idx].card;
+                        if let Some(card) = card {
+                            let is_character = self
+                                .db
+                                .get(card.id)
+                                .map(|c| c.card_type == CardType::Character)
+                                .unwrap_or(false);
+                            if !is_character {
+                                self.send_stage_to_waiting_room(player, slot_idx as u8);
+                                progressed = true;
+                            }
                         }
+                        slot_idx += 1;
                     }
-                    slot_idx += 1;
+                }
+                if !self.has_rule_override(
+                    crate::effects::RuleOverrideKind::SkipZeroOrNegativePowerCleanup,
+                ) {
+                    let mut slot_idx = 0usize;
+                    while slot_idx < self.state.players[p].stage.len() {
+                        if self.state.players[p].stage[slot_idx].card.is_some() {
+                            let power = self.compute_slot_power(p, slot_idx);
+                            if power <= 0 {
+                                self.send_stage_to_waiting_room(player, slot_idx as u8);
+                                progressed = true;
+                            }
+                        }
+                        slot_idx += 1;
+                    }
                 }
 
                 let mut idx = 0usize;

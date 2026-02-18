@@ -56,10 +56,22 @@ def infer_targets(body: str) -> List[str]:
         return ["OppStage"]
     if "all of your characters" in lower:
         return ["SelfStage"]
+    if "the character facing this card" in lower:
+        return ["OppFrontRow"]
     if "choose" in lower and "your opponent's" in lower and "character" in lower:
         return ["OppStage"]
     if "choose" in lower and "your characters" in lower:
         return ["SelfStage"]
+    if (
+        "look at the top card of your deck" in lower
+        and "put it on the top of your deck or into your waiting room" in lower
+    ):
+        return ["SelfDeckTop"]
+    if (
+        "put this card into your memory" in lower
+        or "put this card at the bottom of your deck" in lower
+    ):
+        return ["This"]
     if "this card gets" in lower:
         return ["This"]
     return []

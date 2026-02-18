@@ -23,6 +23,15 @@ fn choose_counter(env: &mut GameEnv) {
     }
 }
 
+fn legacy_combat_curriculum() -> CurriculumConfig {
+    CurriculumConfig {
+        enable_priority_windows: false,
+        strict_priority_mode: false,
+        priority_autopick_single_action: true,
+        ..Default::default()
+    }
+}
+
 #[test]
 fn effect_damage_canceled_by_counter() {
     enable_validate();
@@ -31,7 +40,7 @@ fn effect_damage_canceled_by_counter() {
     let deck_b = build_deck_list(20, &[CARD_BASIC, CARD_COUNTER_CANCEL]);
     let curriculum = CurriculumConfig {
         enable_triggers: false,
-        ..Default::default()
+        ..legacy_combat_curriculum()
     };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new_or_panic(db, config, curriculum, 10, replay_config(), None, 0);
@@ -108,7 +117,7 @@ fn soul_modifier_increases_attack_damage() {
     let mut env = GameEnv::new_or_panic(
         db,
         config,
-        CurriculumConfig::default(),
+        legacy_combat_curriculum(),
         210,
         replay_config(),
         None,
@@ -171,7 +180,7 @@ fn effect_damage_reduced_then_applied() {
     let deck_b = build_deck_list(20, &[CARD_BASIC, CARD_COUNTER_REDUCE]);
     let curriculum = CurriculumConfig {
         enable_triggers: false,
-        ..Default::default()
+        ..legacy_combat_curriculum()
     };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new_or_panic(db, config, curriculum, 11, replay_config(), None, 0);
@@ -250,7 +259,7 @@ fn effect_damage_multiple_reductions_apply_in_order() {
     let deck_b = build_deck_list(20, &[CARD_BASIC, CARD_COUNTER_DOUBLE_REDUCE]);
     let curriculum = CurriculumConfig {
         enable_triggers: false,
-        ..Default::default()
+        ..legacy_combat_curriculum()
     };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new_or_panic(db, config, curriculum, 27, replay_config(), None, 0);
@@ -340,7 +349,7 @@ fn battle_damage_vs_effect_damage_flags() {
     let curriculum = CurriculumConfig {
         enable_triggers: false,
         enable_counters: false,
-        ..Default::default()
+        ..legacy_combat_curriculum()
     };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new_or_panic(db, config, curriculum, 12, replay_config(), None, 0);
@@ -403,7 +412,7 @@ fn reversal_cause_is_recorded_correctly() {
     let curriculum = CurriculumConfig {
         enable_triggers: false,
         enable_counters: false,
-        ..Default::default()
+        ..legacy_combat_curriculum()
     };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new_or_panic(db, config, curriculum, 13, replay_config(), None, 0);
@@ -488,7 +497,7 @@ fn multiple_instances_damage_same_step_ordering() {
     let curriculum = CurriculumConfig {
         enable_triggers: false,
         enable_counters: false,
-        ..Default::default()
+        ..legacy_combat_curriculum()
     };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new_or_panic(db, config, curriculum, 14, replay_config(), None, 0);

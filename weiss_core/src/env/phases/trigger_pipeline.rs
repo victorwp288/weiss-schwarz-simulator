@@ -609,7 +609,7 @@ impl GameEnv {
         let mut cost = self.ability_cost_for_spec(spec);
 
         if !cost.is_empty() {
-            if !self.can_pay_ability_cost(player, source_slot, source_inst, cost) {
+            if !self.can_pay_ability_cost(player, source_slot, source_inst, &cost) {
                 return false;
             }
             if self
@@ -671,7 +671,7 @@ impl GameEnv {
         } else {
             match self.trigger_auto_source_context(trigger.player, trigger.source_card) {
                 Some((source_slot, source_inst)) => {
-                    self.can_pay_ability_cost(trigger.player, source_slot, source_inst, cost)
+                    self.can_pay_ability_cost(trigger.player, source_slot, source_inst, &cost)
                 }
                 None => false,
             }

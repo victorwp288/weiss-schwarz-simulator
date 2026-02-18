@@ -75,6 +75,24 @@ pub struct EffectSpec {
     pub optional: bool,
 }
 
+/// Terminal outcome specified relative to the effect controller.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TerminalOutcomeSpec {
+    WinSelf,
+    WinOpponent,
+    Draw,
+    Timeout,
+}
+
+/// Turn-scoped rule-action override selectors.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum RuleOverrideKind {
+    SkipDeckRefreshOrLoss,
+    SkipLevelFourLoss,
+    SkipNonCharacterStageCleanup,
+    SkipZeroOrNegativePowerCleanup,
+}
+
 /// Effect kinds that can be executed by the engine.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub enum EffectKind {
@@ -307,6 +325,12 @@ pub enum EffectKind {
         amount: u8,
     },
     CounterDamageCancel,
+    SetTerminalOutcome {
+        outcome: TerminalOutcomeSpec,
+    },
+    ApplyRuleOverride {
+        kind: RuleOverrideKind,
+    },
 }
 
 impl EffectKind {

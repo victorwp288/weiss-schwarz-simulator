@@ -130,3 +130,194 @@ rules:
     metadata:
       confidence: approx
       family: reveal_top_conditional
+
+  - id: parser_v2.auto.frontal_attacked_look_top_exact
+    description: Exact frontal-attacked top-card look decision.
+    mode: exact
+    priority: 1195
+    match_on: body
+    effect_mode: look_top_card_top_or_waiting_room
+    pattern: "^when this card is frontal attacked, look at the top card of your deck, and put it on the top of your deck or into your waiting room\\.?$"
+    metadata:
+      family: AssistOrScalingPower
+      targets:
+        - SelfDeckTop
+
+  - id: parser_v2.cont.facing_opponent_quoted_restriction_exact
+    description: Exact facing-opponent quoted restriction conversion.
+    mode: exact
+    priority: 1195
+    match_on: body
+    kind: Continuous
+    effect_mode: facing_opponent_quoted_restriction
+    pattern: "^the character facing this card gets\\s*\"(?P<quoted>.+)\"\\.?$"
+    metadata:
+      family: FollowingAbilityGrant
+      targets:
+        - OppFrontRow
+
+  - id: parser_v2.auto.on_play_power_following_quote_exact
+    description: Exact on-play self power plus quoted following ability.
+    mode: exact
+    priority: 1195
+    match_on: body
+    timing: OnPlay
+    effect_mode: on_play_power_following_quote
+    pattern: "^when this card is placed on (?:the )?stage from your hand, this card gets \\+(?P<amount>\\d+) power and the following ability until the end of your opponent's next turn\\.\\s*\"(?P<quoted>.+)\"\\.?$"
+    metadata:
+      family: FollowingAbilityGrant
+      targets:
+        - This
+
+  - id: parser_v2.cont.marker_power_exact
+    description: Exact marker-gated continuous self power.
+    mode: exact
+    priority: 1195
+    match_on: body
+    kind: Continuous
+    effect_mode: marker_power_exact
+    pattern: "^if there is a marker underneath this card, this card gets \\+(?P<power>\\d+) power\\.?$"
+    metadata:
+      family: AssistOrScalingPower
+      targets:
+        - This
+
+  - id: parser_v2.cont.marker_power_soul_exact
+    description: Exact marker-gated continuous self power and soul.
+    mode: exact
+    priority: 1195
+    match_on: body
+    kind: Continuous
+    effect_mode: marker_power_soul_exact
+    pattern: "^if there is a marker underneath this card, this card gets \\+(?P<power>\\d+) power and \\+(?P<soul>\\d+) soul\\.?$"
+    metadata:
+      family: AssistOrScalingPower
+      targets:
+        - This
+
+  - id: parser_v2.cont.marker_power_following_exact
+    description: Exact marker-gated power with quoted following ability payload.
+    mode: exact
+    priority: 1195
+    match_on: body
+    kind: Continuous
+    effect_mode: marker_power_following_exact
+    pattern: "^if there is a marker underneath this card, this card gets \\+(?P<power>\\d+) power and the following ability\\.\\s*\"(?P<quoted>.+)\"\\.?$"
+    metadata:
+      family: FollowingAbilityGrant
+      targets:
+        - This
+
+  - id: parser_v2.cont.experience_power_with_optional_following_exact
+    description: Exact experience level-total power, including quoted follow-up payloads.
+    mode: exact
+    priority: 1195
+    match_on: body
+    kind: Continuous
+    effect_mode: experience_power_with_optional_following_exact
+    pattern: "^experience(?P<self_turn>\\s+during your turn)?, if the total level of (?:the )?cards in your level is (?P<level_total>(?:\\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)) or higher, this card gets \\+(?P<power>\\d+) power(?: and the following ability\\.\\s*\"(?P<quoted>.+)\")?\\.?$"
+    metadata:
+      family: Experience
+      targets:
+        - This
+
+  - id: parser_v2.auto.paid_on_play_salvage_optional_buff_exact
+    description: Exact paid on-play salvage with optional trailing team power clause.
+    mode: exact
+    priority: 1195
+    match_on: body
+    timing: OnPlay
+    effect_mode: move_to_hand
+    pattern: "^(?:\\[[^\\]]+\\]\\s*)?when this card is placed on (?:the )?stage from your hand, you may pay the cost\\. if you do, choose (?:up to )?(?P<count>(?:\\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)) (?P<selector>.+?) in your waiting room, return (?:it|them) to your hand(?:, choose .+?, and that character gets \\+\\d+ power until end of turn)?\\.?$"
+    metadata:
+      family: PaidOnPlaySearchSalvage
+      targets:
+        - SelfWaitingRoom
+      target_limit_group: count
+
+  - id: parser_v2.auto.paid_on_play_search_to_hand_exact
+    description: Exact paid on-play deck search to hand.
+    mode: exact
+    priority: 1195
+    match_on: body
+    timing: OnPlay
+    effect_mode: move_to_hand
+    pattern: "^(?:\\[[^\\]]+\\]\\s*)?when this card is placed on (?:the )?stage from your hand, you may pay the cost\\. if you do, search your deck for up to (?P<count>(?:\\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)) (?P<selector>.+?), reveal (?:it|them) to your opponent, put (?:it|them) into your hand, and shuffle your deck(?: afterwards)?\\.?$"
+    metadata:
+      family: PaidOnPlaySearchSalvage
+      targets:
+        - SelfDeckTop
+      target_limit_group: count
+
+  - id: parser_v2.auto.climax_placed_buff_or_following_exact
+    description: Exact climax-placed team buff/following conversion.
+    mode: exact
+    priority: 1195
+    match_on: body
+    timing: AfterClimaxPhase
+    effect_mode: climax_placed_buff_or_following_exact
+    pattern: "^when (?:your|a) climax is placed on your climax area, choose (?:up to )?(?P<count>(?:\\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)) of your characters, and (?:that character gets \\+(?P<power>\\d+) power(?: and \\+(?P<soul>\\d+) soul)? until end of turn|that character gets the following ability until end of turn\\.\\s*\"(?P<quoted>.+)\")\\.?$"
+    metadata:
+      family: ClimaxPlacedBuff
+      targets:
+        - SelfStage
+      target_limit_group: count
+
+  - id: parser_v2.auto.on_reverse_move_self_to_memory_exact
+    description: Exact self OnReverse move-to-memory conversion.
+    mode: exact
+    priority: 1195
+    match_on: body
+    timing: OnReverse
+    effect_mode: move_self_to_memory
+    pattern: "^when this card becomes 【reverse】(?: in battle)?(?:,\\s*)?(?:you may )?put this card into your memory\\.?$"
+    metadata:
+      family: OnReverseSelfMove
+      targets:
+        - This
+
+  - id: parser_v2.auto.on_reverse_move_self_to_deck_bottom_exact
+    description: Exact self OnReverse move-to-deck-bottom conversion.
+    mode: exact
+    priority: 1195
+    match_on: body
+    timing: OnReverse
+    effect_mode: move_self_to_deck_bottom
+    pattern: "^when this card becomes 【reverse】(?: in battle)?, put this card at the bottom of your deck\\.?$"
+    metadata:
+      family: OnReverseSelfMove
+      targets:
+        - This
+
+  - id: parser_v2.auto.battle_reverse_move_self_to_memory_exact
+    description: Exact battle-opponent reverse self move-to-memory conversion.
+    mode: exact
+    priority: 1195
+    match_on: body
+    timing: BattleOpponentReverse
+    effect_mode: move_self_to_memory
+    pattern: "^when this card's battle opponent becomes 【reverse】, you may put this card into your memory(?:\\. if you do, .+)?$"
+    metadata:
+      family: OnReverseSelfMove
+      targets:
+        - This
+
+  - id: parser_v2.auto.terminal_result_exact
+    description: Exact terminal outcome direct statements.
+    mode: exact
+    priority: 1195
+    match_on: body
+    effect_mode: terminal_result_from_group
+    pattern: "^you (?P<result>win|lose) the game\\.?$"
+    metadata:
+      family: terminal_effect
+
+  - id: parser_v2.auto.terminal_result_conditional_exact
+    description: Exact terminal outcome conditional statements.
+    mode: exact
+    priority: 1195
+    match_on: body
+    effect_mode: terminal_result_from_group
+    pattern: "^if [^,]+, you (?P<result>win|lose) the game\\.?$"
+    metadata:
+      family: terminal_effect

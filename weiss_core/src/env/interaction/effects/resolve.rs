@@ -738,6 +738,7 @@ impl GameEnv {
                         *cancelable,
                         refresh_penalty,
                         Some(source_id),
+                        payload.source_ref,
                     );
                 }
             }
@@ -2902,6 +2903,23 @@ impl GameEnv {
                         DamageModifierKind::CancelNext,
                         source_id,
                     );
+                }
+            }
+            EffectKind::SetTerminalOutcome { outcome } => {
+                self.state.terminal = Some(match outcome {
+                    crate::effects::TerminalOutcomeSpec::WinSelf => {
+                        TerminalResult::Win { winner: controller }
+                    }
+                    crate::effects::TerminalOutcomeSpec::WinOpponent => TerminalResult::Win {
+                        winner: 1 - controller,
+                    },
+                    crate::effects::TerminalOutcomeSpec::Draw => TerminalResult::Draw,
+                    crate::effects::TerminalOutcomeSpec::Timeout => TerminalResult::Timeout,
+                });
+            }
+            EffectKind::ApplyRuleOverride { kind } => {
+                if !self.state.turn.rule_overrides.contains(kind) {
+                    self.state.turn.rule_overrides.push(*kind);
                 }
             }
         }

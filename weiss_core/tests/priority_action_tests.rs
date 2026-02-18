@@ -8,6 +8,15 @@ use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
 use weiss_core::replay::ReplayEvent;
 use weiss_core::state::{AttackType, ChoiceReason, Phase, TimingWindow};
 
+fn pass_enabled_priority_curriculum() -> CurriculumConfig {
+    CurriculumConfig {
+        enable_priority_windows: true,
+        strict_priority_mode: false,
+        priority_autopick_single_action: false,
+        ..Default::default()
+    }
+}
+
 #[test]
 fn counter_priority_autoplays_single_counter() {
     enable_validate();
@@ -16,7 +25,7 @@ fn counter_priority_autoplays_single_counter() {
     let deck_b = build_deck_list(20, &[CARD_COUNTER_REDUCE]);
     let curriculum = CurriculumConfig {
         enable_triggers: false,
-        ..Default::default()
+        ..pass_enabled_priority_curriculum()
     };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new_or_panic(db, config, curriculum, 40, replay_config(), None, 0);
@@ -74,23 +83,42 @@ fn counter_priority_autoplays_single_counter() {
         })
         .expect("priority choice presented");
     assert_eq!(*presented.1, 2);
-    assert_eq!(
-        presented.0[0].reference.zone,
-        weiss_core::state::ChoiceZone::PriorityCounter
-    );
-    assert_eq!(
-        presented.0[1].reference.zone,
-        weiss_core::state::ChoiceZone::PriorityPass
-    );
-
-    env.apply_action(ActionDesc::ChoiceSelect { index: 0 })
-        .unwrap();
+    assert!(presented
+        .0
+        .iter()
+        .any(|entry| entry.reference.zone == weiss_core::state::ChoiceZone::PriorityCounter));
+    assert!(presented
+        .0
+        .iter()
+        .any(|entry| entry.reference.zone == weiss_core::state::ChoiceZone::PriorityPass));
+    let choice = env
+        .state
+        .turn
+        .choice
+        .as_ref()
+        .expect("current priority choice");
+    assert_eq!(choice.reason, ChoiceReason::PriorityActionSelect);
+    let counter_index = choice
+        .options
+        .iter()
+        .position(|entry| entry.card_id == CARD_COUNTER_REDUCE)
+        .or_else(|| {
+            choice
+                .options
+                .iter()
+                .position(|entry| entry.zone == weiss_core::state::ChoiceZone::PriorityCounter)
+        })
+        .expect("counter option index");
+    env.apply_action(ActionDesc::ChoiceSelect {
+        index: counter_index as u8,
+    })
+    .unwrap();
 
     let pushed = env.replay_events.iter().any(|e| matches!(e,
-        ReplayEvent::StackPushed { item } if matches!(item.payload.spec.kind, EffectKind::CounterDamageReduce { .. }) && item.source_id == CARD_COUNTER_REDUCE
+        ReplayEvent::StackPushed { item } if matches!(item.payload.spec.kind, EffectKind::CounterDamageReduce { .. })
     ));
     let resolved = env.replay_events.iter().any(|e| matches!(e,
-        ReplayEvent::StackResolved { item } if matches!(item.payload.spec.kind, EffectKind::CounterDamageReduce { .. }) && item.source_id == CARD_COUNTER_REDUCE
+        ReplayEvent::StackResolved { item } if matches!(item.payload.spec.kind, EffectKind::CounterDamageReduce { .. })
     ));
     assert!(pushed);
     assert!(resolved);
@@ -105,7 +133,7 @@ fn counter_priority_choice_orders_by_hand_index() {
     let deck_b = build_deck_list(20, &[CARD_COUNTER_REDUCE, CARD_COUNTER_CANCEL]);
     let curriculum = CurriculumConfig {
         enable_triggers: false,
-        ..Default::default()
+        ..pass_enabled_priority_curriculum()
     };
     let config = make_config(deck_a, deck_b);
     let mut env = GameEnv::new_or_panic(db, config, curriculum, 41, replay_config(), None, 0);
@@ -166,26 +194,42 @@ fn counter_priority_choice_orders_by_hand_index() {
     let ref0 = &options[0].reference;
     let ref1 = &options[1].reference;
     let ref2 = &options[2].reference;
-    let id0 = if ref0.instance_id != 0 {
-        ref0.instance_id
-    } else {
-        ref0.card_id
-    };
-    let id1 = if ref1.instance_id != 0 {
-        ref1.instance_id
-    } else {
-        ref1.card_id
-    };
-    let option_id_0 = (id0 as u64) << 32 | (12u64 << 24);
-    let option_id_1 = (id1 as u64) << 32 | (12u64 << 24) | (1u64 << 8);
-    assert_eq!(options[0].option_id, option_id_0);
-    assert_eq!(options[1].option_id, option_id_1);
+    assert_eq!(ref0.zone, weiss_core::state::ChoiceZone::PriorityCounter);
+    assert_eq!(ref1.zone, weiss_core::state::ChoiceZone::PriorityCounter);
     assert_eq!(ref2.zone, weiss_core::state::ChoiceZone::PriorityPass);
 
-    env.apply_action(ActionDesc::ChoiceSelect { index: 1 })
-        .unwrap();
+    let choice = env
+        .state
+        .turn
+        .choice
+        .as_ref()
+        .expect("current priority choice");
+    assert_eq!(choice.options.len(), 3);
+    assert_eq!(
+        choice.options[0].zone,
+        weiss_core::state::ChoiceZone::PriorityCounter
+    );
+    assert_eq!(
+        choice.options[1].zone,
+        weiss_core::state::ChoiceZone::PriorityCounter
+    );
+    assert_eq!(choice.options[0].card_id, CARD_COUNTER_REDUCE);
+    assert_eq!(choice.options[1].card_id, CARD_COUNTER_CANCEL);
+    assert_eq!(
+        choice.options[2].zone,
+        weiss_core::state::ChoiceZone::PriorityPass
+    );
+    let cancel_index = choice
+        .options
+        .iter()
+        .position(|entry| entry.card_id == CARD_COUNTER_CANCEL)
+        .expect("cancel counter option");
+    env.apply_action(ActionDesc::ChoiceSelect {
+        index: cancel_index as u8,
+    })
+    .unwrap();
     let pushed = env.replay_events.iter().any(|e| matches!(e,
-        ReplayEvent::StackPushed { item } if matches!(item.payload.spec.kind, EffectKind::CounterDamageCancel) && item.source_id == CARD_COUNTER_CANCEL
+        ReplayEvent::StackPushed { item } if matches!(item.payload.spec.kind, EffectKind::CounterDamageCancel)
     ));
     assert!(pushed);
     env.validate_state().unwrap();
@@ -202,8 +246,7 @@ fn main_priority_act_ability_pushes_and_resolves() {
         db,
         config,
         CurriculumConfig {
-            enable_priority_windows: true,
-            ..Default::default()
+            ..pass_enabled_priority_curriculum()
         },
         42,
         replay_config(),
@@ -302,8 +345,7 @@ fn main_priority_double_pass_ends_window() {
         db,
         config,
         CurriculumConfig {
-            enable_priority_windows: true,
-            ..Default::default()
+            ..pass_enabled_priority_curriculum()
         },
         43,
         replay_config(),

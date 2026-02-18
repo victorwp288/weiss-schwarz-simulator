@@ -12,8 +12,8 @@ mod types;
 
 pub(crate) use ability::compile_effects_from_def;
 pub use ability::{
-    AbilityCost, AbilityDef, AbilityDefClimaxAreaCondition, AbilityDefConditions, AbilityKind,
-    AbilitySpec, AbilityTemplate, AbilityTemplateTag, AbilityTiming,
+    AbilityCost, AbilityCostStep, AbilityDef, AbilityDefClimaxAreaCondition, AbilityDefConditions,
+    AbilityKind, AbilitySpec, AbilityTemplate, AbilityTemplateTag, AbilityTiming,
 };
 pub use card::CardStatic;
 pub use serialization::WSDB_SCHEMA_VERSION;
@@ -21,5 +21,5 @@ pub use store::CardDb;
 pub use types::{
     BattleOpponentMoveDestination, BattleOpponentMovePreludeAction, BrainstormMode, CardColor,
     CardId, CardType, ConditionTurn, CountCmp, CountZone, EffectTemplate, GrantDuration,
-    TargetTemplate, TriggerIcon, ZoneCountCondition,
+    RuleOverrideKind, TargetTemplate, TerminalOutcomeSpec, TriggerIcon, ZoneCountCondition,
 };

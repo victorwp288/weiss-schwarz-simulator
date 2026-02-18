@@ -387,10 +387,11 @@ impl GameEnv {
             let result = self.resolve_damage_intent(intent, &mut ctx.damage_modifiers);
             ctx.last_damage_event_id = Some(result.event_id);
             if result.canceled && ctx.pending_shot_damage > 0 {
-                for _ in 0..ctx.pending_shot_damage {
-                    let _ = self.resolve_effect_damage(attacker, defender, 1, true, false, None);
+                let pending_shot_damage = std::mem::take(&mut ctx.pending_shot_damage);
+                for _ in 0..pending_shot_damage {
+                    let _ =
+                        self.resolve_effect_damage(attacker, defender, 1, true, false, None, None);
                 }
-                ctx.pending_shot_damage = 0;
             }
             if result.canceled {
                 self.enqueue_damage_canceled_auto_effects(ctx, attacker, defender);
@@ -600,6 +601,7 @@ impl GameEnv {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::env) fn resolve_effect_damage(
         &mut self,
         source_player: u8,
@@ -607,7 +609,8 @@ impl GameEnv {
         amount: i32,
         cancelable: bool,
         refresh_penalty: bool,
-        _source_card: Option<CardId>,
+        source_card: Option<CardId>,
+        source_ref: Option<TargetRef>,
     ) -> bool {
         let intent = DamageIntentLocal {
             source_player,
@@ -623,11 +626,75 @@ impl GameEnv {
         } else {
             Vec::new()
         };
-        let _ = self.resolve_damage_intent(intent, &mut modifiers);
+        let result = self.resolve_damage_intent(intent, &mut modifiers);
         if let Some(ctx) = &mut self.state.turn.attack {
             ctx.damage_modifiers = modifiers;
         }
+        if result.canceled
+            && self.should_consume_pending_shot_on_canceled_effect_damage(
+                source_player,
+                source_card,
+                source_ref.as_ref(),
+            )
+        {
+            self.resolve_pending_shot_damage(source_player, target);
+        }
         self.state.turn.pending_level_up.is_some()
+    }
+
+    fn should_consume_pending_shot_on_canceled_effect_damage(
+        &self,
+        source_player: u8,
+        source_card: Option<CardId>,
+        source_ref: Option<&TargetRef>,
+    ) -> bool {
+        if self.curriculum.enable_legacy_shot_damage_step_only {
+            return false;
+        }
+        let Some(ctx) = self.state.turn.attack.as_ref() else {
+            return false;
+        };
+        if ctx.pending_shot_damage == 0 || source_player != self.state.turn.active_player {
+            return false;
+        }
+        let p = source_player as usize;
+        let attacker_slot = ctx.attacker_slot as usize;
+        if attacker_slot >= self.state.players[p].stage.len() {
+            return false;
+        }
+        let Some(attacker_card) = self.state.players[p].stage[attacker_slot].card else {
+            return false;
+        };
+        if let Some(source_ref) = source_ref {
+            return source_ref.player == source_player
+                && source_ref.zone == TargetZone::Stage
+                && source_ref.index == ctx.attacker_slot
+                && source_ref.instance_id == attacker_card.instance_id;
+        }
+        if source_card != Some(attacker_card.id) {
+            return false;
+        }
+
+        let same_id_count = self.state.players[p]
+            .stage
+            .iter()
+            .filter_map(|slot| slot.card)
+            .filter(|card| card.id == attacker_card.id)
+            .count();
+        same_id_count == 1
+    }
+
+    fn resolve_pending_shot_damage(&mut self, source_player: u8, target: u8) {
+        let pending_shot_damage = self
+            .state
+            .turn
+            .attack
+            .as_mut()
+            .map(|ctx| std::mem::take(&mut ctx.pending_shot_damage))
+            .unwrap_or(0);
+        for _ in 0..pending_shot_damage {
+            let _ = self.resolve_effect_damage(source_player, target, 1, true, false, None, None);
+        }
     }
 
     pub(in crate::env) fn resolve_damage_intent(

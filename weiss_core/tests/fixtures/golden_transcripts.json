@@ -23,7 +23,7 @@
         "obs_encoding_version": 2,
         "action_encoding_version": 1,
         "policy_version": 2,
-        "config_hash": 6419747313140022655,
+        "config_hash": 11287698629746947018,
         "reward_config_hash": 16229288125195201982,
         "deck_hash": 16820301446974114722,
         "fingerprint_algo": "postcard+blake3+u64le v1",
@@ -45,7 +45,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11137910637421474837,
+          "state_fingerprint": 16191068566602753206,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -63,7 +63,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9667453507116647764,
+          "state_fingerprint": 16222790297425750088,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -81,7 +81,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8331184319610941424,
+          "state_fingerprint": 1075128707185763648,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -99,7 +99,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5572412532749953620,
+          "state_fingerprint": 13229264323419679169,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -117,7 +117,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4196176827543242607,
+          "state_fingerprint": 228246999961475434,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -135,7 +135,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13535153568360946865,
+          "state_fingerprint": 5663791813076811468,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -153,7 +153,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10491242771123435669,
+          "state_fingerprint": 5395565990206167499,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -171,7 +171,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11073095472072561798,
+          "state_fingerprint": 1794306912018849877,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -189,7 +189,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2378510834407352176,
+          "state_fingerprint": 4368817181038016517,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -207,7 +207,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15692513854072103649,
+          "state_fingerprint": 14346601360100383033,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -225,7 +225,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14135175312308188996,
+          "state_fingerprint": 302402194513817050,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -243,7 +243,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11993400064364707075,
+          "state_fingerprint": 16447541853480414293,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -261,7 +261,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9095549493527190851,
+          "state_fingerprint": 1490019865134593482,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -279,7 +279,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17757304693903863773,
+          "state_fingerprint": 4072845679435604579,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -297,7 +297,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1363086961876581782,
+          "state_fingerprint": 11949628357702585501,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -315,7 +315,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7412558792905977731,
+          "state_fingerprint": 5512541100777356678,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -333,7 +333,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1141873890904678195,
+          "state_fingerprint": 17123668308080449876,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -351,7 +351,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2188618232102980220,
+          "state_fingerprint": 2505044544229412788,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -369,7 +369,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6135681136225835022,
+          "state_fingerprint": 6592673511200795320,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -387,7 +387,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10119662379936048156,
+          "state_fingerprint": 8643695087463542815,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -405,7 +405,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11999379438349299241,
+          "state_fingerprint": 14176023364727382136,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -423,7 +423,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 69567070042001554,
+          "state_fingerprint": 16658896995155763694,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -441,7 +441,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16261915556508768189,
+          "state_fingerprint": 9265085474492131477,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -459,7 +459,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17050753913715197632,
+          "state_fingerprint": 16137839521492293094,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -477,7 +477,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3985367061456350819,
+          "state_fingerprint": 18100773861918181384,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -495,7 +495,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7475572379435601218,
+          "state_fingerprint": 6762505860489669773,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -513,7 +513,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18424570778312542555,
+          "state_fingerprint": 1982893879486359550,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -531,7 +531,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17728463368774724156,
+          "state_fingerprint": 8764051258475792734,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -549,7 +549,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16446838596153075944,
+          "state_fingerprint": 2007674053875440345,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -567,7 +567,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8895951700905004634,
+          "state_fingerprint": 11496602759304017127,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -585,7 +585,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17116992298451237853,
+          "state_fingerprint": 15986250790172284164,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -603,7 +603,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 134710358779339547,
+          "state_fingerprint": 16198774466342817844,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -621,7 +621,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3205729346602185699,
+          "state_fingerprint": 9552104775400621858,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -639,7 +639,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1161070389568283349,
+          "state_fingerprint": 11359117266121158221,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -657,7 +657,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12698416483892831196,
+          "state_fingerprint": 5503109000311542468,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -675,7 +675,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7053040765032856203,
+          "state_fingerprint": 9406561670555336918,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -693,7 +693,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17393347316685980531,
+          "state_fingerprint": 14947554996270066557,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -711,7 +711,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12899912560436365082,
+          "state_fingerprint": 15654688202779522973,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -729,7 +729,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12947429601313965381,
+          "state_fingerprint": 109813752717595309,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -747,7 +747,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10502127339679492932,
+          "state_fingerprint": 7585764259390283437,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -765,7 +765,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13210256682713566671,
+          "state_fingerprint": 10378513746164865312,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -783,7 +783,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8808200622954070118,
+          "state_fingerprint": 8754654479730707688,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -801,7 +801,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7595787794233153707,
+          "state_fingerprint": 12670077414572264534,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -819,7 +819,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15692224617182471598,
+          "state_fingerprint": 2657210846238767125,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -837,7 +837,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14094266244695489470,
+          "state_fingerprint": 15095138870909072907,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -855,7 +855,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7457712719006627543,
+          "state_fingerprint": 7828456586716947644,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -873,7 +873,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4908945371148007776,
+          "state_fingerprint": 13384428167078752506,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -891,7 +891,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1844754234283564528,
+          "state_fingerprint": 16694273981466030549,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -909,7 +909,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3080550640259708081,
+          "state_fingerprint": 8572801716428487198,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -927,7 +927,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12991622638850503562,
+          "state_fingerprint": 13994462448127625869,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -945,7 +945,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9821817637079822402,
+          "state_fingerprint": 2208243731825693961,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -963,7 +963,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16361837636169991562,
+          "state_fingerprint": 3213696199522691134,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -981,7 +981,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11052797260726990458,
+          "state_fingerprint": 8313393795815512505,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -999,7 +999,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12696370201521633166,
+          "state_fingerprint": 11176094018891025936,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1017,7 +1017,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10708761309571936191,
+          "state_fingerprint": 10993716950107759772,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1035,7 +1035,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14695571457467778383,
+          "state_fingerprint": 1884921214612058809,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1053,7 +1053,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10435507902348481329,
+          "state_fingerprint": 9295745294947242907,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1071,7 +1071,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17273572038731319537,
+          "state_fingerprint": 5011962644898368949,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1089,7 +1089,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17698843210169122944,
+          "state_fingerprint": 15800549468552706404,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1107,7 +1107,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3848500937065774859,
+          "state_fingerprint": 4686368828119090279,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1125,7 +1125,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11774111462551855540,
+          "state_fingerprint": 1860103928092025006,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1143,7 +1143,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 889327734194027126,
+          "state_fingerprint": 12167720600996876507,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1161,7 +1161,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14655368364657346215,
+          "state_fingerprint": 18297848935842741138,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1179,7 +1179,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8432863102676131534,
+          "state_fingerprint": 747258193689544372,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1197,7 +1197,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16510929225514697135,
+          "state_fingerprint": 10073074969050988488,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1215,7 +1215,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1793769971358360487,
+          "state_fingerprint": 16546596766601756926,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1233,7 +1233,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13181683483317487163,
+          "state_fingerprint": 7161496493869004599,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1251,7 +1251,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11351821884739114544,
+          "state_fingerprint": 14764956381757081537,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1269,7 +1269,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17669296670084890562,
+          "state_fingerprint": 5970273708799042725,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1287,7 +1287,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18142244052411266573,
+          "state_fingerprint": 2761127559469242305,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1305,7 +1305,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16233566464663790070,
+          "state_fingerprint": 17416757607895083400,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1323,7 +1323,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1758467422923259124,
+          "state_fingerprint": 9688402931531469232,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1341,7 +1341,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17514736255632901284,
+          "state_fingerprint": 9232694999634741433,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1359,7 +1359,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 707347885660319991,
+          "state_fingerprint": 7013529020080471314,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1377,7 +1377,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7982942826537055502,
+          "state_fingerprint": 15578955614816192188,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1395,7 +1395,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12970344667456417266,
+          "state_fingerprint": 11126133005789823923,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1413,7 +1413,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8430696864820124266,
+          "state_fingerprint": 8222755376084527042,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1431,7 +1431,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9788601540413836543,
+          "state_fingerprint": 5647661557044817631,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1449,7 +1449,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18269325807503996716,
+          "state_fingerprint": 2639332830453720604,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1467,7 +1467,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6116199169758263291,
+          "state_fingerprint": 11478092840531886230,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1485,7 +1485,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7360397555149592292,
+          "state_fingerprint": 2116112512385304605,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1503,7 +1503,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16872461505793750740,
+          "state_fingerprint": 11751011540474130100,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1521,7 +1521,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16433418145321280406,
+          "state_fingerprint": 15709409333063275056,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1539,7 +1539,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2842186052560956373,
+          "state_fingerprint": 4845287021987353143,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1557,7 +1557,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16139801967703943183,
+          "state_fingerprint": 4601179553157109481,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1575,7 +1575,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12897375606094511238,
+          "state_fingerprint": 754226951179723734,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1593,7 +1593,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10360420606121331527,
+          "state_fingerprint": 15718626924557900758,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1611,7 +1611,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6799917264948331977,
+          "state_fingerprint": 9506132168562826462,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1629,7 +1629,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17432656822803710661,
+          "state_fingerprint": 4553473621112130822,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1647,7 +1647,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15257542397773536675,
+          "state_fingerprint": 2001044824193630829,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1665,7 +1665,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9897568969390509576,
+          "state_fingerprint": 13171174957051762631,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1683,7 +1683,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16985246471639582400,
+          "state_fingerprint": 6676565263288148032,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1701,7 +1701,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 526835247834801896,
+          "state_fingerprint": 7399853541122943634,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1719,7 +1719,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10686719090218638329,
+          "state_fingerprint": 10321388090822927589,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1737,7 +1737,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16611828633792636121,
+          "state_fingerprint": 17590878723867211954,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1755,7 +1755,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9918220578345592965,
+          "state_fingerprint": 12489781284273676886,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1773,7 +1773,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6875534786527982265,
+          "state_fingerprint": 1626620924549603323,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1791,7 +1791,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2098672699160475223,
+          "state_fingerprint": 13008393476765657397,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1809,7 +1809,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17407499290708545017,
+          "state_fingerprint": 13295394098717415955,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1827,7 +1827,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5211508490879911722,
+          "state_fingerprint": 5601080473774682532,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1845,7 +1845,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2322411601541113004,
+          "state_fingerprint": 638785881904928447,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1863,7 +1863,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6746961030963242359,
+          "state_fingerprint": 7635378157917481434,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1881,7 +1881,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13090750100564319312,
+          "state_fingerprint": 12333321795506740523,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1899,7 +1899,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9943398434760934822,
+          "state_fingerprint": 12534625820796682061,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1917,7 +1917,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9304633672622468743,
+          "state_fingerprint": 15617616085252977329,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1935,7 +1935,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7581303854889144090,
+          "state_fingerprint": 17140357546071775163,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1953,7 +1953,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13711041516643861194,
+          "state_fingerprint": 6203136900182059494,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1971,7 +1971,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15837655604198163526,
+          "state_fingerprint": 1749458874056719314,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -1989,7 +1989,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15505328573026783869,
+          "state_fingerprint": 16964529541209013333,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2007,7 +2007,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7943249648035011220,
+          "state_fingerprint": 12495269190149999755,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2025,7 +2025,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8494769592641941406,
+          "state_fingerprint": 16317102117451185741,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2043,7 +2043,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4686082696449737728,
+          "state_fingerprint": 14284013597621357846,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2061,7 +2061,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9293445477508556560,
+          "state_fingerprint": 6400921527986283354,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2079,7 +2079,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15122313159331081266,
+          "state_fingerprint": 8691033298034071428,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2097,7 +2097,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3914009741240558901,
+          "state_fingerprint": 690630490687734312,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2115,7 +2115,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15851924424623480312,
+          "state_fingerprint": 9237924386474853157,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2133,7 +2133,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11808311874047292793,
+          "state_fingerprint": 5259992105789362783,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2151,7 +2151,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6154279656876564243,
+          "state_fingerprint": 2115582520372822403,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2169,7 +2169,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14271593929337665334,
+          "state_fingerprint": 14222549457650757940,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2187,7 +2187,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 382994074767177563,
+          "state_fingerprint": 8111530381137395512,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2205,7 +2205,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2212405366772439341,
+          "state_fingerprint": 1896995975764119836,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2223,7 +2223,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3844247286649335657,
+          "state_fingerprint": 4263231015074322473,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2241,7 +2241,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9223575097878790034,
+          "state_fingerprint": 17998181042690627661,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2259,7 +2259,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6915656733664369295,
+          "state_fingerprint": 12147521186186555894,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2277,7 +2277,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11873764476263455102,
+          "state_fingerprint": 17450468626824420515,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2295,7 +2295,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11038246651431659395,
+          "state_fingerprint": 3413782666126193115,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2313,7 +2313,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8772489476742349777,
+          "state_fingerprint": 11699074432988720306,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2331,7 +2331,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9556992839066821152,
+          "state_fingerprint": 13852316642413282934,
           "events_fingerprint": 17393213961538517549
         }
       ]
@@ -2358,7 +2358,7 @@
         "obs_encoding_version": 2,
         "action_encoding_version": 1,
         "policy_version": 2,
-        "config_hash": 403795557424495156,
+        "config_hash": 8091420966620115949,
         "reward_config_hash": 16229288125195201982,
         "deck_hash": 16809993968039801104,
         "fingerprint_algo": "postcard+blake3+u64le v1",
@@ -2380,7 +2380,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12267288595593106577,
+          "state_fingerprint": 8467934885073175383,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2398,7 +2398,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6538290488373022993,
+          "state_fingerprint": 18257664114325478295,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2416,7 +2416,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11034435229482855641,
+          "state_fingerprint": 15300922360878951476,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2434,7 +2434,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7845607200014063461,
+          "state_fingerprint": 7143856825191012736,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2452,7 +2452,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14853322241283605573,
+          "state_fingerprint": 1601405402437308290,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2470,7 +2470,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16427263836521721487,
+          "state_fingerprint": 14423133242697801160,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2488,7 +2488,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14845741018242694971,
+          "state_fingerprint": 3321190438277927456,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2506,7 +2506,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5772567123999042622,
+          "state_fingerprint": 5277167664295659483,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2524,7 +2524,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2504914839694656493,
+          "state_fingerprint": 14121262365664904390,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2542,7 +2542,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15026258850680367863,
+          "state_fingerprint": 8818275292068460018,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2560,7 +2560,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15751943851093375073,
+          "state_fingerprint": 10203055977689082886,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2578,7 +2578,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12493544663066933288,
+          "state_fingerprint": 7105502965518922140,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2596,7 +2596,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3977145246966258506,
+          "state_fingerprint": 17180435194893547671,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2614,7 +2614,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10125301126777909577,
+          "state_fingerprint": 1871781489669227543,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2632,7 +2632,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17534397258379398082,
+          "state_fingerprint": 15324381552724723700,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2650,7 +2650,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 306290027778054775,
+          "state_fingerprint": 11271443372974351487,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2668,7 +2668,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4139294165377643682,
+          "state_fingerprint": 1673780240206370227,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2686,7 +2686,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8069040520094068105,
+          "state_fingerprint": 17965946887443444720,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2704,7 +2704,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15374633383787813488,
+          "state_fingerprint": 3009983543447444214,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2722,7 +2722,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14569315617457771669,
+          "state_fingerprint": 11151154586148677121,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2740,7 +2740,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6033297318138129025,
+          "state_fingerprint": 9411951075420852591,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2758,7 +2758,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6990758386468816786,
+          "state_fingerprint": 9898426206168657065,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2776,7 +2776,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13775729291541140944,
+          "state_fingerprint": 11580635331211231880,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2794,7 +2794,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1971354511141247401,
+          "state_fingerprint": 836723742433531518,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2812,7 +2812,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8425288806312237766,
+          "state_fingerprint": 8776488171188777474,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2830,7 +2830,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6478910111024764538,
+          "state_fingerprint": 4498725471166130684,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2848,7 +2848,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12324523361274488952,
+          "state_fingerprint": 13733321197494965167,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2866,7 +2866,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16918197457414269249,
+          "state_fingerprint": 16527203811416746633,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2884,7 +2884,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11251177429738572592,
+          "state_fingerprint": 6954250108909762727,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2902,7 +2902,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5386307014034360410,
+          "state_fingerprint": 6586163452469877237,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2920,7 +2920,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6318842883108228925,
+          "state_fingerprint": 4247175858866156315,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2938,7 +2938,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14270814543160537468,
+          "state_fingerprint": 3385425701515925499,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2956,7 +2956,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12872629647169957867,
+          "state_fingerprint": 11073425996430169476,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2974,7 +2974,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12158677362953708656,
+          "state_fingerprint": 17869136931636110648,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -2992,7 +2992,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14009871013663728623,
+          "state_fingerprint": 17133970515856931957,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3010,7 +3010,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16267579429347384179,
+          "state_fingerprint": 15966504428126017742,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3028,7 +3028,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6029577738140880908,
+          "state_fingerprint": 14788803418419543724,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3046,7 +3046,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14506938624009214564,
+          "state_fingerprint": 4782877349875451210,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3064,7 +3064,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14719705087751692150,
+          "state_fingerprint": 551098067411239137,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3082,7 +3082,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18123148663767060268,
+          "state_fingerprint": 7826375778311086272,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3100,7 +3100,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12094313267640675373,
+          "state_fingerprint": 13242642909558079282,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3118,7 +3118,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9140323227451734430,
+          "state_fingerprint": 685927577293161349,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3136,7 +3136,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11239301805560360466,
+          "state_fingerprint": 11031528151665032002,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3154,7 +3154,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15081689244533918650,
+          "state_fingerprint": 18120412986003389328,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3172,7 +3172,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8856779554421155464,
+          "state_fingerprint": 11803769943975754093,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3190,7 +3190,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4140662886487630207,
+          "state_fingerprint": 9372142070054103601,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3208,7 +3208,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4373109642449270360,
+          "state_fingerprint": 353514045889625967,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3226,7 +3226,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12250830877255056865,
+          "state_fingerprint": 4442226399512955091,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3244,7 +3244,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11442641723382459051,
+          "state_fingerprint": 4083026209769019032,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3262,7 +3262,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13958152203449969615,
+          "state_fingerprint": 6514627552836846149,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3280,7 +3280,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5552552521886405506,
+          "state_fingerprint": 11207201145847979547,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3298,7 +3298,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7295677039835006219,
+          "state_fingerprint": 1664804159897387068,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3316,7 +3316,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1856642508891878909,
+          "state_fingerprint": 10055664222309217924,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3334,7 +3334,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4093593928064935788,
+          "state_fingerprint": 10177703408369266214,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3352,7 +3352,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17666602666528763943,
+          "state_fingerprint": 3329495818776242091,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3370,7 +3370,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13392016389758671112,
+          "state_fingerprint": 6321460724330731638,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3388,7 +3388,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10393096276077031306,
+          "state_fingerprint": 4668723508551251265,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3406,7 +3406,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9658487235609511456,
+          "state_fingerprint": 13540419904655579075,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3424,7 +3424,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14729681751735552136,
+          "state_fingerprint": 24831365369182400,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3442,7 +3442,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14909303003570274834,
+          "state_fingerprint": 17429814908086226702,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3460,7 +3460,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2246751950047752439,
+          "state_fingerprint": 1713738752999879897,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3478,7 +3478,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1611389168472695464,
+          "state_fingerprint": 8230409362982504273,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3496,7 +3496,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13834891085612164669,
+          "state_fingerprint": 12647341639563248771,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3514,7 +3514,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6322763430996627183,
+          "state_fingerprint": 18012448013304050537,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3532,7 +3532,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14578607580458122246,
+          "state_fingerprint": 9316879312033939779,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3550,7 +3550,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5313892381854328750,
+          "state_fingerprint": 3548189054638820398,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3568,7 +3568,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8961711214641526302,
+          "state_fingerprint": 5291318297168246893,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3586,7 +3586,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18412568086724120677,
+          "state_fingerprint": 6309055058133400787,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3604,7 +3604,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7349598144116388183,
+          "state_fingerprint": 18185911804330944434,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3622,7 +3622,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8557207376234253623,
+          "state_fingerprint": 9776770180050673124,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3640,7 +3640,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6749901519715428454,
+          "state_fingerprint": 10859744544223413751,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3658,7 +3658,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13420019597401700101,
+          "state_fingerprint": 3468433214878808682,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3676,7 +3676,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 530602061180104907,
+          "state_fingerprint": 13700742096868800849,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3694,7 +3694,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2614520123073264138,
+          "state_fingerprint": 12847685914203130476,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3712,7 +3712,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5337689430751475206,
+          "state_fingerprint": 3502866491541091252,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3730,7 +3730,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1747029996449338300,
+          "state_fingerprint": 1553084491936456233,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3748,7 +3748,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11205716114177223400,
+          "state_fingerprint": 16432667923658628625,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3766,7 +3766,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6096327069449135788,
+          "state_fingerprint": 4692331013682690748,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3784,7 +3784,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8018880726878232121,
+          "state_fingerprint": 2205155438939992606,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3802,7 +3802,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10071227187936226097,
+          "state_fingerprint": 2788872617469071942,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3820,7 +3820,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2293377842942703745,
+          "state_fingerprint": 11195214402056271935,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3838,7 +3838,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 344832341395358461,
+          "state_fingerprint": 6313980056561628238,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3856,7 +3856,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 959866223041431408,
+          "state_fingerprint": 1397489748817573097,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3874,7 +3874,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15799976080336377389,
+          "state_fingerprint": 12102566967749353682,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3892,7 +3892,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 327726471762056570,
+          "state_fingerprint": 1185598796914952660,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3910,7 +3910,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8794756436399625767,
+          "state_fingerprint": 9907259301366143128,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3928,7 +3928,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12096497664925794881,
+          "state_fingerprint": 1239257681855771327,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3946,7 +3946,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15800127619225227124,
+          "state_fingerprint": 4658251637497653211,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3964,7 +3964,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8924726879236722807,
+          "state_fingerprint": 18384454852541877418,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -3982,7 +3982,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 922685204348023322,
+          "state_fingerprint": 14237789852164924788,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4000,7 +4000,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4069548852807273693,
+          "state_fingerprint": 7999744506566881359,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4018,7 +4018,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1633098979726626428,
+          "state_fingerprint": 9821204039038652208,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4036,7 +4036,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10801833572070108284,
+          "state_fingerprint": 12022460188087409004,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4054,7 +4054,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17217868646150377338,
+          "state_fingerprint": 7510999543206330357,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4072,7 +4072,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11845835354905015456,
+          "state_fingerprint": 1389604180445454498,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4090,7 +4090,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 740502401397574367,
+          "state_fingerprint": 15583336717639007400,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4108,7 +4108,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17929130148508506405,
+          "state_fingerprint": 14971110560140035821,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4126,7 +4126,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14236449858962404068,
+          "state_fingerprint": 9944882348761020426,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4144,7 +4144,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14311006830206341310,
+          "state_fingerprint": 2474335357048220985,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4162,7 +4162,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 650419858479340546,
+          "state_fingerprint": 15714016895769153558,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4180,7 +4180,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12812047370317875807,
+          "state_fingerprint": 14268969222963415045,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4198,7 +4198,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17027833386248218730,
+          "state_fingerprint": 6744627430958139906,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4216,7 +4216,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 622900353639617300,
+          "state_fingerprint": 10596551974712599963,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4234,7 +4234,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6241819418472301517,
+          "state_fingerprint": 10202283756219090574,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4252,7 +4252,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17381348195794902886,
+          "state_fingerprint": 17867106759380142843,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4270,7 +4270,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2276007262836620079,
+          "state_fingerprint": 14667465027393014905,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4288,7 +4288,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16613354715845597304,
+          "state_fingerprint": 7455197501101302657,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4306,7 +4306,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17085727064395944238,
+          "state_fingerprint": 4315823803861632490,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4324,7 +4324,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9499373727332188053,
+          "state_fingerprint": 10030331896053358759,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4342,7 +4342,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13365656023445185157,
+          "state_fingerprint": 9276638997298441446,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4360,7 +4360,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8864993668603708531,
+          "state_fingerprint": 10478844462064709129,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4378,7 +4378,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3022483108772968052,
+          "state_fingerprint": 16669509347331475558,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4396,7 +4396,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5423038867221561425,
+          "state_fingerprint": 18133369286440069875,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4414,7 +4414,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2679668771083025009,
+          "state_fingerprint": 3201966656078879871,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4432,7 +4432,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12361323552879808656,
+          "state_fingerprint": 16417710505722411078,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4450,7 +4450,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2017156390764740443,
+          "state_fingerprint": 2194214809573168928,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4468,7 +4468,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17708369753118684370,
+          "state_fingerprint": 15356823162911573092,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4486,7 +4486,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18059634613999426209,
+          "state_fingerprint": 13058317773326805582,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4504,7 +4504,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4946929316475473922,
+          "state_fingerprint": 4586014069088088298,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4522,7 +4522,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6622950124678912717,
+          "state_fingerprint": 10705597081972032301,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4540,7 +4540,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12939158887077720842,
+          "state_fingerprint": 1325442773210605599,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4558,7 +4558,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 685647028639543166,
+          "state_fingerprint": 1780799608537914801,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4576,7 +4576,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 136616571432530884,
+          "state_fingerprint": 12654577315480398328,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4594,7 +4594,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8915168305167717781,
+          "state_fingerprint": 3739525081441628491,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4612,7 +4612,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4045587414738169306,
+          "state_fingerprint": 12309794216583524718,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4630,7 +4630,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10576241461301970619,
+          "state_fingerprint": 5324383218754564279,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4648,7 +4648,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15811618614561455139,
+          "state_fingerprint": 15892663814962070756,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4666,7 +4666,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14654567368980633144,
+          "state_fingerprint": 7459582883571473789,
           "events_fingerprint": 17393213961538517549
         }
       ]
@@ -4691,7 +4691,7 @@
         "obs_encoding_version": 2,
         "action_encoding_version": 1,
         "policy_version": 2,
-        "config_hash": 1086487417956914324,
+        "config_hash": 14217119216208663630,
         "reward_config_hash": 16229288125195201982,
         "deck_hash": 9852254041898176361,
         "fingerprint_algo": "postcard+blake3+u64le v1",
@@ -4713,7 +4713,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 19834102287251843,
+          "state_fingerprint": 12385276627231511413,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4731,7 +4731,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10427076199065700195,
+          "state_fingerprint": 12693453098420681580,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4749,7 +4749,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10830875957640971896,
+          "state_fingerprint": 10531187912369934254,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4767,7 +4767,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12470426165883771791,
+          "state_fingerprint": 2918346671513907833,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4785,7 +4785,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14240006741065159080,
+          "state_fingerprint": 2917821832176357607,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4803,7 +4803,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2012568641092347324,
+          "state_fingerprint": 17560292919705939443,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4821,7 +4821,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8718052624420021488,
+          "state_fingerprint": 17757502863205841708,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4839,7 +4839,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11802449579959002923,
+          "state_fingerprint": 16353678409535783459,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4857,7 +4857,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14942576971924358684,
+          "state_fingerprint": 4852174630931562182,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4875,7 +4875,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3595031397234894403,
+          "state_fingerprint": 12183448089175829688,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4893,7 +4893,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6619861483697253543,
+          "state_fingerprint": 1577319491516767631,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4911,7 +4911,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15365917578990470633,
+          "state_fingerprint": 14960974839697273811,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4929,7 +4929,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6411550740305487109,
+          "state_fingerprint": 13188448789542605438,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4947,7 +4947,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9954956583984567425,
+          "state_fingerprint": 15421487942551486711,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4965,7 +4965,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5259128648349660014,
+          "state_fingerprint": 12807974525948753489,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -4983,7 +4983,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6501026670124337285,
+          "state_fingerprint": 11549570184641966295,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5001,7 +5001,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10937505963486699864,
+          "state_fingerprint": 9264335463975597708,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5019,7 +5019,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6222759633395672275,
+          "state_fingerprint": 10356297173688620150,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5037,7 +5037,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12017095027257517240,
+          "state_fingerprint": 4749343743628022518,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5055,7 +5055,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7997529365026700360,
+          "state_fingerprint": 10375904223931498805,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5073,7 +5073,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4136523333047585290,
+          "state_fingerprint": 7208021638253098125,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5091,7 +5091,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7262615183306128095,
+          "state_fingerprint": 9123077833728343060,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5109,7 +5109,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14044670669228147949,
+          "state_fingerprint": 2648390258670486727,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5127,7 +5127,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8889725452273328428,
+          "state_fingerprint": 17755131766914444429,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5145,7 +5145,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11436953488441444559,
+          "state_fingerprint": 1058057104336286300,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5163,7 +5163,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5545672444088718986,
+          "state_fingerprint": 2456726799950419544,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5181,7 +5181,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18054346795522363536,
+          "state_fingerprint": 8231603084283712263,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5199,7 +5199,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3129541229379035394,
+          "state_fingerprint": 12815056101208232215,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5217,7 +5217,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12465912523334236184,
+          "state_fingerprint": 9856016947333706849,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5235,7 +5235,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13913265329632794154,
+          "state_fingerprint": 14827373398138795456,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5253,7 +5253,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14532375634772494693,
+          "state_fingerprint": 14954107441738794649,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5271,7 +5271,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1022325217327186703,
+          "state_fingerprint": 10021199177018157807,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5289,7 +5289,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15456458522480796559,
+          "state_fingerprint": 7827625527740439015,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5307,7 +5307,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17597497021033395568,
+          "state_fingerprint": 5902674146964197050,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5325,7 +5325,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17897400328891143112,
+          "state_fingerprint": 6907537150914996203,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5343,7 +5343,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16845372171217664948,
+          "state_fingerprint": 13965650583697532748,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5361,7 +5361,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10914019868398845899,
+          "state_fingerprint": 8608511752381947246,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5379,7 +5379,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6965377014031946783,
+          "state_fingerprint": 16661890028279363021,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5397,7 +5397,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14506926211328467958,
+          "state_fingerprint": 13726260120569563887,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5415,7 +5415,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3713955346625537030,
+          "state_fingerprint": 688089207767040898,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5433,7 +5433,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9266198333172432868,
+          "state_fingerprint": 3214143897319088213,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5451,7 +5451,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5643388670441216666,
+          "state_fingerprint": 3957434505617850306,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5469,7 +5469,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2629097812412268353,
+          "state_fingerprint": 17341496342749230919,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5487,7 +5487,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8514692265590507375,
+          "state_fingerprint": 12427025325987997092,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5505,7 +5505,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13980948317393517458,
+          "state_fingerprint": 8443557818520020410,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5523,7 +5523,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4343110109327821488,
+          "state_fingerprint": 7344201062682074238,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5541,7 +5541,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5519579243844041295,
+          "state_fingerprint": 2154992776401673688,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5559,7 +5559,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6234798535410671607,
+          "state_fingerprint": 8927014586717113012,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5577,7 +5577,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15139821017112398626,
+          "state_fingerprint": 960531454241619421,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5595,7 +5595,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6042272469443946214,
+          "state_fingerprint": 14613251527471596328,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5613,7 +5613,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8296105676417036037,
+          "state_fingerprint": 7347852695014304081,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5631,7 +5631,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14952827377544944911,
+          "state_fingerprint": 2045205885604850266,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5649,7 +5649,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6882841109214869143,
+          "state_fingerprint": 14745557622060092284,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5667,7 +5667,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10917201245711342335,
+          "state_fingerprint": 7553839706835084443,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5685,7 +5685,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1488880901067120640,
+          "state_fingerprint": 11399260830446942293,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5703,7 +5703,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13169070862558590343,
+          "state_fingerprint": 11223415690021350070,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5721,7 +5721,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 400351681405538543,
+          "state_fingerprint": 13851616002804911889,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5739,7 +5739,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6752123425360536698,
+          "state_fingerprint": 2440355095831668903,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5757,7 +5757,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5583074389835661235,
+          "state_fingerprint": 16078530219966423644,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5775,7 +5775,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6791324044367213447,
+          "state_fingerprint": 11622746596392457352,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5793,7 +5793,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17359309892129690627,
+          "state_fingerprint": 17826283689372133364,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5811,7 +5811,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8949409687371805026,
+          "state_fingerprint": 2589259478943488465,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5829,7 +5829,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18117676082857535318,
+          "state_fingerprint": 10586302566753874804,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5847,7 +5847,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1637940333998738508,
+          "state_fingerprint": 9357604248560150534,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5865,7 +5865,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12863597382310255984,
+          "state_fingerprint": 11904210595856436210,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5883,7 +5883,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1510225667878106977,
+          "state_fingerprint": 9326893541317448241,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5901,7 +5901,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 777424212110815238,
+          "state_fingerprint": 2527450901022190562,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5919,7 +5919,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6048048546222419949,
+          "state_fingerprint": 7926923038872405735,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5937,7 +5937,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5143969295352321805,
+          "state_fingerprint": 11769713948142548323,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5955,7 +5955,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5123412152598394053,
+          "state_fingerprint": 12552798572195779556,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5973,7 +5973,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9213237541867353125,
+          "state_fingerprint": 14304977187397458923,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -5991,7 +5991,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1005777033992187345,
+          "state_fingerprint": 5848323241396484264,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6009,7 +6009,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 474289979425921483,
+          "state_fingerprint": 1109062185903465263,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6027,7 +6027,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3112666223027593732,
+          "state_fingerprint": 8189391299018353550,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6045,7 +6045,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16536655995108257437,
+          "state_fingerprint": 9167843257904785027,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6063,7 +6063,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13261768215518011304,
+          "state_fingerprint": 4474713366761162481,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6081,7 +6081,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3801879145566633014,
+          "state_fingerprint": 12350328838459550415,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6099,7 +6099,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17072604054208827926,
+          "state_fingerprint": 3465831866162361426,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6117,7 +6117,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 62156283966054444,
+          "state_fingerprint": 12411023778460790002,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6135,7 +6135,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15643957158694872341,
+          "state_fingerprint": 8257041806873730176,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6153,7 +6153,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12107274068348769642,
+          "state_fingerprint": 5348312141915874681,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6171,7 +6171,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11885261173969341311,
+          "state_fingerprint": 4193539997504568192,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6189,7 +6189,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15816205238001053041,
+          "state_fingerprint": 11466279448237515787,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6207,7 +6207,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9437981837525620684,
+          "state_fingerprint": 3391442600742155947,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6225,7 +6225,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6043776860146717619,
+          "state_fingerprint": 12444285050452434734,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6243,7 +6243,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4868014761273404691,
+          "state_fingerprint": 8942219556858767684,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6261,7 +6261,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8450698624426704895,
+          "state_fingerprint": 6145179193696710521,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6279,7 +6279,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9509774230282405027,
+          "state_fingerprint": 3765073833495338785,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6297,7 +6297,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8442147758542802793,
+          "state_fingerprint": 14127026889959178556,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6315,7 +6315,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6047023296509429523,
+          "state_fingerprint": 6376333786959843010,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6333,7 +6333,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12141407858366834151,
+          "state_fingerprint": 12441503791027133044,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6351,7 +6351,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17320745977287984970,
+          "state_fingerprint": 15293630129094209464,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6369,7 +6369,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17621666738954462584,
+          "state_fingerprint": 4899200757498121839,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6387,7 +6387,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 801219948445339647,
+          "state_fingerprint": 13224644723476841931,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6405,7 +6405,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5685818615017525770,
+          "state_fingerprint": 1471148791564676862,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6423,7 +6423,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7224329709045881686,
+          "state_fingerprint": 15577340582854471527,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6441,7 +6441,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11428331704215092261,
+          "state_fingerprint": 5933526128910725371,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6459,7 +6459,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3061340054596897002,
+          "state_fingerprint": 16611993581361541216,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6477,7 +6477,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16377608801747432850,
+          "state_fingerprint": 13342296546070576264,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6495,7 +6495,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11467458984640132877,
+          "state_fingerprint": 3193041161386431740,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6513,7 +6513,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13500945146083419870,
+          "state_fingerprint": 521578006601345966,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6531,7 +6531,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2502061306852410962,
+          "state_fingerprint": 2593550997891655044,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6549,7 +6549,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7075831750175617086,
+          "state_fingerprint": 1819680866485887971,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6567,7 +6567,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5839967942069221591,
+          "state_fingerprint": 13744673872901747066,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6585,7 +6585,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6897018261104327077,
+          "state_fingerprint": 17088888335146910415,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6603,7 +6603,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16270154582252925738,
+          "state_fingerprint": 845493236371421705,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6621,7 +6621,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6909763250153056817,
+          "state_fingerprint": 14461512886960262989,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6639,7 +6639,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13771822739562261635,
+          "state_fingerprint": 10888979119499399522,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6657,7 +6657,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1306982858158813386,
+          "state_fingerprint": 15884296962382362056,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6675,7 +6675,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9976316209754031090,
+          "state_fingerprint": 4934352062927753367,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6693,7 +6693,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8940180818819073186,
+          "state_fingerprint": 2459818448438697698,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6711,7 +6711,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8342978776379632613,
+          "state_fingerprint": 10579623679093069883,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6729,7 +6729,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3599449026691036155,
+          "state_fingerprint": 7973783492655459379,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6747,7 +6747,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10964795162799850326,
+          "state_fingerprint": 10513468865061923820,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6765,7 +6765,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2516802708225605689,
+          "state_fingerprint": 5056453571966003729,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6783,7 +6783,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 280771372178326043,
+          "state_fingerprint": 12204961249576132245,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6801,7 +6801,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4408046844739851638,
+          "state_fingerprint": 17291823463677675293,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6819,7 +6819,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6976193288503788741,
+          "state_fingerprint": 6078480855738390042,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6837,7 +6837,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16137378750702796727,
+          "state_fingerprint": 16240237171428106883,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6855,7 +6855,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3037062128032290168,
+          "state_fingerprint": 7857627737774179238,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6873,7 +6873,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3251449213213243307,
+          "state_fingerprint": 8868555436878571853,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6891,7 +6891,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17289465429509163786,
+          "state_fingerprint": 14571634690132728776,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6909,7 +6909,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12764449101792497149,
+          "state_fingerprint": 1784967047658264989,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6927,7 +6927,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11230448974017311171,
+          "state_fingerprint": 3980257043476492908,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6945,7 +6945,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16150824410391570641,
+          "state_fingerprint": 6014444534128241184,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6963,7 +6963,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16543630098500286721,
+          "state_fingerprint": 9378770183487120815,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6981,7 +6981,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1686279882039126175,
+          "state_fingerprint": 13642490835105945608,
           "events_fingerprint": 17393213961538517549
         },
         {
@@ -6999,7 +6999,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17296496082666411629,
+          "state_fingerprint": 10723402411700398286,
           "events_fingerprint": 17393213961538517549
         }
       ]
@@ -7034,7 +7034,7 @@
         "obs_encoding_version": 2,
         "action_encoding_version": 1,
         "policy_version": 2,
-        "config_hash": 7188037410646180272,
+        "config_hash": 9590670847267166060,
         "reward_config_hash": 16229288125195201982,
         "deck_hash": 5347704453067913942,
         "fingerprint_algo": "postcard+blake3+u64le v1",
@@ -7056,7 +7056,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8609841417479594007,
+          "state_fingerprint": 8043878356775209124,
           "events_fingerprint": 6353673282036965677
         },
         {
@@ -7074,7 +7074,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13493317199494847193,
+          "state_fingerprint": 3805935345955057000,
           "events_fingerprint": 6121758793762615513
         },
         {
@@ -7092,7 +7092,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10181870698918351525,
+          "state_fingerprint": 1522762843681207196,
           "events_fingerprint": 6121758793762615513
         },
         {
@@ -7110,7 +7110,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6223011871350798976,
+          "state_fingerprint": 1346636230498171781,
           "events_fingerprint": 7926639475927150704
         },
         {
@@ -7128,7 +7128,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2673929799988474901,
+          "state_fingerprint": 4194998797725148158,
           "events_fingerprint": 15269349275937301797
         },
         {
@@ -7146,7 +7146,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4918266829733857931,
+          "state_fingerprint": 6256569839886087443,
           "events_fingerprint": 15269349275937301797
         },
         {
@@ -7164,7 +7164,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7758550314910385682,
+          "state_fingerprint": 3752911013352709813,
           "events_fingerprint": 15269349275937301797
         },
         {
@@ -7182,7 +7182,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3664101660399919213,
+          "state_fingerprint": 5064469099701621600,
           "events_fingerprint": 15911339311165470255
         },
         {
@@ -7200,7 +7200,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9855407635189953893,
+          "state_fingerprint": 10438851994392039637,
           "events_fingerprint": 8751090787739761487
         },
         {
@@ -7218,7 +7218,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2966517562972032840,
+          "state_fingerprint": 10792901630408414876,
           "events_fingerprint": 8751090787739761487
         },
         {
@@ -7236,7 +7236,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3995814722065960078,
+          "state_fingerprint": 3654457150097192183,
           "events_fingerprint": 8751090787739761487
         },
         {
@@ -7254,7 +7254,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3385639649806679141,
+          "state_fingerprint": 2870858350866283441,
           "events_fingerprint": 3629756097328512701
         },
         {
@@ -7272,7 +7272,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17595441662651554689,
+          "state_fingerprint": 11586508530120674430,
           "events_fingerprint": 9699632010824127950
         },
         {
@@ -7290,7 +7290,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5735115445187817661,
+          "state_fingerprint": 7233201034617219777,
           "events_fingerprint": 9699632010824127950
         },
         {
@@ -7308,7 +7308,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12559909479650235707,
+          "state_fingerprint": 10142816444150119833,
           "events_fingerprint": 9699632010824127950
         },
         {
@@ -7326,7 +7326,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1909628146267048866,
+          "state_fingerprint": 9270900599744687561,
           "events_fingerprint": 3546142935958085375
         },
         {
@@ -7344,7 +7344,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17042660806425555649,
+          "state_fingerprint": 31083158783695400,
           "events_fingerprint": 13377292865588242870
         },
         {
@@ -7362,7 +7362,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10634696106332497991,
+          "state_fingerprint": 14790203462842472396,
           "events_fingerprint": 13377292865588242870
         },
         {
@@ -7380,7 +7380,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11683700759438395364,
+          "state_fingerprint": 14099888606996667293,
           "events_fingerprint": 13377292865588242870
         },
         {
@@ -7398,7 +7398,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16274099207533203928,
+          "state_fingerprint": 6891042122955629666,
           "events_fingerprint": 16481903869918163453
         },
         {
@@ -7416,7 +7416,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3266861851944445814,
+          "state_fingerprint": 15225981834428413517,
           "events_fingerprint": 1820563410047127957
         },
         {
@@ -7434,7 +7434,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2148162653914869642,
+          "state_fingerprint": 10028719808479258451,
           "events_fingerprint": 1820563410047127957
         },
         {
@@ -7452,7 +7452,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15430808342044262718,
+          "state_fingerprint": 8606995981530245918,
           "events_fingerprint": 1820563410047127957
         },
         {
@@ -7470,7 +7470,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12127443843166139116,
+          "state_fingerprint": 15437219851203644118,
           "events_fingerprint": 9510437921336128711
         },
         {
@@ -7488,7 +7488,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5745289057461100536,
+          "state_fingerprint": 693749611366682728,
           "events_fingerprint": 5159171035820713440
         },
         {
@@ -7506,7 +7506,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5660788288357403682,
+          "state_fingerprint": 17926136729680386106,
           "events_fingerprint": 12824986962360957051
         },
         {
@@ -7524,7 +7524,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7092671361165896354,
+          "state_fingerprint": 298052724039551360,
           "events_fingerprint": 12824986962360957051
         },
         {
@@ -7542,7 +7542,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5121613553399787264,
+          "state_fingerprint": 14304038368711384553,
           "events_fingerprint": 12824986962360957051
         },
         {
@@ -7560,7 +7560,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13551413501447433426,
+          "state_fingerprint": 336216041309975053,
           "events_fingerprint": 9918857663077480857
         },
         {
@@ -7578,7 +7578,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11166000599428482210,
+          "state_fingerprint": 13852397518322935823,
           "events_fingerprint": 15691444020486563999
         },
         {
@@ -7596,7 +7596,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14657984432991383354,
+          "state_fingerprint": 2203575055056200221,
           "events_fingerprint": 15691444020486563999
         },
         {
@@ -7614,7 +7614,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6206581860443096645,
+          "state_fingerprint": 4035555740070612712,
           "events_fingerprint": 15691444020486563999
         },
         {
@@ -7632,7 +7632,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15111046765383120246,
+          "state_fingerprint": 7369381206265781146,
           "events_fingerprint": 14796352811333235865
         },
         {
@@ -7650,7 +7650,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16233569866957906948,
+          "state_fingerprint": 17557981522752001235,
           "events_fingerprint": 13403385281576807404
         },
         {
@@ -7668,7 +7668,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15253687681634766647,
+          "state_fingerprint": 17102471695084056491,
           "events_fingerprint": 7375188623165166657
         },
         {
@@ -7686,7 +7686,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13642855493343094481,
+          "state_fingerprint": 4034249642402091791,
           "events_fingerprint": 7375188623165166657
         },
         {
@@ -7704,7 +7704,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15704425316415837949,
+          "state_fingerprint": 1807401229892411232,
           "events_fingerprint": 7375188623165166657
         },
         {
@@ -7722,7 +7722,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16250407798035259960,
+          "state_fingerprint": 15341415515164599487,
           "events_fingerprint": 7463214424338046903
         },
         {
@@ -7740,7 +7740,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12288934717011110114,
+          "state_fingerprint": 14135441230867239671,
           "events_fingerprint": 17084000782052308849
         },
         {
@@ -7758,7 +7758,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10059377832087153186,
+          "state_fingerprint": 11314970832881277568,
           "events_fingerprint": 17084000782052308849
         },
         {
@@ -7776,7 +7776,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1100600380429500921,
+          "state_fingerprint": 3021977601158554232,
           "events_fingerprint": 17084000782052308849
         },
         {
@@ -7794,7 +7794,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8055557932405574425,
+          "state_fingerprint": 15343599535712819906,
           "events_fingerprint": 12357672422733161011
         },
         {
@@ -7812,7 +7812,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14546823634072349190,
+          "state_fingerprint": 12196736499523951457,
           "events_fingerprint": 2234921530705363369
         },
         {
@@ -7830,7 +7830,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11899494636324288674,
+          "state_fingerprint": 13983409129146250586,
           "events_fingerprint": 3748809587814356762
         },
         {
@@ -7848,7 +7848,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5235106432408332720,
+          "state_fingerprint": 18405362091240136963,
           "events_fingerprint": 3748809587814356762
         },
         {
@@ -7866,7 +7866,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12019319159624804743,
+          "state_fingerprint": 9339893775160047836,
           "events_fingerprint": 3748809587814356762
         },
         {
@@ -7884,7 +7884,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17383763614993712942,
+          "state_fingerprint": 1130091456719865084,
           "events_fingerprint": 5461723469143738734
         },
         {
@@ -7902,7 +7902,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8868440987050603894,
+          "state_fingerprint": 10083261858513974153,
           "events_fingerprint": 9713606957412530143
         },
         {
@@ -7920,7 +7920,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1064609912976835196,
+          "state_fingerprint": 6644614244832418061,
           "events_fingerprint": 9713606957412530143
         },
         {
@@ -7938,7 +7938,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8613950785855725828,
+          "state_fingerprint": 410906200155976644,
           "events_fingerprint": 9713606957412530143
         },
         {
@@ -7956,7 +7956,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1757528492987242233,
+          "state_fingerprint": 15254276308864994817,
           "events_fingerprint": 5223887156580119617
         },
         {
@@ -7974,7 +7974,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15216253835361616838,
+          "state_fingerprint": 15770001581859515346,
           "events_fingerprint": 8029532787930845554
         },
         {
@@ -7992,7 +7992,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1465771630939789009,
+          "state_fingerprint": 16248000835820308884,
           "events_fingerprint": 14338169338932562131
         },
         {
@@ -8010,7 +8010,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8025033101666157044,
+          "state_fingerprint": 17087548231109821562,
           "events_fingerprint": 14338169338932562131
         },
         {
@@ -8028,7 +8028,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6458554169956428290,
+          "state_fingerprint": 17429719279316420084,
           "events_fingerprint": 14338169338932562131
         },
         {
@@ -8046,7 +8046,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13966892276888626090,
+          "state_fingerprint": 13449447473332355952,
           "events_fingerprint": 7473608682170924156
         },
         {
@@ -8064,7 +8064,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12270268107011985973,
+          "state_fingerprint": 17977860155137636013,
           "events_fingerprint": 5973391940436986243
         },
         {
@@ -8082,7 +8082,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10172083413625319817,
+          "state_fingerprint": 17025687709490893074,
           "events_fingerprint": 5973391940436986243
         },
         {
@@ -8100,7 +8100,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7847346153771314870,
+          "state_fingerprint": 5441775881899447544,
           "events_fingerprint": 5973391940436986243
         },
         {
@@ -8118,7 +8118,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15586940550921467584,
+          "state_fingerprint": 13525263486162196995,
           "events_fingerprint": 8001594480921772959
         },
         {
@@ -8136,7 +8136,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17504536875998586294,
+          "state_fingerprint": 6182119922880986644,
           "events_fingerprint": 14655359656579483975
         },
         {
@@ -8154,7 +8154,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7696960581331704897,
+          "state_fingerprint": 5738066470169111718,
           "events_fingerprint": 2419842739006869746
         },
         {
@@ -8172,7 +8172,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11620888306840540196,
+          "state_fingerprint": 7659008056880051330,
           "events_fingerprint": 2419842739006869746
         },
         {
@@ -8190,7 +8190,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17082989138765430195,
+          "state_fingerprint": 15061566844325396564,
           "events_fingerprint": 2419842739006869746
         },
         {
@@ -8208,7 +8208,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18057383992014531796,
+          "state_fingerprint": 2858736632924332171,
           "events_fingerprint": 2586086785602167888
         },
         {
@@ -8226,7 +8226,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1005649803692714740,
+          "state_fingerprint": 16553093805412990156,
           "events_fingerprint": 9023167069246276933
         },
         {
@@ -8244,7 +8244,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15883135872994809967,
+          "state_fingerprint": 15648511124719540852,
           "events_fingerprint": 9023167069246276933
         },
         {
@@ -8262,7 +8262,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5817304134349185020,
+          "state_fingerprint": 6366194691313044200,
           "events_fingerprint": 9023167069246276933
         },
         {
@@ -8280,7 +8280,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1788663739477780412,
+          "state_fingerprint": 8224341668069698772,
           "events_fingerprint": 11196560847472044361
         },
         {
@@ -8298,7 +8298,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14015219502281201742,
+          "state_fingerprint": 3909219451270049496,
           "events_fingerprint": 17843080091134206867
         },
         {
@@ -8316,7 +8316,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4793961335513774913,
+          "state_fingerprint": 10712251621896711620,
           "events_fingerprint": 2563009353336842780
         },
         {
@@ -8334,7 +8334,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13624648089560894780,
+          "state_fingerprint": 10449983290150472100,
           "events_fingerprint": 2563009353336842780
         },
         {
@@ -8352,7 +8352,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1027802701126218796,
+          "state_fingerprint": 17600233488376651603,
           "events_fingerprint": 2563009353336842780
         },
         {
@@ -8370,7 +8370,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14519367012019733710,
+          "state_fingerprint": 17392056245343862611,
           "events_fingerprint": 9834779196524998960
         },
         {
@@ -8388,7 +8388,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7071631533064239926,
+          "state_fingerprint": 17206354544039437066,
           "events_fingerprint": 7446814376458802460
         },
         {
@@ -8406,7 +8406,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2853796146398277270,
+          "state_fingerprint": 16537215865249679837,
           "events_fingerprint": 7446814376458802460
         },
         {
@@ -8424,7 +8424,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5198201105647754364,
+          "state_fingerprint": 3053427773360143904,
           "events_fingerprint": 7446814376458802460
         },
         {
@@ -8442,7 +8442,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3736025446493777305,
+          "state_fingerprint": 3184780091513583737,
           "events_fingerprint": 3077012592651162145
         },
         {
@@ -8460,7 +8460,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9083332431547669390,
+          "state_fingerprint": 3230538082500318749,
           "events_fingerprint": 16336243750481172873
         },
         {
@@ -8478,7 +8478,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16117461143101663459,
+          "state_fingerprint": 1061581242406586441,
           "events_fingerprint": 10880259175914485701
         },
         {
@@ -8496,7 +8496,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9643746244751533834,
+          "state_fingerprint": 9362391156744182083,
           "events_fingerprint": 10880259175914485701
         },
         {
@@ -8514,7 +8514,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5882489923221810788,
+          "state_fingerprint": 4378669474623060585,
           "events_fingerprint": 10880259175914485701
         },
         {
@@ -8532,7 +8532,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8894517040526900962,
+          "state_fingerprint": 6244534630690188674,
           "events_fingerprint": 4035120330963749094
         },
         {
@@ -8550,7 +8550,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13904978050120636995,
+          "state_fingerprint": 5238853968686787038,
           "events_fingerprint": 9699794096825138920
         },
         {
@@ -8568,7 +8568,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12795004277932528939,
+          "state_fingerprint": 5543872276403176742,
           "events_fingerprint": 9699794096825138920
         },
         {
@@ -8586,7 +8586,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2976725074308602807,
+          "state_fingerprint": 3518713159537505963,
           "events_fingerprint": 9699794096825138920
         },
         {
@@ -8604,7 +8604,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3740830406637855353,
+          "state_fingerprint": 2058411836232654299,
           "events_fingerprint": 14965744115406926811
         },
         {
@@ -8622,7 +8622,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15731038666851757642,
+          "state_fingerprint": 8081060625710342060,
           "events_fingerprint": 811732897933063099
         },
         {
@@ -8640,7 +8640,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11363564489626128730,
+          "state_fingerprint": 12216139861591707537,
           "events_fingerprint": 6812884364520680551
         },
         {
@@ -8658,7 +8658,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10677834954026101732,
+          "state_fingerprint": 16803489474557872198,
           "events_fingerprint": 6812884364520680551
         },
         {
@@ -8676,7 +8676,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8212674230057524938,
+          "state_fingerprint": 16174140452250904524,
           "events_fingerprint": 6812884364520680551
         },
         {
@@ -8694,7 +8694,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 775815750872673792,
+          "state_fingerprint": 8124663836971463700,
           "events_fingerprint": 11986784228079121879
         },
         {
@@ -8712,7 +8712,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2445185538579157240,
+          "state_fingerprint": 14409094941924994080,
           "events_fingerprint": 7316893395744166655
         },
         {
@@ -8730,7 +8730,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5764374895866834934,
+          "state_fingerprint": 15728520748647002607,
           "events_fingerprint": 7316893395744166655
         },
         {
@@ -8748,7 +8748,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17574094941948971132,
+          "state_fingerprint": 18309106291951542686,
           "events_fingerprint": 7316893395744166655
         },
         {
@@ -8766,7 +8766,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14135799069850805277,
+          "state_fingerprint": 11278164362883516528,
           "events_fingerprint": 13025861492565201974
         },
         {
@@ -8784,7 +8784,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5142326410173141393,
+          "state_fingerprint": 12798778512968972448,
           "events_fingerprint": 11596623534444596467
         },
         {
@@ -8802,7 +8802,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 155315817463128527,
+          "state_fingerprint": 9875959562770563890,
           "events_fingerprint": 16834715885233382863
         },
         {
@@ -8820,7 +8820,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7161665748704121083,
+          "state_fingerprint": 9395556020676140664,
           "events_fingerprint": 16834715885233382863
         },
         {
@@ -8838,7 +8838,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13229949789645603230,
+          "state_fingerprint": 5737066604857826671,
           "events_fingerprint": 16834715885233382863
         },
         {
@@ -8856,7 +8856,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5984942555523159767,
+          "state_fingerprint": 7774365180639124486,
           "events_fingerprint": 1246128444173166667
         },
         {
@@ -8874,7 +8874,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17797668386281822712,
+          "state_fingerprint": 13265819255777147071,
           "events_fingerprint": 13942545517453267534
         },
         {
@@ -8892,7 +8892,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6596418780407570102,
+          "state_fingerprint": 12004466406919903515,
           "events_fingerprint": 13942545517453267534
         },
         {
@@ -8910,7 +8910,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8519139263060928705,
+          "state_fingerprint": 14790947519139881945,
           "events_fingerprint": 13942545517453267534
         },
         {
@@ -8928,7 +8928,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10770697035883281054,
+          "state_fingerprint": 2316611779622939897,
           "events_fingerprint": 17488876260863991861
         },
         {
@@ -8946,7 +8946,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9831926889948089487,
+          "state_fingerprint": 2046707904203381123,
           "events_fingerprint": 10269147577039118964
         },
         {
@@ -8964,7 +8964,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 262061726814930421,
+          "state_fingerprint": 12784528693019708151,
           "events_fingerprint": 1257141761288762687
         },
         {
@@ -8982,7 +8982,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 109810145960095836,
+          "state_fingerprint": 340538936702996705,
           "events_fingerprint": 1257141761288762687
         },
         {
@@ -9000,7 +9000,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2708385517866339746,
+          "state_fingerprint": 9614122944850996664,
           "events_fingerprint": 1257141761288762687
         },
         {
@@ -9018,7 +9018,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7588247713252470107,
+          "state_fingerprint": 15602442406474237430,
           "events_fingerprint": 5122714048233413580
         },
         {
@@ -9036,7 +9036,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9548088899041053423,
+          "state_fingerprint": 11519611670753408773,
           "events_fingerprint": 14360277200084013285
         },
         {
@@ -9054,7 +9054,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2305511126302275491,
+          "state_fingerprint": 10470040777113249713,
           "events_fingerprint": 14360277200084013285
         },
         {
@@ -9072,7 +9072,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9499278258482725098,
+          "state_fingerprint": 2534300278899952393,
           "events_fingerprint": 14360277200084013285
         },
         {
@@ -9090,7 +9090,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5903275269518980421,
+          "state_fingerprint": 14924895030932514318,
           "events_fingerprint": 3051561532876135922
         },
         {
@@ -9108,7 +9108,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8142420062124439108,
+          "state_fingerprint": 12483340340316147628,
           "events_fingerprint": 17000140618955738782
         },
         {
@@ -9126,7 +9126,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11876359869552803161,
+          "state_fingerprint": 16845118209292651557,
           "events_fingerprint": 8767332011041682031
         },
         {
@@ -9144,7 +9144,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18300357090917935357,
+          "state_fingerprint": 16157749800900011228,
           "events_fingerprint": 8767332011041682031
         },
         {
@@ -9162,7 +9162,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3352120228103483789,
+          "state_fingerprint": 17727984985522723722,
           "events_fingerprint": 8767332011041682031
         },
         {
@@ -9180,7 +9180,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11796071650923638618,
+          "state_fingerprint": 15121187426499387199,
           "events_fingerprint": 5905812582499001023
         },
         {
@@ -9198,7 +9198,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10803760055584685304,
+          "state_fingerprint": 10550722217357986568,
           "events_fingerprint": 10991799040557432488
         },
         {
@@ -9216,7 +9216,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1329462878676357847,
+          "state_fingerprint": 2111694465242283533,
           "events_fingerprint": 10991799040557432488
         },
         {
@@ -9234,7 +9234,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7385065737842247352,
+          "state_fingerprint": 6971428258537863962,
           "events_fingerprint": 10991799040557432488
         },
         {
@@ -9252,7 +9252,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3437698926615069457,
+          "state_fingerprint": 16219360016443845394,
           "events_fingerprint": 1533940039288003722
         },
         {
@@ -9270,7 +9270,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14407985958554298422,
+          "state_fingerprint": 12988623829111313665,
           "events_fingerprint": 1059897824943053605
         },
         {
@@ -9288,7 +9288,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1939384916109813431,
+          "state_fingerprint": 13902987246934444827,
           "events_fingerprint": 7099398136010609555
         },
         {
@@ -9306,7 +9306,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7565561175222067661,
+          "state_fingerprint": 16419048860367248495,
           "events_fingerprint": 7099398136010609555
         },
         {
@@ -9324,7 +9324,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12496766267023264548,
+          "state_fingerprint": 4557348282778820238,
           "events_fingerprint": 7099398136010609555
         },
         {
@@ -9342,7 +9342,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16138670188895594965,
+          "state_fingerprint": 14200303728202272186,
           "events_fingerprint": 823310734634684994
         },
         {
@@ -9360,7 +9360,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5295267049239615633,
+          "state_fingerprint": 17936523637579284829,
           "events_fingerprint": 5638019741210432295
         },
         {
@@ -9378,7 +9378,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17620722061764016147,
+          "state_fingerprint": 1408160142200508263,
           "events_fingerprint": 5638019741210432295
         },
         {
@@ -9396,7 +9396,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16350593735486303344,
+          "state_fingerprint": 3633335457276631952,
           "events_fingerprint": 5638019741210432295
         },
         {
@@ -9414,7 +9414,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12434075278809000840,
+          "state_fingerprint": 2191699467031301731,
           "events_fingerprint": 15740954201532881822
         },
         {
@@ -9432,7 +9432,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5188018218730954832,
+          "state_fingerprint": 12590139174699911324,
           "events_fingerprint": 1992744465237374099
         },
         {
@@ -9450,7 +9450,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2211473657602752771,
+          "state_fingerprint": 16550209883191285862,
           "events_fingerprint": 210047353969215356
         },
         {
@@ -9468,7 +9468,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11243578330089241770,
+          "state_fingerprint": 6393520017088895816,
           "events_fingerprint": 210047353969215356
         },
         {
@@ -9486,7 +9486,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7938945352041221764,
+          "state_fingerprint": 12393646632347797568,
           "events_fingerprint": 210047353969215356
         },
         {
@@ -9504,7 +9504,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9424003924736080810,
+          "state_fingerprint": 5488282617922679772,
           "events_fingerprint": 1048705519879130380
         },
         {
@@ -9522,7 +9522,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8118544208181653748,
+          "state_fingerprint": 11555711267205081554,
           "events_fingerprint": 2071252943965455646
         },
         {
@@ -9540,7 +9540,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1454991795280111770,
+          "state_fingerprint": 9284857098595079264,
           "events_fingerprint": 2071252943965455646
         },
         {
@@ -9558,7 +9558,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15921590228279327785,
+          "state_fingerprint": 14998549572494201820,
           "events_fingerprint": 2071252943965455646
         },
         {
@@ -9576,7 +9576,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10892485985233336385,
+          "state_fingerprint": 6916559560847910002,
           "events_fingerprint": 11977091321168970804
         },
         {
@@ -9594,7 +9594,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11330583186821680721,
+          "state_fingerprint": 6358676524768784189,
           "events_fingerprint": 9734939987038668382
         },
         {
@@ -9612,7 +9612,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17908795417174726660,
+          "state_fingerprint": 15700930593988799867,
           "events_fingerprint": 14200013131229704400
         },
         {
@@ -9630,7 +9630,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6199829584914845196,
+          "state_fingerprint": 17554513762205103813,
           "events_fingerprint": 14200013131229704400
         },
         {
@@ -9648,7 +9648,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1802597754155366292,
+          "state_fingerprint": 17800671481220456764,
           "events_fingerprint": 14200013131229704400
         },
         {
@@ -9666,7 +9666,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12110937525046302630,
+          "state_fingerprint": 12960151623486784894,
           "events_fingerprint": 1256926414798886524
         },
         {
@@ -9684,7 +9684,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2869648204834674241,
+          "state_fingerprint": 15355726193994623406,
           "events_fingerprint": 4021396966517711609
         },
         {
@@ -9702,7 +9702,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1661060510620689227,
+          "state_fingerprint": 7166987359693788185,
           "events_fingerprint": 4021396966517711609
         },
         {
@@ -9720,7 +9720,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4245469998111702309,
+          "state_fingerprint": 14712904762289822506,
           "events_fingerprint": 4021396966517711609
         },
         {
@@ -9738,7 +9738,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3225269960212886823,
+          "state_fingerprint": 9273673749398564210,
           "events_fingerprint": 2360562029187820188
         },
         {
@@ -9756,7 +9756,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8427090888558911980,
+          "state_fingerprint": 9008344869013728870,
           "events_fingerprint": 11567075346994903878
         },
         {
@@ -9774,7 +9774,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17275794232899550422,
+          "state_fingerprint": 11961659179385613264,
           "events_fingerprint": 13662546644257838973
         },
         {
@@ -9792,7 +9792,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12147825863541742858,
+          "state_fingerprint": 5926810439187908355,
           "events_fingerprint": 13662546644257838973
         },
         {
@@ -9810,7 +9810,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3586965376927758399,
+          "state_fingerprint": 173454224176572660,
           "events_fingerprint": 13662546644257838973
         },
         {
@@ -9828,7 +9828,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17185517745092043413,
+          "state_fingerprint": 6666713783645330608,
           "events_fingerprint": 12623872599738953290
         },
         {
@@ -9846,7 +9846,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16824072580268745381,
+          "state_fingerprint": 3581505597902639060,
           "events_fingerprint": 2096168830469236626
         },
         {
@@ -9864,7 +9864,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7194735751188435516,
+          "state_fingerprint": 12930281811206868372,
           "events_fingerprint": 2096168830469236626
         },
         {
@@ -9882,7 +9882,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18221151030565499610,
+          "state_fingerprint": 13919305296846183520,
           "events_fingerprint": 2096168830469236626
         },
         {
@@ -9900,7 +9900,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14686491772609241257,
+          "state_fingerprint": 9680733886281106416,
           "events_fingerprint": 14367719533576099717
         },
         {
@@ -9918,7 +9918,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17359171051362310281,
+          "state_fingerprint": 12600239033246993578,
           "events_fingerprint": 17437619851419626361
         },
         {
@@ -9936,7 +9936,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4846185565407252879,
+          "state_fingerprint": 8227840335522072701,
           "events_fingerprint": 3623391354312956745
         },
         {
@@ -9954,7 +9954,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10213347874958694197,
+          "state_fingerprint": 11189623480803090232,
           "events_fingerprint": 3623391354312956745
         },
         {
@@ -9972,7 +9972,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5597500322455448,
+          "state_fingerprint": 2314159941121437757,
           "events_fingerprint": 3623391354312956745
         },
         {
@@ -9990,7 +9990,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 807581635782358713,
+          "state_fingerprint": 14417784374318731972,
           "events_fingerprint": 8217835700766686597
         },
         {
@@ -10008,7 +10008,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13852065633425720160,
+          "state_fingerprint": 17442920266380100791,
           "events_fingerprint": 16357420223591209135
         },
         {
@@ -10026,7 +10026,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7900990515431614118,
+          "state_fingerprint": 7413098846869463124,
           "events_fingerprint": 16357420223591209135
         },
         {
@@ -10044,7 +10044,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13106522877143318312,
+          "state_fingerprint": 9292623854224147416,
           "events_fingerprint": 16357420223591209135
         },
         {
@@ -10062,7 +10062,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7897050609856041555,
+          "state_fingerprint": 17092588206590124899,
           "events_fingerprint": 3752244495151688396
         },
         {
@@ -10080,7 +10080,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13285169200482272144,
+          "state_fingerprint": 5277689700468769847,
           "events_fingerprint": 6248166649628190266
         },
         {
@@ -10098,7 +10098,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10002666999781345988,
+          "state_fingerprint": 8917905393959600870,
           "events_fingerprint": 8436136131911563954
         },
         {
@@ -10116,7 +10116,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12582654640048337703,
+          "state_fingerprint": 1056936259469949548,
           "events_fingerprint": 8436136131911563954
         },
         {
@@ -10134,7 +10134,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3995070295056182664,
+          "state_fingerprint": 2682778417746641170,
           "events_fingerprint": 8436136131911563954
         },
         {
@@ -10152,7 +10152,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18028268717656267977,
+          "state_fingerprint": 5332831072819891248,
           "events_fingerprint": 175800968542194549
         },
         {
@@ -10170,7 +10170,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6367314663715991029,
+          "state_fingerprint": 14502240701326620324,
           "events_fingerprint": 9759091178917719968
         },
         {
@@ -10188,7 +10188,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7506639896676877797,
+          "state_fingerprint": 7709017978320562725,
           "events_fingerprint": 9759091178917719968
         },
         {
@@ -10206,7 +10206,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14083257542397338005,
+          "state_fingerprint": 10075011270821517695,
           "events_fingerprint": 9759091178917719968
         },
         {
@@ -10224,7 +10224,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11652391122651805914,
+          "state_fingerprint": 4424905333499488382,
           "events_fingerprint": 18308003161549345830
         },
         {
@@ -10242,7 +10242,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5448318313487129768,
+          "state_fingerprint": 11597931126905404482,
           "events_fingerprint": 8501357718810098461
         },
         {
@@ -10260,7 +10260,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7820356927206258431,
+          "state_fingerprint": 16418263201440258825,
           "events_fingerprint": 4458343041780319603
         },
         {
@@ -10278,7 +10278,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15387738724274951952,
+          "state_fingerprint": 13510838698551401374,
           "events_fingerprint": 4458343041780319603
         },
         {
@@ -10296,7 +10296,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3348373187933075100,
+          "state_fingerprint": 5860023947523802736,
           "events_fingerprint": 4458343041780319603
         },
         {
@@ -10314,7 +10314,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1794016981054688410,
+          "state_fingerprint": 9731500473748342293,
           "events_fingerprint": 16450920034093964952
         },
         {
@@ -10332,7 +10332,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18188437258619583566,
+          "state_fingerprint": 15353124214857466042,
           "events_fingerprint": 12355594209774568004
         },
         {
@@ -10350,7 +10350,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18217183660295276332,
+          "state_fingerprint": 16417174946591609774,
           "events_fingerprint": 12355594209774568004
         },
         {
@@ -10368,7 +10368,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 196171508726440048,
+          "state_fingerprint": 8394142213658485256,
           "events_fingerprint": 12355594209774568004
         },
         {
@@ -10386,7 +10386,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6250161557849383578,
+          "state_fingerprint": 4537618671875768882,
           "events_fingerprint": 18150251754252647530
         },
         {
@@ -10404,7 +10404,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4012664114894203091,
+          "state_fingerprint": 7693630762339622686,
           "events_fingerprint": 11245258320871733559
         },
         {
@@ -10422,7 +10422,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17417188789808372901,
+          "state_fingerprint": 8459606467289662669,
           "events_fingerprint": 12638049775466747098
         },
         {
@@ -10440,7 +10440,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11900204475445218421,
+          "state_fingerprint": 9403502073723079533,
           "events_fingerprint": 12638049775466747098
         },
         {
@@ -10458,7 +10458,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13079656808095732959,
+          "state_fingerprint": 4932226132263248114,
           "events_fingerprint": 12638049775466747098
         },
         {
@@ -10476,7 +10476,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3728652535501264095,
+          "state_fingerprint": 1821617556379628815,
           "events_fingerprint": 14061294178256978009
         },
         {
@@ -10494,7 +10494,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6746508760822385843,
+          "state_fingerprint": 3870654233397482305,
           "events_fingerprint": 16643252287322839882
         },
         {
@@ -10512,7 +10512,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16478817232545361079,
+          "state_fingerprint": 1131827552550594728,
           "events_fingerprint": 16643252287322839882
         },
         {
@@ -10530,7 +10530,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9882764851778489140,
+          "state_fingerprint": 602870207320622041,
           "events_fingerprint": 16643252287322839882
         },
         {
@@ -10548,7 +10548,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 18154591478055588253,
+          "state_fingerprint": 9022354309922664716,
           "events_fingerprint": 9707932299497868178
         },
         {
@@ -10566,7 +10566,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14496408094780949746,
+          "state_fingerprint": 1798101152316224533,
           "events_fingerprint": 5943117207516342730
         },
         {
@@ -10584,7 +10584,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14995200815709089640,
+          "state_fingerprint": 15340697109854300100,
           "events_fingerprint": 7328692777522870130
         },
         {
@@ -10602,7 +10602,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 839548468548140604,
+          "state_fingerprint": 16674984859651895062,
           "events_fingerprint": 7328692777522870130
         },
         {
@@ -10620,7 +10620,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14696239469301118573,
+          "state_fingerprint": 17136653123080631139,
           "events_fingerprint": 7328692777522870130
         },
         {
@@ -10638,7 +10638,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1048108370293934869,
+          "state_fingerprint": 7772209434006912408,
           "events_fingerprint": 9793772163722323439
         },
         {
@@ -10656,7 +10656,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 538472425673696636,
+          "state_fingerprint": 4678047804916392909,
           "events_fingerprint": 8929533002211339497
         },
         {
@@ -10674,7 +10674,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7167434054268888718,
+          "state_fingerprint": 8601351479081135043,
           "events_fingerprint": 8929533002211339497
         },
         {
@@ -10692,7 +10692,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10184559588220189652,
+          "state_fingerprint": 4602296369122401967,
           "events_fingerprint": 8929533002211339497
         },
         {
@@ -10710,7 +10710,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17457513550072042099,
+          "state_fingerprint": 18351317760532824226,
           "events_fingerprint": 10952601292285183613
         },
         {
@@ -10728,7 +10728,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12111727804263438606,
+          "state_fingerprint": 17442283840850484350,
           "events_fingerprint": 6224726566447446167
         },
         {
@@ -10746,7 +10746,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14148933571995419509,
+          "state_fingerprint": 2727622716282362235,
           "events_fingerprint": 4773219650202064965
         },
         {
@@ -10764,7 +10764,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16660520193582079397,
+          "state_fingerprint": 5444974855199149516,
           "events_fingerprint": 4773219650202064965
         },
         {
@@ -10782,7 +10782,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 17775815902731548314,
+          "state_fingerprint": 970968616267981028,
           "events_fingerprint": 4773219650202064965
         },
         {
@@ -10800,7 +10800,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8975828470229331082,
+          "state_fingerprint": 13056147770124861330,
           "events_fingerprint": 10626108632518824516
         },
         {
@@ -10818,7 +10818,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13184327607029246950,
+          "state_fingerprint": 5962760608850557277,
           "events_fingerprint": 14880889658833385277
         },
         {
@@ -10836,7 +10836,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3220816304327126274,
+          "state_fingerprint": 5409967595514776159,
           "events_fingerprint": 14880889658833385277
         },
         {
@@ -10854,7 +10854,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13521264244955966773,
+          "state_fingerprint": 9130489135372711420,
           "events_fingerprint": 14880889658833385277
         },
         {
@@ -10872,7 +10872,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4403965774312147673,
+          "state_fingerprint": 10077619064087205336,
           "events_fingerprint": 5217786057524147282
         },
         {
@@ -10890,7 +10890,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4243347619559379993,
+          "state_fingerprint": 10229488331293568664,
           "events_fingerprint": 4933436333236066920
         },
         {
@@ -10908,7 +10908,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3129451041233051179,
+          "state_fingerprint": 916439830513455416,
           "events_fingerprint": 16309903543452370285
         },
         {
@@ -10926,7 +10926,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3696735967860004288,
+          "state_fingerprint": 5590752254544162089,
           "events_fingerprint": 16309903543452370285
         },
         {
@@ -10944,7 +10944,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12028026622248005630,
+          "state_fingerprint": 17937013877242012660,
           "events_fingerprint": 16309903543452370285
         },
         {
@@ -10962,7 +10962,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3800952436746501674,
+          "state_fingerprint": 730791589944482198,
           "events_fingerprint": 12364647446820166
         },
         {
@@ -10980,7 +10980,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3822909404716295484,
+          "state_fingerprint": 13169636832822327809,
           "events_fingerprint": 6808408589272602596
         },
         {
@@ -10998,7 +10998,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 903251041225135081,
+          "state_fingerprint": 1601404998325381006,
           "events_fingerprint": 6808408589272602596
         },
         {
@@ -11016,7 +11016,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6588273389122342632,
+          "state_fingerprint": 11315690855123730383,
           "events_fingerprint": 6808408589272602596
         },
         {
@@ -11034,7 +11034,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9000526056317235601,
+          "state_fingerprint": 2461714205109019243,
           "events_fingerprint": 18385056992609505338
         },
         {
@@ -11052,7 +11052,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14468152854443880094,
+          "state_fingerprint": 2532046042325010992,
           "events_fingerprint": 9884569942303694408
         },
         {
@@ -11070,7 +11070,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3227152338441971302,
+          "state_fingerprint": 18210079201526815424,
           "events_fingerprint": 2722420428890119172
         },
         {
@@ -11088,7 +11088,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10970419186375201048,
+          "state_fingerprint": 802270519890514841,
           "events_fingerprint": 2722420428890119172
         },
         {
@@ -11106,7 +11106,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9142350765918815214,
+          "state_fingerprint": 943309911027634181,
           "events_fingerprint": 2722420428890119172
         },
         {
@@ -11124,7 +11124,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1210023301716287545,
+          "state_fingerprint": 1394965108925033147,
           "events_fingerprint": 7016865955951113265
         },
         {
@@ -11142,7 +11142,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6657270270762796538,
+          "state_fingerprint": 1444310199878187665,
           "events_fingerprint": 4098181772600148351
         },
         {
@@ -11160,7 +11160,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12999119356511927794,
+          "state_fingerprint": 7952056514824552868,
           "events_fingerprint": 4098181772600148351
         },
         {
@@ -11178,7 +11178,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 14407007251813275685,
+          "state_fingerprint": 13414055384080640441,
           "events_fingerprint": 4098181772600148351
         },
         {
@@ -11196,7 +11196,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15265187479093922921,
+          "state_fingerprint": 16885180420639414718,
           "events_fingerprint": 14304003257338781953
         },
         {
@@ -11214,7 +11214,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 8638890082884048171,
+          "state_fingerprint": 3566731025498556184,
           "events_fingerprint": 1722336465036551882
         },
         {
@@ -11232,7 +11232,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6646613610579634602,
+          "state_fingerprint": 11243679073234643725,
           "events_fingerprint": 14952621106696707030
         },
         {
@@ -11250,7 +11250,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 545938692456560048,
+          "state_fingerprint": 10414692705215939372,
           "events_fingerprint": 14952621106696707030
         },
         {
@@ -11268,7 +11268,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5224607899405237196,
+          "state_fingerprint": 16013022641623306894,
           "events_fingerprint": 14952621106696707030
         },
         {
@@ -11286,7 +11286,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 9036334804989719072,
+          "state_fingerprint": 12697685982679053678,
           "events_fingerprint": 13296739962209456510
         },
         {
@@ -11304,7 +11304,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16883428953798454559,
+          "state_fingerprint": 7471587034806031919,
           "events_fingerprint": 2031711050834110631
         },
         {
@@ -11322,7 +11322,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 197336185357296606,
+          "state_fingerprint": 8275057174633094215,
           "events_fingerprint": 2031711050834110631
         },
         {
@@ -11340,7 +11340,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 6021310370014722977,
+          "state_fingerprint": 12253207637172003228,
           "events_fingerprint": 2031711050834110631
         },
         {
@@ -11358,7 +11358,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3764188509485275047,
+          "state_fingerprint": 12564646080860864481,
           "events_fingerprint": 430932190559712146
         },
         {
@@ -11376,7 +11376,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11605793076432778655,
+          "state_fingerprint": 16047947496625183900,
           "events_fingerprint": 9500778052526421406
         },
         {
@@ -11394,7 +11394,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7827081729287472837,
+          "state_fingerprint": 3936905312007585782,
           "events_fingerprint": 13302824773921722127
         },
         {
@@ -11412,7 +11412,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 11046217169360158619,
+          "state_fingerprint": 17228602661001482147,
           "events_fingerprint": 13302824773921722127
         },
         {
@@ -11430,7 +11430,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7527108109858480847,
+          "state_fingerprint": 363591617352423905,
           "events_fingerprint": 13302824773921722127
         },
         {
@@ -11448,7 +11448,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 4091532707530405664,
+          "state_fingerprint": 1414953773306840257,
           "events_fingerprint": 1547768386366471827
         },
         {
@@ -11466,7 +11466,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 13577759748143512387,
+          "state_fingerprint": 6453968989791660026,
           "events_fingerprint": 15063266494109906518
         },
         {
@@ -11484,7 +11484,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 1181410566827532825,
+          "state_fingerprint": 5640389905638272578,
           "events_fingerprint": 15063266494109906518
         },
         {
@@ -11502,7 +11502,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 10424455724318622500,
+          "state_fingerprint": 9831885379209999874,
           "events_fingerprint": 15063266494109906518
         },
         {
@@ -11520,7 +11520,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 7133694990838088066,
+          "state_fingerprint": 7822535816717606874,
           "events_fingerprint": 5519978304004622328
         },
         {
@@ -11538,7 +11538,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 2972545656280252772,
+          "state_fingerprint": 16211516020208990972,
           "events_fingerprint": 8651173332445239361
         },
         {
@@ -11556,7 +11556,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 5875724863028715458,
+          "state_fingerprint": 524479303856228303,
           "events_fingerprint": 2785629732064329337
         },
         {
@@ -11574,7 +11574,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 12350854945293570624,
+          "state_fingerprint": 5344482041905175410,
           "events_fingerprint": 2785629732064329337
         },
         {
@@ -11592,7 +11592,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3788910892721217040,
+          "state_fingerprint": 13994869667940808016,
           "events_fingerprint": 2785629732064329337
         },
         {
@@ -11610,7 +11610,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 15893609401284927004,
+          "state_fingerprint": 11699873238097786164,
           "events_fingerprint": 17312134200631568344
         },
         {
@@ -11628,7 +11628,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 16511011780762879840,
+          "state_fingerprint": 5779757385824962075,
           "events_fingerprint": 10811503978566583493
         },
         {
@@ -11646,7 +11646,7 @@
           "truncated": false,
           "illegal_action": false,
           "engine_error": false,
-          "state_fingerprint": 3066497286683528109,
+          "state_fingerprint": 1701877029102718915,
           "events_fingerprint": 10811503978566583493
         }
       ]

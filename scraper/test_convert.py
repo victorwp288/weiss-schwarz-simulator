@@ -14,7 +14,10 @@ from scraper.convert import (  # noqa: E402
     normalize_ability_line,
     normalize_approx_profile,
     parse_abilities,
+    parse_cost as parse_cost_v1,
 )
+from scraper.parser_v2.cost import parse_cost as parse_cost_v2  # noqa: E402
+from scraper.parser_v2.engine import parse_line as parse_line_v2  # noqa: E402
 
 
 class ConvertParsingTests(unittest.TestCase):
@@ -212,8 +215,11 @@ class ConvertParsingTests(unittest.TestCase):
         abilities, ability_defs, _ = parse_abilities(text, "Character", stats)
         self.assertEqual(abilities, [])
         self.assertEqual(len(ability_defs), 1)
+        self.assertEqual(list(ability_defs[0]["effects"][0].keys()), ["GrantAbilityDef"])
+        granted = ability_defs[0]["effects"][0]["GrantAbilityDef"]
+        self.assertEqual(granted["duration"], "UntilEndOfOpponentsNextTurn")
         self.assertEqual(
-            ability_defs[0]["effects"],
+            granted["ability"]["effects"],
             [{"CannotMoveStagePosition": {"duration_turn": True}}],
         )
         self.assertEqual(ability_defs[0]["targets"], ["OppStage"])
@@ -601,6 +607,7 @@ class ConvertParsingTests(unittest.TestCase):
                         "clock_from_hand": 0,
                         "clock_from_deck_top": 0,
                         "reveal_from_hand": 0,
+                        "cost_steps": [{"DiscardFromHand": {"count": 1}}],
                     }
                 }
             },
@@ -645,6 +652,7 @@ class ConvertParsingTests(unittest.TestCase):
                         "clock_from_hand": 0,
                         "clock_from_deck_top": 0,
                         "reveal_from_hand": 0,
+                        "cost_steps": [{"DiscardFromHand": {"count": 1}}],
                     },
                     "count": 1,
                     "target_ids": [101, 102],
@@ -1996,8 +2004,11 @@ class ConvertParsingTests(unittest.TestCase):
         self.assertEqual(none_abilities, [])
         self.assertEqual(len(none_defs), 1)
         self.assertEqual(none_defs[0]["timing"], "OnPlay")
+        self.assertEqual(list(none_defs[0]["effects"][0].keys()), ["GrantAbilityDef"])
+        none_grant = none_defs[0]["effects"][0]["GrantAbilityDef"]
+        self.assertEqual(none_grant["duration"], "UntilEndOfOpponentsNextTurn")
         self.assertEqual(
-            none_defs[0]["effects"],
+            none_grant["ability"]["effects"],
             [{"EncoreStockCost": {"cost": 2, "duration_turn": True}}],
         )
         self.assertEqual(none_defs[0]["conditions"], {})
@@ -2009,8 +2020,11 @@ class ConvertParsingTests(unittest.TestCase):
         self.assertEqual(rl_abilities, [])
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["timing"], "OnPlay")
+        self.assertEqual(list(rl_defs[0]["effects"][0].keys()), ["GrantAbilityDef"])
+        rl_grant = rl_defs[0]["effects"][0]["GrantAbilityDef"]
+        self.assertEqual(rl_grant["duration"], "UntilEndOfOpponentsNextTurn")
         self.assertEqual(
-            rl_defs[0]["effects"],
+            rl_grant["ability"]["effects"],
             [{"EncoreStockCost": {"cost": 2, "duration_turn": True}}],
         )
         self.assertEqual(rl_defs[0]["conditions"], {})
@@ -3673,6 +3687,307 @@ class ConvertParsingTests(unittest.TestCase):
         self.assertEqual(defs[0]["targets"], ["SelfClock"])
         self.assertEqual(defs[0]["effect_optional"], [True])
         self.assertEqual(defs[0]["target_limit"], 1)
+
+    def test_cost_steps_ordered_for_converter_cost_parsing(self):
+        stats = AbilityParseStats()
+        text = (
+            "【ACT】 [(1) 【REST】 this card & Put 1 card from your hand into your waiting room & "
+            "Put this card into your waiting room] Choose 1 character in your waiting room, and "
+            "return it to your hand."
+        )
+        _, defs, _ = parse_abilities(text, "Character", stats)
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(
+            defs[0]["cost"]["cost_steps"],
+            [
+                {"PayStock": {"count": 1}},
+                {"RestSelf": {}},
+                {"DiscardFromHand": {"count": 1}},
+                {"MoveSelfToWaitingRoom": {}},
+            ],
+        )
+
+    def test_converter_cost_step_order_preserves_repeated_steps(self):
+        cost, supported, _ = parse_cost_v1(
+            "【ACT】 [Reveal 1 card from your hand & Put 1 card from your hand into your waiting room & "
+            "Reveal 1 card from your hand] Draw 1 card."
+        )
+        self.assertTrue(supported)
+        self.assertEqual(cost["reveal_from_hand"], 2)
+        self.assertEqual(cost["discard_from_hand"], 1)
+        self.assertEqual(
+            cost["step_order"],
+            ["RevealFromHand", "DiscardFromHand", "RevealFromHand"],
+        )
+
+    def test_cost_steps_ordered_for_parser_v2_paid_salvage(self):
+        stats = AbilityParseStats()
+        text = (
+            "【AUTO】 [(1) Put 1 card from your hand into your waiting room] "
+            "When this card is placed on the stage from your hand or put into your waiting room from the stage, "
+            "you may pay the cost. If you do, choose 1 character in your waiting room, and return it to your hand."
+        )
+        _, defs, _ = parse_abilities(
+            text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(
+            defs[0]["cost"]["cost_steps"],
+            [
+                {"PayStock": {"count": 1}},
+                {"DiscardFromHand": {"count": 1}},
+            ],
+        )
+
+    def test_parser_v2_non_default_cost_step_order_sets_step_order(self):
+        cost, supported, _ = parse_cost_v2(
+            "【ACT】 [Reveal 1 card from your hand & Put 1 card from your hand into your waiting room] Draw 1 card."
+        )
+        self.assertTrue(supported)
+        self.assertEqual(cost["discard_from_hand"], 1)
+        self.assertEqual(cost["reveal_from_hand"], 1)
+        self.assertEqual(cost["step_order"], ["RevealFromHand", "DiscardFromHand"])
+
+    def test_parser_v2_cost_step_order_preserves_repeated_steps(self):
+        cost, supported, _ = parse_cost_v2(
+            "【ACT】 [Reveal 1 card from your hand & Put 1 card from your hand into your waiting room & "
+            "Reveal 1 card from your hand] Draw 1 card."
+        )
+        self.assertTrue(supported)
+        self.assertEqual(cost["reveal_from_hand"], 2)
+        self.assertEqual(cost["discard_from_hand"], 1)
+        self.assertEqual(
+            cost["step_order"],
+            ["RevealFromHand", "DiscardFromHand", "RevealFromHand"],
+        )
+
+    def test_parser_v2_parse_cost_single_top_card_clock_supported(self):
+        cost, supported, _ = parse_cost_v2(
+            "【AUTO】 [Put the top card of your deck into your clock] This card gets +1000 power until end of turn."
+        )
+        self.assertTrue(supported)
+        self.assertEqual(cost["clock_from_deck_top"], 1)
+
+    def test_parser_v2_exact_frontal_attacked_look_top(self):
+        stats = AbilityParseStats()
+        text = (
+            "【AUTO】 When this card is frontal attacked, look at the top card of your deck, and "
+            "put it on the top of your deck or into your waiting room."
+        )
+        _, defs, _ = parse_abilities(
+            text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(defs[0]["effects"], ["LookTopCardTopOrWaitingRoom"])
+        self.assertEqual(defs[0]["targets"], ["SelfDeckTop"])
+        self.assertEqual(
+            defs[0]["conditions"].get("source_rule_id"),
+            "parser_v2.auto.frontal_attacked_look_top_exact",
+        )
+
+    def test_parser_v2_exact_facing_opponent_quoted_restriction(self):
+        stats = AbilityParseStats()
+        text = (
+            '【CONT】 The character facing this card gets "【CONT】 This card cannot move to another '
+            'position of the stage."'
+        )
+        _, defs, _ = parse_abilities(
+            text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(defs[0]["effects"], ["FacingOpponentCannotMoveStagePosition"])
+        self.assertEqual(defs[0]["targets"], ["OppFrontRow"])
+        self.assertEqual(
+            defs[0]["conditions"].get("source_rule_id"),
+            "parser_v2.cont.facing_opponent_quoted_restriction_exact",
+        )
+
+    def test_parser_v2_exact_on_play_power_plus_quoted_grant(self):
+        stats = AbilityParseStats()
+        text = (
+            "【AUTO】 When this card is placed on the stage from your hand, this card gets +4500 power "
+            "and the following ability until the end of your opponent's next turn. "
+            '"【CONT】 During this card\'s battle, all players cannot play "Backup" from their hands."'
+        )
+        _, defs, _ = parse_abilities(
+            text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(defs[0]["timing"], "OnPlay")
+        self.assertEqual(list(defs[0]["effects"][0].keys()), ["GrantAbilityDef"])
+        grant = defs[0]["effects"][0]["GrantAbilityDef"]
+        self.assertEqual(grant["duration"], "UntilEndOfOpponentsNextTurn")
+        self.assertEqual(
+            grant["ability"]["effects"],
+            [
+                {"AddPower": {"amount": 4500, "duration_turn": False}},
+                {"CannotPlayBackupFromHand": {"duration_turn": False}},
+            ],
+        )
+
+    def test_parser_v2_exact_marker_power_and_following(self):
+        stats = AbilityParseStats()
+        text = (
+            "【CONT】 If there is a marker underneath this card, this card gets +1500 power and the "
+            'following ability. "【CONT】 This card cannot side attack."'
+        )
+        _, defs, _ = parse_abilities(
+            text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(
+            defs[0]["effects"][0]["ConditionalAddPower"]["require_source_marker"],
+            True,
+        )
+        self.assertEqual(
+            defs[0]["effects"][1]["ConditionalCannotSideAttack"]["require_source_marker"],
+            True,
+        )
+
+    def test_parser_v2_exact_marker_power_and_soul(self):
+        stats = AbilityParseStats()
+        text = "【CONT】 If there is a marker underneath this card, this card gets +1000 power and +1 soul."
+        _, defs, _ = parse_abilities(
+            text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(
+            defs[0]["effects"][0]["ConditionalAddPower"]["require_source_marker"],
+            True,
+        )
+        self.assertEqual(
+            defs[0]["effects"][1]["ConditionalAddSoul"]["require_source_marker"],
+            True,
+        )
+        self.assertEqual(
+            defs[0]["effects"][1]["ConditionalAddSoul"]["amount"],
+            1,
+        )
+
+    def test_parser_v2_exact_experience_with_following(self):
+        stats = AbilityParseStats()
+        text = (
+            "【CONT】 Experience During your turn, if the total level of the cards in your level is 2 or higher, "
+            "this card gets +2000 power and the following ability. "
+            '"【CONT】 This card cannot side attack."'
+        )
+        _, defs, _ = parse_abilities(
+            text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(defs), 1)
+        cond_power = defs[0]["effects"][0]["ConditionalAddPower"]
+        self.assertEqual(cond_power["turn"], "SelfTurn")
+        self.assertEqual(cond_power["zone_count"]["cmp"], "AtLeastLevelSum")
+        self.assertEqual(cond_power["zone_count"]["value"], 2)
+        cannot_side = defs[0]["effects"][1]["ConditionalCannotSideAttack"]
+        self.assertEqual(cannot_side["turn"], "SelfTurn")
+        self.assertEqual(cannot_side["zone_count"]["value"], 2)
+
+    def test_parser_v2_exact_paid_on_play_salvage_with_trailing_buff(self):
+        stats = AbilityParseStats()
+        text = (
+            "【AUTO】 [(1) Put 1 card from your hand into your waiting room] When this card is placed on the stage "
+            "from your hand, you may pay the cost. If you do, choose 1 《Music》 character in your waiting room, "
+            "return it to your hand, choose 1 of your other 《Music》 characters, and that character gets +1000 "
+            "power until end of turn."
+        )
+        _, defs, _ = parse_abilities(
+            text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(defs[0]["effects"], ["MoveToHand"])
+        self.assertEqual(defs[0]["timing"], "OnPlay")
+        self.assertEqual(defs[0]["target_limit"], 1)
+        self.assertEqual(defs[0]["cost"]["stock"], 1)
+        self.assertEqual(defs[0]["cost"]["discard_from_hand"], 1)
+
+    def test_parser_v2_exact_paid_on_play_search_to_hand(self):
+        stats = AbilityParseStats()
+        text = (
+            "【AUTO】 [(1)] When this card is placed on the stage from your hand, you may pay the cost. "
+            "If you do, search your deck for up to 1 《Music》 character, reveal it to your opponent, "
+            "put it into your hand, and shuffle your deck."
+        )
+        _, defs, _ = parse_abilities(
+            text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(defs[0]["effects"], ["MoveToHand"])
+        self.assertEqual(defs[0]["targets"], ["SelfDeckTop"])
+        self.assertEqual(defs[0]["target_limit"], 1)
+        self.assertEqual(defs[0]["cost"]["stock"], 1)
+
+    def test_parser_v2_exact_climax_placed_following_grant(self):
+        text = (
+            "【AUTO】 When your climax is placed on your climax area, choose 1 of your characters, and that "
+            'character gets the following ability until end of turn. "【CONT】 This card cannot side attack."'
+        )
+        outcome = parse_line_v2(text, "Character", allow_approx_rules=False, emit_trace=False)
+        self.assertTrue(outcome.matched)
+        self.assertEqual(
+            outcome.rule_match.rule_id,
+            "parser_v2.auto.climax_placed_buff_or_following_exact",
+        )
+        self.assertIsNotNone(outcome.ability_def)
+        self.assertEqual(outcome.ability_def["timing"], "AfterClimaxPhase")
+        self.assertEqual(outcome.ability_def["target_limit"], 1)
+        self.assertEqual(list(outcome.ability_def["effects"][0].keys()), ["GrantAbilityDef"])
+        self.assertEqual(
+            outcome.ability_def["effects"][0]["GrantAbilityDef"]["ability"]["effects"],
+            [{"CannotSideAttack": {"duration_turn": False}}],
+        )
+
+    def test_parser_v2_exact_on_reverse_self_move_variants(self):
+        stats = AbilityParseStats()
+        memory_text = (
+            "【AUTO】 When this card becomes 【REVERSE】 in battle, put this card into your memory."
+        )
+        _, memory_defs, _ = parse_abilities(
+            memory_text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(memory_defs), 1)
+        self.assertEqual(memory_defs[0]["timing"], "OnReverse")
+        self.assertEqual(memory_defs[0]["effects"], ["MoveToMemory"])
+
+        stats = AbilityParseStats()
+        bottom_text = "【AUTO】 When this card becomes 【REVERSE】 in battle, put this card at the bottom of your deck."
+        _, bottom_defs, _ = parse_abilities(
+            bottom_text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(bottom_defs), 1)
+        self.assertEqual(bottom_defs[0]["effects"], ["MoveToDeckBottom"])
+
+    def test_parser_v2_exact_terminal_win_lose_effects(self):
+        stats = AbilityParseStats()
+        win_text = "【AUTO】 You win the game."
+        _, win_defs, _ = parse_abilities(
+            win_text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(win_defs), 1)
+        self.assertEqual(win_defs[0]["effects"], [{"SetTerminalOutcome": {"outcome": "WinSelf"}}])
+
+        stats = AbilityParseStats()
+        lose_text = "【AUTO】 If there are no cards in your deck, you lose the game."
+        _, lose_defs, _ = parse_abilities(
+            lose_text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(lose_defs), 1)
+        self.assertEqual(
+            lose_defs[0]["effects"], [{"SetTerminalOutcome": {"outcome": "WinOpponent"}}]
+        )
+
+    def test_parser_v2_strict_following_fallback_is_exact_not_approx(self):
+        stats = AbilityParseStats()
+        text = (
+            '【CONT】 All of your other "Test Name" get the following ability. '
+            '"【AUTO】 Encore [(3)]"'
+        )
+        _, defs, _ = parse_abilities(
+            text, "Character", stats, approx_profile="none", parser_version="v2"
+        )
+        self.assertEqual(len(defs), 1)
+        self.assertNotIn("requires_approx_effects", defs[0]["conditions"])
+        self.assertEqual(defs[0]["effects"], [{"Draw": {"count": 0}}])
 
 
 if __name__ == "__main__":

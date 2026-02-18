@@ -164,6 +164,9 @@ fn replacements_apply_in_priority_order() {
     let deck_b = vec![CARD_BASIC; 50];
     let curriculum = CurriculumConfig {
         allow_character: true,
+        enable_priority_windows: false,
+        strict_priority_mode: false,
+        priority_autopick_single_action: true,
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);

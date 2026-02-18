@@ -246,7 +246,16 @@ fn replay_store_actions_false_records_events_only() {
 
     let files = wait_for_replay_files(&replay_dir, Duration::from_secs(2));
     assert!(!files.is_empty());
-    let data = read_replay_file(&files[0]).unwrap();
+    let read_start = Instant::now();
+    let data = loop {
+        match read_replay_file(&files[0]) {
+            Ok(data) => break data,
+            Err(_) if read_start.elapsed() < Duration::from_secs(2) => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(err) => panic!("failed to read replay file: {err}"),
+        }
+    };
     assert!(data.body.actions.is_empty());
     assert!(data.body.action_ids.is_empty());
     assert!(data

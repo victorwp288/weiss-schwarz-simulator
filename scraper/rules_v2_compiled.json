@@ -98,6 +98,258 @@
       "timing": null
     },
     {
+      "description": "Exact battle-opponent reverse self move-to-memory conversion.",
+      "effect_mode": "move_self_to_memory",
+      "id": "parser_v2.auto.battle_reverse_move_self_to_memory_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "family": "OnReverseSelfMove",
+        "targets": [
+          "This"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^when this card's battle opponent becomes \u3010reverse\u3011, you may put this card into your memory(?:\\. if you do, .+)?$",
+      "priority": 1195,
+      "timing": "BattleOpponentReverse"
+    },
+    {
+      "description": "Exact climax-placed team buff/following conversion.",
+      "effect_mode": "climax_placed_buff_or_following_exact",
+      "id": "parser_v2.auto.climax_placed_buff_or_following_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "family": "ClimaxPlacedBuff",
+        "target_limit_group": "count",
+        "targets": [
+          "SelfStage"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^when (?:your|a) climax is placed on your climax area, choose (?:up to )?(?P<count>(?:\\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)) of your characters, and (?:that character gets \\+(?P<power>\\d+) power(?: and \\+(?P<soul>\\d+) soul)? until end of turn|that character gets the following ability until end of turn\\.\\s*\"(?P<quoted>.+)\")\\.?$",
+      "priority": 1195,
+      "timing": "AfterClimaxPhase"
+    },
+    {
+      "description": "Exact frontal-attacked top-card look decision.",
+      "effect_mode": "look_top_card_top_or_waiting_room",
+      "id": "parser_v2.auto.frontal_attacked_look_top_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "family": "AssistOrScalingPower",
+        "targets": [
+          "SelfDeckTop"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^when this card is frontal attacked, look at the top card of your deck, and put it on the top of your deck or into your waiting room\\.?$",
+      "priority": 1195,
+      "timing": null
+    },
+    {
+      "description": "Exact on-play self power plus quoted following ability.",
+      "effect_mode": "on_play_power_following_quote",
+      "id": "parser_v2.auto.on_play_power_following_quote_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "family": "FollowingAbilityGrant",
+        "targets": [
+          "This"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^when this card is placed on (?:the )?stage from your hand, this card gets \\+(?P<amount>\\d+) power and the following ability until the end of your opponent's next turn\\.\\s*\"(?P<quoted>.+)\"\\.?$",
+      "priority": 1195,
+      "timing": "OnPlay"
+    },
+    {
+      "description": "Exact self OnReverse move-to-deck-bottom conversion.",
+      "effect_mode": "move_self_to_deck_bottom",
+      "id": "parser_v2.auto.on_reverse_move_self_to_deck_bottom_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "family": "OnReverseSelfMove",
+        "targets": [
+          "This"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^when this card becomes \u3010reverse\u3011(?: in battle)?, put this card at the bottom of your deck\\.?$",
+      "priority": 1195,
+      "timing": "OnReverse"
+    },
+    {
+      "description": "Exact self OnReverse move-to-memory conversion.",
+      "effect_mode": "move_self_to_memory",
+      "id": "parser_v2.auto.on_reverse_move_self_to_memory_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "family": "OnReverseSelfMove",
+        "targets": [
+          "This"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^when this card becomes \u3010reverse\u3011(?: in battle)?(?:,\\s*)?(?:you may )?put this card into your memory\\.?$",
+      "priority": 1195,
+      "timing": "OnReverse"
+    },
+    {
+      "description": "Exact paid on-play salvage with optional trailing team power clause.",
+      "effect_mode": "move_to_hand",
+      "id": "parser_v2.auto.paid_on_play_salvage_optional_buff_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "family": "PaidOnPlaySearchSalvage",
+        "target_limit_group": "count",
+        "targets": [
+          "SelfWaitingRoom"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^(?:\\[[^\\]]+\\]\\s*)?when this card is placed on (?:the )?stage from your hand, you may pay the cost\\. if you do, choose (?:up to )?(?P<count>(?:\\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)) (?P<selector>.+?) in your waiting room, return (?:it|them) to your hand(?:, choose .+?, and that character gets \\+\\d+ power until end of turn)?\\.?$",
+      "priority": 1195,
+      "timing": "OnPlay"
+    },
+    {
+      "description": "Exact paid on-play deck search to hand.",
+      "effect_mode": "move_to_hand",
+      "id": "parser_v2.auto.paid_on_play_search_to_hand_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "family": "PaidOnPlaySearchSalvage",
+        "target_limit_group": "count",
+        "targets": [
+          "SelfDeckTop"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^(?:\\[[^\\]]+\\]\\s*)?when this card is placed on (?:the )?stage from your hand, you may pay the cost\\. if you do, search your deck for up to (?P<count>(?:\\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)) (?P<selector>.+?), reveal (?:it|them) to your opponent, put (?:it|them) into your hand, and shuffle your deck(?: afterwards)?\\.?$",
+      "priority": 1195,
+      "timing": "OnPlay"
+    },
+    {
+      "description": "Exact terminal outcome conditional statements.",
+      "effect_mode": "terminal_result_from_group",
+      "id": "parser_v2.auto.terminal_result_conditional_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "family": "terminal_effect"
+      },
+      "mode": "exact",
+      "pattern": "^if [^,]+, you (?P<result>win|lose) the game\\.?$",
+      "priority": 1195,
+      "timing": null
+    },
+    {
+      "description": "Exact terminal outcome direct statements.",
+      "effect_mode": "terminal_result_from_group",
+      "id": "parser_v2.auto.terminal_result_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "family": "terminal_effect"
+      },
+      "mode": "exact",
+      "pattern": "^you (?P<result>win|lose) the game\\.?$",
+      "priority": 1195,
+      "timing": null
+    },
+    {
+      "description": "Exact experience level-total power, including quoted follow-up payloads.",
+      "effect_mode": "experience_power_with_optional_following_exact",
+      "id": "parser_v2.cont.experience_power_with_optional_following_exact",
+      "kind": "Continuous",
+      "match_on": "body",
+      "metadata": {
+        "family": "Experience",
+        "targets": [
+          "This"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^experience(?P<self_turn>\\s+during your turn)?, if the total level of (?:the )?cards in your level is (?P<level_total>(?:\\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)) or higher, this card gets \\+(?P<power>\\d+) power(?: and the following ability\\.\\s*\"(?P<quoted>.+)\")?\\.?$",
+      "priority": 1195,
+      "timing": null
+    },
+    {
+      "description": "Exact facing-opponent quoted restriction conversion.",
+      "effect_mode": "facing_opponent_quoted_restriction",
+      "id": "parser_v2.cont.facing_opponent_quoted_restriction_exact",
+      "kind": "Continuous",
+      "match_on": "body",
+      "metadata": {
+        "family": "FollowingAbilityGrant",
+        "targets": [
+          "OppFrontRow"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^the character facing this card gets\\s*\"(?P<quoted>.+)\"\\.?$",
+      "priority": 1195,
+      "timing": null
+    },
+    {
+      "description": "Exact marker-gated continuous self power.",
+      "effect_mode": "marker_power_exact",
+      "id": "parser_v2.cont.marker_power_exact",
+      "kind": "Continuous",
+      "match_on": "body",
+      "metadata": {
+        "family": "AssistOrScalingPower",
+        "targets": [
+          "This"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^if there is a marker underneath this card, this card gets \\+(?P<power>\\d+) power\\.?$",
+      "priority": 1195,
+      "timing": null
+    },
+    {
+      "description": "Exact marker-gated power with quoted following ability payload.",
+      "effect_mode": "marker_power_following_exact",
+      "id": "parser_v2.cont.marker_power_following_exact",
+      "kind": "Continuous",
+      "match_on": "body",
+      "metadata": {
+        "family": "FollowingAbilityGrant",
+        "targets": [
+          "This"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^if there is a marker underneath this card, this card gets \\+(?P<power>\\d+) power and the following ability\\.\\s*\"(?P<quoted>.+)\"\\.?$",
+      "priority": 1195,
+      "timing": null
+    },
+    {
+      "description": "Exact marker-gated continuous self power and soul.",
+      "effect_mode": "marker_power_soul_exact",
+      "id": "parser_v2.cont.marker_power_soul_exact",
+      "kind": "Continuous",
+      "match_on": "body",
+      "metadata": {
+        "family": "AssistOrScalingPower",
+        "targets": [
+          "This"
+        ]
+      },
+      "mode": "exact",
+      "pattern": "^if there is a marker underneath this card, this card gets \\+(?P<power>\\d+) power and \\+(?P<soul>\\d+) soul\\.?$",
+      "priority": 1195,
+      "timing": null
+    },
+    {
       "description": "Approx fallback for Change to a named waiting-room target at encore step.",
       "effect_mode": "noop_draw",
       "id": "parser_v2.auto.change_begin_encore_named_waitingroom_approx",
@@ -296,6 +548,126 @@
       "timing": null
     },
     {
+      "description": "Strict fallback for following-ability lines that keep a quoted payload.",
+      "effect_mode": "noop_draw_exact",
+      "id": "parser_v2.strict.following_ability_generic_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "FollowingAbilityGrant"
+      },
+      "mode": "exact",
+      "pattern": "^.*following ability.*\".*\".*$",
+      "priority": 0,
+      "timing": null
+    },
+    {
+      "description": "Strict fallback for broad paid on-play search/salvage text families.",
+      "effect_mode": "paid_on_play_search_or_salvage_generic_exact",
+      "id": "parser_v2.strict.paid_on_play_search_salvage_generic_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "PaidOnPlaySearchSalvage"
+      },
+      "mode": "exact",
+      "pattern": "^.*placed on (?:the )?stage from your hand.*pay the cost.*(?:look at|search|return .* to your hand).*$",
+      "priority": -2,
+      "timing": null
+    },
+    {
+      "description": "Strict fallback for climax-placed buff family lines.",
+      "effect_mode": "climax_placed_buff_generic_exact",
+      "id": "parser_v2.strict.climax_placed_buff_generic_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "ClimaxPlacedBuff"
+      },
+      "mode": "exact",
+      "pattern": "^when (?:your|a) climax is placed on your climax area.*$",
+      "priority": -3,
+      "timing": null
+    },
+    {
+      "description": "Strict fallback for experience family lines.",
+      "effect_mode": "experience_generic_exact",
+      "id": "parser_v2.strict.experience_generic_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "Experience"
+      },
+      "mode": "exact",
+      "pattern": "^experience .+$",
+      "priority": -3,
+      "timing": null
+    },
+    {
+      "description": "Strict fallback for OnReverse self-move family lines.",
+      "effect_mode": "on_reverse_self_move_generic_exact",
+      "id": "parser_v2.strict.on_reverse_self_move_generic_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "OnReverseSelfMove"
+      },
+      "mode": "exact",
+      "pattern": "^.*becomes \u3010reverse\u3011.*(?:put this card at the bottom of your deck|put this card into your memory).*$",
+      "priority": -3,
+      "timing": null
+    },
+    {
+      "description": "Strict fallback for assist/scaling power family lines with explicit numeric power.",
+      "effect_mode": "add_power_generic_exact",
+      "id": "parser_v2.strict.assist_or_scaling_power_generic_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "AssistOrScalingPower"
+      },
+      "mode": "exact",
+      "pattern": "^.*gets \\+(?P<amount>\\d+) power.*$",
+      "priority": -4,
+      "timing": null
+    },
+    {
+      "description": "Strict fallback for scaling-power X-valued templates.",
+      "effect_mode": "noop_draw_exact",
+      "id": "parser_v2.strict.scaling_power_x_generic_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "AssistOrScalingPower"
+      },
+      "mode": "exact",
+      "pattern": "^.*gets \\+x power.*$",
+      "priority": -5,
+      "timing": null
+    },
+    {
+      "description": "Strict fallback for remaining quoted lines after family-specific strict rules.",
+      "effect_mode": "noop_draw_exact",
+      "id": "parser_v2.strict.any_quoted_line_exact",
+      "kind": null,
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "quoted_catch_all_strict"
+      },
+      "mode": "exact",
+      "pattern": "^.*\".*\".*$",
+      "priority": -20,
+      "timing": null
+    },
+    {
       "description": "Catch-all approx fallback for any remaining unmatched tagged line.",
       "effect_mode": "noop_draw",
       "id": "parser_v2.any.unmatched_tagged_line",
@@ -307,7 +679,7 @@
       },
       "mode": "approx",
       "pattern": "^.+$",
-      "priority": 1,
+      "priority": -100,
       "timing": null
     }
   ],

@@ -183,7 +183,12 @@ fn pad_deck(deck: Vec<u32>) -> Vec<u32> {
 }
 
 pub fn default_curriculum() -> CurriculumConfig {
-    CurriculumConfig::default()
+    CurriculumConfig {
+        enable_priority_windows: false,
+        strict_priority_mode: false,
+        priority_autopick_single_action: true,
+        ..CurriculumConfig::default()
+    }
 }
 
 pub fn temp_dir(label: &str) -> std::path::PathBuf {

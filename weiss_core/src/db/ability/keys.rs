@@ -204,6 +204,52 @@ fn battle_opponent_move_prelude_key(
     }
 }
 
+fn terminal_outcome_key(outcome: super::types::TerminalOutcomeSpec) -> u64 {
+    match outcome {
+        super::types::TerminalOutcomeSpec::WinSelf => 0,
+        super::types::TerminalOutcomeSpec::WinOpponent => 1,
+        super::types::TerminalOutcomeSpec::Draw => 2,
+        super::types::TerminalOutcomeSpec::Timeout => 3,
+    }
+}
+
+fn rule_override_key(kind: super::types::RuleOverrideKind) -> u64 {
+    match kind {
+        super::types::RuleOverrideKind::SkipDeckRefreshOrLoss => 0,
+        super::types::RuleOverrideKind::SkipLevelFourLoss => 1,
+        super::types::RuleOverrideKind::SkipNonCharacterStageCleanup => 2,
+        super::types::RuleOverrideKind::SkipZeroOrNegativePowerCleanup => 3,
+    }
+}
+
+fn ability_cost_step_key(step: AbilityCostStep) -> u64 {
+    match step {
+        AbilityCostStep::RestOther => 0,
+        AbilityCostStep::SacrificeFromStage => 1,
+        AbilityCostStep::DiscardFromHand => 2,
+        AbilityCostStep::ClockFromHand => 3,
+        AbilityCostStep::ClockFromDeckTop => 4,
+        AbilityCostStep::RevealFromHand => 5,
+    }
+}
+
+fn push_ability_cost_key(out: &mut Vec<u64>, cost: &AbilityCost) {
+    out.push(cost.stock as u64);
+    out.push(u64::from(cost.rest_self));
+    out.push(cost.rest_other as u64);
+    out.push(cost.sacrifice_from_stage as u64);
+    out.push(cost.discard_from_hand as u64);
+    out.push(cost.clock_from_hand as u64);
+    out.push(cost.clock_from_deck_top as u64);
+    out.push(cost.reveal_from_hand as u64);
+    out.push(u64::from(cost.move_self_to_waiting_room));
+    out.push(u64::from(cost.return_self_to_hand));
+    out.push(cost.step_order.len() as u64);
+    for step in &cost.step_order {
+        out.push(ability_cost_step_key(*step));
+    }
+}
+
 fn push_zone_count_key(out: &mut Vec<u64>, zone_count: Option<&ZoneCountCondition>) {
     match zone_count {
         None => out.push(0),
@@ -427,6 +473,26 @@ fn effect_template_key(effect: &EffectTemplate, out: &mut Vec<u64>) {
             target_ids,
         } => {
             out.push(24);
+            out.push(i32_key(*amount));
+            out.push(condition_turn_key(*turn));
+            push_zone_count_key(out, zone_count.as_ref());
+            out.push(u64::from(*require_source_marker));
+            out.push(u64::from(*per_source_marker));
+            out.push(u64::from(*per_zone_count));
+            out.push(u64::from(*exclude_source));
+            push_sorted_card_id_set_key(out, target_ids);
+        }
+        EffectTemplate::ConditionalAddSoul {
+            amount,
+            turn,
+            zone_count,
+            require_source_marker,
+            per_source_marker,
+            per_zone_count,
+            exclude_source,
+            target_ids,
+        } => {
+            out.push(85);
             out.push(i32_key(*amount));
             out.push(condition_turn_key(*turn));
             push_zone_count_key(out, zone_count.as_ref());
@@ -760,6 +826,14 @@ fn effect_template_key(effect: &EffectTemplate, out: &mut Vec<u64>) {
             out.push(71);
             out.push(target_side_key(*target));
         }
+        EffectTemplate::SetTerminalOutcome { outcome } => {
+            out.push(83);
+            out.push(terminal_outcome_key(*outcome));
+        }
+        EffectTemplate::ApplyRuleOverride { kind } => {
+            out.push(84);
+            out.push(rule_override_key(*kind));
+        }
     }
 }
 
@@ -779,16 +853,7 @@ fn ability_def_key(def: &AbilityDef) -> Vec<u64> {
     for target in &def.targets {
         out.push(target_template_key(*target));
     }
-    out.push(def.cost.stock as u64);
-    out.push(u64::from(def.cost.rest_self));
-    out.push(def.cost.rest_other as u64);
-    out.push(def.cost.sacrifice_from_stage as u64);
-    out.push(def.cost.discard_from_hand as u64);
-    out.push(def.cost.clock_from_hand as u64);
-    out.push(def.cost.clock_from_deck_top as u64);
-    out.push(def.cost.reveal_from_hand as u64);
-    out.push(u64::from(def.cost.move_self_to_waiting_room));
-    out.push(u64::from(def.cost.return_self_to_hand));
+    push_ability_cost_key(&mut out, &def.cost);
     out.push(card_type_key(def.target_card_type));
     push_opt_u16(&mut out, def.target_trait);
     push_opt_u8(&mut out, def.target_level_max);
@@ -956,31 +1021,13 @@ fn ability_template_key(template: &AbilityTemplate) -> Vec<u64> {
             target_ids,
         } => {
             out.push(29);
-            out.push(cost.stock as u64);
-            out.push(u64::from(cost.rest_self));
-            out.push(cost.rest_other as u64);
-            out.push(cost.sacrifice_from_stage as u64);
-            out.push(cost.discard_from_hand as u64);
-            out.push(cost.clock_from_hand as u64);
-            out.push(cost.clock_from_deck_top as u64);
-            out.push(cost.reveal_from_hand as u64);
-            out.push(u64::from(cost.move_self_to_waiting_room));
-            out.push(u64::from(cost.return_self_to_hand));
+            push_ability_cost_key(&mut out, cost);
             out.push(*count as u64);
             push_sorted_card_id_set_key(&mut out, target_ids);
         }
         AbilityTemplate::EncoreVariant { cost } => {
             out.push(26);
-            out.push(cost.stock as u64);
-            out.push(u64::from(cost.rest_self));
-            out.push(cost.rest_other as u64);
-            out.push(cost.sacrifice_from_stage as u64);
-            out.push(cost.discard_from_hand as u64);
-            out.push(cost.clock_from_hand as u64);
-            out.push(cost.clock_from_deck_top as u64);
-            out.push(cost.reveal_from_hand as u64);
-            out.push(u64::from(cost.move_self_to_waiting_room));
-            out.push(u64::from(cost.return_self_to_hand));
+            push_ability_cost_key(&mut out, cost);
         }
         AbilityTemplate::AbilityDef(def) => {
             out.push(27);

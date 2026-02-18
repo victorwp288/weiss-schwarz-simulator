@@ -1,5 +1,5 @@
 use super::super::GameEnv;
-use crate::db::{AbilityCost, AbilitySpec, AbilityTiming};
+use crate::db::{AbilityCost, AbilityCostStep, AbilitySpec, AbilityTiming};
 use crate::events::{Event, RevealAudience, RevealReason, Zone};
 use crate::state::{
     CardInstance, ChoiceOptionRef, ChoiceReason, ChoiceZone, CostPaymentOutcome, CostPaymentState,
@@ -17,7 +17,7 @@ impl GameEnv {
         player: u8,
         source_slot: Option<u8>,
         source: CardInstance,
-        cost: AbilityCost,
+        cost: &AbilityCost,
     ) -> bool {
         let p = player as usize;
         if cost.rest_self {
@@ -192,15 +192,51 @@ impl GameEnv {
         }
     }
 
-    pub(in crate::env) fn start_cost_choice(&mut self) {
-        let Some(cost_state) = self.state.turn.pending_cost.as_mut() else {
+    fn next_cost_step_for_engine(&self, cost: &AbilityCost) -> Option<CostStepKind> {
+        if !self.curriculum.enable_legacy_cost_order && !cost.step_order.is_empty() {
+            if let Some(step) = cost.next_explicit_step() {
+                return Some(step);
+            }
+        }
+        Self::next_cost_step(cost)
+    }
+
+    fn consume_explicit_cost_step(cost: &mut AbilityCost, step: CostStepKind) {
+        if cost.step_order.is_empty() {
             return;
+        }
+        let target = match step {
+            CostStepKind::RestOther => AbilityCostStep::RestOther,
+            CostStepKind::SacrificeFromStage => AbilityCostStep::SacrificeFromStage,
+            CostStepKind::DiscardFromHand => AbilityCostStep::DiscardFromHand,
+            CostStepKind::ClockFromHand => AbilityCostStep::ClockFromHand,
+            CostStepKind::ClockFromDeckTop => AbilityCostStep::ClockFromDeckTop,
+            CostStepKind::RevealFromHand => AbilityCostStep::RevealFromHand,
         };
-        let Some(step) = Self::next_cost_step(&cost_state.remaining) else {
+        if let Some(index) = cost
+            .step_order
+            .iter()
+            .position(|candidate| *candidate == target)
+        {
+            cost.step_order.remove(index);
+        }
+    }
+
+    pub(in crate::env) fn start_cost_choice(&mut self) {
+        let step = {
+            let Some(cost_state) = self.state.turn.pending_cost.as_ref() else {
+                return;
+            };
+            self.next_cost_step_for_engine(&cost_state.remaining)
+        };
+        let Some(step) = step else {
             let cost_state = self.state.turn.pending_cost.take();
             if let Some(cost_state) = cost_state {
                 self.finish_cost_payment(cost_state);
             }
+            return;
+        };
+        let Some(cost_state) = self.state.turn.pending_cost.as_mut() else {
             return;
         };
         cost_state.current_step = Some(step);
@@ -288,6 +324,12 @@ impl GameEnv {
                 if let Some(cost_state) = self.state.turn.pending_cost.as_mut() {
                     cost_state.remaining.clock_from_deck_top =
                         cost_state.remaining.clock_from_deck_top.saturating_sub(1);
+                    if !self.curriculum.enable_legacy_cost_order {
+                        Self::consume_explicit_cost_step(
+                            &mut cost_state.remaining,
+                            CostStepKind::ClockFromDeckTop,
+                        );
+                    }
                     cost_state.current_step = None;
                 }
                 self.start_cost_choice();
@@ -503,6 +545,9 @@ impl GameEnv {
                 self.state.turn.pending_cost = Some(cost_state);
                 return;
             }
+        }
+        if !self.curriculum.enable_legacy_cost_order {
+            Self::consume_explicit_cost_step(&mut cost_state.remaining, step);
         }
         cost_state.current_step = None;
         self.state.turn.pending_cost = Some(cost_state);

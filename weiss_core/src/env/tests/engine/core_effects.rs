@@ -215,6 +215,7 @@ fn activated_ability_costs_apply_in_order() {
             reveal_from_hand: 1,
             move_self_to_waiting_room: false,
             return_self_to_hand: false,
+            step_order: Vec::new(),
         },
         conditions: Default::default(),
         target_card_type: None,
@@ -328,6 +329,7 @@ fn clock_from_deck_top_cost_aborts_when_draw_registers_loss() {
             reveal_from_hand: 0,
             move_self_to_waiting_room: false,
             return_self_to_hand: false,
+            step_order: Vec::new(),
         },
         conditions: Default::default(),
         target_card_type: None,
@@ -405,6 +407,7 @@ fn clock_from_deck_top_cost_aborts_when_draw_registers_loss() {
             reveal_from_hand: 0,
             move_self_to_waiting_room: false,
             return_self_to_hand: false,
+            step_order: Vec::new(),
         },
         current_step: None,
         outcome: CostPaymentOutcome::ResolveAbility,
@@ -831,4 +834,460 @@ fn rule_actions_remove_non_character_from_stage() {
     env.advance_until_decision();
     assert!(env.state.players[0].stage[0].card.is_none());
     assert!(env.state.players[0].waiting_room.iter().any(|c| c.id == 2));
+}
+
+#[test]
+fn effect_set_terminal_outcome_applies_immediately() {
+    let mut env = make_env();
+    let _ = env.reset_no_copy();
+    let payload = EffectPayload {
+        spec: EffectSpec {
+            id: EffectId::new(EffectSourceKind::System, 999, 0, 0),
+            kind: EffectKind::SetTerminalOutcome {
+                outcome: crate::effects::TerminalOutcomeSpec::WinSelf,
+            },
+            target: None,
+            optional: false,
+        },
+        targets: Vec::new(),
+        source_ref: None,
+    };
+    env.resolve_effect_payload(0, 999, &payload);
+    assert!(matches!(
+        env.state.terminal,
+        Some(TerminalResult::Win { winner: 0 })
+    ));
+}
+
+#[test]
+fn rule_override_suppresses_cleanup_then_expires() {
+    let mut cards = vec![
+        CardStatic {
+            id: 1,
+            card_set: None,
+            card_type: CardType::Character,
+            color: CardColor::Red,
+            level: 0,
+            cost: 0,
+            power: 500,
+            soul: 1,
+            triggers: vec![],
+            traits: vec![],
+            abilities: vec![],
+            ability_defs: vec![],
+            counter_timing: false,
+            raw_text: None,
+        },
+        CardStatic {
+            id: 2,
+            card_set: None,
+            card_type: CardType::Event,
+            color: CardColor::Blue,
+            level: 0,
+            cost: 0,
+            power: 500,
+            soul: 0,
+            triggers: vec![],
+            traits: vec![],
+            abilities: vec![],
+            ability_defs: vec![],
+            counter_timing: false,
+            raw_text: None,
+        },
+    ];
+    add_clone_cards(&mut cards);
+    let db = Arc::new(CardDb::new(cards).expect("db"));
+    let config = EnvConfig {
+        deck_lists: [
+            legalize_deck(vec![2; 50], &[2]),
+            legalize_deck(vec![2; 50], &[2]),
+        ],
+        deck_ids: [1, 2],
+        max_decisions: 50,
+        max_ticks: 1000,
+        reward: RewardConfig::default(),
+        error_policy: ErrorPolicy::Strict,
+        observation_visibility: ObservationVisibility::Public,
+        end_condition_policy: Default::default(),
+    };
+    let mut env = GameEnv::new_or_panic(
+        db,
+        config,
+        CurriculumConfig::default(),
+        77,
+        ReplayConfig::default(),
+        None,
+        0,
+    );
+    let _ = env.reset_no_copy();
+
+    let event_card = env.state.players[0].hand.pop().expect("event in hand");
+    let staged_card_id = event_card.id;
+    env.place_card_on_stage(0, event_card, 0, StageStatus::Stand, Zone::Hand, None);
+    let override_payload = EffectPayload {
+        spec: EffectSpec {
+            id: EffectId::new(EffectSourceKind::System, 1000, 0, 0),
+            kind: EffectKind::ApplyRuleOverride {
+                kind: crate::effects::RuleOverrideKind::SkipNonCharacterStageCleanup,
+            },
+            target: None,
+            optional: false,
+        },
+        targets: Vec::new(),
+        source_ref: None,
+    };
+    env.resolve_effect_payload(0, 1000, &override_payload);
+    assert!(
+        env.state
+            .turn
+            .rule_overrides
+            .contains(&crate::effects::RuleOverrideKind::SkipNonCharacterStageCleanup)
+    );
+    env.resolve_rule_actions_until_stable();
+    assert!(env.state.players[0].stage[0].card.is_some());
+    assert_eq!(
+        env.db
+            .get(staged_card_id)
+            .map(|card| card.card_type)
+            .expect("staged card in db"),
+        CardType::Event
+    );
+
+    env.expire_end_of_turn_effects();
+    assert!(!env
+        .state
+        .turn
+        .rule_overrides
+        .contains(&crate::effects::RuleOverrideKind::SkipNonCharacterStageCleanup));
+    env.resolve_rule_actions_until_stable();
+    assert!(env.state.players[0].stage[0].card.is_none());
+}
+
+#[test]
+fn strict_shot_consumes_on_canceled_effect_damage_from_attacker() {
+    let mut env = make_env();
+    let mut cards = env.db.cards.clone();
+    cards
+        .iter_mut()
+        .find(|card| card.id == 2)
+        .expect("card 2 present")
+        .card_type = CardType::Climax;
+    env.db = Arc::new(CardDb::new(cards).expect("db rebuild"));
+    let _ = env.reset_no_copy();
+    let mut next_id = 1u32;
+    let attacker = make_instance(1, 0, &mut next_id);
+    env.state.players[0].stage[0].card = Some(attacker);
+    env.state.players[0].stage[0].status = StageStatus::Stand;
+    env.state.players[1].clock.clear();
+    env.state.players[1].deck = vec![make_instance(1, 1, &mut next_id), make_instance(2, 1, &mut next_id)];
+    env.state.turn.active_player = 0;
+    env.state.turn.attack = Some(AttackContext {
+        attacker_slot: 0,
+        defender_slot: Some(0),
+        attack_type: AttackType::Frontal,
+        trigger_card: None,
+        trigger_instance_id: None,
+        trigger_checks_total: 1,
+        trigger_checks_resolved: 0,
+        damage: 1,
+        counter_allowed: false,
+        counter_played: false,
+        counter_power: 0,
+        damage_modifiers: Vec::new(),
+        pending_shot_damage: 1,
+        next_modifier_id: 1,
+        last_damage_event_id: None,
+        auto_trigger_enqueued: false,
+        auto_damage_enqueued: false,
+        battle_damage_applied: false,
+        step: AttackStep::Damage,
+        decl_window_done: false,
+        trigger_window_done: false,
+        damage_window_done: false,
+    });
+    let source_ref = TargetRef {
+        player: 0,
+        zone: TargetZone::Stage,
+        index: 0,
+        card_id: attacker.id,
+        instance_id: attacker.instance_id,
+    };
+    let _ = env.resolve_effect_damage(0, 1, 1, true, false, Some(attacker.id), Some(source_ref));
+    assert_eq!(
+        env.state
+            .turn
+            .attack
+            .as_ref()
+            .map(|ctx| ctx.pending_shot_damage),
+        Some(0)
+    );
+}
+
+#[test]
+fn legacy_shot_does_not_consume_on_canceled_effect_damage_from_attacker() {
+    let mut env = make_env();
+    env.curriculum.enable_legacy_shot_damage_step_only = true;
+    let mut cards = env.db.cards.clone();
+    cards
+        .iter_mut()
+        .find(|card| card.id == 2)
+        .expect("card 2 present")
+        .card_type = CardType::Climax;
+    env.db = Arc::new(CardDb::new(cards).expect("db rebuild"));
+    let _ = env.reset_no_copy();
+    let mut next_id = 1u32;
+    let attacker = make_instance(1, 0, &mut next_id);
+    env.state.players[0].stage[0].card = Some(attacker);
+    env.state.players[0].stage[0].status = StageStatus::Stand;
+    env.state.players[1].clock.clear();
+    env.state.players[1].deck = vec![make_instance(1, 1, &mut next_id), make_instance(2, 1, &mut next_id)];
+    env.state.turn.active_player = 0;
+    env.state.turn.attack = Some(AttackContext {
+        attacker_slot: 0,
+        defender_slot: Some(0),
+        attack_type: AttackType::Frontal,
+        trigger_card: None,
+        trigger_instance_id: None,
+        trigger_checks_total: 1,
+        trigger_checks_resolved: 0,
+        damage: 1,
+        counter_allowed: false,
+        counter_played: false,
+        counter_power: 0,
+        damage_modifiers: Vec::new(),
+        pending_shot_damage: 1,
+        next_modifier_id: 1,
+        last_damage_event_id: None,
+        auto_trigger_enqueued: false,
+        auto_damage_enqueued: false,
+        battle_damage_applied: false,
+        step: AttackStep::Damage,
+        decl_window_done: false,
+        trigger_window_done: false,
+        damage_window_done: false,
+    });
+    let source_ref = TargetRef {
+        player: 0,
+        zone: TargetZone::Stage,
+        index: 0,
+        card_id: attacker.id,
+        instance_id: attacker.instance_id,
+    };
+    let _ = env.resolve_effect_damage(0, 1, 1, true, false, Some(attacker.id), Some(source_ref));
+    assert_eq!(
+        env.state
+            .turn
+            .attack
+            .as_ref()
+            .map(|ctx| ctx.pending_shot_damage),
+        Some(1)
+    );
+}
+
+#[test]
+fn strict_shot_does_not_consume_without_source_ref_when_attacker_id_is_ambiguous() {
+    let mut env = make_env();
+    let mut cards = env.db.cards.clone();
+    cards
+        .iter_mut()
+        .find(|card| card.id == 2)
+        .expect("card 2 present")
+        .card_type = CardType::Climax;
+    env.db = Arc::new(CardDb::new(cards).expect("db rebuild"));
+    let _ = env.reset_no_copy();
+    let mut next_id = 1u32;
+    let attacker = make_instance(1, 0, &mut next_id);
+    let duplicate = make_instance(1, 0, &mut next_id);
+    env.state.players[0].stage[0].card = Some(attacker);
+    env.state.players[0].stage[1].card = Some(duplicate);
+    env.state.players[0].stage[0].status = StageStatus::Stand;
+    env.state.players[0].stage[1].status = StageStatus::Stand;
+    env.state.players[1].clock.clear();
+    env.state.players[1].deck = vec![make_instance(1, 1, &mut next_id), make_instance(2, 1, &mut next_id)];
+    env.state.turn.active_player = 0;
+    env.state.turn.attack = Some(AttackContext {
+        attacker_slot: 0,
+        defender_slot: Some(0),
+        attack_type: AttackType::Frontal,
+        trigger_card: None,
+        trigger_instance_id: None,
+        trigger_checks_total: 1,
+        trigger_checks_resolved: 0,
+        damage: 1,
+        counter_allowed: false,
+        counter_played: false,
+        counter_power: 0,
+        damage_modifiers: Vec::new(),
+        pending_shot_damage: 1,
+        next_modifier_id: 1,
+        last_damage_event_id: None,
+        auto_trigger_enqueued: false,
+        auto_damage_enqueued: false,
+        battle_damage_applied: false,
+        step: AttackStep::Damage,
+        decl_window_done: false,
+        trigger_window_done: false,
+        damage_window_done: false,
+    });
+    let _ = env.resolve_effect_damage(0, 1, 1, true, false, Some(attacker.id), None);
+    assert_eq!(
+        env.state
+            .turn
+            .attack
+            .as_ref()
+            .map(|ctx| ctx.pending_shot_damage),
+        Some(1)
+    );
+}
+
+#[test]
+fn strict_cost_step_order_uses_explicit_sequence() {
+    let mut env = make_env();
+    let _ = env.reset_no_copy();
+    let mut next_id = 1u32;
+    let source = make_instance(1, 0, &mut next_id);
+    env.state.players[0].stage[0].card = Some(source);
+    env.state.players[0].stage[0].status = StageStatus::Stand;
+    env.state.players[0].hand = vec![make_instance(1, 0, &mut next_id), make_instance(2, 0, &mut next_id)];
+    env.state.turn.pending_cost = Some(CostPaymentState {
+        controller: 0,
+        source_id: source.id,
+        source_instance_id: source.instance_id,
+        source_slot: Some(0),
+        ability_index: 0,
+        remaining: AbilityCost {
+            discard_from_hand: 1,
+            reveal_from_hand: 1,
+            step_order: vec![AbilityCostStep::RevealFromHand, AbilityCostStep::DiscardFromHand],
+            ..AbilityCost::default()
+        },
+        current_step: None,
+        outcome: CostPaymentOutcome::ResolveAbility,
+    });
+    env.start_cost_choice();
+    assert_eq!(
+        env.state
+            .turn
+            .pending_cost
+            .as_ref()
+            .and_then(|cost| cost.current_step),
+        Some(CostStepKind::RevealFromHand)
+    );
+}
+
+#[test]
+fn strict_cost_step_order_preserves_interleaved_repeats() {
+    let mut env = make_env();
+    let _ = env.reset_no_copy();
+    let mut next_id = 1u32;
+    let source = make_instance(1, 0, &mut next_id);
+    env.state.players[0].stage[0].card = Some(source);
+    env.state.players[0].stage[0].status = StageStatus::Stand;
+    env.state.players[0].hand = vec![
+        make_instance(1, 0, &mut next_id),
+        make_instance(2, 0, &mut next_id),
+        make_instance(3, 0, &mut next_id),
+    ];
+    env.state.turn.pending_cost = Some(CostPaymentState {
+        controller: 0,
+        source_id: source.id,
+        source_instance_id: source.instance_id,
+        source_slot: Some(0),
+        ability_index: 0,
+        remaining: AbilityCost {
+            discard_from_hand: 1,
+            reveal_from_hand: 2,
+            step_order: vec![
+                AbilityCostStep::RevealFromHand,
+                AbilityCostStep::DiscardFromHand,
+                AbilityCostStep::RevealFromHand,
+            ],
+            ..AbilityCost::default()
+        },
+        current_step: None,
+        outcome: CostPaymentOutcome::ResolveAbility,
+    });
+    env.start_cost_choice();
+    assert_eq!(
+        env.state
+            .turn
+            .pending_cost
+            .as_ref()
+            .and_then(|cost| cost.current_step),
+        Some(CostStepKind::RevealFromHand)
+    );
+
+    let choice = env.state.turn.choice.take().expect("first reveal choice");
+    assert_eq!(choice.reason, ChoiceReason::CostPayment);
+    let reveal_option = choice.options[0];
+    env.recycle_choice_options(choice.options);
+    env.apply_choice_effect(
+        choice.reason,
+        choice.player,
+        reveal_option,
+        choice.pending_trigger,
+    );
+    assert_eq!(
+        env.state
+            .turn
+            .pending_cost
+            .as_ref()
+            .and_then(|cost| cost.current_step),
+        Some(CostStepKind::DiscardFromHand)
+    );
+
+    let choice = env.state.turn.choice.take().expect("discard choice");
+    assert_eq!(choice.reason, ChoiceReason::CostPayment);
+    let discard_option = choice.options[0];
+    env.recycle_choice_options(choice.options);
+    env.apply_choice_effect(
+        choice.reason,
+        choice.player,
+        discard_option,
+        choice.pending_trigger,
+    );
+    assert_eq!(
+        env.state
+            .turn
+            .pending_cost
+            .as_ref()
+            .and_then(|cost| cost.current_step),
+        Some(CostStepKind::RevealFromHand)
+    );
+}
+
+#[test]
+fn legacy_cost_step_order_uses_fixed_sequence() {
+    let mut env = make_env();
+    env.curriculum.enable_legacy_cost_order = true;
+    let _ = env.reset_no_copy();
+    let mut next_id = 1u32;
+    let source = make_instance(1, 0, &mut next_id);
+    env.state.players[0].stage[0].card = Some(source);
+    env.state.players[0].stage[0].status = StageStatus::Stand;
+    env.state.players[0].hand = vec![make_instance(1, 0, &mut next_id), make_instance(2, 0, &mut next_id)];
+    env.state.turn.pending_cost = Some(CostPaymentState {
+        controller: 0,
+        source_id: source.id,
+        source_instance_id: source.instance_id,
+        source_slot: Some(0),
+        ability_index: 0,
+        remaining: AbilityCost {
+            discard_from_hand: 1,
+            reveal_from_hand: 1,
+            step_order: vec![AbilityCostStep::RevealFromHand, AbilityCostStep::DiscardFromHand],
+            ..AbilityCost::default()
+        },
+        current_step: None,
+        outcome: CostPaymentOutcome::ResolveAbility,
+    });
+    env.start_cost_choice();
+    assert_eq!(
+        env.state
+            .turn
+            .pending_cost
+            .as_ref()
+            .and_then(|cost| cost.current_step),
+        Some(CostStepKind::DiscardFromHand)
+    );
 }

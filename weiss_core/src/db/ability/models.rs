@@ -1,5 +1,22 @@
 /// Cost requirements for an activated ability.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AbilityCostStep {
+    #[serde(alias = "restOther", alias = "rest_other")]
+    RestOther,
+    #[serde(alias = "sacrificeFromStage", alias = "sacrifice_from_stage")]
+    SacrificeFromStage,
+    #[serde(alias = "discardFromHand", alias = "discard_from_hand")]
+    DiscardFromHand,
+    #[serde(alias = "clockFromHand", alias = "clock_from_hand")]
+    ClockFromHand,
+    #[serde(alias = "clockFromDeckTop", alias = "clock_from_deck_top")]
+    ClockFromDeckTop,
+    #[serde(alias = "revealFromHand", alias = "reveal_from_hand")]
+    RevealFromHand,
+}
+
+/// Cost requirements for an activated ability.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AbilityCost {
     #[serde(default)]
     /// Stock cost to pay.
@@ -31,6 +48,9 @@ pub struct AbilityCost {
     #[serde(default, alias = "returnSelfToHand")]
     /// Whether the source card must be returned to hand as cost.
     pub return_self_to_hand: bool,
+    #[serde(default, alias = "stepOrder")]
+    /// Optional explicit ordering for staged cost steps.
+    pub step_order: Vec<AbilityCostStep>,
 }
 
 impl AbilityCost {
@@ -46,6 +66,34 @@ impl AbilityCost {
             && self.reveal_from_hand == 0
             && !self.move_self_to_waiting_room
             && !self.return_self_to_hand
+    }
+
+    /// Return the next pending staged step in explicit order, if any.
+    pub fn next_explicit_step(&self) -> Option<crate::state::CostStepKind> {
+        for step in &self.step_order {
+            match step {
+                AbilityCostStep::RestOther if self.rest_other > 0 => {
+                    return Some(crate::state::CostStepKind::RestOther);
+                }
+                AbilityCostStep::SacrificeFromStage if self.sacrifice_from_stage > 0 => {
+                    return Some(crate::state::CostStepKind::SacrificeFromStage);
+                }
+                AbilityCostStep::DiscardFromHand if self.discard_from_hand > 0 => {
+                    return Some(crate::state::CostStepKind::DiscardFromHand);
+                }
+                AbilityCostStep::ClockFromHand if self.clock_from_hand > 0 => {
+                    return Some(crate::state::CostStepKind::ClockFromHand);
+                }
+                AbilityCostStep::ClockFromDeckTop if self.clock_from_deck_top > 0 => {
+                    return Some(crate::state::CostStepKind::ClockFromDeckTop);
+                }
+                AbilityCostStep::RevealFromHand if self.reveal_from_hand > 0 => {
+                    return Some(crate::state::CostStepKind::RevealFromHand);
+                }
+                _ => {}
+            }
+        }
+        None
     }
 }
 
@@ -467,8 +515,8 @@ impl AbilityTemplate {
                 stock: *cost,
                 ..AbilityCost::default()
             },
-            AbilityTemplate::Bond { cost, .. } => *cost,
-            AbilityTemplate::AbilityDef(def) => def.cost,
+            AbilityTemplate::Bond { cost, .. } => cost.clone(),
+            AbilityTemplate::AbilityDef(def) => def.cost.clone(),
             _ => AbilityCost::default(),
         }
     }
@@ -476,7 +524,7 @@ impl AbilityTemplate {
     /// Return encore variant cost for keyword encore templates.
     pub fn encore_variant_cost(&self) -> Option<AbilityCost> {
         match self {
-            AbilityTemplate::EncoreVariant { cost } => Some(*cost),
+            AbilityTemplate::EncoreVariant { cost } => Some(cost.clone()),
             _ => None,
         }
     }

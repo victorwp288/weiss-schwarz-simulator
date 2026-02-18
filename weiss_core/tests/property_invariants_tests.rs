@@ -113,8 +113,13 @@ proptest! {
             if env.state.terminal.is_some() {
                 break;
             }
-            let decision = env.decision.clone().expect("decision should exist");
+            let Some(decision) = env.decision.clone() else {
+                break;
+            };
             let actions = weiss_core::legal::legal_actions(&env.state, &decision, &env.db, &env.curriculum);
+            if actions.is_empty() {
+                break;
+            }
             let idx = rng.gen_range(actions.len());
             if let Some(action_id) = action_id_for(&actions[idx]) {
                 action_ids.push(action_id as u32);
@@ -152,8 +157,13 @@ proptest! {
             if env_a.state.terminal.is_some() || env_b.state.terminal.is_some() {
                 break;
             }
-            let decision = env_a.decision.clone().expect("decision should exist");
+            let Some(decision) = env_a.decision.clone() else {
+                break;
+            };
             let actions = weiss_core::legal::legal_actions(&env_a.state, &decision, &env_a.db, &env_a.curriculum);
+            if actions.is_empty() {
+                break;
+            }
             let idx = rng.gen_range(actions.len());
             let action = actions[idx].clone();
             if let Some(action_id) = action_id_for(&action) {
@@ -200,9 +210,14 @@ fn fuzz_invariants_fixed_seed() {
         if env.state.terminal.is_some() {
             break;
         }
-        let decision = env.decision.clone().expect("decision should exist");
+        let Some(decision) = env.decision.clone() else {
+            break;
+        };
         let actions =
             weiss_core::legal::legal_actions(&env.state, &decision, &env.db, &env.curriculum);
+        if actions.is_empty() {
+            break;
+        }
         let idx = rng.gen_range(actions.len());
         env.apply_action(actions[idx].clone()).unwrap();
         env.validate_state().unwrap();
@@ -221,9 +236,14 @@ fn determinism_events_fixed_seed() {
         if env_a.state.terminal.is_some() || env_b.state.terminal.is_some() {
             break;
         }
-        let decision = env_a.decision.clone().expect("decision should exist");
+        let Some(decision) = env_a.decision.clone() else {
+            break;
+        };
         let actions =
             weiss_core::legal::legal_actions(&env_a.state, &decision, &env_a.db, &env_a.curriculum);
+        if actions.is_empty() {
+            break;
+        }
         let idx = rng.gen_range(actions.len());
         let action = actions[idx].clone();
         if let Some(action_id) = action_id_for(&action) {

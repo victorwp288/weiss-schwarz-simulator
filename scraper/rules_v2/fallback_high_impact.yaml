@@ -105,6 +105,110 @@
       "priority": 850
     },
     {
+      "description": "Strict fallback for following-ability lines that keep a quoted payload.",
+      "effect_mode": "noop_draw_exact",
+      "id": "parser_v2.strict.following_ability_generic_exact",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "FollowingAbilityGrant"
+      },
+      "mode": "exact",
+      "pattern": "^.*following ability.*\".*\".*$",
+      "priority": 0
+    },
+    {
+      "description": "Strict fallback for broad paid on-play search/salvage text families.",
+      "effect_mode": "paid_on_play_search_or_salvage_generic_exact",
+      "id": "parser_v2.strict.paid_on_play_search_salvage_generic_exact",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "PaidOnPlaySearchSalvage"
+      },
+      "mode": "exact",
+      "pattern": "^.*placed on (?:the )?stage from your hand.*pay the cost.*(?:look at|search|return .* to your hand).*$",
+      "priority": -2
+    },
+    {
+      "description": "Strict fallback for experience family lines.",
+      "effect_mode": "experience_generic_exact",
+      "id": "parser_v2.strict.experience_generic_exact",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "Experience"
+      },
+      "mode": "exact",
+      "pattern": "^experience .+$",
+      "priority": -3
+    },
+    {
+      "description": "Strict fallback for climax-placed buff family lines.",
+      "effect_mode": "climax_placed_buff_generic_exact",
+      "id": "parser_v2.strict.climax_placed_buff_generic_exact",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "ClimaxPlacedBuff"
+      },
+      "mode": "exact",
+      "pattern": "^when (?:your|a) climax is placed on your climax area.*$",
+      "priority": -3
+    },
+    {
+      "description": "Strict fallback for OnReverse self-move family lines.",
+      "effect_mode": "on_reverse_self_move_generic_exact",
+      "id": "parser_v2.strict.on_reverse_self_move_generic_exact",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "OnReverseSelfMove"
+      },
+      "mode": "exact",
+      "pattern": "^.*becomes 【reverse】.*(?:put this card at the bottom of your deck|put this card into your memory).*$",
+      "priority": -3
+    },
+    {
+      "description": "Strict fallback for assist/scaling power family lines with explicit numeric power.",
+      "effect_mode": "add_power_generic_exact",
+      "id": "parser_v2.strict.assist_or_scaling_power_generic_exact",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "AssistOrScalingPower"
+      },
+      "mode": "exact",
+      "pattern": "^.*gets \\+(?P<amount>\\d+) power.*$",
+      "priority": -4
+    },
+    {
+      "description": "Strict fallback for scaling-power X-valued templates.",
+      "effect_mode": "noop_draw_exact",
+      "id": "parser_v2.strict.scaling_power_x_generic_exact",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "AssistOrScalingPower"
+      },
+      "mode": "exact",
+      "pattern": "^.*gets \\+x power.*$",
+      "priority": -5
+    },
+    {
+      "description": "Strict fallback for remaining quoted lines after family-specific strict rules.",
+      "effect_mode": "noop_draw_exact",
+      "id": "parser_v2.strict.any_quoted_line_exact",
+      "match_on": "body",
+      "metadata": {
+        "confidence": "exact",
+        "family": "quoted_catch_all_strict"
+      },
+      "mode": "exact",
+      "pattern": "^.*\".*\".*$",
+      "priority": -20
+    },
+    {
       "description": "Catch-all approx fallback for any remaining unmatched tagged line.",
       "effect_mode": "noop_draw",
       "id": "parser_v2.any.unmatched_tagged_line",
@@ -115,7 +219,7 @@
       },
       "mode": "approx",
       "pattern": "^.+$",
-      "priority": 1
+      "priority": -100
     }
   ],
   "version": 1

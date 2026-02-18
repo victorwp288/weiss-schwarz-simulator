@@ -15,6 +15,9 @@ fn effect_damage_from_event_uses_pipeline() {
     let deck_b = build_deck_list(20, &[CARD_BASIC]);
     let curriculum = CurriculumConfig {
         enable_triggers: false,
+        enable_priority_windows: false,
+        strict_priority_mode: false,
+        priority_autopick_single_action: true,
         ..Default::default()
     };
     let config = make_config(deck_a, deck_b);

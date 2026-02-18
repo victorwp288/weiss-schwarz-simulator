@@ -124,6 +124,32 @@ pub enum BattleOpponentMovePreludeAction {
     OpponentClockTopToWaitingRoom,
 }
 
+/// Terminal outcome specified relative to the effect controller.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum TerminalOutcomeSpec {
+    /// Controller wins.
+    WinSelf,
+    /// Controller loses (opponent wins).
+    WinOpponent,
+    /// Game ends in draw.
+    Draw,
+    /// Game ends in timeout.
+    Timeout,
+}
+
+/// Turn-scoped rule-action override selectors.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum RuleOverrideKind {
+    /// Skip deck-empty refresh/loss processing in rule actions.
+    SkipDeckRefreshOrLoss,
+    /// Skip level-4 loss checks in rule actions.
+    SkipLevelFourLoss,
+    /// Skip non-character stage cleanup in rule actions.
+    SkipNonCharacterStageCleanup,
+    /// Skip non-positive-power stage cleanup in rule actions.
+    SkipZeroOrNegativePowerCleanup,
+}
+
 /// Target selection template for effects and abilities.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum TargetTemplate {
@@ -506,6 +532,34 @@ pub enum EffectTemplate {
     RestThisIfNoOtherRestCenter,
     /// Prevent a player from using AUTO Encore for the rest of the turn.
     CannotUseAutoEncoreForPlayer { target: TargetSide },
+    /// Conditional continuous-style soul modifier.
+    ///
+    /// Appended to preserve postcard discriminants for existing WSDB payloads.
+    ConditionalAddSoul {
+        amount: i32,
+        #[serde(default)]
+        turn: Option<ConditionTurn>,
+        #[serde(default)]
+        zone_count: Option<ZoneCountCondition>,
+        #[serde(default)]
+        require_source_marker: bool,
+        #[serde(default)]
+        per_source_marker: bool,
+        #[serde(default)]
+        per_zone_count: bool,
+        #[serde(default)]
+        exclude_source: bool,
+        #[serde(default)]
+        target_ids: Vec<CardId>,
+    },
+    /// Set terminal game outcome immediately.
+    ///
+    /// Appended to preserve postcard discriminants for existing WSDB payloads.
+    SetTerminalOutcome { outcome: TerminalOutcomeSpec },
+    /// Apply a turn-scoped rule-action override.
+    ///
+    /// Appended to preserve postcard discriminants for existing WSDB payloads.
+    ApplyRuleOverride { kind: RuleOverrideKind },
 }
 
 /// Brainstorm payoff mode.

@@ -64,15 +64,14 @@ fn replay_config() -> ReplayConfig {
 #[test]
 fn auto_resolve_cap_exceeded_sets_engine_error() {
     let db = make_db();
-    let mut env = GameEnv::new_or_panic(
-        db,
-        make_config(),
-        CurriculumConfig::default(),
-        99,
-        replay_config(),
-        None,
-        0,
-    );
+    let curriculum = CurriculumConfig {
+        enable_priority_windows: false,
+        strict_priority_mode: false,
+        priority_autopick_single_action: true,
+        ..Default::default()
+    };
+    let mut env =
+        GameEnv::new_or_panic(db, make_config(), curriculum, 99, replay_config(), None, 0);
 
     let spec = EffectSpec {
         id: EffectId::new(EffectSourceKind::System, 0, 0, 0),

@@ -304,6 +304,8 @@ fn unified_effects_pipeline_coverage() {
     // Activated ability -> stack push (priority window).
     let curriculum = CurriculumConfig {
         enable_priority_windows: true,
+        strict_priority_mode: false,
+        priority_autopick_single_action: false,
         ..Default::default()
     };
     let mut env = GameEnv::new_or_panic(

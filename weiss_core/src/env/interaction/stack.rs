@@ -28,6 +28,8 @@ impl GameEnv {
             EffectKind::SelfAddModifierIfFacingOpponent { .. } => 3,
             EffectKind::ConditionalAddModifier { .. } => 3,
             EffectKind::GrantAbilityDef { .. } => 3,
+            EffectKind::SetTerminalOutcome { .. } => 3,
+            EffectKind::ApplyRuleOverride { .. } => 3,
             EffectKind::MoveToHand => 4,
             EffectKind::MoveTriggerCardToHand => 5,
             EffectKind::MoveToMarker => 6,

@@ -171,7 +171,9 @@ fn priority_single_action_autopick_does_not_repeat() {
     };
     let curriculum = CurriculumConfig {
         enable_priority_windows: true,
+        strict_priority_mode: false,
         priority_allow_pass: false,
+        priority_autopick_single_action: true,
         ..Default::default()
     };
     let mut env = GameEnv::new_or_panic(db, config, curriculum, 100, replay_config, None, 0);
@@ -211,7 +213,7 @@ fn priority_single_action_autopick_does_not_repeat() {
         .iter()
         .filter(|e| {
             matches!(e,
-                weiss_core::replay::ReplayEvent::StackPushed { item } if item.source_id == CARD_ACT
+                weiss_core::replay::ReplayEvent::StackPushed { item } if item.effect_id.source_card == CARD_ACT
             )
         })
         .count();

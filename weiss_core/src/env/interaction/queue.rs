@@ -49,7 +49,7 @@ impl GameEnv {
         }
         let spec = live.spec;
         let mut cost = self.ability_cost_for_spec(spec);
-        if !self.can_pay_ability_cost(player, Some(slot), card_inst, cost) {
+        if !self.can_pay_ability_cost(player, Some(slot), card_inst, &cost) {
             return Err(anyhow!("Activated ability cost not payable"));
         }
         let effects: Vec<EffectSpec> = live.effects.to_vec();

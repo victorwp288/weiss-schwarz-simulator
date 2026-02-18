@@ -475,17 +475,18 @@ pub fn legal_action_ids_cached_into(
             let p = &state.players[player];
             let modifier_cache = StageModifierCache::build(state, player);
             for slot in 0..p.stage.len() {
-                if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
-                    if can_pay_encore_for_slot(
+                if p.stage[slot].card.is_some()
+                    && p.stage[slot].status == StageStatus::Reverse
+                    && can_pay_encore_for_slot(
                         state,
                         db,
                         curriculum,
                         player,
                         slot,
                         Some(&modifier_cache),
-                    ) {
-                        push_id(out, ENCORE_PAY_BASE + slot);
-                    }
+                    )
+                {
+                    push_id(out, ENCORE_PAY_BASE + slot);
                 }
             }
             for slot in 0..p.stage.len() {
@@ -872,17 +873,18 @@ pub fn legal_actions_cached_into(
             let p = &state.players[player];
             let modifier_cache = StageModifierCache::build(state, player);
             for slot in 0..p.stage.len() {
-                if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
-                    if can_pay_encore_for_slot(
+                if p.stage[slot].card.is_some()
+                    && p.stage[slot].status == StageStatus::Reverse
+                    && can_pay_encore_for_slot(
                         state,
                         db,
                         curriculum,
                         player,
                         slot,
                         Some(&modifier_cache),
-                    ) {
-                        actions.push(ActionDesc::EncorePay { slot: slot as u8 });
-                    }
+                    )
+                {
+                    actions.push(ActionDesc::EncorePay { slot: slot as u8 });
                 }
             }
             for slot in 0..p.stage.len() {

@@ -31,8 +31,8 @@ impl GameEnv {
                 continue;
             }
             let cost = match &live.spec.template {
-                AbilityTemplate::EncoreVariant { cost } => Some(*cost),
-                AbilityTemplate::AbilityDef(def) => Some(def.cost),
+                AbilityTemplate::EncoreVariant { cost } => Some(cost.clone()),
+                AbilityTemplate::AbilityDef(def) => Some(def.cost.clone()),
                 _ => None,
             };
             if let Some(cost) = cost {
@@ -170,7 +170,7 @@ impl GameEnv {
             let Some((ability_index, mut variant_cost)) = self
                 .encore_variant_costs(player, slot)
                 .into_iter()
-                .find(|(_, cost)| self.can_pay_ability_cost(player, Some(slot), card_inst, *cost))
+                .find(|(_, cost)| self.can_pay_ability_cost(player, Some(slot), card_inst, cost))
             else {
                 return Err(anyhow!("Encore cost unpaid"));
             };
