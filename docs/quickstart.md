@@ -1,46 +1,36 @@
 # Quickstart
 
-This guide gets you from clone to a verified `EnvPool` step as fast as possible.
+Use this page to go from clone/install to a verified deterministic step loop.
 
-If you are integrating into RL training code, follow this page first, then read [RL Contract](rl_contract.md).
+Next read: [RL Contract](rl_contract.md)
 
 ## Prerequisites
 
 - Python 3.10+
-- Rust stable toolchain
+- Rust stable (`rustup default stable`)
 - `pip`
 
-Optional but recommended:
+Recommended:
 
 - virtual environment (`python -m venv .venv`)
-- `maturin` for local binding builds
+- `maturin` for local wheel/module builds
 
-## Installation Paths
+## Install
 
-### Path A: use published wheel (fastest)
+### Fastest: PyPI
 
 ```bash
 python -m pip install -U weiss-sim numpy
 ```
 
-### Path B: build from local source (for contributors)
+### Local source build
 
 ```bash
 python -m pip install -U maturin numpy
 maturin develop --release --manifest-path weiss_py/Cargo.toml
 ```
 
-If you prefer wheel install for parity with CI:
-
-```bash
-maturin build --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python
-python -m pip install dist/*.whl
-```
-
-## First Successful Reset + Step (Python)
-
-`EnvPool.new_rl_train/new_rl_eval/new_debug` default to the bundled `.wsdb` shipped with
-the package. Pass `db_path=...` only when you need to override with your own database.
+## First successful reset + step
 
 ```python
 import numpy as np
@@ -54,18 +44,56 @@ pool = weiss_sim.EnvPool.new_rl_train(
     deck_ids=[1, 2],
     seed=0,
 )
-buffers = weiss_sim.EnvPoolBuffers(pool)
-out = buffers.reset()
+buf = weiss_sim.EnvPoolBuffers(pool)
+out = buf.reset()
 
 actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
-out = buffers.step(actions)
+out = buf.step(actions)
 
-print(out.obs.shape, out.rewards.shape)
+print(out.obs.shape, out.rewards.shape, out.engine_status[:4])
 ```
 
-## High-Level API (recommended)
+Expected result:
 
-Use the high-level runner when you want minimal arguments with deterministic defaults:
+- no exception
+- stable shapes across runs
+- `engine_status == 0` for healthy envs
+
+## Which API should you use?
+
+- `weiss_sim.train(...)` / `weiss_sim.evaluate(...)`: recommended for most users
+- `weiss_sim.EnvPool.*`: lower-level control for custom pipelines
+
+## High-level API defaults (`create/train/evaluate`)
+
+From `python/weiss_sim/api.py`:
+
+- `rules_profile="strict"`
+- `runtime_mode="speed"` for `train()`, `"eval_debug"` for `evaluate()`
+- `card_pool="parsed_only"`
+- `observation_visibility="public"`
+- `error_policy="lenient_terminate"`
+- `max_decisions=2000`, `max_ticks=100000`
+
+Runtime-mode defaults:
+
+| runtime_mode | legal_repr | obs_dtype | ids_safety |
+| --- | --- | --- | --- |
+| `speed` | `ids_u16` | `i16` | `checked` |
+| `eval_debug` | `both` | `i32` | n/a |
+
+Auto sizing rules:
+
+- `num_threads="auto"` -> `min(16, cpu_count)` then capped at `num_envs`
+- `num_envs="auto"` -> `min(128, max(32, 4 * resolved_threads))`
+
+Public-visibility behavior in high-level API:
+
+- opponent private zones stay masked
+- `memory_is_public` is forced to `False` unless explicitly overridden
+- `reveal_opponent_hand_stock_counts` defaults to `False`
+
+## High-level minimal loop
 
 ```python
 import numpy as np
@@ -77,96 +105,79 @@ actions = np.full((32,), weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
 step = sim.step(actions)
 ```
 
-`weiss_sim.evaluate(...)` defaults to eval/debug outputs (legal masks + legal ids).
-By default, opponent private zones stay hidden (`observation_visibility="public"`). Override with
-`observation_visibility="full"` only for trusted debug/eval runs. If you only need counts, set
-`reveal_opponent_hand_stock_counts=True`.
-Memory zone is treated as private by default under public visibility; override with
-`curriculum={"memory_is_public": True}` only when you intentionally want that information exposed.
-For two-policy or human-vs-AI loops, use `sim.current_to_play_seat()`, `sim.merge_actions_by_seat(...)`,
-or `sim.step_by_seat(...)` so you can provide separate seat-0/seat-1 action vectors.
-For league/population runs, use `weiss_sim.round_robin_schedule(...)` or
-`weiss_sim.sample_population_schedule(...)`, then aggregate with `weiss_sim.summarize_records(...)`.
+Seat-aware helpers for two-policy play:
 
-Deck inputs can be presets, paths, card-id lists, or count maps:
+- `sim.current_to_play_seat()`
+- `sim.merge_actions_by_seat(seat0_actions, seat1_actions, default_action=...)`
+- `sim.step_by_seat(seat0_actions, seat1_actions, default_action=...)`
+
+## Deck inputs in high-level API
+
+`deck` / `opponent_deck` accept:
+
+- `Sequence[int]`
+- `Mapping[int|str, int]`
+- preset string (`"preset:starter_v1"`)
+- path string (`"file:..."` or path-like string)
+
+Examples:
 
 ```python
 import weiss_sim
 
-deck = weiss_sim.cards.resolve_deck(
-    "preset:starter_v1",
-    rules_profile="approx",
+sim = weiss_sim.create(
+    deck="preset:starter_v1",
+    opponent_deck="preset:starter_v1",
     card_pool="parsed_only",
 )
-sim = weiss_sim.create(deck=deck, opponent_deck="preset:starter_v1", card_pool="parsed_only")
 ```
 
-When `card_pool="parsed_only"`, external `db_path` must hash-match the packaged catalog metadata.
-If it does not, creation fails with `DbMismatchError` so parsed-only filtering is never silently wrong.
+`card_pool="parsed_only"` enforces catalog/db hash compatibility and raises `DbMismatchError` on mismatch.
 
-Optional override:
+## Low-level constructor behavior
 
-```python
-pool = weiss_sim.EnvPool.new_rl_train(
-    32,
-    db_path="/path/to/your/cards.wsdb",
-    deck_lists=[legal_deck, legal_deck],
-)
-```
+- `EnvPool.new_rl_train(...)` and `EnvPool.new_rl_eval(...)`:
+  - force public observation visibility
+  - force `enable_visibility_policies=true`
+  - force `allow_concede=false`
+- `EnvPool.new_debug(...)`:
+  - no RL policy overrides; use when you need exact curriculum/control
 
-Expected outcome:
+## Determinism checklist
 
-- no exceptions
-- deterministic results for same seed/action stream
-- tensor dimensions match contract constants
+For reproducible episodes, keep all of these fixed:
 
-## Throughput-Oriented Variant
+1. seed
+2. deck lists/ids
+3. action sequence
+4. config/curriculum/reward/end-condition settings
+5. contract versions (`OBS_ENCODING_VERSION`, `ACTION_ENCODING_VERSION`, `SPEC_HASH`)
 
-For large-scale training, avoid dense mask scans and use legal ids:
+Useful metadata surfaces:
 
-```python
-ids, offsets = buffers.legal_action_ids()
-for i in range(pool.envs_len):
-    start = int(offsets[i])
-    end = int(offsets[i + 1])
-    actions[i] = weiss_sim.PASS_ACTION_ID if start == end else int(ids[start])
-out = buffers.step(actions)
-```
+- `episode_seed_batch()`
+- `episode_index_batch()`
+- `env_index_batch()`
+- `starting_player_batch()`
 
-## Sanity Checks Before Real Training
-
-1. Verify contract constants in your runtime:
-
-```python
-import weiss_sim
-print(weiss_sim.OBS_LEN, weiss_sim.ACTION_SPACE_SIZE, weiss_sim.SPEC_HASH)
-```
-
-2. Verify spec JSON is available:
-
-```python
-import weiss_sim
-print(weiss_sim.observation_spec_json()[:120])
-print(weiss_sim.action_spec_json()[:120])
-```
-
-3. Run local tests:
+## Sanity checks before long runs
 
 ```bash
+python scripts/check_docs_constants.py
+python scripts/check_docs_links.py
 pytest -q python/tests
 cargo test --workspace --features test-harness
 ```
 
-## Common Setup Issues
+## Common setup issues
 
-- `ModuleNotFoundError: weiss_sim`: your environment does not have the built wheel/module. Reinstall with one of the installation paths above.
-- Build errors during `maturin`: ensure `rustup default stable` and a compatible Python interpreter are active.
-- Runtime deck validation errors: decks must be legal for configured rules and expected deck size.
+- `ModuleNotFoundError: weiss_sim`: package/module not installed in active env.
+- maturin build errors: verify active Python + Rust toolchain.
+- deck validation failures: deck must be legal and 50 cards.
 
-## Next Reads
+## Related
 
-- [Python API Guide](python_api.md)
+- [Python API](python_api.md)
 - [RL Contract](rl_contract.md)
 - [Encodings](encodings.md)
-- [Performance & Benchmarks](performance_benchmarks.md)
 - [Troubleshooting](troubleshooting.md)

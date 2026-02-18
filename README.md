@@ -4,24 +4,20 @@
 [![Wheels](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/wheels.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/wheels.yml)
 [![Benchmarks](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/benchmarks.yml/badge.svg)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/benchmarks.yml)
 [![Security](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/victorwp288/weiss-schwarz-simulator/actions/workflows/security.yml)
-[![Docs](https://img.shields.io/badge/docs-rustdoc-blue)](https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/)
 [![PyPI](https://img.shields.io/pypi/v/weiss-sim.svg)](https://pypi.org/project/weiss-sim/)
-[![Changelog](https://img.shields.io/badge/changelog-view-blue)](https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/CHANGELOG.md)
+[![Rustdoc](https://img.shields.io/badge/rustdoc-online-blue)](https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/)
+[![Docs Hub](https://img.shields.io/badge/docs-hub-informational)](docs/README.md)
 
 Deterministic Weiss Schwarz simulation for RL and engine research.
 
-- Rust handles the hot loop (`weiss_core`)
-- Python provides batched stepping (`weiss_sim`)
-- The engine advances internally until a decision point, then exposes a stable action-space contract
+## What you get
 
-## Why this project
+- Rust engine (`weiss_core`) with deterministic advance-until-decision stepping
+- PyO3 bindings (`weiss_py`) and Python API (`python/weiss_sim`) for batched training/eval loops
+- Stable observation/action contracts (`OBS_LEN=378`, `ACTION_SPACE_SIZE=527`, `SPEC_HASH=8590000130`)
+- Replay and fingerprint surfaces for drift detection and reproducibility
 
-- Deterministic episodes from seed + action sequence
-- Fixed, versioned observation/action encodings for training pipelines
-- High-throughput `EnvPool` stepping for large batched RL workloads
-- Replay/fingerprint metadata for drift detection and debugging
-
-## 5-minute start (Python)
+## 5-minute start
 
 ### Option A: install from PyPI
 
@@ -29,17 +25,26 @@ Deterministic Weiss Schwarz simulation for RL and engine research.
 python -m pip install -U weiss-sim numpy
 ```
 
-### Option B: local dev install (Rust + Python)
+### Option B: local build from source
 
 ```bash
 python -m pip install -U maturin numpy
 maturin develop --release --manifest-path weiss_py/Cargo.toml
 ```
 
-### Minimal step loop
+### Minimal high-level loop
 
-`EnvPool.new_rl_train/new_rl_eval/new_debug` now default to the bundled `.wsdb` shipped with
-the package. Pass `db_path=...` only when you want to override with your own database.
+```python
+import numpy as np
+import weiss_sim
+
+sim = weiss_sim.train(num_envs=32, seed=0)
+reset = sim.reset()
+actions = np.full((32,), weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
+step = sim.step(actions)
+```
+
+### Minimal low-level loop
 
 ```python
 import numpy as np
@@ -55,76 +60,62 @@ pool = weiss_sim.EnvPool.new_rl_train(
 )
 buf = weiss_sim.EnvPoolBuffers(pool)
 out = buf.reset()
-
 actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
 out = buf.step(actions)
 ```
 
-### New High-Level API (v1)
+## Architecture at a glance
 
-For a zero-config surface with strict contracts and optional overrides:
-
-```python
-import numpy as np
-import weiss_sim
-
-sim = weiss_sim.train(num_envs=32, seed=0)
-reset = sim.reset()
-actions = np.full((32,), weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
-step = sim.step(actions)
-
-# Keep hidden info masked by default; opt into debugging visibility/metadata when needed.
-debug_sim = weiss_sim.evaluate(
-    num_envs=4,
-    observation_visibility="full",
-    reveal_opponent_hand_stock_counts=True,
-)
+```mermaid
+flowchart LR
+  A["Python API\npython/weiss_sim"] --> B["PyO3 bindings\nweiss_py"]
+  B --> C["Engine core\nweiss_core"]
+  C --> D["Deterministic outputs\nobs/masks-or-ids/reward/status"]
+  C --> E["Replay + fingerprint\nrepro & drift debugging"]
 ```
 
-Key helpers:
+## Documentation map
 
-- `weiss_sim.create(...)`
-- `weiss_sim.train(...)`
-- `weiss_sim.evaluate(...)`
-- `weiss_sim.cards.search(...)`
-- `weiss_sim.cards.get(...)`
-- `weiss_sim.cards.resolve_deck(...)`
-- `weiss_sim.db_info(...)`
+Start in [`docs/README.md`](docs/README.md).
 
-`card_pool="parsed_only"` validates card support against packaged catalog data and requires DB hash
-compatibility. If you override `db_path` with a different DB, `create()/train()/evaluate()` fail fast
-with `DbMismatchError` instead of silently applying mismatched parsed-only rules.
+Recommended paths:
 
-Optional override:
+- RL users: [`docs/quickstart.md`](docs/quickstart.md) -> [`docs/rl_contract.md`](docs/rl_contract.md) -> [`docs/encodings.md`](docs/encodings.md)
+- Python integrators: [`docs/python_api.md`](docs/python_api.md) -> [`docs/troubleshooting.md`](docs/troubleshooting.md)
+- Engine contributors: [`docs/engine_architecture.md`](docs/engine_architecture.md) -> [`docs/rules_coverage.md`](docs/rules_coverage.md) -> [`PROJECT_STATE.md`](PROJECT_STATE.md)
+- Performance work: [`docs/performance_benchmarks.md`](docs/performance_benchmarks.md)
 
-```python
-pool = weiss_sim.EnvPool.new_rl_train(
-    32,
-    db_path="/path/to/your/cards.wsdb",
-    deck_lists=[legal_deck, legal_deck],
-)
+## Repository layout
+
+- `weiss_core/`: Rust engine and deterministic rule runtime
+- `weiss_py/`: PyO3 extension layer
+- `python/weiss_sim/`: high-level and low-level Python interfaces
+- `python/tests/`: Python API/contract tests
+- `scripts/`: CI parity, coverage, perf, and docs checks
+- `docs/`: user + contributor documentation hub
+
+## Local quality checks
+
+Full local CI parity:
+
+```bash
+scripts/run_local_ci_parity.sh
 ```
 
-For training-safe loop semantics and contract details, read [`docs/rl_contract.md`](docs/rl_contract.md).
+Skip benchmark gate during iteration:
 
-## Documentation
+```bash
+SKIP_BENCHMARKS=1 scripts/run_local_ci_parity.sh
+```
 
-Primary docs entrypoint: [`docs/README.md`](docs/README.md)
+Docs-only checks:
 
-Recommended reading paths:
+```bash
+python scripts/check_docs_links.py
+python scripts/check_docs_constants.py
+```
 
-- RL users: `docs/quickstart.md` -> `docs/rl_contract.md` -> `docs/encodings.md`
-- Python integrators: `docs/python_api.md` -> `docs/rl_contract.md`
-- Engine contributors: `docs/engine_architecture.md` -> `PROJECT_STATE.md` -> `docs/rules_coverage.md`
-- Performance work: `docs/performance_benchmarks.md` -> benchmark workflow in `.github/workflows/benchmarks.yml`
-
-Reference links:
-
-- Rust API docs: <https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/>
-- Benchmark charts: <https://victorwp288.github.io/weiss-schwarz-simulator/benchmarks>
-- Changelog: [`CHANGELOG.md`](CHANGELOG.md)
-
-### Benchmark Snapshot (main, top 12)
+## Benchmark snapshot (main)
 
 <!-- BENCHMARKS:START -->
 _Last updated: 2026-02-16 08:36 UTC_
@@ -145,60 +136,21 @@ _Last updated: 2026-02-16 08:36 UTC_
 | rust/mask_construction | 394 ns/iter |
 <!-- BENCHMARKS:END -->
 
-## Repository layout
+Long-form benchmark docs: [`docs/performance_benchmarks.md`](docs/performance_benchmarks.md)
 
-- `weiss_core/` Rust engine core
-- `weiss_py/` PyO3 bindings
-- `python/weiss_sim/` Python API helpers and buffer wrappers
-- `python/examples/` benchmark and integration examples
-- `python/tests/` Python contract and smoke tests
-- `docs/` user/developer documentation hub
+## Compatibility policy
 
-## Local quality checks
+Contract constants are explicit compatibility boundaries:
 
-Full CI-equivalent local parity:
+- `OBS_ENCODING_VERSION=2`
+- `ACTION_ENCODING_VERSION=1`
+- `POLICY_VERSION=2`
+- `REPLAY_SCHEMA_VERSION=2`
+- `WSDB_SCHEMA_VERSION=2`
 
-```bash
-scripts/run_local_ci_parity.sh
-# Optional during iterative work on thermally constrained machines:
-SKIP_BENCHMARKS=1 scripts/run_local_ci_parity.sh
-```
+If encoding/layout semantics change, update code + docs in the same PR:
 
-Non-benchmark subset (useful on thermally constrained laptops):
-
-```bash
-scripts/check_env_layering.sh
-python scripts/check_docs_links.py
-python scripts/check_docs_constants.py
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace --features test-harness
-RUSTDOCFLAGS="-D missing-docs" cargo doc --workspace --no-deps
-ruff format --check python scraper scripts
-ruff check python scraper scripts
-python scripts/ability_coverage_report.py --output /tmp/ability_coverage_report.json
-python scripts/ability_coverage_targets.py --report /tmp/ability_coverage_report.json --output /tmp/ability_coverage_targets.json
-python scripts/check_coverage_budget.py --report /tmp/ability_coverage_report.json --baseline scripts/ability_coverage_baseline.json --min-parse-line-coverage-strict 0.52 --max-unsupported-lines-strict 14200 --min-card-coverage-approx 0.99
-maturin build --release --manifest-path weiss_py/Cargo.toml --out /tmp/wss_dist --interpreter .venv/bin/python
-.venv/bin/python -m pip install --force-reinstall --no-deps /tmp/wss_dist/*.whl
-.venv/bin/python -m pytest -q python/tests
-cargo audit
-pip-audit .
-pip-audit -r scraper/requirements.txt
-```
-
-## Compatibility and versioning
-
-Encoding and schema values are explicit and versioned:
-
-- `OBS_ENCODING_VERSION`
-- `ACTION_ENCODING_VERSION`
-- `REPLAY_SCHEMA_VERSION`
-- `WSDB_SCHEMA_VERSION`
-
-If any encoding layout changes, update:
-
-1. source constants
+1. constants/encode implementation
 2. [`docs/rl_contract.md`](docs/rl_contract.md) checksum table
 3. [`docs/encodings_changelog.md`](docs/encodings_changelog.md)
 

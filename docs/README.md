@@ -1,91 +1,98 @@
 # Documentation Hub
 
-This repository has two main audiences:
+[![Docs checks](https://img.shields.io/badge/docs-checks%20in%20CI-brightgreen)](../.github/workflows/ci.yml)
+[![Rustdoc](https://img.shields.io/badge/rustdoc-online-blue)](https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/)
 
-- RL practitioners integrating the simulator into training pipelines
-- Engine contributors extending rules/effects while preserving determinism
+This is the canonical map for repository docs.
 
-Use this page as the canonical map.
-
-## Start Here by Goal
+## Read by goal
 
 ### I want to run training quickly
 
 1. [Quickstart](quickstart.md)
 2. [RL Contract](rl_contract.md)
-3. [Encodings](encodings.md)
+3. [Python API](python_api.md)
+
+### I want to integrate or extend Python tooling
+
+1. [Python API](python_api.md)
+2. [Encodings](encodings.md)
+3. [Troubleshooting](troubleshooting.md)
 
 ### I want to modify engine behavior
 
 1. [Engine Architecture](engine_architecture.md)
-2. [Project State](../PROJECT_STATE.md)
-3. [Rules Coverage & Local Policy](rules_coverage.md)
-4. [Invariants & Validation](invariants_validation.md)
+2. [Rules Coverage](rules_coverage.md)
+3. [Invariants & Validation](invariants_validation.md)
+4. [Project State](../PROJECT_STATE.md)
 
-### I want to debug determinism or replay drift
+### I want to investigate determinism or replay drift
 
 1. [Replays & Determinism](replays_determinism.md)
 2. [RL Contract](rl_contract.md)
 3. [Invariants & Validation](invariants_validation.md)
 
-### I want to benchmark or optimize throughput
+### I want to profile performance
 
 1. [Performance & Benchmarks](performance_benchmarks.md)
-2. [RL Contract](rl_contract.md)
-3. [Engine Architecture](engine_architecture.md)
+2. [Engine Architecture](engine_architecture.md)
+3. [Contributing](contributing.md)
 
-## Full Docs Map
+## Docs graph
 
-- [Quickstart](quickstart.md): local setup, first successful run, and common onboarding pitfalls.
-- [Python API Guide](python_api.md): practical reference for pool constructors, buffer types, and stepping APIs.
-- [Engine Architecture](engine_architecture.md): core layering and the advance-until-decision engine flow.
-- [RL Contract](rl_contract.md): step semantics, output schema, and compatibility checksum values.
-- [Encodings](encodings.md): observation/action encoding model and compatibility expectations.
-- [Encodings Changelog](encodings_changelog.md): append-only historical changes by encoding version.
-- [Performance & Benchmarks](performance_benchmarks.md): benchmark commands and interpretation guidance.
-- [Replays & Determinism](replays_determinism.md): replay pipeline and determinism assumptions.
-- [Rules Coverage & Local Policy](rules_coverage.md): implemented sections vs local policy decisions.
-- [Approximation Policy](approximation_policy.md): approved deterministic approximation mappings and gates.
-- [Invariants & Validation](invariants_validation.md): machine-checked constants and debug validation.
-- [Troubleshooting](troubleshooting.md): common build, test, runtime, and determinism issues.
-- [Contributing](contributing.md): PR workflow, quality gates, and documentation standards.
-- [Freeze Preflight (2/3/5)](freeze_preflight_235.md): thesis-freeze checks for perf/coverage gates, environment snapshotting, and contract consistency.
+```mermaid
+flowchart TD
+  A["quickstart.md"] --> B["rl_contract.md"]
+  A --> C["python_api.md"]
+  B --> D["encodings.md"]
+  D --> E["encodings_changelog.md"]
+  B --> F["replays_determinism.md"]
+  G["engine_architecture.md"] --> B
+  G --> H["rules_coverage.md"]
+  H --> I["approximation_policy.md"]
+  G --> J["invariants_validation.md"]
+  J --> K["../PROJECT_STATE.md"]
+  L["performance_benchmarks.md"] --> G
+  M["troubleshooting.md"] --> A
+  N["contributing.md"] --> G
+  N --> B
+```
 
-## Standard Reading Order
+## Full docs index
 
-For first-time contributors, this sequence minimizes confusion:
-
-1. [Quickstart](quickstart.md)
-2. [RL Contract](rl_contract.md)
-3. [Engine Architecture](engine_architecture.md)
-4. [Project State](../PROJECT_STATE.md)
-5. [Rules Coverage & Local Policy](rules_coverage.md)
+- [Quickstart](quickstart.md): install paths, first reset/step, and integration sanity checks.
+- [Python API](python_api.md): `create/train/evaluate`, `SimRunner`, `EnvPool`, buffer classes, and helper APIs.
+- [RL Contract](rl_contract.md): step semantics, output schema, and compatibility checksum table.
+- [Encodings](encodings.md): observation/action spec model and compatibility process.
+- [Encodings Changelog](encodings_changelog.md): append-only encoding/schema history.
+- [Engine Architecture](engine_architecture.md): runtime loop, layers, ordering, and safeguards.
+- [Rules Coverage](rules_coverage.md): implemented areas, local policy choices, and coverage tooling.
+- [Approximation Policy](approximation_policy.md): approved deterministic approximations and gating.
+- [Replays & Determinism](replays_determinism.md): replay payloads, visibility modes, and drift workflows.
+- [Performance & Benchmarks](performance_benchmarks.md): perf snapshots, budget gates, and baseline regeneration.
+- [Invariants & Validation](invariants_validation.md): constants, fault codes, and validation paths.
+- [Troubleshooting](troubleshooting.md): common setup/runtime/perf issues and exact fixes.
+- [Contributing](contributing.md): branch/PR workflow and required quality gates.
+- [Freeze Preflight 2/3/5](freeze_preflight_235.md): freeze artifact runbook.
 
 Repository-level references:
 
 - [Root README](../README.md)
 - [Project State](../PROJECT_STATE.md)
 - [CHANGELOG](../CHANGELOG.md)
-- [Rust API Docs](https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/)
 
-## Documentation Standards
+## Doc update rules
 
-When updating behavior, treat docs as part of the implementation:
+When behavior changes, docs change in the same PR.
 
-1. Update the relevant behavioral doc in the same PR.
-2. Update `rl_contract.md` and `encodings_changelog.md` for encoding changes.
-3. Keep `PROJECT_STATE.md` aligned with current engine behavior.
-4. Run local doc checks:
+1. Update the relevant page under `docs/`.
+2. If encoding/layout changed, update both:
+   - [RL Contract checksum table](rl_contract.md)
+   - [Encodings changelog](encodings_changelog.md)
+3. Keep [Project State](../PROJECT_STATE.md) aligned with actual runtime behavior.
+4. Run:
 
 ```bash
 python scripts/check_docs_links.py
 python scripts/check_docs_constants.py
 ```
-
-## Style Guidelines for New Docs
-
-- State scope and audience in the first section.
-- Prefer concrete behavior and constraints over aspirational wording.
-- Link to authoritative files or modules when claiming semantics.
-- Separate "implemented now" from "future work".
-- Avoid duplicating large tables when one canonical source already exists.

@@ -1,176 +1,100 @@
 # Project State
 
-This file is the implementation-facing source of truth for current simulator behavior and constraints.
+Implementation-facing snapshot of current simulator behavior.
 
-Use it to answer: "what is implemented today, what is policy vs official rules, and what must remain stable?"
+If this file and code disagree, code is authoritative.
 
-Machine-checked constants live in [docs/invariants_validation.md](docs/invariants_validation.md).
+## Current posture
 
-## Current Posture
+- deterministic, RL-first engine with advance-until-decision semantics
+- fixed action space and fixed-length observation contract
+- Rust core (`weiss_core`) + PyO3 extension (`weiss_py`) + Python API (`python/weiss_sim`)
+- replay + fingerprint surfaces used for reproducibility and drift diagnosis
 
-- Deterministic, RL-first engine with advance-until-decision semantics.
-- Fixed action space and fixed-length observation contract.
-- Unified effect pipeline covers most trigger/ability/event flows.
-- Priority windows are optional and default to disabled.
-- Replay sanitization is active only when visibility policies are enabled in public mode.
-- Large high-churn modules were split for maintainability:
-  - `weiss_core/src/env/interaction/effects/{mod,core,resolve,conditions}.rs`
-  - `weiss_core/src/db/ability/{mod,models,keys,compile}.rs`
-  - `weiss_core/src/env/tests/engine/{mod,targeting_and_stack,core_effects,triggers_and_conditions,reward_and_conditionals,movement_and_reveal,modifiers_and_followups}.rs`
+## Compatibility boundaries
 
-## Determinism and Ordering Guarantees
+Current versioned constants:
 
-These rules are contract-sensitive and must remain stable unless intentionally versioned:
-
-- Public ordering never depends on hash-map iteration.
-- Ability indexing must use `CardDb::iter_card_abilities_in_canonical_order`.
-- Canonical ability ordering is generated at DB load by sorting `abilities + ability_defs` by `(AbilityTemplateTag, per-variant key)` in `weiss_core/src/db/store.rs`.
-- Stage order: slot ascending.
-- Hand order: index ascending.
-- Deck top: index `0` semantic (last element in vector representation).
-- Waiting room: stable list order.
-- Stock top: last pushed.
-- Priority action ordering: stage slot ascending, then ability index.
-- Replacement/modifier application ordering uses explicit deterministic keys.
-
-## Contract Versions and Schemas
-
-Current values:
-
-- `OBS_ENCODING_VERSION = 1`
+- `OBS_ENCODING_VERSION = 2`
 - `ACTION_ENCODING_VERSION = 1`
+- `POLICY_VERSION = 2`
+- `SPEC_HASH = 8590000130`
 - `REPLAY_SCHEMA_VERSION = 2`
 - `WSDB_SCHEMA_VERSION = 2`
 
 Policy:
 
-- Treat these as compatibility boundaries.
-- Any breaking contract shift requires coordinated updates across code, tests, and docs.
-- WSDB loader behavior is strict; non-v2 DB files must be regenerated with the parser-v2/rule-pack pipeline.
-- Migration path for legacy WSDB v1 files is explicit regeneration (no in-place upgrader):
-  run parser-v2/rule-pack conversion to JSON and repack via `carddb_pack` to emit WSDB v2 artifacts.
+- these values define compatibility boundaries
+- changing them requires coordinated code/tests/docs updates
 
-## Fingerprints and Drift Detection
+## Determinism guarantees
 
-- Fingerprint algorithm: `postcard+blake3+u64le v1`
-- Config hash: canonical `EnvConfig + CurriculumConfig` snapshot (excluding caches/paths)
-- Final state hash: canonical `GameState` snapshot (caches excluded, RNG state included)
-- Determinism fingerprint: hash over canonical unsanitized event bytes
+Core determinism properties expected to remain stable:
 
-## Feature Gate Defaults (`CurriculumConfig`)
+- canonical action legality and id mapping
+- deterministic trigger/stack/priority ordering
+- deterministic choice paging (`CHOICE_COUNT=16`)
+- explicit bounded loops (`STACK_AUTO_RESOLVE_CAP=256`, `CHECK_TIMING_QUIESCENCE_CAP=256`)
+- stable fingerprint algorithm (`postcard+blake3+u64le v1`)
 
-Enabled by default:
+## Runtime fault model
 
-- `enable_clock_phase`, `enable_climax_phase`
-- `enable_side_attacks`, `enable_direct_attacks`
-- `enable_counters`, `enable_triggers`
-- trigger icons: soul/draw/shot/bounce/treasure/gate/standby
-- `enable_backup`, `enable_encore`, `enable_refresh_penalty`, `enable_level_up_choice`
-- `enable_activated_abilities`, `enable_continuous_modifiers`
-- `priority_autopick_single_action`, `priority_allow_pass`
-- `enforce_color_requirement`, `enforce_cost_requirement`
-- `memory_is_public`
+Per-env runtime faults are latched and surfaced through `engine_status`.
 
-Disabled by default:
+Codes:
 
-- `enable_priority_windows`
-- `enable_visibility_policies`
-- `use_alternate_end_conditions`
-- `strict_priority_mode`
-- `reduced_stage_mode`
-- `allow_concede`
+- `0` none
+- `1` stack auto-resolve cap
+- `2` trigger quiescence cap
+- `3` panic trapped in step/runtime
+- `4` action application error
+- `5` invariant violation
+- `6` reset error
+- `7` reset panic
 
-## Effect Pipeline Coverage
+Batch stepping continues for other envs when one env faults.
 
-Mostly centralized in `resolve_effect_payload`, with known direct-path exceptions:
+## Visibility/replay behavior
 
-- Counter card movement/cost handling still uses direct movement paths.
-- Continuous modifiers apply immediately rather than stack items.
-- Refresh/refresh-penalty zone transitions are direct operations with explicit events.
+- public observation mode masks hidden information at output boundaries
+- replay visibility mode controls raw (`Full`) vs sanitized (`Public`) replay payloads
+- replay public sanitization is tied to replay visibility mode
 
-Supported trigger icons:
+## API-surface defaults and caveats
 
-- Soul, Standby, Treasure, Gate, Bounce, Draw, Shot
+There are multiple config entry paths:
 
-Notes:
+- low-level `EnvPool.new_rl_train/new_rl_eval/new_debug`
+- high-level `weiss_sim.create/train/evaluate`
 
-- `AutoEndPhaseDraw` is modeled as an auto ability, not a trigger icon.
+Important caveat:
 
-## Priority Windows and Stack Behavior
+- serialized curriculum payloads use `serde` field defaults for omitted fields
+- this can differ from `CurriculumConfig::default()` values
+- when behavior matters, set curriculum fields explicitly rather than relying on implicit defaults
 
-- Priority windows are gated by `enable_priority_windows`.
-- Priority actions are represented as `Choice` decisions.
-- With priority windows disabled, stack auto-resolves with bounded loop protection.
-- Exceeding `STACK_AUTO_RESOLVE_CAP` emits `AutoResolveCapExceeded` and invokes deterministic error handling.
-- Choice paging is deterministic and non-truncating (`page size = 16`).
+## Coverage and parser posture
 
-## Visibility Policy Behavior
+- parser-v2/rule-pack conversion drives WSDB content and ability template emission
+- strict/approx profile coverage is enforced against `scripts/ability_coverage_baseline.json`
+- approx-only ability defs are runtime-gated by `enable_approx_effects`
 
-Applies only when:
+## Known partial areas
 
-- `enable_visibility_policies = true`
-- observation visibility mode is public for relevant outputs
+- full card-text effect coverage remains in progress
+- rule 1.2.5-style direct win/lose-by-effect handling is still a tracked gap
+- advanced replacement/prevention layering remains incremental
 
-Current behavior:
+## Maintenance rules
 
-- Hidden-zone identifiers are masked at output boundaries.
-- Replay sanitization is global/viewer-agnostic in public mode.
-- Revealed hidden cards may expose `CardId` but not instance id.
-- Reveal tracking is per-viewer/per-instance and invalidated by hidden-zone reentry or shuffle.
+For behavior changes:
 
-## Coverage Tooling
-
-- WSDB build inputs are parser-v2 rule packs; conversion output is versioned as WSDB v2.
-- Ability conversion supports approximation profiles:
-  - `--approx-profile strict` (strict/default; legacy alias: `none`)
-  - `--approx-profile approx` (gated approximation emission; legacy alias: `rl_v1`)
-- Coverage reporting scripts:
-  - `scripts/ability_coverage_report.py` emits machine-readable profile comparisons.
-  - `scripts/check_coverage_budget.py` enforces non-regression against
-    `scripts/ability_coverage_baseline.json`.
-- Approx-only ability defs are marked with `conditions.requires_approx_effects=true` and are ignored at runtime unless `CurriculumConfig.enable_approx_effects=true`.
-- Ability defs may carry optional provenance at `conditions.source_rule_id` (alias `sourceRuleId`) to trace parser-v2 rule-pack origin.
-- Ability defs support optional `target_card_ids` selector narrowing for exact named/dual-trait search/salvage selectors.
-- Latest coverage snapshot (`2026-02-15`, `scripts/ability_coverage_report.py`):
-  - Parse-line coverage:
-    - `strict` (alias: `none`): `51.61%` (`15,314 / 29,675`)
-    - `approx` (alias: `rl_v1`): `99.77%` (`29,607 / 29,675`)
-  - Card-level all-lines-supported coverage:
-    - `strict` (alias: `none`): `35.03%` (`6,038 / 17,235`)
-    - `approx` (alias: `rl_v1`): `99.61%` (`17,167 / 17,235`)
-  - Family clusters (`strict` vs `approx`):
-    - `AssistOrScalingPower`: `59.24%` (`6,417 / 10,832`) vs `99.98%` (`10,830 / 10,832`)
-    - `FollowingAbilityGrant`: `13.15%` (`205 / 1,559`) vs `100.00%` (`1,559 / 1,559`)
-    - `PaidOnPlaySearchSalvage`: `59.12%` (`833 / 1,409`) vs `99.93%` (`1,408 / 1,409`)
-
-## Known Gaps / Partial Areas
-
-- Card text ingestion and effect generation beyond current `AbilityTemplate`/`AbilityDef` coverage.
-- Advanced replacement/prevention layering beyond current modifier/replacement support.
-- Ownership transfer semantics beyond current control-change behavior.
-
-## High-Risk Gotchas
-
-1. Do not bump version constants without explicit migration intent.
-2. Do not bypass canonical ability ordering helpers in encodings/replays/legal sets.
-3. Do not create unbounded effect generation paths; auto-resolve cap is enforced.
-4. Do not leak hidden-zone identity in public outputs.
-5. Do not fork replay event schema; `events.rs:Event` is authoritative.
-
-## Near-Term Work
-
-- Expand `AbilityDef` coverage and structured card text parsing.
-- Improve replacement/prevention modeling and document local-policy boundaries.
-- Profile stack/priority/targeting hot paths under large batch settings.
-- Continue tightening hidden-info tracking semantics at instance granularity.
-
-## Maintenance Rules
-
-When behavior changes:
-
-1. update relevant docs (`docs/` + this file)
-2. update tests that assert determinism/ordering
-3. run docs checks:
+1. update code + tests
+2. update relevant docs under `docs/`
+3. if contract changed, update:
+   - `docs/rl_contract.md`
+   - `docs/encodings_changelog.md`
+4. run:
 
 ```bash
 python scripts/check_docs_links.py

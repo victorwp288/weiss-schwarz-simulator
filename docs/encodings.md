@@ -1,94 +1,65 @@
-# Encodings (Observation + Action)
+# Encodings
 
-**TL;DR**
-- Encodings are a compatibility contract, not an implementation detail.
-- Treat spec JSON as authoritative layout metadata.
-- Any semantic layout change must be versioned and logged.
+Observation/action encodings are long-lived compatibility contracts.
 
-[Overview](README.md) | [Quickstart](quickstart.md) | [Engine](engine_architecture.md) | [RL Contract](rl_contract.md) | Encodings | [Performance](performance_benchmarks.md) | [Replays](replays_determinism.md) | [Rules](rules_coverage.md) | [Invariants](invariants_validation.md) | [Contributing](contributing.md)
+Use runtime JSON specs as the authoritative field layout source.
 
----
+## Contract rules
 
-## Contract principles
-
-Encodings are designed for long-lived RL pipelines where model artifacts outlive a single commit.
-
-Rules:
-
-1. Do not silently change field meaning.
+1. Never silently change meaning of an encoded field.
 2. If semantics/layout change, bump the corresponding encoding version.
-3. Keep docs, constants, and tests aligned in the same PR.
-4. Keep [Encodings changelog](encodings_changelog.md) append-only.
+3. Update code + docs + tests in one PR.
+4. Keep [Encodings Changelog](encodings_changelog.md) append-only.
 
 Primary constant source: `weiss_core/src/encode/constants.rs`.
 
----
-
 ## Observation encoding
 
-Current observation contract:
+Current contract values:
 
-- dtype: `int32`
-- length: `OBS_LEN`
-- structure: header + two player blocks + reason/context tails
+- `OBS_ENCODING_VERSION = 2`
+- `OBS_LEN = 378`
+- dtype in core spec: `int32`
 
-Top-level observation segments:
+High-level structure:
 
-- header (`OBS_HEADER_LEN`): phase/decision/attack context fields
-- player block x2 (`PER_PLAYER_BLOCK_LEN` each): counts + zone slices
-- reason bits (`OBS_REASON_LEN`): coarse gating hints
-- reveal history (`OBS_REVEAL_LEN`)
-- context bits (`OBS_CONTEXT_LEN`): priority/choice/stack/encore flags
+- header (`OBS_HEADER_LEN = 16`)
+- player block x2 (`PER_PLAYER_BLOCK_LEN` each)
+- reason tail (`OBS_REASON_LEN = 8`)
+- reveal history tail (`OBS_REVEAL_LEN`)
+- context tail (`OBS_CONTEXT_LEN = 4`)
 
-Access runtime spec JSON from Python:
+Read current runtime spec:
 
 ```python
 import json
 import weiss_sim
 
-obs_spec = json.loads(weiss_sim.observation_spec_json())
-print(obs_spec["obs_encoding_version"], obs_spec["obs_len"], obs_spec["dtype"])
+spec = json.loads(weiss_sim.observation_spec_json())
+print(spec["obs_encoding_version"], spec["obs_len"], spec["dtype"])
 ```
-
----
 
 ## Action encoding
 
-Current action contract:
+Current contract values:
 
-- fixed action id space
-- total size: `ACTION_SPACE_SIZE`
-- pass action id: `PASS_ACTION_ID`
-- legal action surfaces: mask and/or packed legal ids
+- `ACTION_ENCODING_VERSION = 1`
+- `ACTION_SPACE_SIZE = 527`
+- `PASS_ACTION_ID = 51`
 
-Representative action families:
+Action ids are fixed-space and cover families such as mulligan, clock, main, attack, level-up, encore, trigger-order, choice pagination, and concede.
 
-- mulligan confirm/select
-- pass
-- clock hand
-- main play/move/activate
-- climax play
-- attack declarations
-- level-up and encore decisions
-- trigger order
-- paged choice actions
-- concede
-
-Access runtime action spec JSON:
+Read current runtime spec:
 
 ```python
 import json
 import weiss_sim
 
-action_spec = json.loads(weiss_sim.action_spec_json())
-print(action_spec["action_encoding_version"], action_spec["action_space_size"])
+spec = json.loads(weiss_sim.action_spec_json())
+print(spec["action_encoding_version"], spec["action_space_size"], spec["pass_action_id"])
 ```
 
----
-
-## Spec bundle handshake pattern
-
-Use the combined bundle when wiring training infra:
+## Spec bundle handshake
 
 ```python
 import weiss_sim
@@ -97,34 +68,27 @@ bundle = weiss_sim.spec_bundle()
 print(bundle["policy_version"], bundle["spec_hash"])
 ```
 
-Recommended production behavior:
+Recommended integration policy:
 
-- persist `spec_hash` with training checkpoints
-- reject loading incompatible checkpoints unless explicitly migrated
-- log observation/action encoding versions at run start
+- persist `spec_hash` with checkpoints/artifacts
+- fail fast on hash mismatch unless explicit migration is applied
 
----
+## Visibility and sanitization
 
-## Visibility and sanitization interaction
+Layout is stable across visibility modes.
 
-Encoding layout remains stable across visibility modes; values are sanitized/masked based on visibility policy.
+- shape/indices do not change between `public` and `full`
+- values may be sanitized/masked in public mode
+- replay sanitization is controlled by replay visibility mode, not by changing encoding layout
 
-Meaning:
+## Required change process
 
-- consumers can rely on shape/layout stability
-- hidden information may be replaced by sentinel/masked values in public mode
-- replay sanitization is separate from in-memory engine internals
+When encoding semantics/layout change:
 
----
-
-## Change process (required)
-
-When encoding behavior changes:
-
-1. update `weiss_core/src/encode/constants.rs` and/or encode logic
-2. update `docs/rl_contract.md` checksum table
-3. append entry in `docs/encodings_changelog.md`
-4. run tests and doc checks
+1. update encode constants/logic
+2. update [RL Contract checksum table](rl_contract.md)
+3. append an entry to [Encodings Changelog](encodings_changelog.md)
+4. run checks:
 
 ```bash
 python scripts/check_docs_constants.py
@@ -133,10 +97,8 @@ cargo test --workspace --features test-harness
 pytest -q python/tests
 ```
 
----
-
 ## Related
 
-- [Encodings changelog](encodings_changelog.md)
-- [RL contract](rl_contract.md)
-- [Invariants & validation](invariants_validation.md)
+- [RL Contract](rl_contract.md)
+- [Encodings Changelog](encodings_changelog.md)
+- [Invariants & Validation](invariants_validation.md)

@@ -1,172 +1,116 @@
 # Engine Architecture
 
-**TL;DR**
-- The engine runs an internal loop until a decision must be made.
-- Determinism comes from canonical ordering, explicit caps, and stable encodings.
-- Module boundaries are intentionally strict and checked in CI.
+This page describes how the runtime executes decisions, preserves determinism, and exposes a stable RL-facing surface.
 
-[Overview](README.md) | [Quickstart](quickstart.md) | Engine | [RL Contract](rl_contract.md) | [Encodings](encodings.md) | [Performance](performance_benchmarks.md) | [Replays](replays_determinism.md) | [Rules](rules_coverage.md) | [Invariants](invariants_validation.md) | [Contributing](contributing.md)
-
----
-
-## On this page
-
-- Layering model
-- Runtime loop
-- Action pipeline
-- Effect and targeting pipeline
-- Timing and priority behavior
-- Failure surfaces
-
----
-
-## Layering model
+## Layer model
 
 ```mermaid
 flowchart TB
-  A["Low level: types/constants/cache/visibility/shared"] --> B["Mid level: movement / interaction / phases"]
-  B --> C["Advance loop"]
-  C --> D["Public API: GameEnv + EnvPool"]
+  A["Data + contracts\nstate/db/encode/fingerprint/replay"] --> B["Runtime modules\nactions/movement/interaction/phases"]
+  B --> C["Advance loop\nadvance_until_decision"]
+  C --> D["Batched boundary\nEnvPool + Python bindings"]
 ```
 
-Primary modules:
+High-level module responsibilities:
 
-- `env/actions/`: legal action generation + action application
-- `env/movement/`: zone movement, play rules, level/encore/stock/draw helpers
-- `env/interaction/`: choice/targeting/cost/effect queue/stack logic
-- `env/phases/`: phase-local rule behavior (attack, end, trigger, rule actions)
-- `env/advance/`: internal state-machine driver that progresses to next decision
-- `pool/`: batched stepping, output writing, threading helpers
+- `weiss_core/src/encode/`: action/observation encodings and spec JSON
+- `weiss_core/src/env/actions/`: canonical legal action generation + application
+- `weiss_core/src/env/movement/`: zone/card movement and play constraints
+- `weiss_core/src/env/interaction/`: costs, targeting, stack, priority, choices
+- `weiss_core/src/env/phases/`: phase-specific rules/check-timing logic
+- `weiss_core/src/env/advance/`: internal progression loop
+- `weiss_core/src/pool/`: batched stepping, fault handling, output assembly
 
-Layering constraints are enforced by `scripts/check_env_layering.sh` and CI.
+Layering guardrail: `scripts/check_env_layering.sh`
 
-Practical rule:
+## Runtime control flow
 
-- put reusable logic into `movement`, `interaction`, or `phases`
-- keep `advance` as the orchestration layer, not a logic dump
-
----
-
-## Runtime loop (advance-until-decision)
-
-Core contract: one external `step` call may execute many internal game operations, but returns only when the next decision boundary is reached (or episode ends).
-
-Simplified flow:
-
-1. apply caller action
-2. run immediate rule actions and check-timing queues
-3. resolve stack/trigger windows according to curriculum flags
-4. progress phase/tick state
-5. stop at decision boundary or terminal/truncated state
+Core loop: `GameEnv::advance_until_decision`.
 
 ```mermaid
 flowchart LR
-  A["Apply action"] --> B["Rule actions + check timing"]
-  B --> C["Priority / stack / trigger handling"]
-  C --> D["Phase advancement"]
-  D --> E{"Decision required?"}
-  E -->|"yes"| F["Return output tensors"]
+  A["Apply caller action"] --> B["Resolve rule actions/check timing"]
+  B --> C["Handle triggers/stack/priority"]
+  C --> D["Advance phase + tick"]
+  D --> E{"Decision ready\nor terminal/truncated?"}
   E -->|"no"| B
+  E -->|"yes"| F["Return one boundary row"]
 ```
 
-This is why caller loops are decision-based, not per micro-transition.
+Key properties:
 
----
+- one external `step` can include many internal transitions
+- returns only at a decision boundary or end state
+- stack/check-timing loops are bounded:
+  - `STACK_AUTO_RESOLVE_CAP=256`
+  - `CHECK_TIMING_QUIESCENCE_CAP=256`
 
 ## Action pipeline
 
-The canonical source of legal behavior is `ActionDesc`.
+Action truth source is canonical `ActionDesc`.
 
-Pipeline:
-
-1. build legal canonical actions from `DecisionKind`
-2. map canonical actions to action ids (fixed action space)
-3. derive mask/legal-id outputs from the same canonical set
+1. build legal canonical actions for current `DecisionKind`
+2. map canonical actions into fixed action ids
+3. expose derived legal surfaces (mask and/or packed ids)
 4. apply selected action id
 
-Important implications:
+Implication: masks and legal-id vectors are derived views, not independent legality logic.
 
-- masks and legal ids are views, not independent truth sources
-- if canonical legality changes, action encoding docs/tests must be updated
-- policy code should treat illegal ids as errors, not fallback behavior
+## Determinism model
 
----
+Determinism comes from explicit ordering and serialized state hashing.
 
-## Effect and targeting pipeline
+Ordering guarantees are enforced by implementation choices such as:
 
-Current architecture is mostly unified through effect payload resolution:
+- canonical ability ordering in DB load/lookup paths
+- stable slot/index traversal in legality and targeting
+- deterministic choice paging (`CHOICE_COUNT=16`)
+- explicit caps for runaway trigger/stack behavior
 
-1. compile effects from triggers/abilities/events
-2. enumerate target candidates deterministically
-3. enqueue stack items when needed
-4. resolve with explicit ordering and bounded loops
+Replay/fingerprint support:
 
-Determinism safeguards:
+- `state_fingerprint(...)`
+- `events_fingerprint(...)`
+- replay metadata includes `spec_hash`, `config_hash`, seeds, and versions
 
-- canonical ability order helper from `CardDb`
-- slot/index ordered targeting and action ordering
-- explicit auto-resolve caps for unstable loops
+## Priority, stack, and trigger behavior
 
-Known direct-path exceptions (intentional, documented):
+- Priority windows are curriculum-gated (`enable_priority_windows`).
+- Priority actions are represented as `Choice` decisions.
+- Passing can close the window and continue stack resolution.
+- Trigger effects are sorted with deterministic keys before resolution.
+- Stack ordering is deterministic and can surface explicit ordering decisions when needed.
 
-- some counter movement/cost handling
-- continuous modifiers that apply immediately
-- refresh/refresh-penalty zone operations
+## Fault surfaces
 
-Granted ability runtime notes:
+Per-env runtime faults are surfaced via `engine_status`.
 
-- live ability lookup merges static DB abilities and temporary granted abilities in deterministic order.
-- encore variant cost discovery now reads from live abilities, so temporarily granted `Encore [...]` costs are honored during encore decisions.
-
----
-
-## Timing and priority behavior
-
-Timing windows are explicit and flag-driven.
-
-- `enable_priority_windows=false` (default): stack auto-resolves deterministically
-- `enable_priority_windows=true`: priority actions are exposed via `Choice`
-
-Priority window behavior summary:
-
-- single legal action can autopick when configured
-- pass behavior is governed by curriculum flags
-- double pass closes a priority window and continues resolution
-
-Choice paging:
-
-- fixed page size (`16`)
-- deterministic ordering
-- no candidate-universe truncation
-
----
-
-## Failure surfaces and safeguards
-
-Engine error codes are surfaced per env through `engine_status`.
-
-Representative non-zero codes:
-
-- stack auto-resolve cap exceeded
-- trigger quiescence cap exceeded
-- action application error
-- trapped runtime panic (`Panic`)
-- reset returned an error (`ResetError`)
-- trapped reset panic (`ResetPanic`)
-- runtime invariant violation (`InvariantViolation`)
+| Code | Name |
+| --- | --- |
+| `0` | `None` |
+| `1` | `StackAutoResolveCap` |
+| `2` | `TriggerQuiescenceCap` |
+| `3` | `Panic` |
+| `4` | `ActionError` |
+| `5` | `InvariantViolation` |
+| `6` | `ResetError` |
+| `7` | `ResetPanic` |
 
 Operational guidance:
 
-- keep training loops checking `engine_status`
-- use `auto_reset_on_error_codes_into(...)` where long-running jobs need robustness
-- treat non-zero codes as contract signals, not ignorable warnings
-- build Python extension paths with `panic=unwind` so per-env panic containment is effective
+- treat non-zero `engine_status` as contract-relevant state
+- use auto-reset helpers for long-running jobs
+- monitor counts via `engine_error_reset_count()`
 
----
+## Visibility and replay sanitization
 
-## Where to read next
+- output/replay sanitization is applied at serialization/output boundaries
+- replay visibility mode controls whether raw or public-sanitized actions/events are written
+- hidden-zone identifiers are masked in public outputs
 
-- [RL contract](rl_contract.md)
-- [Rules coverage](rules_coverage.md)
-- [Invariants & validation](invariants_validation.md)
-- [Replays & determinism](replays_determinism.md)
+## Related
+
+- [RL Contract](rl_contract.md)
+- [Rules Coverage](rules_coverage.md)
+- [Replays & Determinism](replays_determinism.md)
+- [Invariants & Validation](invariants_validation.md)
