@@ -381,6 +381,7 @@ pub(super) fn facing_opponent_add_modifier(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn self_add_modifier_if_facing_opponent(
     env: &mut GameEnv,
     source_id: CardId,
@@ -438,6 +439,7 @@ pub(super) fn self_add_modifier_if_facing_opponent(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn conditional_add_modifier(
     env: &mut GameEnv,
     controller: u8,
