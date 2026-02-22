@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::collections::HashSet;
@@ -119,35 +117,85 @@ pub enum ActionDesc {
     /// Confirm mulligan without selecting additional cards.
     MulliganConfirm,
     /// Select a hand card for mulligan.
-    MulliganSelect { hand_index: u8 },
+    MulliganSelect {
+        /// Zero-based hand index parameter.
+        hand_index: u8,
+    },
     /// Pass the current decision.
     Pass,
     /// Clock a hand card.
-    Clock { hand_index: u8 },
+    Clock {
+        /// Zero-based hand index parameter.
+        hand_index: u8,
+    },
     /// Play a character from hand to a stage slot.
-    MainPlayCharacter { hand_index: u8, stage_slot: u8 },
+    MainPlayCharacter {
+        /// Zero-based hand index parameter.
+        hand_index: u8,
+        /// Zero-based stage slot parameter.
+        stage_slot: u8,
+    },
     /// Play an event from hand.
-    MainPlayEvent { hand_index: u8 },
+    MainPlayEvent {
+        /// Zero-based hand index parameter.
+        hand_index: u8,
+    },
     /// Move a character between stage slots.
-    MainMove { from_slot: u8, to_slot: u8 },
+    MainMove {
+        /// Zero-based source stage slot parameter.
+        from_slot: u8,
+        /// Zero-based destination stage slot parameter.
+        to_slot: u8,
+    },
     /// Activate a character ability from a stage slot.
-    MainActivateAbility { slot: u8, ability_index: u8 },
+    MainActivateAbility {
+        /// Zero-based stage slot parameter.
+        slot: u8,
+        /// Zero-based ability index on the source card.
+        ability_index: u8,
+    },
     /// Play a climax from hand.
-    ClimaxPlay { hand_index: u8 },
+    ClimaxPlay {
+        /// Zero-based hand index parameter.
+        hand_index: u8,
+    },
     /// Declare an attack from a stage slot.
-    Attack { slot: u8, attack_type: AttackType },
+    Attack {
+        /// Zero-based stage slot parameter.
+        slot: u8,
+        /// Attack type parameter.
+        attack_type: AttackType,
+    },
     /// Play a counter from hand.
-    CounterPlay { hand_index: u8 },
+    CounterPlay {
+        /// Zero-based hand index parameter.
+        hand_index: u8,
+    },
     /// Select a card for level up.
-    LevelUp { index: u8 },
+    LevelUp {
+        /// Zero-based selection index parameter.
+        index: u8,
+    },
     /// Pay encore for a character.
-    EncorePay { slot: u8 },
+    EncorePay {
+        /// Zero-based stage slot parameter.
+        slot: u8,
+    },
     /// Decline encore for a character.
-    EncoreDecline { slot: u8 },
+    EncoreDecline {
+        /// Zero-based stage slot parameter.
+        slot: u8,
+    },
     /// Select trigger order index.
-    TriggerOrder { index: u8 },
+    TriggerOrder {
+        /// Zero-based selection index parameter.
+        index: u8,
+    },
     /// Select a choice option by index.
-    ChoiceSelect { index: u8 },
+    ChoiceSelect {
+        /// Zero-based selection index parameter.
+        index: u8,
+    },
     /// Page to previous choice options.
     ChoicePrevPage,
     /// Page to next choice options.

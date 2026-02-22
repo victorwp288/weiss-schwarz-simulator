@@ -58,6 +58,24 @@ run() {
   "$@"
 }
 
+can_write_dir() {
+  local dir="$1"
+  local probe="$dir/.wss_write_probe.$$"
+  if ( : >"$probe" ) 2>/dev/null; then
+    rm -f "$probe" >/dev/null 2>&1 || true
+    return 0
+  fi
+  return 1
+}
+
+can_resolve_host() {
+  local host="$1"
+  "$PYTHON_BIN" - <<PY >/dev/null 2>&1
+import socket
+socket.getaddrinfo("$host", 443)
+PY
+}
+
 MIN_PARSE_LINE_COVERAGE_STRICT="${MIN_PARSE_LINE_COVERAGE_STRICT:-0.52}"
 MAX_UNSUPPORTED_LINES_STRICT="${MAX_UNSUPPORTED_LINES_STRICT:-14200}"
 MIN_CARD_COVERAGE_APPROX="${MIN_CARD_COVERAGE_APPROX:-0.99}"
@@ -133,9 +151,41 @@ else
   cleanup_perf_workdirs
 fi
 
-run "Cargo audit" cargo audit
-run "pip-audit project" "$PYTHON_BIN" -m pip_audit .
-run "pip-audit scraper requirements" "$PYTHON_BIN" -m pip_audit -r scraper/requirements.txt
+PIP_AUDIT_CACHE_DIR="${PIP_AUDIT_CACHE_DIR:-/tmp/pip-audit-cache}"
+
+AUDIT_DB_DEFAULT="${HOME:-}/.cargo/advisory-db"
+AUDIT_DB_PARENT="${HOME:-}/.cargo"
+AUDIT_DB_FALLBACK="$ROOT_DIR/target/advisory-db"
+AUDIT_DB_ARGS=()
+
+if [[ -n "${CARGO_AUDIT_DB:-}" ]]; then
+  AUDIT_DB_ARGS=(--db "$CARGO_AUDIT_DB")
+elif can_write_dir "$AUDIT_DB_PARENT"; then
+  AUDIT_DB_ARGS=(--db "$AUDIT_DB_DEFAULT")
+else
+  if [[ ! -d "$AUDIT_DB_FALLBACK/.git" && -d "$AUDIT_DB_DEFAULT/.git" ]]; then
+    rm -rf "$AUDIT_DB_FALLBACK"
+    mkdir -p "$(dirname "$AUDIT_DB_FALLBACK")"
+    cp -R "$AUDIT_DB_DEFAULT" "$AUDIT_DB_FALLBACK"
+  fi
+  AUDIT_DB_ARGS=(--db "$AUDIT_DB_FALLBACK" --no-fetch --stale)
+fi
+
+run "Cargo audit" cargo audit "${AUDIT_DB_ARGS[@]}"
+
+if [[ "${PIP_AUDIT_OFFLINE:-0}" == "1" ]] || ! can_resolve_host "pypi.org"; then
+  run "pip-audit (offline dry-run)" \
+    "$PYTHON_BIN" -m pip_audit \
+    --local \
+    --dry-run \
+    --cache-dir "$PIP_AUDIT_CACHE_DIR" \
+    --progress-spinner off
+else
+  run "pip-audit project" \
+    "$PYTHON_BIN" -m pip_audit --cache-dir "$PIP_AUDIT_CACHE_DIR" --progress-spinner off .
+  run "pip-audit scraper requirements" \
+    "$PYTHON_BIN" -m pip_audit --cache-dir "$PIP_AUDIT_CACHE_DIR" --progress-spinner off -r scraper/requirements.txt
+fi
 
 echo
 echo "Local CI parity checks completed."

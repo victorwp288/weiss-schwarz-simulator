@@ -1,11 +1,10 @@
-#![allow(missing_docs)]
-
 use std::collections::HashSet;
 
 use crate::config::CurriculumConfig;
 use crate::db::{CardColor, CardDb, CardStatic};
 use crate::state::PlayerState;
 
+/// Check whether a card is allowed under the current curriculum and optional explicit allow-list.
 #[inline(always)]
 pub(crate) fn card_set_allowed(
     card: &CardStatic,
@@ -28,6 +27,7 @@ pub(crate) fn card_set_allowed(
     }
 }
 
+/// Check the level requirement for playing a card from hand.
 #[inline(always)]
 pub(crate) fn meets_level_requirement(
     card: &CardStatic,
@@ -38,6 +38,7 @@ pub(crate) fn meets_level_requirement(
     required_level <= level_count
 }
 
+/// Check the stock cost requirement for playing a card from hand.
 #[inline(always)]
 pub(crate) fn meets_cost_requirement(
     card: &CardStatic,
@@ -47,6 +48,7 @@ pub(crate) fn meets_cost_requirement(
     !enforce_cost_requirement || stock_count >= card.cost as usize
 }
 
+/// Check the color requirement for playing a card from hand.
 #[inline(always)]
 pub(crate) fn meets_color_requirement(
     card: &CardStatic,
@@ -71,6 +73,7 @@ pub(crate) fn meets_color_requirement(
     false
 }
 
+/// Check all requirements for playing a card from hand under the current curriculum.
 #[inline(always)]
 pub(crate) fn meets_play_requirements(
     card: &CardStatic,

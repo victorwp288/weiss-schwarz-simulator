@@ -2,16 +2,22 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AbilityCostStep {
     #[serde(alias = "restOther", alias = "rest_other")]
+    /// Rest another character as part of the activation cost.
     RestOther,
     #[serde(alias = "sacrificeFromStage", alias = "sacrifice_from_stage")]
+    /// Put a character from stage into waiting room as part of the activation cost.
     SacrificeFromStage,
     #[serde(alias = "discardFromHand", alias = "discard_from_hand")]
+    /// Discard a card from hand as part of the activation cost.
     DiscardFromHand,
     #[serde(alias = "clockFromHand", alias = "clock_from_hand")]
+    /// Clock a card from hand as part of the activation cost.
     ClockFromHand,
     #[serde(alias = "clockFromDeckTop", alias = "clock_from_deck_top")]
+    /// Clock the top card(s) of the deck as part of the activation cost.
     ClockFromDeckTop,
     #[serde(alias = "revealFromHand", alias = "reveal_from_hand")]
+    /// Reveal a card from hand as part of the activation cost.
     RevealFromHand,
 }
 
@@ -239,36 +245,67 @@ impl AbilityDef {
 /// Timing windows for triggered abilities.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum AbilityTiming {
+    /// At the beginning of the turn.
     BeginTurn,
+    /// At the beginning of the stand phase.
     BeginStandPhase,
+    /// After the stand phase completes.
     AfterStandPhase,
+    /// At the beginning of the draw phase.
     BeginDrawPhase,
+    /// After the draw phase completes.
     AfterDrawPhase,
+    /// At the beginning of the clock phase.
     BeginClockPhase,
+    /// After the clock phase completes.
     AfterClockPhase,
+    /// During the level-up procedure.
     LevelUp,
+    /// At the beginning of the main phase.
     BeginMainPhase,
+    /// At the beginning of the climax phase.
     BeginClimaxPhase,
+    /// After the climax phase completes.
     AfterClimaxPhase,
+    /// At the beginning of the attack phase.
     BeginAttackPhase,
+    /// At the beginning of the attack declaration step.
     BeginAttackDeclarationStep,
+    /// At the beginning of the encore step.
     BeginEncoreStep,
+    /// During the end phase.
     EndPhase,
+    /// During end-phase cleanup.
     EndPhaseCleanup,
+    /// After an attack finishes resolving.
     EndOfAttack,
+    /// When declaring an attack.
     AttackDeclaration,
+    /// When the opponent declares an attack.
     OtherAttackDeclaration,
+    /// During trigger resolution.
     TriggerResolution,
+    /// During counter timing.
     Counter,
+    /// When using an ACT ability.
     UseAct,
+    /// During damage resolution.
     DamageResolution,
+    /// During encore timing.
     Encore,
+    /// When the source is played.
     OnPlay,
+    /// When the source becomes reversed.
     OnReverse,
+    /// When the battle opponent becomes reversed.
     BattleOpponentReverse,
+    /// After dealing damage that was not canceled.
     DamageDealtNotCanceled,
+    /// After receiving damage that was not canceled.
     DamageReceivedNotCanceled,
+    /// After dealing damage that was canceled.
     DamageDealtCanceled,
+    /// After receiving damage that was canceled.
     DamageReceivedCanceled,
 }
 
@@ -276,106 +313,185 @@ pub enum AbilityTiming {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[allow(clippy::large_enum_variant)]
 pub enum AbilityTemplate {
+    /// No special behavior (placeholder template).
     Vanilla,
+    /// Continuous power modifier while on stage.
     ContinuousPower {
+        /// Power delta to apply.
         amount: i32,
     },
+    /// Continuous "cannot attack" modifier while on stage.
     ContinuousCannotAttack,
+    /// Continuous attack cost modifier while on stage.
     ContinuousAttackCost {
+        /// Additional stock cost to declare an attack.
         cost: u8,
     },
+    /// Auto ability: on play, draw cards.
     AutoOnPlayDraw {
+        /// Number of cards to draw.
         count: u8,
     },
+    /// Auto ability: on play, salvage cards from waiting room.
     AutoOnPlaySalvage {
+        /// Number of cards to salvage.
         count: u8,
+        /// Whether salvaging is optional.
         optional: bool,
+        /// Optional card type restriction.
         card_type: Option<CardType>,
     },
+    /// Auto ability: on play, search the top of the deck and take cards.
     AutoOnPlaySearchDeckTop {
+        /// Maximum number of cards to take.
         count: u8,
+        /// Whether taking a card is optional.
         optional: bool,
+        /// Optional card type restriction.
         card_type: Option<CardType>,
     },
+    /// Auto ability: on play, reveal the top cards of the deck.
     AutoOnPlayRevealDeckTop {
+        /// Number of cards to reveal.
         count: u8,
     },
+    /// Auto ability: on play, stock charge.
     AutoOnPlayStockCharge {
+        /// Number of cards to stock charge.
         count: u8,
     },
+    /// Auto ability: on play, mill cards from the top of the deck.
     AutoOnPlayMillTop {
+        /// Number of cards to mill.
         count: u8,
     },
+    /// Auto ability: on play, heal.
     AutoOnPlayHeal {
+        /// Number of clock cards to heal.
         count: u8,
     },
+    /// Auto ability: on attack, deal effect damage.
     AutoOnAttackDealDamage {
+        /// Damage amount.
         amount: u8,
+        /// Whether the damage is cancelable.
         cancelable: bool,
     },
+    /// Auto ability: end of phase draw.
     AutoEndPhaseDraw {
+        /// Number of cards to draw.
         count: u8,
     },
+    /// Auto ability: on reverse, draw.
     AutoOnReverseDraw {
+        /// Number of cards to draw.
         count: u8,
     },
+    /// Auto ability: on reverse, salvage cards from waiting room.
     AutoOnReverseSalvage {
+        /// Number of cards to salvage.
         count: u8,
+        /// Whether salvaging is optional.
         optional: bool,
+        /// Optional card type restriction.
         card_type: Option<CardType>,
     },
+    /// Event ability: deal effect damage.
     EventDealDamage {
+        /// Damage amount.
         amount: u8,
+        /// Whether the damage is cancelable.
         cancelable: bool,
     },
+    /// Placeholder for an activated ability without a concrete template.
     ActivatedPlaceholder,
+    /// Activated ability: grant power to targets.
     ActivatedTargetedPower {
+        /// Power delta to apply.
         amount: i32,
+        /// Number of targets to select.
         count: u8,
+        /// Target template to select from.
         target: TargetTemplate,
     },
+    /// Activated ability (paid): grant power to targets.
     ActivatedPaidTargetedPower {
+        /// Stock cost to pay.
         cost: u8,
+        /// Power delta to apply.
         amount: i32,
+        /// Number of targets to select.
         count: u8,
+        /// Target template to select from.
         target: TargetTemplate,
     },
+    /// Activated ability: move selected targets to hand.
     ActivatedTargetedMoveToHand {
+        /// Number of targets to select.
         count: u8,
+        /// Target template to select from.
         target: TargetTemplate,
     },
+    /// Activated ability (paid): move selected targets to hand.
     ActivatedPaidTargetedMoveToHand {
+        /// Stock cost to pay.
         cost: u8,
+        /// Number of targets to select.
         count: u8,
+        /// Target template to select from.
         target: TargetTemplate,
     },
+    /// Activated ability: change controller of selected targets.
     ActivatedChangeController {
+        /// Number of targets to select.
         count: u8,
+        /// Target template to select from.
         target: TargetTemplate,
     },
+    /// Activated ability (paid): change controller of selected targets.
     ActivatedPaidChangeController {
+        /// Stock cost to pay.
         cost: u8,
+        /// Number of targets to select.
         count: u8,
+        /// Target template to select from.
         target: TargetTemplate,
     },
+    /// Counter ability: power backup.
     CounterBackup {
+        /// Power amount to add.
         power: i32,
     },
+    /// Counter ability: reduce incoming damage.
     CounterDamageReduce {
+        /// Reduction amount.
         amount: u8,
     },
+    /// Counter ability: cancel the next damage instance.
     CounterDamageCancel,
+    /// Activated ability: "bond" search with structured cost.
     Bond {
+        /// Activation cost specification.
         cost: AbilityCost,
+        /// Number of cards to search for.
         count: u8,
         #[serde(default)]
+        /// Optional card id whitelist for bond targets.
         target_ids: Vec<CardId>,
     },
+    /// Encore ability variant with structured cost.
     EncoreVariant {
+        /// Encore cost specification.
         cost: AbilityCost,
     },
-    AbilityDef(AbilityDef),
+    /// Fully specified ability definition parsed from a rule pack.
+    AbilityDef(
+        /// Definition payload.
+        AbilityDef,
+    ),
+    /// Unknown/unsupported ability template id.
     Unsupported {
+        /// Raw template id encountered during parsing.
         id: u32,
     },
 }
@@ -403,35 +519,65 @@ pub struct AbilitySpec {
 /// Lightweight tags for ability templates (used in analytics/validation).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AbilityTemplateTag {
+    /// Tag for `AbilityTemplate::Vanilla`.
     Vanilla,
+    /// Tag for `AbilityTemplate::ContinuousPower`.
     ContinuousPower,
+    /// Tag for `AbilityTemplate::ContinuousCannotAttack`.
     ContinuousCannotAttack,
+    /// Tag for `AbilityTemplate::ContinuousAttackCost`.
     ContinuousAttackCost,
+    /// Tag for `AbilityTemplate::AutoOnPlayDraw`.
     AutoOnPlayDraw,
+    /// Tag for `AbilityTemplate::AutoOnPlaySalvage`.
     AutoOnPlaySalvage,
+    /// Tag for `AbilityTemplate::AutoOnPlaySearchDeckTop`.
     AutoOnPlaySearchDeckTop,
+    /// Tag for `AbilityTemplate::AutoOnPlayRevealDeckTop`.
     AutoOnPlayRevealDeckTop,
+    /// Tag for `AbilityTemplate::AutoOnPlayStockCharge`.
     AutoOnPlayStockCharge,
+    /// Tag for `AbilityTemplate::AutoOnPlayMillTop`.
     AutoOnPlayMillTop,
+    /// Tag for `AbilityTemplate::AutoOnPlayHeal`.
     AutoOnPlayHeal,
+    /// Tag for `AbilityTemplate::AutoOnAttackDealDamage`.
     AutoOnAttackDealDamage,
+    /// Tag for `AbilityTemplate::AutoEndPhaseDraw`.
     AutoEndPhaseDraw,
+    /// Tag for `AbilityTemplate::AutoOnReverseDraw`.
     AutoOnReverseDraw,
+    /// Tag for `AbilityTemplate::AutoOnReverseSalvage`.
     AutoOnReverseSalvage,
+    /// Tag for `AbilityTemplate::EventDealDamage`.
     EventDealDamage,
+    /// Tag for `AbilityTemplate::ActivatedPlaceholder`.
     ActivatedPlaceholder,
+    /// Tag for `AbilityTemplate::ActivatedTargetedPower`.
     ActivatedTargetedPower,
+    /// Tag for `AbilityTemplate::ActivatedPaidTargetedPower`.
     ActivatedPaidTargetedPower,
+    /// Tag for `AbilityTemplate::ActivatedTargetedMoveToHand`.
     ActivatedTargetedMoveToHand,
+    /// Tag for `AbilityTemplate::ActivatedPaidTargetedMoveToHand`.
     ActivatedPaidTargetedMoveToHand,
+    /// Tag for `AbilityTemplate::ActivatedChangeController`.
     ActivatedChangeController,
+    /// Tag for `AbilityTemplate::ActivatedPaidChangeController`.
     ActivatedPaidChangeController,
+    /// Tag for `AbilityTemplate::CounterBackup`.
     CounterBackup,
+    /// Tag for `AbilityTemplate::CounterDamageReduce`.
     CounterDamageReduce,
+    /// Tag for `AbilityTemplate::CounterDamageCancel`.
     CounterDamageCancel,
+    /// Tag for `AbilityTemplate::Bond`.
     Bond,
+    /// Tag for `AbilityTemplate::EncoreVariant`.
     EncoreVariant,
+    /// Tag for `AbilityTemplate::AbilityDef`.
     AbilityDef,
+    /// Tag for `AbilityTemplate::Unsupported`.
     Unsupported,
 }
 

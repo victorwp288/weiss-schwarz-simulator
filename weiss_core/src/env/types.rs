@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use crate::config::ObservationVisibility;
 use crate::db::CardId;
 use crate::state::{DamageType, TerminalResult};
@@ -84,17 +82,24 @@ pub enum EngineErrorCode {
 /// Stable source location for a latched env fault.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FaultSource {
+    /// Fault was captured while stepping an environment.
     Step,
+    /// Fault was captured while resetting an environment.
     Reset,
 }
 
 /// Latched per-env runtime fault metadata.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FaultRecord {
+    /// Engine error classification.
     pub code: EngineErrorCode,
+    /// Perspective player associated with the fault (if any).
     pub actor: Option<u8>,
+    /// Stable fingerprint for identifying the fault source.
     pub fingerprint: u64,
+    /// Operation that produced the fault.
     pub source: FaultSource,
+    /// Whether a reward was already emitted for this fault.
     pub reward_emitted: bool,
 }
 

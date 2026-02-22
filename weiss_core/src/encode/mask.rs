@@ -13,9 +13,9 @@ pub fn fill_action_mask(
     for slot in lookup.iter_mut() {
         *slot = None;
     }
+    let max_len = mask.len().min(lookup.len());
     for action in actions {
         if let Some(id) = action_id_for(action) {
-            let max_len = mask.len().min(lookup.len());
             if id < max_len {
                 mask[id] = 1;
                 lookup[id] = Some(action.clone());
@@ -77,6 +77,14 @@ pub fn fill_action_mask_sparse(
 pub fn build_action_mask(actions: &[ActionDesc]) -> (Vec<u8>, Vec<Option<ActionDesc>>) {
     let mut mask = vec![0u8; ACTION_SPACE_SIZE];
     let mut lookup = vec![None; ACTION_SPACE_SIZE];
-    fill_action_mask(actions, &mut mask, &mut lookup);
+    let max_len = mask.len().min(lookup.len());
+    for action in actions {
+        if let Some(id) = action_id_for(action) {
+            if id < max_len {
+                mask[id] = 1;
+                lookup[id] = Some(action.clone());
+            }
+        }
+    }
     (mask, lookup)
 }
