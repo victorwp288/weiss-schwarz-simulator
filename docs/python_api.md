@@ -92,8 +92,10 @@ Accepted for `deck` and `opponent_deck`:
 - `current_to_play_seat() -> np.ndarray`
 - `merge_actions_by_seat(seat0_actions, seat1_actions, default_action=...)`
 - `step_by_seat(seat0_actions, seat1_actions, default_action=...)`
-- `step_select_from_logits(logits, illegal_value=-1e9)`
-- `step_sample_from_logits(logits, seed=None, temperature=1.0, illegal_value=-1e9)`
+- `step_select_from_logits(logits, illegal_value=-1e9) -> (StepBatch, np.ndarray actions)`
+- `step_sample_from_logits(logits, seed=None, temperature=1.0, illegal_value=-1e9) -> (StepBatch, np.ndarray actions)`
+
+Both logits helpers return `(step, actions)` where `actions` is a `np.ndarray` of shape `(num_envs,)` with `dtype=uint32`.
 
 ### Legal actions: primary path (`batch.legal`)
 
@@ -153,6 +155,18 @@ for i in range(num_envs):
         actions[i] = int(batch.legal_ids[start])
 ```
 
+### Debug helpers
+
+- `render(env_i=0) -> str`: compact single-env debug view (mode `"ansi"` only)
+- `decode_action(action_id) -> dict`: decode an action id into a structured dict (family + params)
+
+### Adapters
+
+Optional adapters live in `python/weiss_sim/adapters.py`:
+
+- `WeissEnv.as_single_env()` (single-environment adapter)
+- `WeissEnv.as_gym()` / `WeissEnv.as_gym_single()` (Gym/Gymnasium adapters, if installed)
+
 ## Low-level API (canonical layout-based surface)
 
 ### Constructor
@@ -189,8 +203,8 @@ Common methods on `EnvPoolBuffers`:
 
 - `reset()`, `reset_indices(...)`, `reset_done(...)`
 - `step(actions)`
-- `step_select_from_logits(logits)`
-- `step_sample_from_logits(logits, seeds)`
+- `step_select_from_logits(logits) -> (StepBatch, np.ndarray actions)`
+- `step_sample_from_logits(logits, seeds) -> (StepBatch, np.ndarray actions)`
 - `legal_action_ids()` / `legal_action_ids_and_sample_uniform(seeds)`
 
 `EnvPoolTrajectoryBuffers` methods:

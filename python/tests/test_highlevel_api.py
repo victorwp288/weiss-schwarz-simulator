@@ -380,6 +380,27 @@ def test_step_select_and_sample_from_logits_fast_path():
             )
 
 
+def test_render_smoke():
+    with weiss_sim.make(mode="inspect", num_envs=1, seed=7, card_pool="all") as sim:
+        sim.reset()
+        rendered = sim.render()
+        assert isinstance(rendered, str)
+        assert rendered
+        assert "WeissEnv[0]" in rendered
+
+
+def test_decode_action_smoke():
+    with weiss_sim.make(mode="inspect", num_envs=1, seed=8, card_pool="all") as sim:
+        batch = sim.reset()
+        legal = batch.legal.ids(0)
+        action_id = int(legal[0]) if legal.size else int(weiss_sim.PASS_ACTION_ID)
+        desc = sim.decode_action(action_id)
+        assert isinstance(desc, dict)
+        assert "family" in desc
+        assert "params" in desc
+        assert isinstance(desc["params"], list)
+
+
 def test_reset_done_and_reset_indices_partial_helpers():
     with weiss_sim.make(mode="inspect", num_envs=4, seed=404, card_pool="all") as sim:
         reset = sim.reset()
