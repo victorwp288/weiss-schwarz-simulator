@@ -2,6 +2,7 @@ use super::GameEnv;
 use crate::db::*;
 use crate::effects::*;
 use crate::events::*;
+use crate::modifier_queries::modifier_targets_slot_card;
 use crate::state::*;
 
 impl GameEnv {
@@ -120,9 +121,7 @@ impl GameEnv {
             return false;
         };
         self.state.modifiers.iter().any(|modifier| {
-            modifier.target_player == player
-                && modifier.target_slot == slot
-                && modifier.target_card == card_inst.id
+            modifier_targets_slot_card(modifier, p, s, card_inst.id)
                 && modifier.kind == kind
                 && modifier.magnitude != 0
         })

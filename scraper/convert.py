@@ -9,27 +9,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 try:
     from scraper.parser_v2.engine import PARSER_VERSION_V2, parse_line as parse_line_v2
+    from scraper.parser_v2.normalize import normalize_ability_line
 except ModuleNotFoundError:
     from parser_v2.engine import PARSER_VERSION_V2, parse_line as parse_line_v2
+    from parser_v2.normalize import normalize_ability_line
 
-
-FULLWIDTH_TRANSLATION = str.maketrans(
-    {
-        "［": "[",
-        "］": "]",
-        "／": "/",
-        "（": "(",
-        "）": ")",
-        "，": ",",
-        "．": ".",
-        "：": ":",
-        "；": ";",
-        "　": " ",
-    }
-)
 COUNT_TOKEN_RE = r"(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)"
-CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F]")
-JSX_FRAGMENT_RE = re.compile(r"""['"]?\s*/>\s*""")
 
 
 TRIGGER_MAP = {
@@ -88,18 +73,8 @@ RULE_MODE_EXACT = "exact"
 RULE_MODE_APPROX = "approx"
 APPROX_PROFILE_STRICT = "strict"
 APPROX_PROFILE_APPROX = "approx"
-
-# Backward-compatible aliases kept for CLI/tooling transitions.
-APPROX_PROFILE_NONE = APPROX_PROFILE_STRICT
-APPROX_PROFILE_RL_V1 = APPROX_PROFILE_APPROX
-APPROX_PROFILE_ALIASES = {
-    "strict": APPROX_PROFILE_STRICT,
-    "approx": APPROX_PROFILE_APPROX,
-    "none": APPROX_PROFILE_STRICT,
-    "rl_v1": APPROX_PROFILE_APPROX,
-}
 APPROX_PROFILES = {APPROX_PROFILE_STRICT, APPROX_PROFILE_APPROX}
-APPROX_PROFILE_CLI_CHOICES = sorted(APPROX_PROFILE_ALIASES.keys())
+APPROX_PROFILE_CLI_CHOICES = sorted(APPROX_PROFILES)
 PARSER_VERSIONS = {PARSER_VERSION_V2}
 
 
@@ -279,13 +254,6 @@ def ability_signature(text: str) -> str:
     return sig
 
 
-def normalize_ability_line(line: str) -> str:
-    cleaned = line.translate(FULLWIDTH_TRANSLATION)
-    cleaned = CONTROL_CHAR_RE.sub("", cleaned)
-    cleaned = JSX_FRAGMENT_RE.sub(" ", cleaned)
-    return re.sub(r"\s+", " ", cleaned).strip()
-
-
 def resolve_name_fragment_ids(
     name_to_ids: Optional[Dict[str, List[int]]],
     fragment: str,
@@ -336,12 +304,11 @@ def parse_count_token(token: str) -> Optional[int]:
 
 def normalize_approx_profile(profile: Optional[str]) -> str:
     normalized = (profile or APPROX_PROFILE_STRICT).strip().lower()
-    mapped = APPROX_PROFILE_ALIASES.get(normalized)
-    if mapped is None:
+    if normalized not in APPROX_PROFILES:
         raise ValueError(
             f"unsupported approx profile '{profile}', expected one of: {APPROX_PROFILE_CLI_CHOICES}"
         )
-    return mapped
+    return normalized
 
 
 def _build_cost_step(name: str, count: Optional[int] = None) -> Dict[str, Any]:
@@ -15084,10 +15051,7 @@ def main() -> None:
         "--approx-profile",
         default=APPROX_PROFILE_STRICT,
         choices=APPROX_PROFILE_CLI_CHOICES,
-        help=(
-            "Approximation profile for conversion (default: strict). "
-            "Legacy aliases: none->strict, rl_v1->approx."
-        ),
+        help="Approximation profile for conversion (default: strict).",
     )
     parser.add_argument(
         "--coverage-report",

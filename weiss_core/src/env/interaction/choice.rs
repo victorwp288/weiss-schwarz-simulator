@@ -375,24 +375,24 @@ impl GameEnv {
                     return;
                 }
                 let card = self.state.players[p].waiting_room.remove(idx);
-                match target_slot {
-                    0 => self.move_card_between_zones(
+                if target_slot == 0 {
+                    self.move_card_between_zones(
                         player,
                         card,
                         crate::events::Zone::WaitingRoom,
                         crate::events::Zone::Hand,
                         None,
                         None,
-                    ),
-                    1 => self.move_card_between_zones(
+                    )
+                } else {
+                    self.move_card_between_zones(
                         player,
                         card,
                         crate::events::Zone::WaitingRoom,
                         crate::events::Zone::Stock,
                         None,
                         None,
-                    ),
-                    _ => unreachable!("target_slot validated before removal"),
+                    )
                 }
             }
             ChoiceReason::TriggerAutoCostSelect => {

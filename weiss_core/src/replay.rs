@@ -431,9 +431,11 @@ mod tests {
 
     #[test]
     fn replay_config_rebuild_cache_clamps_sample_rate() {
-        let mut cfg = ReplayConfig::default();
+        let mut cfg = ReplayConfig {
+            sample_rate: -0.25,
+            ..ReplayConfig::default()
+        };
 
-        cfg.sample_rate = -0.25;
         cfg.rebuild_cache();
         assert_eq!(cfg.sample_threshold, 0);
 

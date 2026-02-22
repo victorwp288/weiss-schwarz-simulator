@@ -3,7 +3,7 @@ use crate::config::{
 };
 use crate::db::{CardColor, CardDb, CardStatic, CardType};
 use crate::env::GameEnv;
-use crate::events::Event;
+use crate::events::{Event, Zone};
 use crate::legal::ActionDesc;
 use crate::replay::{ReplayConfig, ReplayEvent, ReplayVisibilityMode};
 use crate::state::{ChoiceOptionRef, ChoiceReason, ChoiceZone};
@@ -157,4 +157,65 @@ fn replay_full_mode_stays_unsanitized_even_when_observation_is_public() {
         ActionDesc::MulliganSelect { hand_index } => assert_eq!(hand_index, 2),
         _ => panic!("unexpected action"),
     }
+}
+
+#[test]
+fn mark_and_forget_instance_revealed_updates_viewers() {
+    let mut env = make_env();
+    let instance_id = 777;
+    env.mark_instance_revealed(&[0], instance_id);
+    assert!(env.revealed_to_viewer[0].contains(&instance_id));
+    assert!(!env.revealed_to_viewer[1].contains(&instance_id));
+
+    env.mark_instance_revealed(&[1], instance_id);
+    assert!(env.revealed_to_viewer[0].contains(&instance_id));
+    assert!(env.revealed_to_viewer[1].contains(&instance_id));
+
+    env.forget_instance_revealed(instance_id);
+    assert!(!env.revealed_to_viewer[0].contains(&instance_id));
+    assert!(!env.revealed_to_viewer[1].contains(&instance_id));
+}
+
+#[test]
+fn on_card_enter_zone_applies_public_vs_owner_only_visibility() {
+    let mut env = make_env();
+    let card = env.state.players[0]
+        .deck
+        .last()
+        .cloned()
+        .expect("deck card");
+    let instance_id = card.instance_id;
+
+    env.mark_instance_revealed(&[0, 1], instance_id);
+    env.curriculum.memory_is_public = false;
+    env.on_card_enter_zone(&card, Zone::Memory);
+    assert!(env.revealed_to_viewer[0].contains(&instance_id));
+    assert!(!env.revealed_to_viewer[1].contains(&instance_id));
+
+    env.on_card_enter_zone(&card, Zone::Stage);
+    assert!(env.revealed_to_viewer[0].contains(&instance_id));
+    assert!(env.revealed_to_viewer[1].contains(&instance_id));
+
+    env.curriculum.memory_is_public = true;
+    env.forget_instance_revealed(instance_id);
+    env.on_card_enter_zone(&card, Zone::Memory);
+    assert!(env.revealed_to_viewer[0].contains(&instance_id));
+    assert!(env.revealed_to_viewer[1].contains(&instance_id));
+}
+
+#[test]
+fn on_card_enter_zone_noops_when_visibility_policies_disabled() {
+    let mut env = make_env();
+    env.curriculum.enable_visibility_policies = false;
+    let card = env.state.players[0]
+        .deck
+        .last()
+        .cloned()
+        .expect("deck card");
+    let instance_id = card.instance_id;
+
+    env.mark_instance_revealed(&[0], instance_id);
+    env.on_card_enter_zone(&card, Zone::Stage);
+    assert!(env.revealed_to_viewer[0].contains(&instance_id));
+    assert!(!env.revealed_to_viewer[1].contains(&instance_id));
 }

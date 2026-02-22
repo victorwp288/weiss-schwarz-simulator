@@ -1,50 +1,13 @@
 #!/usr/bin/env python3
 import argparse
-import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
-PROFILE_ALIASES: Dict[str, List[str]] = {
-    "strict": ["strict", "none"],
-    "approx": ["approx", "rl_v1"],
-    "none": ["strict", "none"],
-    "rl_v1": ["approx", "rl_v1"],
-}
+from coverage_common import family_coverage_from_metrics, load_json, resolve_profile_metrics
 
 
-def load_json(path: Path) -> Dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"expected object in {path}")
-    return data
-
-
-def normalize_profile_name(profile: str) -> str:
-    token = (profile or "strict").strip().lower()
-    aliases = PROFILE_ALIASES.get(token)
-    if aliases is None:
-        raise ValueError(
-            f"unsupported profile '{profile}', expected one of: {sorted(PROFILE_ALIASES.keys())}"
-        )
-    return aliases[0]
-
-
-def resolve_profile_metrics(report: Dict[str, Any], profile: str) -> Dict[str, Any]:
-    profiles = report.get("profiles")
-    if not isinstance(profiles, dict):
-        raise ValueError("report missing profiles object")
-    normalized = normalize_profile_name(profile)
-    for candidate in PROFILE_ALIASES.get(normalized, [normalized]):
-        metrics = profiles.get(candidate)
-        if isinstance(metrics, dict):
-            return metrics
-    raise ValueError(
-        f"report missing profile '{profile}' (accepted aliases: {PROFILE_ALIASES.get(normalized, [normalized])})"
-    )
-
-
-def metric(report: Dict[str, Any], profile: str, key: str) -> float:
+def metric(report: dict[str, Any], profile: str, key: str) -> float:
     metrics = resolve_profile_metrics(report, profile)
     if key not in metrics:
         raise ValueError(f"profile '{profile}' missing metric '{key}'")
@@ -71,22 +34,17 @@ def parse_family_floor(value: str) -> Tuple[str, float]:
     return family, floor
 
 
-def family_coverage_map(report: Dict[str, Any], profile: str) -> Optional[Dict[str, Any]]:
+def family_coverage_map(report: dict[str, Any], profile: str) -> Optional[dict[str, Any]]:
     try:
         profile_metrics = resolve_profile_metrics(report, profile)
     except ValueError:
         return None
-    by_family = profile_metrics.get("rule_family_coverage")
-    if isinstance(by_family, dict):
-        return by_family
-    by_family = profile_metrics.get("family_cluster_coverage")
-    if isinstance(by_family, dict):
-        return by_family
-    return None
+    by_family = family_coverage_from_metrics(profile_metrics)
+    return by_family or None
 
 
 def enforce_family_floors(
-    report: Dict[str, Any],
+    report: dict[str, Any],
     profile: str,
     floors: List[Tuple[str, float]],
     failures: List[str],
@@ -128,22 +86,10 @@ def main() -> None:
         help="Optional hard floor for strict-profile parse line coverage",
     )
     parser.add_argument(
-        "--min-parse-line-coverage-none",
-        type=float,
-        default=None,
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         "--min-card-coverage-strict",
         type=float,
         default=None,
         help="Optional hard floor for strict-profile card-level all-lines-supported coverage",
-    )
-    parser.add_argument(
-        "--min-card-coverage-none",
-        type=float,
-        default=None,
-        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--min-card-coverage-approx",
@@ -152,22 +98,10 @@ def main() -> None:
         help="Optional hard floor for approx-profile card-level all-lines-supported coverage",
     )
     parser.add_argument(
-        "--min-card-coverage-rl-v1",
-        type=float,
-        default=None,
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         "--max-unsupported-lines-strict",
         type=float,
         default=None,
         help="Optional hard ceiling for strict-profile unsupported line count",
-    )
-    parser.add_argument(
-        "--max-unsupported-lines-none",
-        type=float,
-        default=None,
-        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--min-family-coverage-strict",
@@ -178,28 +112,12 @@ def main() -> None:
         help="Optional repeatable floors for strict-profile family coverage",
     )
     parser.add_argument(
-        "--min-family-coverage-none",
-        action="append",
-        type=parse_family_floor,
-        default=[],
-        metavar="FAMILY=FLOOR",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         "--min-family-coverage-approx",
         action="append",
         type=parse_family_floor,
         default=[],
         metavar="FAMILY=FLOOR",
         help="Optional repeatable floors for approx-profile family coverage",
-    )
-    parser.add_argument(
-        "--min-family-coverage-rl-v1",
-        action="append",
-        type=parse_family_floor,
-        default=[],
-        metavar="FAMILY=FLOOR",
-        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--tolerance",
@@ -214,34 +132,12 @@ def main() -> None:
     tol = float(args.tolerance)
     failures = []
 
-    min_parse_line_coverage_strict = (
-        args.min_parse_line_coverage_strict
-        if args.min_parse_line_coverage_strict is not None
-        else args.min_parse_line_coverage_none
-    )
-    min_card_coverage_strict = (
-        args.min_card_coverage_strict
-        if args.min_card_coverage_strict is not None
-        else args.min_card_coverage_none
-    )
-    min_card_coverage_approx = (
-        args.min_card_coverage_approx
-        if args.min_card_coverage_approx is not None
-        else args.min_card_coverage_rl_v1
-    )
-    max_unsupported_lines_strict = (
-        args.max_unsupported_lines_strict
-        if args.max_unsupported_lines_strict is not None
-        else args.max_unsupported_lines_none
-    )
-    min_family_coverage_strict = [
-        *args.min_family_coverage_strict,
-        *args.min_family_coverage_none,
-    ]
-    min_family_coverage_approx = [
-        *args.min_family_coverage_approx,
-        *args.min_family_coverage_rl_v1,
-    ]
+    min_parse_line_coverage_strict = args.min_parse_line_coverage_strict
+    min_card_coverage_strict = args.min_card_coverage_strict
+    min_card_coverage_approx = args.min_card_coverage_approx
+    max_unsupported_lines_strict = args.max_unsupported_lines_strict
+    min_family_coverage_strict = args.min_family_coverage_strict
+    min_family_coverage_approx = args.min_family_coverage_approx
 
     current_strict_parse = metric(report, "strict", "parse_line_coverage")
     baseline_strict_parse = metric(baseline, "strict", "parse_line_coverage")

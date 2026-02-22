@@ -1,97 +1,16 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import re
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
-
-FAMILY_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
-    ("Experience", re.compile(r"\bExperience\b", re.I)),
-    (
-        "AssistOrScalingPower",
-        re.compile(r"\bAssist\b|for each|gets \+\d+ power|gets \+X power", re.I),
-    ),
-    ("FollowingAbilityGrant", re.compile(r"following ability", re.I)),
-    (
-        "PaidOnPlaySearchSalvage",
-        re.compile(
-            r"placed on (?:the )?stage from your hand.*pay the cost.*(?:look at|search|return .* to your hand)",
-            re.I,
-        ),
-    ),
-    (
-        "OnReverseSelfMove",
-        re.compile(
-            r"becomes 【REVERSE】.*(?:put this card at the bottom of your deck|put this card into your memory)",
-            re.I,
-        ),
-    ),
-    ("ClimaxPlacedBuff", re.compile(r"climax is placed on your climax area", re.I)),
-    ("BrainstormCustomAction", re.compile(r"Brainstorm .*perform the following action", re.I)),
-    ("HandText", re.compile(r"while in your hand", re.I)),
-    ("DeckConstructionRule", re.compile(r"put any number of cards with the same card name", re.I)),
-]
-
-PROFILE_ALIASES: Dict[str, List[str]] = {
-    "strict": ["strict", "none"],
-    "approx": ["approx", "rl_v1"],
-    "none": ["strict", "none"],
-    "rl_v1": ["approx", "rl_v1"],
-}
-
-
-def load_json(path: Path) -> Dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"expected object in {path}")
-    return data
-
-
-def normalize_profile_name(profile: str) -> str:
-    token = (profile or "strict").strip().lower()
-    aliases = PROFILE_ALIASES.get(token)
-    if aliases is None:
-        raise ValueError(
-            f"unsupported profile '{profile}', expected one of: {sorted(PROFILE_ALIASES.keys())}"
-        )
-    return aliases[0]
-
-
-def get_profile_metrics(report: Dict[str, Any], profile: str) -> Dict[str, Any]:
-    profiles = report.get("profiles")
-    if not isinstance(profiles, dict):
-        raise ValueError("report missing profiles object")
-    normalized = normalize_profile_name(profile)
-    for candidate in PROFILE_ALIASES.get(normalized, [normalized]):
-        metrics = profiles.get(candidate)
-        if isinstance(metrics, dict):
-            return metrics
-    raise ValueError(
-        f"report missing profile '{profile}' (accepted aliases: {PROFILE_ALIASES.get(normalized, [normalized])})"
-    )
-
-
-def family_coverage_map(profile_metrics: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-    by_family = profile_metrics.get("rule_family_coverage")
-    if not isinstance(by_family, dict):
-        by_family = profile_metrics.get("family_cluster_coverage")
-    if not isinstance(by_family, dict):
-        return {}
-
-    normalized: Dict[str, Dict[str, Any]] = {}
-    for family, entry in by_family.items():
-        if not isinstance(family, str) or not isinstance(entry, dict):
-            continue
-        total = int(entry.get("total", 0))
-        supported = int(entry.get("supported", 0))
-        coverage = float(entry.get("coverage", (float(supported) / float(total)) if total else 0.0))
-        normalized[family] = {"total": total, "supported": supported, "coverage": coverage}
-    return normalized
-
-
-def matching_families(text: str) -> List[str]:
-    return [family for family, pattern in FAMILY_PATTERNS if pattern.search(text)]
+from coverage_common import (
+    family_coverage_from_metrics,
+    load_json,
+    matching_families,
+    normalize_profile_name,
+    resolve_profile_metrics,
+)
 
 
 def prioritized_families(
@@ -196,7 +115,7 @@ def main() -> None:
     parser.add_argument(
         "--profile",
         default="strict",
-        help="Profile to prioritize (default: strict; aliases: none, rl_v1)",
+        help="Profile to prioritize (default: strict)",
     )
     parser.add_argument(
         "--max-families",
@@ -215,8 +134,8 @@ def main() -> None:
     report_path = Path(args.report)
     report = load_json(report_path)
     normalized_profile = normalize_profile_name(args.profile)
-    profile_metrics = get_profile_metrics(report, normalized_profile)
-    by_family = family_coverage_map(profile_metrics)
+    profile_metrics = resolve_profile_metrics(report, normalized_profile)
+    by_family = family_coverage_from_metrics(profile_metrics)
     families = prioritized_families(by_family, args.max_families)
     family_backlog = family_backlog_map(by_family)
     signatures = prioritized_signatures(profile_metrics, family_backlog, args.max_signatures)

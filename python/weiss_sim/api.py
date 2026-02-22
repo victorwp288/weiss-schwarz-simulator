@@ -423,9 +423,7 @@ def _make_stage_resolve_decks(normalized: _MakeNormalized) -> _MakeResolved:
 
 def _make_stage_build_pool(resolved: _MakeResolved) -> EnvPool:
     constructor = (
-        EnvPool.new_rl_train
-        if resolved.normalized.runtime_mode == "speed"
-        else EnvPool.new_rl_eval
+        EnvPool.new_rl_train if resolved.normalized.runtime_mode == "speed" else EnvPool.new_rl_eval
     )
     constructor_output_masks = resolved.legal_repr in {"mask_u8", "both"}
     return constructor(
@@ -531,7 +529,11 @@ def _make_stage_build_effective_config(
 
 
 def _make_stage_create_env(
-    *, pool: EnvPool, resolved: _MakeResolved, layout: _LayoutSelection, effective: dict[str, object]
+    *,
+    pool: EnvPool,
+    resolved: _MakeResolved,
+    layout: _LayoutSelection,
+    effective: dict[str, object],
 ) -> WeissEnv:
     return WeissEnv(
         pool=pool,

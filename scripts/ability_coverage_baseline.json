@@ -9,16 +9,6 @@
       "card_level_all_lines_supported_coverage": 0.9960545401798665,
       "parse_line_coverage": 0.9977085088458298,
       "unsupported_lines": 68
-    },
-    "none": {
-      "card_level_all_lines_supported_coverage": 0.7078619089062953,
-      "parse_line_coverage": 0.8093007582139848,
-      "unsupported_lines": 5659
-    },
-    "rl_v1": {
-      "card_level_all_lines_supported_coverage": 0.9960545401798665,
-      "parse_line_coverage": 0.9977085088458298,
-      "unsupported_lines": 68
     }
   }
 }

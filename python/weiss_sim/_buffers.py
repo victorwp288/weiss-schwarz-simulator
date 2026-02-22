@@ -12,93 +12,37 @@ from typing import Literal, overload
 
 import numpy as np
 
+from ._coerce import coerce_logits, coerce_seeds
+from .config_types import ErrorPolicy
 from ._legal_payloads import materialize_legal_ids_u16
-from ._logits_utils import prepare_logits, prepare_seeds
+from ._layout_specs import (
+    FLAGS_TO_LAYOUT as _FLAGS_TO_LAYOUT,
+    LAYOUT_FLAGS as _LAYOUT_FLAGS,
+    LAYOUT_SPECS as _LAYOUT_SPECS,
+    LayoutName,
+    LayoutSpec as _LayoutSpec,
+    normalize_layout as _normalize_layout,
+    pool_method_name,
+)
 from .weiss_sim import (
     ACTOR_NONE,
-    BatchOutMinimal,
-    BatchOutMinimalI16,
-    BatchOutMinimalI16LegalIds,
-    BatchOutMinimalNoMask,
-    BatchOutTrajectory,
-    BatchOutTrajectoryI16,
-    BatchOutTrajectoryI16LegalIds,
-    BatchOutTrajectoryNoMask,
+    BatchOutDebug,
     EnvPool,
 )
 
-LayoutName = Literal["mask", "nomask", "i16", "i16_legal_ids"]
 ModeName = Literal["train", "eval"]
 ProfileName = Literal["fast", "balanced", "eval", "debug"]
-BackendErrorPolicy = Literal["strict", "lenient_terminate", "lenient_noop"]
 
 DeckLists = Sequence[Sequence[int]]
 DeckIds = Sequence[int]
 
-MinimalOut = (
-    BatchOutMinimal | BatchOutMinimalNoMask | BatchOutMinimalI16 | BatchOutMinimalI16LegalIds
-)
-TrajectoryOut = (
-    BatchOutTrajectory
-    | BatchOutTrajectoryNoMask
-    | BatchOutTrajectoryI16
-    | BatchOutTrajectoryI16LegalIds
-)
+MinimalOut = object
+TrajectoryOut = object
 
 _PROFILE_FAST = "fast"
 _PROFILE_BALANCED = "balanced"
 _PROFILE_EVAL = "eval"
 _PROFILE_DEBUG = "debug"
-
-
-@dataclass(frozen=True)
-class _LayoutSpec:
-    suffix: str
-    out_cls: type
-    trajectory_out_cls: type
-    has_masks: bool
-    has_legal_ids: bool
-
-
-_LAYOUT_SPECS: dict[LayoutName, _LayoutSpec] = {
-    "mask": _LayoutSpec(
-        suffix="",
-        out_cls=BatchOutMinimal,
-        trajectory_out_cls=BatchOutTrajectory,
-        has_masks=True,
-        has_legal_ids=False,
-    ),
-    "nomask": _LayoutSpec(
-        suffix="_nomask",
-        out_cls=BatchOutMinimalNoMask,
-        trajectory_out_cls=BatchOutTrajectoryNoMask,
-        has_masks=False,
-        has_legal_ids=False,
-    ),
-    "i16": _LayoutSpec(
-        suffix="_i16",
-        out_cls=BatchOutMinimalI16,
-        trajectory_out_cls=BatchOutTrajectoryI16,
-        has_masks=True,
-        has_legal_ids=False,
-    ),
-    "i16_legal_ids": _LayoutSpec(
-        suffix="_i16_legal_ids",
-        out_cls=BatchOutMinimalI16LegalIds,
-        trajectory_out_cls=BatchOutTrajectoryI16LegalIds,
-        has_masks=False,
-        has_legal_ids=True,
-    ),
-}
-
-_LAYOUT_FLAGS: dict[LayoutName, tuple[bool, bool, bool]] = {
-    "mask": (True, False, False),
-    "nomask": (False, False, False),
-    "i16": (True, True, False),
-    "i16_legal_ids": (False, True, True),
-}
-
-_FLAGS_TO_LAYOUT = {flags: layout for layout, flags in _LAYOUT_FLAGS.items()}
 
 
 @dataclass(frozen=True)
@@ -148,14 +92,6 @@ def _normalize_mode(mode: str) -> ModeName:
     if mode_norm not in _DEFAULT_PROFILE_BY_MODE:
         raise ValueError(f"unknown mode '{mode}' (expected train or eval)")
     return mode_norm  # type: ignore[return-value]
-
-
-def _normalize_layout(layout: str) -> LayoutName:
-    layout_norm = layout.lower().strip()
-    if layout_norm not in _LAYOUT_SPECS:
-        allowed = ", ".join(_LAYOUT_SPECS)
-        raise ValueError(f"unknown layout '{layout}' (expected {allowed})")
-    return layout_norm  # type: ignore[return-value]
 
 
 def _resolve_profile(profile: str | None, mode: ModeName) -> _ProfileSpec:
@@ -226,13 +162,19 @@ def _resolve_unsafe_i16(
     return resolved
 
 
-def _pool_method_name(base_name: str, suffix: str) -> str:
-    return f"{base_name}{suffix}" if suffix else base_name
-
-
 def _bind_pool_method(pool: EnvPool, base_name: str, spec: _LayoutSpec):
-    method_name = _pool_method_name(base_name, spec.suffix)
+    method_name = pool_method_name(base_name, spec)
     return getattr(pool, method_name)
+
+
+def make_batch_out_debug(pool: EnvPool, *, event_capacity: int | None = None) -> BatchOutDebug:
+    """Allocate a `BatchOutDebug` buffer with safe defaults for an existing pool."""
+    if event_capacity is None:
+        event_capacity = int(pool.debug_event_ring_capacity())
+    capacity = int(event_capacity)
+    if capacity < 0:
+        raise ValueError(f"event_capacity must be >= 0 (got {event_capacity!r})")
+    return BatchOutDebug(int(pool.num_envs), capacity)
 
 
 @overload
@@ -305,7 +247,7 @@ def make_pool(
     curriculum_json: str | None = None,
     reward_json: str | None = None,
     end_condition_policy_json: str | None = None,
-    error_policy: BackendErrorPolicy | str | None = None,
+    error_policy: ErrorPolicy | str | None = None,
     observation_visibility: Literal["public", "full"] | str | None = None,
     num_threads: int | None = None,
     debug_fingerprint_every_n: int = 0,
@@ -448,10 +390,10 @@ class EnvPoolBuffers(_EngineStatusMixin):
         )
 
     def _coerce_logits(self, logits: object) -> np.ndarray:
-        return prepare_logits(logits, self._num_envs, action_space=self._action_space)
+        return coerce_logits(logits, num_envs=self._num_envs, action_space=self._action_space)
 
     def _coerce_seeds(self, seeds: object) -> np.ndarray:
-        return prepare_seeds(seeds, self._num_envs)
+        return coerce_seeds(seeds, num_envs=self._num_envs)
 
     def reset(self) -> MinimalOut:
         """Reset all envs into the preallocated buffers."""
@@ -622,7 +564,7 @@ class EnvPoolTrajectoryBuffers(_EngineStatusMixin):
 
     def rollout_random_legal(self, seeds: int | Sequence[int] | np.ndarray) -> TrajectoryOut:
         """Rollout for `self.steps` using uniform-random legal actions."""
-        seeds = prepare_seeds(seeds, self._num_envs)
+        seeds = coerce_seeds(seeds, num_envs=self._num_envs)
         self._rollout_sample_legal_action_ids_uniform_into(self.steps, seeds, self.out)
         return self.out
 

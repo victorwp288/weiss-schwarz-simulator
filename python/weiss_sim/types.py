@@ -339,9 +339,7 @@ class LegalActions:
                 illegal_value=illegal_value,
             )
             return self._apply_default_for_empty_legal(actions, default_action=default_action)
-        raise ValueError(
-            "strategy must be one of: first, uniform, random, argmax, select, sample"
-        )
+        raise ValueError("strategy must be one of: first, uniform, random, argmax, select, sample")
 
     def mask_logits(self, logits: np.ndarray, illegal_value: float = -1e9) -> np.ndarray:
         masked, _ = self._masked_logits_and_legal_presence(logits, illegal_value=illegal_value)

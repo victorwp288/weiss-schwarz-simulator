@@ -32,6 +32,16 @@ python -m pip install -U maturin numpy
 maturin develop --release --manifest-path weiss_py/Cargo.toml
 ```
 
+### Option C: contributor setup (dev extras + local extension)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+./scripts/setup_dev_env.sh
+```
+
+This installs `.[dev]` extras (`ruff`, `pytest`, `maturin`, `pip-audit`) and builds the local extension in-place.
+
 ### Minimal high-level loop
 
 ```python
@@ -64,6 +74,18 @@ actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
 out = buf.step(actions)
 ```
 
+### Deck authoring flow (Python)
+
+```python
+import weiss_sim
+
+builder = weiss_sim.cards.builder(initial="starter_v1")
+builder.set_count("CARD-1", 4)
+report = builder.validate(rules_profile="approx", card_pool="all")
+if report.ok:
+    deck_ids = builder.build(rules_profile="approx", card_pool="all")
+```
+
 ## Architecture at a glance
 
 ```mermaid
@@ -80,8 +102,9 @@ Start in [`docs/README.md`](docs/README.md).
 
 Recommended paths:
 
-- RL users: [`docs/quickstart.md`](docs/quickstart.md) -> [`docs/rl_contract.md`](docs/rl_contract.md) -> [`docs/encodings.md`](docs/encodings.md)
-- Python integrators: [`docs/python_api.md`](docs/python_api.md) -> [`docs/troubleshooting.md`](docs/troubleshooting.md)
+- RL users: [`docs/quickstart.md`](docs/quickstart.md) -> [`docs/tutorials/ppo.md`](docs/tutorials/ppo.md) -> [`docs/rl_contract.md`](docs/rl_contract.md) -> [`docs/encodings.md`](docs/encodings.md)
+- Off-policy users: [`docs/tutorials/impala_vtrace.md`](docs/tutorials/impala_vtrace.md) -> [`docs/rl_contract.md`](docs/rl_contract.md)
+- Python integrators: [`docs/python_api.md`](docs/python_api.md) -> [`docs/python_api_reference.md`](docs/python_api_reference.md) -> [`docs/troubleshooting.md`](docs/troubleshooting.md)
 - Engine contributors: [`docs/engine_architecture.md`](docs/engine_architecture.md) -> [`docs/rules_coverage.md`](docs/rules_coverage.md) -> [`PROJECT_STATE.md`](PROJECT_STATE.md)
 - Performance work: [`docs/performance_benchmarks.md`](docs/performance_benchmarks.md)
 
@@ -113,6 +136,7 @@ Docs-only checks:
 ```bash
 python scripts/check_docs_links.py
 python scripts/check_docs_constants.py
+python scripts/gen_docs_snippets.py --check
 ```
 
 ## Benchmark snapshot (main)

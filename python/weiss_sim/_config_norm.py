@@ -18,11 +18,8 @@ from .config_types import (
 from .errors import ConfigConflictError
 
 _MODE_TO_RUNTIME_MODE: dict[str, RuntimeMode] = {"fast": "speed", "inspect": "eval_debug"}
-_ERROR_POLICY_TO_BACKEND: dict[str, ErrorPolicy] = {
-    "raise": "strict",
-    "replace": "lenient_noop",
-    "terminate": "lenient_terminate",
-}
+MAX_NUM_ENVS = 2048
+MAX_NUM_THREADS = 256
 
 
 def normalize_mode(
@@ -102,12 +99,11 @@ def normalize_error_policy(
     value: Literal["raise", "replace", "terminate"] | str,
     *,
     error_cls: type[Exception] = ConfigConflictError,
-) -> tuple[str, ErrorPolicy]:
+) -> ErrorPolicy:
     token = str(value).strip().lower()
-    backend_policy = _ERROR_POLICY_TO_BACKEND.get(token)
-    if backend_policy is None:
+    if token not in {"raise", "replace", "terminate"}:
         raise error_cls(f"error_policy must be one of raise/replace/terminate (got {value!r})")
-    return token, backend_policy
+    return token  # type: ignore[return-value]
 
 
 def normalize_observation_visibility(
@@ -145,22 +141,32 @@ def resolve_threads_and_envs(
     cpu = max(1, int(cpu_count_fn() or 1))
     auto_threads = min(16, cpu)
     if isinstance(num_threads, int):
-        if num_threads <= 0:
-            raise error_cls(f"num_threads must be > 0 (got {num_threads})")
+        if num_threads <= 0 or num_threads > MAX_NUM_THREADS:
+            raise error_cls(
+                f"num_threads must be in [1, {MAX_NUM_THREADS}] when set explicitly "
+                f"(got {num_threads})"
+            )
         resolved_threads = num_threads
     elif num_threads in ("auto", None):
         resolved_threads = auto_threads
     else:
-        raise error_cls(f"num_threads must be int, 'auto', or None (got {num_threads!r})")
+        raise error_cls(
+            f"num_threads must be an int in [1, {MAX_NUM_THREADS}], 'auto', or None "
+            f"(got {num_threads!r})"
+        )
 
     if isinstance(num_envs, int):
-        if num_envs <= 0:
-            raise error_cls(f"num_envs must be > 0 (got {num_envs})")
+        if num_envs <= 0 or num_envs > MAX_NUM_ENVS:
+            raise error_cls(
+                f"num_envs must be in [1, {MAX_NUM_ENVS}] when set explicitly (got {num_envs})"
+            )
         resolved_envs = num_envs
     elif num_envs == "auto":
-        resolved_envs = min(128, max(32, 4 * resolved_threads))
+        resolved_envs = min(MAX_NUM_ENVS, min(128, max(32, 4 * resolved_threads)))
     else:
-        raise error_cls(f"num_envs must be int or 'auto' (got {num_envs!r})")
+        raise error_cls(
+            f"num_envs must be an int in [1, {MAX_NUM_ENVS}] or 'auto' (got {num_envs!r})"
+        )
 
     resolved_threads = min(resolved_threads, resolved_envs)
     return resolved_envs, resolved_threads

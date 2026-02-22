@@ -44,9 +44,6 @@ impl RevealHistory {
 
     /// Push a newly revealed card into the history.
     pub fn push(&mut self, card: CardId) {
-        if REVEAL_HISTORY_LEN == 0 {
-            return;
-        }
         let head = self.head as usize;
         self.entries[head] = card;
         if (self.len as usize) < REVEAL_HISTORY_LEN {
@@ -59,7 +56,7 @@ impl RevealHistory {
     pub fn write_chronological(&self, out: &mut [i32]) {
         out.fill(0);
         let len = self.len as usize;
-        if len == 0 || REVEAL_HISTORY_LEN == 0 {
+        if len == 0 {
             return;
         }
         let start = if len < REVEAL_HISTORY_LEN {

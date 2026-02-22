@@ -1,10 +1,56 @@
+from __future__ import annotations
+
 import argparse
+import importlib
+import sys
+import types
 from pathlib import Path
 from time import perf_counter
+from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 
-import weiss_sim
+
+weiss_sim: Any
+
+
+def _clear_weiss_sim_modules() -> None:
+    for name in list(sys.modules):
+        if name == "weiss_sim" or name.startswith("weiss_sim."):
+            sys.modules.pop(name, None)
+
+
+def _load_weiss_sim(repo_root: Path) -> Any:
+    repo_python = repo_root / "python"
+    repo_pkg = repo_python / "weiss_sim"
+
+    # Ensure imports resolve against the requested repo root.
+    sys.path.insert(0, str(repo_python))
+    _clear_weiss_sim_modules()
+    try:
+        import weiss_sim as module
+
+        return module
+    except ImportError as exc:
+        # PERF base refs can be in transitional states where __init__.py re-exports
+        # symbols not present in `_buffers.py`. Fall back to loading submodules
+        # directly so we can still collect throughput snapshots.
+        if "make_batch_out_debug" not in str(exc):
+            raise
+        _clear_weiss_sim_modules()
+        pkg = types.ModuleType("weiss_sim")
+        pkg.__path__ = [str(repo_pkg)]  # type: ignore[attr-defined]
+        pkg.__package__ = "weiss_sim"
+        pkg.__file__ = str(repo_pkg / "__init__.py")
+        sys.modules["weiss_sim"] = pkg
+        core = importlib.import_module("weiss_sim.weiss_sim")
+        buffers = importlib.import_module("weiss_sim._buffers")
+        return SimpleNamespace(
+            PASS_ACTION_ID=core.PASS_ACTION_ID,
+            EnvPoolBuffers=buffers.EnvPoolBuffers,
+            make_pool=buffers.make_pool,
+        )
 
 
 def pick_first_legal_from_mask(
@@ -102,12 +148,21 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num-threads", type=int, default=None)
     parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path(__file__).resolve().parents[2],
+        help="Repository root containing python/weiss_sim.",
+    )
+    parser.add_argument(
         "--mode", choices=("mask", "ids", "fast_first_legal", "both"), default="both"
     )
     parser.add_argument("--reset-done", action="store_true")
     args = parser.parse_args()
 
-    fixture_dir = Path(__file__).resolve().parents[1] / "tests" / "fixtures"
+    global weiss_sim
+    weiss_sim = _load_weiss_sim(args.repo_root.resolve())
+
+    fixture_dir = args.repo_root.resolve() / "python" / "tests" / "fixtures"
     db_path = fixture_dir / "cards.wsdb"
     legal_deck = (list(range(1, 14)) * 4)[:50]
 

@@ -13,7 +13,7 @@ ObsDType = Literal["i16", "i32"]
 IdsSafety = Literal["checked", "unsafe"]
 NumLike = int | Literal["auto"]
 ThreadsLike = int | Literal["auto"] | None
-ErrorPolicy = Literal["strict", "lenient_terminate", "lenient_noop"]
+ErrorPolicy = Literal["raise", "replace", "terminate"]
 ObservationVisibility = Literal["public", "full"]
 SimultaneousLossPolicy = Literal["draw", "active_player_wins", "non_active_player_wins"]
 

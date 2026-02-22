@@ -8,13 +8,17 @@ from typing import Literal
 
 import numpy as np
 
-from ._logits_utils import prepare_logits, prepare_seeds
+from ._coerce import coerce_actions_u32, coerce_logits, coerce_seeds
+from ._layout_specs import (
+    LAYOUT_SPECS,
+    LayoutName,
+    LayoutSpec,
+    normalize_layout,
+    pool_method_name,
+)
 from .weiss_sim import (
     ACTOR_NONE,
     PASS_ACTION_ID,
-    BatchOutMinimal,
-    BatchOutMinimalI16LegalIds,
-    BatchOutMinimalNoMask,
     EnvPool,
 )
 
@@ -49,57 +53,18 @@ class RlStep:
         return self.actor != ACTOR_NONE
 
 
-@dataclass(frozen=True)
-class _LayoutSpec:
-    out_cls: type
-    reset_method: str
-    step_method: str
-    step_select_logits_method: str
-    step_sample_logits_method: str
-    include_masks: bool
-    include_legal_ids: bool
+_RL_LAYOUTS = frozenset({"mask", "nomask", "i16_legal_ids"})
 
 
-_LAYOUT_DISPATCH: dict[str, _LayoutSpec] = {
-    "mask": _LayoutSpec(
-        out_cls=BatchOutMinimal,
-        reset_method="reset_into",
-        step_method="step_into",
-        step_select_logits_method="step_select_from_logits_into",
-        step_sample_logits_method="step_sample_from_logits_into",
-        include_masks=True,
-        include_legal_ids=False,
-    ),
-    "nomask": _LayoutSpec(
-        out_cls=BatchOutMinimalNoMask,
-        reset_method="reset_into_nomask",
-        step_method="step_into_nomask",
-        step_select_logits_method="step_select_from_logits_into_nomask",
-        step_sample_logits_method="step_sample_from_logits_into_nomask",
-        include_masks=False,
-        include_legal_ids=False,
-    ),
-    "i16_legal_ids": _LayoutSpec(
-        out_cls=BatchOutMinimalI16LegalIds,
-        reset_method="reset_into_i16_legal_ids",
-        step_method="step_into_i16_legal_ids",
-        step_select_logits_method="step_select_from_logits_into_i16_legal_ids",
-        step_sample_logits_method="step_sample_from_logits_into_i16_legal_ids",
-        include_masks=False,
-        include_legal_ids=True,
-    ),
-}
+def _resolve_layout(layout: str) -> tuple[LayoutName, LayoutSpec]:
+    layout_name = normalize_layout(layout)
+    if layout_name not in _RL_LAYOUTS:
+        allowed = ", ".join(sorted(_RL_LAYOUTS))
+        raise ValueError(f"unknown layout {layout!r}; expected one of: {allowed}")
+    return layout_name, LAYOUT_SPECS[layout_name]
 
 
-def _resolve_layout(layout: str) -> _LayoutSpec:
-    try:
-        return _LAYOUT_DISPATCH[layout]
-    except KeyError as exc:
-        allowed = ", ".join(sorted(_LAYOUT_DISPATCH))
-        raise ValueError(f"unknown layout {layout!r}; expected one of: {allowed}") from exc
-
-
-def _prepare_out(pool: EnvPool, out, spec: _LayoutSpec):
+def _prepare_out(pool: EnvPool, out, spec):
     if out is None:
         return spec.out_cls(pool.envs_len)
     if not isinstance(out, spec.out_cls):
@@ -108,21 +73,15 @@ def _prepare_out(pool: EnvPool, out, spec: _LayoutSpec):
 
 
 def _prepare_actions(actions, num_envs: int) -> np.ndarray:
-    if actions is None:
-        return np.empty(num_envs, dtype=np.uint32)
-    arr = np.asarray(actions, dtype=np.uint32)
-    arr = np.ravel(arr)
-    if arr.shape[0] != int(num_envs):
-        raise ValueError(f"actions length must equal num_envs ({num_envs}), got {arr.shape[0]}")
-    return np.ascontiguousarray(arr, dtype=np.uint32)
+    return coerce_actions_u32(actions, num_envs=num_envs, allow_none=True)
 
 
-def _pack_step(out, spec: _LayoutSpec) -> RlStep:
+def _pack_step(out, spec: LayoutSpec) -> RlStep:
     return RlStep(
         obs=out.obs,
-        masks=out.masks if spec.include_masks else None,
-        legal_ids=out.legal_ids if spec.include_legal_ids else None,
-        legal_offsets=out.legal_offsets if spec.include_legal_ids else None,
+        masks=out.masks if spec.has_masks else None,
+        legal_ids=out.legal_ids if spec.has_legal_ids else None,
+        legal_offsets=out.legal_offsets if spec.has_legal_ids else None,
         rewards=out.rewards,
         terminated=out.terminated,
         truncated=out.truncated,
@@ -144,9 +103,9 @@ def pass_action_id_for_decision_kind(decision_kind: object) -> int:
 
 def reset_rl(pool: EnvPool, *, layout: Layout = "mask", out: object | None = None) -> RlStep:
     """Reset the pool and return an `RlStep` view over the output buffers."""
-    spec = _resolve_layout(layout)
+    _, spec = _resolve_layout(layout)
     out_buf = _prepare_out(pool, out, spec)
-    getattr(pool, spec.reset_method)(out_buf)
+    getattr(pool, pool_method_name("reset_into", spec))(out_buf)
     return _pack_step(out_buf, spec)
 
 
@@ -158,9 +117,9 @@ def step_rl(
     out: object | None = None,
 ) -> RlStep:
     """Step the pool once and return an `RlStep` view over the output buffers."""
-    spec = _resolve_layout(layout)
+    _, spec = _resolve_layout(layout)
     out_buf = _prepare_out(pool, out, spec)
-    getattr(pool, spec.step_method)(actions, out_buf)
+    getattr(pool, pool_method_name("step_into", spec))(actions, out_buf)
     return _pack_step(out_buf, spec)
 
 
@@ -173,11 +132,15 @@ def step_rl_select_from_logits(
     out: object | None = None,
 ):
     """Select argmax actions from `logits` (respecting legality) and step the pool."""
-    spec = _resolve_layout(layout)
+    _, spec = _resolve_layout(layout)
     out_buf = _prepare_out(pool, out, spec)
-    logits_buf = prepare_logits(logits, pool.envs_len, action_space=pool.action_space)
+    logits_buf = coerce_logits(logits, num_envs=pool.envs_len, action_space=pool.action_space)
     actions_buf = _prepare_actions(actions, pool.envs_len)
-    getattr(pool, spec.step_select_logits_method)(logits_buf, actions_buf, out_buf)
+    getattr(pool, pool_method_name("step_select_from_logits_into", spec))(
+        logits_buf,
+        actions_buf,
+        out_buf,
+    )
     return _pack_step(out_buf, spec), actions_buf
 
 
@@ -191,10 +154,15 @@ def step_rl_sample_from_logits(
     out: object | None = None,
 ):
     """Sample actions from `logits` (respecting legality) and step the pool."""
-    spec = _resolve_layout(layout)
+    _, spec = _resolve_layout(layout)
     out_buf = _prepare_out(pool, out, spec)
-    logits_buf = prepare_logits(logits, pool.envs_len, action_space=pool.action_space)
-    seeds_buf = prepare_seeds(seeds, pool.envs_len)
+    logits_buf = coerce_logits(logits, num_envs=pool.envs_len, action_space=pool.action_space)
+    seeds_buf = coerce_seeds(seeds, num_envs=pool.envs_len)
     actions_buf = _prepare_actions(actions, pool.envs_len)
-    getattr(pool, spec.step_sample_logits_method)(logits_buf, seeds_buf, actions_buf, out_buf)
+    getattr(pool, pool_method_name("step_sample_from_logits_into", spec))(
+        logits_buf,
+        seeds_buf,
+        actions_buf,
+        out_buf,
+    )
     return _pack_step(out_buf, spec), actions_buf

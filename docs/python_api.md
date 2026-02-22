@@ -21,8 +21,20 @@ import weiss_sim
 
 Legacy entry points `create()`, `train()`, and `evaluate()` are removed.
 
-### `make()` parameters
+### Python API reference (generated)
 
+For an exhaustive, always-in-sync list of exported names and signatures, see
+[Python API Reference (generated)](python_api_reference.md).
+
+### `make()` signature (generated)
+
+Regenerate this snippet with:
+
+```bash
+python scripts/gen_docs_snippets.py --write
+```
+
+<!-- GENERATED:MAKE_SIGNATURE:START -->
 ```python
 weiss_sim.make(
     mode="fast",
@@ -48,6 +60,7 @@ weiss_sim.make(
     control_seat=None,
 )
 ```
+<!-- GENERATED:MAKE_SIGNATURE:END -->
 
 ### Mode defaults
 

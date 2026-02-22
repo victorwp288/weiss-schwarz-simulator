@@ -353,7 +353,9 @@ class WeissEnv:
         return np.ascontiguousarray(masked, dtype=np.float32)
 
     def _coerce_actions(self, actions, *, name: str) -> np.ndarray:
-        return coerce_actions_u32(actions, num_envs=self._num_envs, name=name, error_cls=WeissSimError)
+        return coerce_actions_u32(
+            actions, num_envs=self._num_envs, name=name, error_cls=WeissSimError
+        )
 
     def _coerce_indices(self, indices, *, name: str) -> np.ndarray:
         arr = np.asarray(indices)
@@ -817,7 +819,8 @@ class WeissEnv:
         self,
         steps: int,
         *,
-        policy: Literal["first", "uniform", "random"] | Callable[[ResetBatch | StepBatch], object] = "uniform",
+        policy: Literal["first", "uniform", "random"]
+        | Callable[[ResetBatch | StepBatch], object] = "uniform",
         seed: int | np.ndarray | None = None,
         auto_reset: bool = False,
         reset_done: bool = True,
@@ -885,7 +888,9 @@ class WeissEnv:
             logits_arr, illegal_value=illegal_value
         )
         if temperature != 1.0:
-            logits_arr = np.ascontiguousarray(logits_arr / np.float32(temperature), dtype=np.float32)
+            logits_arr = np.ascontiguousarray(
+                logits_arr / np.float32(temperature), dtype=np.float32
+            )
         return logits_arr
 
     def _execute_step_argmax_logits(self, logits: np.ndarray) -> tuple[StepBatch, np.ndarray]:

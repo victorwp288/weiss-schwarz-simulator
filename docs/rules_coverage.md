@@ -67,10 +67,12 @@ python scripts/check_coverage_budget.py \
 
 Baseline file: `scripts/ability_coverage_baseline.json`.
 
-Profile aliases accepted by tooling:
+Supported coverage profile tokens:
 
-- strict: `strict` / `none`
-- approx: `approx` / `rl_v1`
+- `strict`
+- `approx`
+
+Legacy profile aliases (`none`, `rl_v1`) are removed.
 
 ## Guidance for contributors
 

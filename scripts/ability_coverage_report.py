@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import re
 from collections import Counter
 from pathlib import Path
 import sys
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from coverage_common import matching_families
 from scraper.convert import (
     APPROX_PROFILE_APPROX,
     APPROX_PROFILE_STRICT,
@@ -18,34 +18,6 @@ from scraper.convert import (
     normalize_ability_line,
     parse_abilities,
 )
-
-
-FAMILY_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
-    ("Experience", re.compile(r"\bExperience\b", re.I)),
-    (
-        "AssistOrScalingPower",
-        re.compile(r"\bAssist\b|for each|gets \+\d+ power|gets \+X power", re.I),
-    ),
-    ("FollowingAbilityGrant", re.compile(r"following ability", re.I)),
-    (
-        "PaidOnPlaySearchSalvage",
-        re.compile(
-            r"placed on (?:the )?stage from your hand.*pay the cost.*(?:look at|search|return .* to your hand)",
-            re.I,
-        ),
-    ),
-    (
-        "OnReverseSelfMove",
-        re.compile(
-            r"becomes 【REVERSE】.*(?:put this card at the bottom of your deck|put this card into your memory)",
-            re.I,
-        ),
-    ),
-    ("ClimaxPlacedBuff", re.compile(r"climax is placed on your climax area", re.I)),
-    ("BrainstormCustomAction", re.compile(r"Brainstorm .*perform the following action", re.I)),
-    ("HandText", re.compile(r"while in your hand", re.I)),
-    ("DeckConstructionRule", re.compile(r"put any number of cards with the same card name", re.I)),
-]
 
 
 def load_cards(path: Path) -> List[Dict[str, Any]]:
@@ -92,10 +64,6 @@ def tag_for_line(line: str) -> str:
     if line.startswith("【ACT】"):
         return "ACT"
     return "OTHER"
-
-
-def matching_families(line: str) -> List[str]:
-    return [family for family, pattern in FAMILY_PATTERNS if pattern.search(line)]
 
 
 def has_approx_provenance(payload: Any) -> bool:
@@ -168,20 +136,12 @@ def build_rule_family_coverage_section(
         out[family] = {
             APPROX_PROFILE_STRICT: strict_entry,
             APPROX_PROFILE_APPROX: approx_entry,
-            # Legacy aliases retained for downstream tooling still expecting old names.
-            "none": strict_entry,
-            "rl_v1": approx_entry,
             "coverage_delta_approx_minus_strict": (
                 approx_entry["coverage"] - strict_entry["coverage"]
             ),
             "unsupported_lines_delta_approx_minus_strict": (
                 approx_unsupported - strict_unsupported
             ),
-            # Legacy comparison keys.
-            "coverage_delta_rl_v1_minus_none": (
-                approx_entry["coverage"] - strict_entry["coverage"]
-            ),
-            "unsupported_lines_delta_rl_v1_minus_none": (approx_unsupported - strict_unsupported),
         }
     return out
 
@@ -362,9 +322,6 @@ def main() -> None:
         "profiles": {
             APPROX_PROFILE_STRICT: strict_metrics,
             APPROX_PROFILE_APPROX: approx_metrics,
-            # Legacy aliases retained for backward compatibility.
-            "none": strict_metrics,
-            "rl_v1": approx_metrics,
         },
         "rule_family_coverage": build_rule_family_coverage_section(strict_metrics, approx_metrics),
         "comparison": {
@@ -387,29 +344,6 @@ def main() -> None:
                 - strict_metrics["supported_line_contributions"]["exact"]["supported_lines"]
             ),
             "unknown_supported_lines_delta_approx_minus_strict": (
-                approx_metrics["supported_line_contributions"]["unknown"]["supported_lines"]
-                - strict_metrics["supported_line_contributions"]["unknown"]["supported_lines"]
-            ),
-            # Legacy comparison keys.
-            "parse_line_coverage_delta_rl_v1_minus_none": (
-                approx_metrics["parse_line_coverage"] - strict_metrics["parse_line_coverage"]
-            ),
-            "card_level_supported_delta_rl_v1_minus_none": (
-                approx_metrics["card_level_all_lines_supported_coverage"]
-                - strict_metrics["card_level_all_lines_supported_coverage"]
-            ),
-            "unsupported_lines_delta_rl_v1_minus_none": (
-                approx_metrics["unsupported_lines"] - strict_metrics["unsupported_lines"]
-            ),
-            "approx_supported_lines_delta_rl_v1_minus_none": (
-                approx_metrics["supported_line_contributions"]["approx"]["supported_lines"]
-                - strict_metrics["supported_line_contributions"]["approx"]["supported_lines"]
-            ),
-            "exact_supported_lines_delta_rl_v1_minus_none": (
-                approx_metrics["supported_line_contributions"]["exact"]["supported_lines"]
-                - strict_metrics["supported_line_contributions"]["exact"]["supported_lines"]
-            ),
-            "unknown_supported_lines_delta_rl_v1_minus_none": (
                 approx_metrics["supported_line_contributions"]["unknown"]["supported_lines"]
                 - strict_metrics["supported_line_contributions"]["unknown"]["supported_lines"]
             ),

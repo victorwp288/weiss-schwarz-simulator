@@ -46,9 +46,11 @@ Most placeholder forms resolve to deterministic no-op-compatible effects (`Draw 
 ## Converter/runtime notes
 
 - emitted by parser-v2 rule-pack converter in approx profile mode
-- profile aliases: `approx` (`rl_v1` alias)
-- strict profiles (`strict` / `none`) avoid emitting approx-only effects
+- profile values: `strict`, `approx`
+- strict profiles (`strict`) avoid emitting approx-only effects
 - optional provenance field may be emitted as `conditions.source_rule_id`
+
+Legacy profile aliases (`none`, `rl_v1`) are not supported.
 
 ## Exit strategy
 

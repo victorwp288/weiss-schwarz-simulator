@@ -84,6 +84,14 @@ impl EnvPool {
         if action_ids.len() != self.envs.len() {
             anyhow::bail!("Action batch size mismatch");
         }
+        #[cfg(feature = "tracing")]
+        let _span = tracing::trace_span!(
+            "pool.step_batch_outcomes",
+            num_envs = self.envs.len(),
+            action_batch = action_ids.len(),
+            effective_threads = self.thread_pool_size.unwrap_or(1),
+        )
+        .entered();
         self.ensure_outcomes_scratch();
         if self.envs.is_empty() {
             return Ok(());

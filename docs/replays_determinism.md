@@ -57,7 +57,22 @@ To compare two runs, verify in order:
 
 ## Python entry point
 
-Enable replay sampling via pool:
+Enable replay sampling via high-level env (recommended):
+
+```python
+import weiss_sim
+
+with weiss_sim.fast(num_envs=32, seed=7, card_pool="all") as sim:
+    sim.enable_replay_sampling(
+        sample_rate=0.01,
+        out_dir="replays",
+        compress=False,
+        visibility_mode="public",
+        store_actions=True,
+    )
+```
+
+Equivalent low-level pool call:
 
 ```python
 pool.enable_replay_sampling(

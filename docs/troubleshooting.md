@@ -55,14 +55,25 @@ Fix reported link/checksum mismatches, then rerun.
 Treat as fault, not warning:
 
 - inspect `engine_status`, `decision_id`, `actor`
-- reset faulted envs via auto-reset helpers
+- reset faulted envs via `WeissEnv.auto_reset_on_engine_errors(...)` in high-level loops
 
-Example pattern:
+High-level example:
+
+```python
+step = sim.step(actions)
+if (step.engine_status != 0).any():
+    reset_count, _ = sim.auto_reset_on_engine_errors(step.engine_status)
+    if reset_count:
+        # faulted envs were reset in-place; continue loop with updated state
+        pass
+```
+
+Low-level fallback (buffer/pool workflow):
 
 ```python
 codes = out.engine_status
 if (codes != 0).any():
-    pool.auto_reset_on_error_codes_into(codes, buf.out)
+    pool.auto_reset_on_error_codes_into(codes, out)
 ```
 
 ### Unexpected illegal actions / empty legal sets

@@ -1,31 +1,17 @@
-from pathlib import Path
-
 import numpy as np
 import weiss_sim
 
-
-def _first_legal_actions(masks):
-    actions = []
-    for i in range(masks.shape[0]):
-        row = masks[i]
-        idxs = np.flatnonzero(row)
-        assert idxs.size > 0
-        actions.append(int(idxs[0]))
-    return actions
+from tests.support import (
+    first_legal_actions as _first_legal_actions,
+    make_rl_train_pool,
+)
 
 
 def _make_pool(seed=2024):
-    fixture_dir = Path(__file__).parent / "fixtures"
-    db_path = fixture_dir / "cards.wsdb"
-    legal_deck = (list(range(1, 14)) * 4)[:50]
-    return weiss_sim.EnvPool.new_rl_train(
-        1,
-        str(db_path),
-        deck_lists=[legal_deck, legal_deck],
-        deck_ids=[9, 10],
-        max_decisions=200,
-        max_ticks=10_000,
+    return make_rl_train_pool(
         seed=seed,
+        num_envs=1,
+        deck_ids=(9, 10),
     )
 
 

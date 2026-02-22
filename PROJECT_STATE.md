@@ -64,14 +64,14 @@ Batch stepping continues for other envs when one env faults.
 
 There are multiple config entry paths:
 
-- low-level `EnvPool.new_rl_train/new_rl_eval/new_debug`
-- high-level `weiss_sim.create/train/evaluate`
+- high-level `weiss_sim.make/fast/inspect`
+- low-level canonical `weiss_sim.make_pool(...)` (with direct `EnvPool.new_rl_train/new_rl_eval/new_debug` still available for advanced use)
 
 Important caveat:
 
-- serialized curriculum payloads use `serde` field defaults for omitted fields
-- this can differ from `CurriculumConfig::default()` values
-- when behavior matters, set curriculum fields explicitly rather than relying on implicit defaults
+- omitted-field `serde` behavior for `CurriculumConfig` and `EndConditionPolicy` is test-backed against `Default` values
+- keep those parity tests passing before changing config defaults or `#[serde(default)]` annotations
+- when behavior matters, set curriculum/end-condition fields explicitly instead of relying on omitted-field defaults
 
 ## Coverage and parser posture
 

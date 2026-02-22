@@ -22,9 +22,10 @@ PY_OUT="$OUT_DIR/python_bench.txt"
 cargo bench -p weiss_core --bench core_benches -- --output-format bencher > "$BENCH_OUT"
 cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher >> "$BENCH_OUT"
 
-PYTHONPATH=python "$PYTHON_BIN" python/examples/bench_python_boundary.py \
+PYTHONPATH="$REPO_DIR/python" "$PYTHON_BIN" "$ROOT_DIR/python/examples/bench_python_boundary.py" \
   --num-envs 128 \
   --steps 2000 \
   --warmup 200 \
   --reset-reps 200 \
-  --mode both > "$PY_OUT"
+  --mode both \
+  --repo-root "$REPO_DIR" > "$PY_OUT"

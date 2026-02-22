@@ -32,6 +32,49 @@ flowchart LR
   D --> E["terminated or truncated"]
 ```
 
+## Reward semantics
+
+Reward values are reported per-step and are computed from the **acting player’s perspective** for that boundary.
+
+Intuition:
+
+- the engine identifies the current actor (`to_play_seat` / `actor`)
+- the caller supplies an action id for that actor
+- the returned reward is computed relative to that actor (the seat that took the action)
+
+This alignment is intentional: it supports self-play style training/evaluation where a single policy can act for both seats while still receiving correctly-signed rewards for whichever seat acted.
+
+Non-terminal behavior:
+
+- if shaping rewards are disabled, non-terminal rewards are `0.0`
+- if shaping rewards are enabled, the current shaping term is applied from the actor’s perspective
+
+Terminal behavior:
+
+- win/loss rewards use the configured `terminal_win` / `terminal_loss`
+- draw/timeout rewards use `terminal_draw`
+
+Fault behavior (engine errors):
+
+- faults latch `engine_status != 0` and emit `truncated=True`
+- a latched fault emits a terminal-loss reward at most once (for the known actor); subsequent fault rows emit `0.0` until reset
+
+Reward configuration defaults (`RewardConfig`):
+
+- `terminal_win = 1.0`
+- `terminal_loss = -1.0`
+- `terminal_draw = 0.0`
+- `enable_shaping = false`
+- `damage_reward = 0.1`
+
+`reward_json` schema keys match `RewardConfig` field names:
+
+- `terminal_win` (float)
+- `terminal_loss` (float)
+- `terminal_draw` (float)
+- `enable_shaping` (bool)
+- `damage_reward` (float)
+
 ## Core output schema
 
 Typical low-level outputs (`BatchOut*` / buffer wrappers):

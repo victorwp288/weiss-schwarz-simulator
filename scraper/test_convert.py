@@ -25,11 +25,11 @@ class ConvertParsingTests(unittest.TestCase):
         self.assertEqual(len(defs), 1)
         self.assertTrue(defs[0].get("conditions", {}).get("requires_approx_effects") is True)
 
-    def test_approx_profile_aliases_normalize_to_canonical_names(self):
+    def test_approx_profile_normalize_to_canonical_names(self):
         self.assertEqual(normalize_approx_profile("strict"), APPROX_PROFILE_STRICT)
-        self.assertEqual(normalize_approx_profile("none"), APPROX_PROFILE_STRICT)
         self.assertEqual(normalize_approx_profile("approx"), APPROX_PROFILE_APPROX)
-        self.assertEqual(normalize_approx_profile("rl_v1"), APPROX_PROFILE_APPROX)
+        with self.assertRaises(ValueError):
+            normalize_approx_profile("none")
 
     def test_continuous_power_and_soul_all_characters(self):
         stats = AbilityParseStats()
@@ -1346,7 +1346,7 @@ class ConvertParsingTests(unittest.TestCase):
             'your waiting room. For each climax revealed among those cards, perform the following action. "Draw a card."'
         )
         abilities, ability_defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="rl_v1"
+            text, "Character", stats, approx_profile="approx"
         )
         self.assertEqual(abilities, [])
         self.assertEqual(len(ability_defs), 1)
@@ -1366,7 +1366,7 @@ class ConvertParsingTests(unittest.TestCase):
             'your waiting room. For each climax revealed among those cards, perform the following action. "Draw a card."'
         )
         abilities, ability_defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none"
+            text, "Character", stats, approx_profile="strict"
         )
         self.assertEqual(abilities, [])
         self.assertEqual(len(ability_defs), 1)
@@ -1543,7 +1543,7 @@ class ConvertParsingTests(unittest.TestCase):
             trait_map={"Music": 9},
             trait_to_ids={"Music": [21, 22, 23]},
             source_card_id=21,
-            approx_profile="none",
+            approx_profile="strict",
         )
         self.assertEqual(abilities, [])
         self.assertEqual(len(ability_defs), 1)
@@ -1584,7 +1584,7 @@ class ConvertParsingTests(unittest.TestCase):
             text,
             "Character",
             stats,
-            approx_profile="none",
+            approx_profile="strict",
         )
         self.assertEqual(abilities, [])
         self.assertEqual(len(ability_defs), 1)
@@ -1602,7 +1602,7 @@ class ConvertParsingTests(unittest.TestCase):
             trait_map={"Music": 11},
             trait_to_ids={"Music": [21, 22, 23]},
             source_card_id=21,
-            approx_profile="none",
+            approx_profile="strict",
         )
         self.assertEqual(abilities, [])
         self.assertEqual(len(ability_defs), 1)
@@ -1969,14 +1969,14 @@ class ConvertParsingTests(unittest.TestCase):
         self.assertEqual(effect["exclude_source"], True)
         self.assertEqual(effect["target_ids"], [11, 12])
 
-    def test_continuous_all_opponent_following_unknown_is_rl_v1_approx_only(self):
+    def test_continuous_all_opponent_following_unknown_is_approx_approx_only(self):
         text = (
             "【CONT】 All of your opponent's characters get "
             '"【AUTO】 Encore [Put the top card of your deck into your clock]".'
         )
         none_stats = AbilityParseStats()
         none_abilities, none_defs, _ = parse_abilities(
-            text, "Character", none_stats, approx_profile="none"
+            text, "Character", none_stats, approx_profile="strict"
         )
         self.assertEqual(none_abilities, [])
         self.assertEqual(none_defs, [])
@@ -1984,7 +1984,7 @@ class ConvertParsingTests(unittest.TestCase):
 
         rl_stats = AbilityParseStats()
         rl_abilities, rl_defs, _ = parse_abilities(
-            text, "Character", rl_stats, approx_profile="rl_v1"
+            text, "Character", rl_stats, approx_profile="approx"
         )
         self.assertEqual(rl_abilities, [])
         self.assertEqual(len(rl_defs), 1)
@@ -1999,7 +1999,7 @@ class ConvertParsingTests(unittest.TestCase):
         )
         none_stats = AbilityParseStats()
         none_abilities, none_defs, _ = parse_abilities(
-            text, "Character", none_stats, approx_profile="none"
+            text, "Character", none_stats, approx_profile="strict"
         )
         self.assertEqual(none_abilities, [])
         self.assertEqual(len(none_defs), 1)
@@ -2015,7 +2015,7 @@ class ConvertParsingTests(unittest.TestCase):
 
         rl_stats = AbilityParseStats()
         rl_abilities, rl_defs, _ = parse_abilities(
-            text, "Character", rl_stats, approx_profile="rl_v1"
+            text, "Character", rl_stats, approx_profile="approx"
         )
         self.assertEqual(rl_abilities, [])
         self.assertEqual(len(rl_defs), 1)
@@ -2036,7 +2036,7 @@ class ConvertParsingTests(unittest.TestCase):
         )
         none_stats = AbilityParseStats()
         none_abilities, none_defs, _ = parse_abilities(
-            text, "Character", none_stats, approx_profile="none"
+            text, "Character", none_stats, approx_profile="strict"
         )
         self.assertEqual(none_abilities, [])
         self.assertEqual(len(none_defs), 1)
@@ -2049,7 +2049,7 @@ class ConvertParsingTests(unittest.TestCase):
 
         rl_stats = AbilityParseStats()
         rl_abilities, rl_defs, _ = parse_abilities(
-            text, "Character", rl_stats, approx_profile="rl_v1"
+            text, "Character", rl_stats, approx_profile="approx"
         )
         self.assertEqual(rl_abilities, [])
         self.assertEqual(len(rl_defs), 1)
@@ -2431,19 +2431,19 @@ class ConvertParsingTests(unittest.TestCase):
         )
         self.assertEqual(ability_defs[0]["cost"]["stock"], 1)
 
-    def test_auto_change_begin_climax_phase_is_rl_v1_approx_only(self):
+    def test_auto_change_begin_climax_phase_is_approx_approx_only(self):
         text = (
             "【AUTO】 Change [Return this card to your hand] At the beginning of your climax phase, "
             "you may pay the cost. If you do, choose up to 1 《Quintuplets》 character in your hand, "
             "and put it on the stage position that this card was on."
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(none_defs, [])
         self.assertEqual(none_stats.parsed_lines, 0)
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["timing"], "BeginClimaxPhase")
         self.assertEqual(rl_defs[0]["effects"], [{"Draw": {"count": 0}}])
@@ -2461,7 +2461,7 @@ class ConvertParsingTests(unittest.TestCase):
             "Character",
             stats,
             name_to_ids={"Target": [321]},
-            approx_profile="none",
+            approx_profile="strict",
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0]["timing"], "BeginClimaxPhase")
@@ -2478,7 +2478,7 @@ class ConvertParsingTests(unittest.TestCase):
             "them on the top of your deck in any order."
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(len(none_defs), 1)
         self.assertEqual(
             none_defs[0]["effects"],
@@ -2488,7 +2488,7 @@ class ConvertParsingTests(unittest.TestCase):
         self.assertEqual(none_defs[0]["cost"]["rest_self"], True)
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(
             rl_defs[0]["effects"],
@@ -2502,7 +2502,7 @@ class ConvertParsingTests(unittest.TestCase):
             "put them on the top of your deck in any order."
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(len(none_defs), 1)
         self.assertEqual(none_defs[0]["timing"], "AttackDeclaration")
         self.assertEqual(
@@ -2512,7 +2512,7 @@ class ConvertParsingTests(unittest.TestCase):
         self.assertEqual(none_defs[0]["targets"], ["SelfDeckTop"])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["timing"], "AttackDeclaration")
         self.assertEqual(
@@ -2717,16 +2717,16 @@ class ConvertParsingTests(unittest.TestCase):
             ],
         )
 
-    def test_continuous_facing_quoted_is_rl_v1_approx_only(self):
+    def test_continuous_facing_quoted_is_approx_approx_only(self):
         text = (
             '【CONT】 The character facing this card gets "【CONT】 This card cannot side attack."'
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(none_defs, [])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["effects"], [{"Draw": {"count": 0}}])
         self.assertEqual(rl_defs[0]["conditions"], {"requires_approx_effects": True})
@@ -2838,17 +2838,17 @@ class ConvertParsingTests(unittest.TestCase):
             "to 1 of your opponent's characters, and return it to their hand."
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(none_defs, [])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["effects"], ["MoveToHand"])
         self.assertEqual(rl_defs[0]["targets"], ["OppStage"])
         self.assertEqual(rl_defs[0]["conditions"], {"requires_approx_effects": True})
 
-    def test_act_following_ability_is_rl_v1_approx_only(self):
+    def test_act_following_ability_is_approx_approx_only(self):
         text = (
             "【ACT】 [【REST】 this card] Choose 1 of your characters, and that character gets the "
             "following ability until end of turn. "
@@ -2857,11 +2857,11 @@ class ConvertParsingTests(unittest.TestCase):
             "opponent's stock into their waiting room.\""
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(none_defs, [])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["effects"], [{"Draw": {"count": 0}}])
         self.assertEqual(
@@ -3087,7 +3087,7 @@ class ConvertParsingTests(unittest.TestCase):
             'of your deck into your stock."'
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(len(none_defs), 1)
         self.assertEqual(none_defs[0]["timing"], "UseAct")
         self.assertEqual(
@@ -3099,7 +3099,7 @@ class ConvertParsingTests(unittest.TestCase):
         self.assertEqual(granted["effects"], ["MoveToStock"])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["timing"], "UseAct")
         self.assertEqual(
@@ -3108,18 +3108,18 @@ class ConvertParsingTests(unittest.TestCase):
         )
         self.assertEqual(rl_defs[0]["conditions"], {})
 
-    def test_auto_begin_opponent_draw_mill_gate_return_rl_v1_approx(self):
+    def test_auto_begin_opponent_draw_mill_gate_return_approx_approx(self):
         text = (
             "【AUTO】 At the beginning of your opponent's draw phase, put the top 2 cards of your deck "
             "into your waiting room. If there is a level 2 or higher card among those cards, you may "
             "return this card to your hand. (Climax are regarded as level 0)"
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(none_defs, [])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["timing"], "BeginDrawPhase")
         self.assertEqual(
@@ -3127,7 +3127,7 @@ class ConvertParsingTests(unittest.TestCase):
             {"requires_approx_effects": True, "turn": "OpponentTurn"},
         )
 
-    def test_auto_cxcombo_named_following_rl_v1_approx(self):
+    def test_auto_cxcombo_named_following_approx_approx(self):
         text = (
             '【AUTO】 【CXCOMBO】 When "Birds of a Feather" is placed on your climax area, choose 1 of '
             "your other characters, and that character gets the following ability until end of turn. "
@@ -3136,11 +3136,11 @@ class ConvertParsingTests(unittest.TestCase):
             'your opponent, put it into your hand, and put the rest into your waiting room."'
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(none_defs, [])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["timing"], "AfterClimaxPhase")
         self.assertEqual(rl_defs[0]["effects"], [{"Draw": {"count": 0}}])
@@ -3160,7 +3160,7 @@ class ConvertParsingTests(unittest.TestCase):
             '【REVERSE】, you may deal 1 damage to your opponent."'
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(len(none_defs), 1)
         self.assertEqual(none_defs[0]["timing"], "AttackDeclaration")
         self.assertEqual(
@@ -3170,7 +3170,7 @@ class ConvertParsingTests(unittest.TestCase):
         self.assertEqual(none_defs[0]["cost"]["discard_from_hand"], 1)
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["timing"], "AttackDeclaration")
         self.assertEqual(rl_defs[0]["conditions"], {})
@@ -3348,18 +3348,18 @@ class ConvertParsingTests(unittest.TestCase):
             [{"AddPowerByLevel": {"multiplier": 500, "duration_turn": False}}],
         )
 
-    def test_counter_trait_requirement_rl_v1_approx(self):
+    def test_counter_trait_requirement_approx_approx(self):
         text = (
             "【COUNTER】 If you do not have a 《Deadly Sin》 character, this card cannot be played from your hand. "
             "Look at up to 4 cards from the top of your deck, choose up to 1 《Deadly Sin》 character from among them, "
             "reveal it to your opponent, put it into your hand, and put the rest into your waiting room."
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Event", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Event", none_stats, approx_profile="strict")
         self.assertEqual(none_defs, [])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, counter = parse_abilities(text, "Event", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, counter = parse_abilities(text, "Event", rl_stats, approx_profile="approx")
         self.assertTrue(counter)
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["timing"], "Counter")
@@ -3482,49 +3482,49 @@ class ConvertParsingTests(unittest.TestCase):
             ],
         )
 
-    def test_auto_paid_on_play_search_salvage_generic_rl_v1_approx(self):
+    def test_auto_paid_on_play_search_salvage_generic_approx_approx(self):
         text = (
             "【AUTO】 [Put 1 card from your hand into your clock] When this card is placed on the stage from your hand, "
             "you may pay the cost. If you do, look at up to X cards from the top of your deck, choose up to 1 card from among them, "
             "put it into your hand, and put the rest into your waiting room. X is equal to the number of other 《Roselia》 characters you have."
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(none_defs, [])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertEqual(rl_defs[0]["timing"], "OnPlay")
         self.assertEqual(rl_defs[0]["conditions"], {"requires_approx_effects": True})
         self.assertEqual(rl_defs[0]["cost"]["clock_from_hand"], 1)
 
-    def test_continuous_following_generic_rl_v1_approx(self):
+    def test_continuous_following_generic_approx_approx(self):
         text = (
             "【CONT】 If you have 2 or more other 《Hello, Happy World!》 characters, this card gets the following ability. "
             '"【AUTO】 Encore [(3)]"'
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(none_defs, [])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertTrue(rl_defs[0]["conditions"]["requires_approx_effects"])
 
-    def test_act_brainstorm_search_to_hand_rl_v1_approx_draw(self):
+    def test_act_brainstorm_search_to_hand_approx_approx_draw(self):
         text = (
             "【ACT】 Brainstorm [(1) 【REST】 this card] Flip over 4 cards from the top of your deck, and put them into your waiting room. "
             "For each climax revealed among those cards, search your deck for up to 1 《Game》 character, reveal it to your opponent, "
             "put it into your hand, and shuffle your deck."
         )
         none_stats = AbilityParseStats()
-        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="none")
+        _, none_defs, _ = parse_abilities(text, "Character", none_stats, approx_profile="strict")
         self.assertEqual(none_defs, [])
 
         rl_stats = AbilityParseStats()
-        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="rl_v1")
+        _, rl_defs, _ = parse_abilities(text, "Character", rl_stats, approx_profile="approx")
         self.assertEqual(len(rl_defs), 1)
         self.assertTrue(rl_defs[0]["conditions"]["requires_approx_effects"])
         self.assertEqual(
@@ -3629,7 +3629,7 @@ class ConvertParsingTests(unittest.TestCase):
             "Character",
             stats,
             name_to_ids={"Future Idol": [321]},
-            approx_profile="none",
+            approx_profile="strict",
             parser_version="v2",
         )
         self.assertEqual(len(defs), 1)
@@ -3646,7 +3646,7 @@ class ConvertParsingTests(unittest.TestCase):
             "If you do, draw 1 card."
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0]["timing"], "DamageDealtCanceled")
@@ -3662,7 +3662,7 @@ class ConvertParsingTests(unittest.TestCase):
             "you may pay the cost. If you do, choose 1 character in your waiting room, and return it to your hand."
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0]["effects"], ["MoveToHand"])
@@ -3679,7 +3679,7 @@ class ConvertParsingTests(unittest.TestCase):
             "you may put the top card of your clock into your waiting room."
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0]["timing"], "OnPlay")
@@ -3728,7 +3728,7 @@ class ConvertParsingTests(unittest.TestCase):
             "you may pay the cost. If you do, choose 1 character in your waiting room, and return it to your hand."
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(
@@ -3775,7 +3775,7 @@ class ConvertParsingTests(unittest.TestCase):
             "put it on the top of your deck or into your waiting room."
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0]["effects"], ["LookTopCardTopOrWaitingRoom"])
@@ -3792,7 +3792,7 @@ class ConvertParsingTests(unittest.TestCase):
             'position of the stage."'
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0]["effects"], ["FacingOpponentCannotMoveStagePosition"])
@@ -3810,7 +3810,7 @@ class ConvertParsingTests(unittest.TestCase):
             '"【CONT】 During this card\'s battle, all players cannot play "Backup" from their hands."'
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0]["timing"], "OnPlay")
@@ -3832,7 +3832,7 @@ class ConvertParsingTests(unittest.TestCase):
             'following ability. "【CONT】 This card cannot side attack."'
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(
@@ -3848,7 +3848,7 @@ class ConvertParsingTests(unittest.TestCase):
         stats = AbilityParseStats()
         text = "【CONT】 If there is a marker underneath this card, this card gets +1000 power and +1 soul."
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(
@@ -3872,7 +3872,7 @@ class ConvertParsingTests(unittest.TestCase):
             '"【CONT】 This card cannot side attack."'
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         cond_power = defs[0]["effects"][0]["ConditionalAddPower"]
@@ -3892,7 +3892,7 @@ class ConvertParsingTests(unittest.TestCase):
             "power until end of turn."
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0]["effects"], ["MoveToHand"])
@@ -3909,7 +3909,7 @@ class ConvertParsingTests(unittest.TestCase):
             "put it into your hand, and shuffle your deck."
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0]["effects"], ["MoveToHand"])
@@ -3943,7 +3943,7 @@ class ConvertParsingTests(unittest.TestCase):
             "【AUTO】 When this card becomes 【REVERSE】 in battle, put this card into your memory."
         )
         _, memory_defs, _ = parse_abilities(
-            memory_text, "Character", stats, approx_profile="none", parser_version="v2"
+            memory_text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(memory_defs), 1)
         self.assertEqual(memory_defs[0]["timing"], "OnReverse")
@@ -3952,7 +3952,7 @@ class ConvertParsingTests(unittest.TestCase):
         stats = AbilityParseStats()
         bottom_text = "【AUTO】 When this card becomes 【REVERSE】 in battle, put this card at the bottom of your deck."
         _, bottom_defs, _ = parse_abilities(
-            bottom_text, "Character", stats, approx_profile="none", parser_version="v2"
+            bottom_text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(bottom_defs), 1)
         self.assertEqual(bottom_defs[0]["effects"], ["MoveToDeckBottom"])
@@ -3961,7 +3961,7 @@ class ConvertParsingTests(unittest.TestCase):
         stats = AbilityParseStats()
         win_text = "【AUTO】 You win the game."
         _, win_defs, _ = parse_abilities(
-            win_text, "Character", stats, approx_profile="none", parser_version="v2"
+            win_text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(win_defs), 1)
         self.assertEqual(win_defs[0]["effects"], [{"SetTerminalOutcome": {"outcome": "WinSelf"}}])
@@ -3969,7 +3969,7 @@ class ConvertParsingTests(unittest.TestCase):
         stats = AbilityParseStats()
         lose_text = "【AUTO】 If there are no cards in your deck, you lose the game."
         _, lose_defs, _ = parse_abilities(
-            lose_text, "Character", stats, approx_profile="none", parser_version="v2"
+            lose_text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(lose_defs), 1)
         self.assertEqual(
@@ -3983,7 +3983,7 @@ class ConvertParsingTests(unittest.TestCase):
             '"【AUTO】 Encore [(3)]"'
         )
         _, defs, _ = parse_abilities(
-            text, "Character", stats, approx_profile="none", parser_version="v2"
+            text, "Character", stats, approx_profile="strict", parser_version="v2"
         )
         self.assertEqual(len(defs), 1)
         self.assertNotIn("requires_approx_effects", defs[0]["conditions"])

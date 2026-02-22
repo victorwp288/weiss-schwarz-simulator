@@ -95,6 +95,8 @@ jobs:
         run: python scripts/check_docs_links.py
       - name: Docs constants check
         run: python scripts/check_docs_constants.py
+      - name: Generated docs check
+        run: python scripts/gen_docs_snippets.py --check
 
   rust:
     name: Rust (fmt, clippy, test)
@@ -144,6 +146,8 @@ jobs:
         run: ruff format --check python scraper scripts
       - name: Ruff lint
         run: ruff check python scraper scripts
+      - name: Generated docs check
+        run: python scripts/gen_docs_snippets.py --check
       - name: Ability coverage report
         run: python scripts/ability_coverage_report.py --output /tmp/ability_coverage_report.json
       - name: Ability coverage targets

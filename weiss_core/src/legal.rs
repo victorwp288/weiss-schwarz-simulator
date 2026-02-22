@@ -930,24 +930,22 @@ pub fn can_declare_attack(
                 entry.cannot_frontal_attack,
                 entry.attack_cost,
             )
+        } else if let Some(card_inst) = attacker_slot.card {
+            collect_attack_slot_state(
+                state,
+                p,
+                s,
+                card_inst.id,
+                attacker_slot.cannot_attack,
+                attacker_slot.attack_cost,
+            )
         } else {
-            if let Some(card_inst) = attacker_slot.card {
-                collect_attack_slot_state(
-                    state,
-                    p,
-                    s,
-                    card_inst.id,
-                    attacker_slot.cannot_attack,
-                    attacker_slot.attack_cost,
-                )
-            } else {
-                (
-                    attacker_slot.cannot_attack,
-                    false,
-                    false,
-                    attacker_slot.attack_cost,
-                )
-            }
+            (
+                attacker_slot.cannot_attack,
+                false,
+                false,
+                attacker_slot.attack_cost,
+            )
         };
     if cannot_attack {
         return Err("Attacker cannot attack");

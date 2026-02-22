@@ -5,18 +5,36 @@
 
 This is the canonical map for repository docs.
 
+## Overview
+
+Start here:
+
+1. [Quickstart](quickstart.md)
+2. [How it works](how_it_works.md)
+3. [RL Contract](rl_contract.md)
+
+Keep handy:
+
+- [Glossary](glossary.md)
+- [Python API Reference (generated)](python_api_reference.md)
+
+## Tutorials (RL)
+
+- [PPO tutorial (masked discrete actions)](tutorials/ppo.md)
+- [IMPALA + V-trace tutorial (actor/learner)](tutorials/impala_vtrace.md)
+
 ## Read by goal
 
 ### I want to run training quickly
 
 1. [Quickstart](quickstart.md)
-2. [RL Contract](rl_contract.md)
-3. [Python API](python_api.md)
+2. [PPO tutorial](tutorials/ppo.md)
+3. [RL Contract](rl_contract.md)
 
 ### I want to integrate or extend Python tooling
 
-1. [Python API](python_api.md)
-2. [Encodings](encodings.md)
+1. [Python API Guide](python_api.md)
+2. [Python API Reference (generated)](python_api_reference.md)
 3. [Troubleshooting](troubleshooting.md)
 
 ### I want to modify engine behavior
@@ -42,26 +60,38 @@ This is the canonical map for repository docs.
 
 ```mermaid
 flowchart TD
-  A["quickstart.md"] --> B["rl_contract.md"]
-  A --> C["python_api.md"]
-  B --> D["encodings.md"]
-  D --> E["encodings_changelog.md"]
-  B --> F["replays_determinism.md"]
-  G["engine_architecture.md"] --> B
-  G --> H["rules_coverage.md"]
-  H --> I["approximation_policy.md"]
-  G --> J["invariants_validation.md"]
-  J --> K["../PROJECT_STATE.md"]
-  L["performance_benchmarks.md"] --> G
-  M["troubleshooting.md"] --> A
-  N["contributing.md"] --> G
-  N --> B
+  QS["quickstart.md"] --> HIT["how_it_works.md"]
+  QS --> PPO["tutorials/ppo.md"]
+  PPO --> IMP["tutorials/impala_vtrace.md"]
+  QS --> RL["rl_contract.md"]
+  RL --> ENC["encodings.md"]
+  ENC --> CHG["encodings_changelog.md"]
+  RL --> REP["replays_determinism.md"]
+  QS --> PY["python_api.md"]
+  PY --> PYREF["python_api_reference.md"]
+  HIT --> RL
+  GLO["glossary.md"] --> QS
+
+  ENG["engine_architecture.md"] --> RL
+  ENG --> COV["rules_coverage.md"]
+  COV --> APR["approximation_policy.md"]
+  ENG --> INV["invariants_validation.md"]
+  INV --> PS["../PROJECT_STATE.md"]
+  PERF["performance_benchmarks.md"] --> ENG
+  TRO["troubleshooting.md"] --> QS
+  CON["contributing.md"] --> ENG
+  CON --> RL
 ```
 
 ## Full docs index
 
 - [Quickstart](quickstart.md): install paths, first reset/step, and integration sanity checks.
-- [Python API](python_api.md): `make/fast/inspect`, `WeissEnv`, `batch.legal`, and canonical low-level APIs (`make_pool`, `EnvPoolBuffers`, `EnvPoolTrajectoryBuffers`, `reset_rl`, `step_rl`, logits helpers).
+- [How it works](how_it_works.md): decision boundaries, legality pipeline, determinism surfaces, and the high/low-level Python layers.
+- [Glossary](glossary.md): contract-facing terms and stable definitions used across docs.
+- [Python API Guide](python_api.md): `make/fast/inspect`, `WeissEnv`, `batch.legal`, and integration patterns.
+- [Python API Reference (generated)](python_api_reference.md): generated names/signatures for the public `weiss_sim` surface.
+- [PPO tutorial](tutorials/ppo.md): minimal masked-discrete PPO loop using `weiss_sim` + PyTorch.
+- [IMPALA + V-trace tutorial](tutorials/impala_vtrace.md): minimal actor/learner loop with V-trace corrections.
 - [RL Contract](rl_contract.md): step semantics, output schema, and compatibility checksum table.
 - [Encodings](encodings.md): observation/action spec model and compatibility process.
 - [Encodings Changelog](encodings_changelog.md): append-only encoding/schema history.
@@ -90,9 +120,16 @@ When behavior changes, docs change in the same PR.
    - [RL Contract checksum table](rl_contract.md)
    - [Encodings changelog](encodings_changelog.md)
 3. Keep [Project State](../PROJECT_STATE.md) aligned with actual runtime behavior.
-4. Run:
+4. Regenerate generated docs:
+
+```bash
+python scripts/gen_docs_snippets.py --write
+```
+
+5. Run:
 
 ```bash
 python scripts/check_docs_links.py
 python scripts/check_docs_constants.py
+python scripts/gen_docs_snippets.py --check
 ```

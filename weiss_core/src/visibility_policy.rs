@@ -82,3 +82,198 @@ pub fn hide_target_zone_for_viewer(
         ZoneIdentityVisibility::OwnerOnly => viewer.map(|v| v != owner).unwrap_or(true),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zone_identity_visibility_respects_memory_flag() {
+        let mut curriculum = CurriculumConfig {
+            memory_is_public: false,
+            ..CurriculumConfig::default()
+        };
+
+        assert_eq!(
+            zone_identity_visibility(Zone::Deck, &curriculum),
+            ZoneIdentityVisibility::OwnerOnly
+        );
+        assert_eq!(
+            zone_identity_visibility(Zone::Hand, &curriculum),
+            ZoneIdentityVisibility::OwnerOnly
+        );
+        assert_eq!(
+            zone_identity_visibility(Zone::Stock, &curriculum),
+            ZoneIdentityVisibility::OwnerOnly
+        );
+        assert_eq!(
+            zone_identity_visibility(Zone::Memory, &curriculum),
+            ZoneIdentityVisibility::OwnerOnly
+        );
+        assert_eq!(
+            zone_identity_visibility(Zone::Stage, &curriculum),
+            ZoneIdentityVisibility::Public
+        );
+
+        curriculum.memory_is_public = true;
+        assert_eq!(
+            zone_identity_visibility(Zone::Memory, &curriculum),
+            ZoneIdentityVisibility::Public
+        );
+    }
+
+    #[test]
+    fn target_zone_identity_visibility_respects_memory_flag() {
+        let mut curriculum = CurriculumConfig {
+            memory_is_public: false,
+            ..CurriculumConfig::default()
+        };
+
+        assert_eq!(
+            target_zone_identity_visibility(TargetZone::Hand, &curriculum),
+            ZoneIdentityVisibility::OwnerOnly
+        );
+        assert_eq!(
+            target_zone_identity_visibility(TargetZone::DeckTop, &curriculum),
+            ZoneIdentityVisibility::OwnerOnly
+        );
+        assert_eq!(
+            target_zone_identity_visibility(TargetZone::Stock, &curriculum),
+            ZoneIdentityVisibility::OwnerOnly
+        );
+        assert_eq!(
+            target_zone_identity_visibility(TargetZone::Memory, &curriculum),
+            ZoneIdentityVisibility::OwnerOnly
+        );
+        assert_eq!(
+            target_zone_identity_visibility(TargetZone::Stage, &curriculum),
+            ZoneIdentityVisibility::Public
+        );
+
+        curriculum.memory_is_public = true;
+        assert_eq!(
+            target_zone_identity_visibility(TargetZone::Memory, &curriculum),
+            ZoneIdentityVisibility::Public
+        );
+    }
+
+    #[test]
+    fn hide_zone_for_viewer_only_hides_private_zones_in_public_mode() {
+        let mut curriculum = CurriculumConfig {
+            memory_is_public: false,
+            ..CurriculumConfig::default()
+        };
+
+        assert!(!hide_zone_for_viewer(
+            ObservationVisibility::Full,
+            Some(1),
+            0,
+            Zone::Hand,
+            &curriculum
+        ));
+        assert!(!hide_zone_for_viewer(
+            ObservationVisibility::Public,
+            Some(0),
+            0,
+            Zone::Hand,
+            &curriculum
+        ));
+        assert!(hide_zone_for_viewer(
+            ObservationVisibility::Public,
+            Some(1),
+            0,
+            Zone::Hand,
+            &curriculum
+        ));
+        assert!(hide_zone_for_viewer(
+            ObservationVisibility::Public,
+            None,
+            0,
+            Zone::Hand,
+            &curriculum
+        ));
+        assert!(!hide_zone_for_viewer(
+            ObservationVisibility::Public,
+            Some(1),
+            0,
+            Zone::Stage,
+            &curriculum
+        ));
+        assert!(hide_zone_for_viewer(
+            ObservationVisibility::Public,
+            Some(1),
+            0,
+            Zone::Memory,
+            &curriculum
+        ));
+
+        curriculum.memory_is_public = true;
+        assert!(!hide_zone_for_viewer(
+            ObservationVisibility::Public,
+            Some(1),
+            0,
+            Zone::Memory,
+            &curriculum
+        ));
+    }
+
+    #[test]
+    fn hide_target_zone_for_viewer_only_hides_private_zones_in_public_mode() {
+        let mut curriculum = CurriculumConfig {
+            memory_is_public: false,
+            ..CurriculumConfig::default()
+        };
+
+        assert!(!hide_target_zone_for_viewer(
+            ObservationVisibility::Full,
+            Some(1),
+            0,
+            TargetZone::Hand,
+            &curriculum
+        ));
+        assert!(!hide_target_zone_for_viewer(
+            ObservationVisibility::Public,
+            Some(0),
+            0,
+            TargetZone::DeckTop,
+            &curriculum
+        ));
+        assert!(hide_target_zone_for_viewer(
+            ObservationVisibility::Public,
+            Some(1),
+            0,
+            TargetZone::Stock,
+            &curriculum
+        ));
+        assert!(hide_target_zone_for_viewer(
+            ObservationVisibility::Public,
+            None,
+            0,
+            TargetZone::Hand,
+            &curriculum
+        ));
+        assert!(!hide_target_zone_for_viewer(
+            ObservationVisibility::Public,
+            Some(1),
+            0,
+            TargetZone::Stage,
+            &curriculum
+        ));
+        assert!(hide_target_zone_for_viewer(
+            ObservationVisibility::Public,
+            Some(1),
+            0,
+            TargetZone::Memory,
+            &curriculum
+        ));
+
+        curriculum.memory_is_public = true;
+        assert!(!hide_target_zone_for_viewer(
+            ObservationVisibility::Public,
+            Some(1),
+            0,
+            TargetZone::Memory,
+            &curriculum
+        ));
+    }
+}

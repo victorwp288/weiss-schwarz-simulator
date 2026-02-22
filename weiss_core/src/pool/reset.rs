@@ -188,6 +188,13 @@ impl EnvPool {
     }
 
     fn fill_outcomes_for_all_reset(&mut self) {
+        #[cfg(feature = "tracing")]
+        let _span = tracing::trace_span!(
+            "pool.fill_outcomes_for_all_reset",
+            num_envs = self.envs.len(),
+            effective_threads = self.thread_pool_size.unwrap_or(1),
+        )
+        .entered();
         self.ensure_outcomes_scratch();
         let template = self.make_reset_template();
         if let Some(pool) = self.thread_pool.as_ref() {
@@ -218,6 +225,13 @@ impl EnvPool {
         if flags.len() != self.envs.len() {
             anyhow::bail!("reset flags size mismatch");
         }
+        #[cfg(feature = "tracing")]
+        let _span = tracing::trace_span!(
+            "pool.fill_outcomes_for_flags",
+            num_envs = self.envs.len(),
+            effective_threads = self.thread_pool_size.unwrap_or(1),
+        )
+        .entered();
         self.ensure_outcomes_scratch();
         let template = self.make_reset_template();
         if let Some(pool) = self.thread_pool.as_ref() {
@@ -251,6 +265,13 @@ impl EnvPool {
         if seeds.len() != self.envs.len() {
             anyhow::bail!("seed options size mismatch");
         }
+        #[cfg(feature = "tracing")]
+        let _span = tracing::trace_span!(
+            "pool.fill_outcomes_for_seed_options",
+            num_envs = self.envs.len(),
+            effective_threads = self.thread_pool_size.unwrap_or(1),
+        )
+        .entered();
         self.ensure_outcomes_scratch();
         let template = self.make_reset_template();
         if let Some(pool) = self.thread_pool.as_ref() {
@@ -560,6 +581,14 @@ impl EnvPool {
                 reset_count += 1;
             }
         }
+        #[cfg(feature = "tracing")]
+        let _span = tracing::trace_span!(
+            "pool.auto_reset_on_error_codes_into",
+            num_envs = self.envs.len(),
+            reset_count = reset_count,
+            effective_threads = self.thread_pool_size.unwrap_or(1),
+        )
+        .entered();
         if reset_count == 0 {
             return Ok(0);
         }
@@ -593,6 +622,14 @@ impl EnvPool {
                 reset_count += 1;
             }
         }
+        #[cfg(feature = "tracing")]
+        let _span = tracing::trace_span!(
+            "pool.auto_reset_on_error_codes_into_nomask",
+            num_envs = self.envs.len(),
+            reset_count = reset_count,
+            effective_threads = self.thread_pool_size.unwrap_or(1),
+        )
+        .entered();
         if reset_count == 0 {
             return Ok(0);
         }

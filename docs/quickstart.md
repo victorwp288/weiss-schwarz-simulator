@@ -1,6 +1,6 @@
 # Quickstart
 
-Use this page to go from install to a verified reset/step loop with the v2 high-level API.
+Use this page to go from install to a verified reset/step loop with the current high-level API (`weiss-sim 0.6.x`).
 
 Next read: [RL Contract](rl_contract.md)
 
@@ -71,6 +71,15 @@ Mode defaults:
 | `inspect` | `eval_debug` | `both` | `i32` | n/a |
 
 `runtime_mode=` is rejected on the high-level API.
+
+## 0.6 migration notes
+
+Breaking changes in `0.6.0`:
+
+- `error_policy` accepts only `raise | replace | terminate`.
+- legacy `error_policy` aliases are removed.
+- high-level `make(...)` no longer accepts deprecated compatibility kwargs such as `runtime_mode=...`.
+- coverage tooling accepts only profile names `strict | approx` (legacy `none` / `rl_v1` aliases removed).
 
 ## Seed behavior and determinism
 

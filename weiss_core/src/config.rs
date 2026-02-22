@@ -111,11 +111,12 @@ impl EnvConfig {
         crate::fingerprint::config_fingerprint(self, curriculum)
     }
 
-    /// Validate deck lists against hard game constraints and known card ids.
-    pub fn validate_with_db(&self, db: &CardDb) -> Result<(), ConfigError> {
+    /// Validate deck lists against hard constraints and collect all issues.
+    pub fn validate_with_db_all_issues(&self, db: &CardDb) -> Vec<ConfigError> {
+        let mut issues: Vec<ConfigError> = Vec::new();
         for (player, deck) in self.deck_lists.iter().enumerate() {
             if deck.len() != crate::encode::MAX_DECK {
-                return Err(ConfigError::DeckLength {
+                issues.push(ConfigError::DeckLength {
                     player: player as u8,
                     got: deck.len(),
                     expected: crate::encode::MAX_DECK,
@@ -124,33 +125,49 @@ impl EnvConfig {
             let mut climax_count = 0usize;
             let mut counts: std::collections::HashMap<CardId, usize> =
                 std::collections::HashMap::new();
+            let mut seen_unknown: std::collections::HashSet<CardId> =
+                std::collections::HashSet::new();
             for &card_id in deck {
-                let card = db.get(card_id).ok_or(ConfigError::UnknownCardId {
-                    player: player as u8,
-                    card_id,
-                })?;
+                let Some(card) = db.get(card_id) else {
+                    if seen_unknown.insert(card_id) {
+                        issues.push(ConfigError::UnknownCardId {
+                            player: player as u8,
+                            card_id,
+                        });
+                    }
+                    continue;
+                };
                 if card.card_type == CardType::Climax {
                     climax_count += 1;
                 }
                 *counts.entry(card_id).or_insert(0) += 1;
             }
             if climax_count > 8 {
-                return Err(ConfigError::ClimaxCount {
+                issues.push(ConfigError::ClimaxCount {
                     player: player as u8,
                     got: climax_count,
                     max: 8,
                 });
             }
-            for (card_id, count) in counts {
-                if count > 4 {
-                    return Err(ConfigError::CardCopyCount {
-                        player: player as u8,
-                        card_id,
-                        got: count,
-                        max: 4,
-                    });
-                }
+            let mut excessive: Vec<(CardId, usize)> =
+                counts.into_iter().filter(|(_, count)| *count > 4).collect();
+            excessive.sort_by_key(|(card_id, _)| *card_id);
+            for (card_id, count) in excessive {
+                issues.push(ConfigError::CardCopyCount {
+                    player: player as u8,
+                    card_id,
+                    got: count,
+                    max: 4,
+                });
             }
+        }
+        issues
+    }
+
+    /// Validate deck lists against hard game constraints and known card ids.
+    pub fn validate_with_db(&self, db: &CardDb) -> Result<(), ConfigError> {
+        if let Some(issue) = self.validate_with_db_all_issues(db).into_iter().next() {
+            return Err(issue);
         }
         Ok(())
     }
@@ -373,4 +390,68 @@ impl CurriculumConfig {
 
 fn default_true() -> bool {
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RewardConfig;
+
+    #[test]
+    fn reward_config_zero_sum_defaults_validate() {
+        assert!(RewardConfig::default().validate_zero_sum().is_ok());
+    }
+
+    #[test]
+    fn reward_config_rejects_non_finite_terminal_values() {
+        let invalid_configs = [
+            RewardConfig {
+                terminal_win: f32::NAN,
+                ..RewardConfig::default()
+            },
+            RewardConfig {
+                terminal_loss: f32::INFINITY,
+                ..RewardConfig::default()
+            },
+            RewardConfig {
+                terminal_draw: f32::NEG_INFINITY,
+                ..RewardConfig::default()
+            },
+        ];
+
+        for cfg in invalid_configs {
+            let err = cfg
+                .validate_zero_sum()
+                .expect_err("non-finite rewards must fail");
+            assert!(err.contains("must be finite"), "unexpected error: {err}");
+        }
+    }
+
+    #[test]
+    fn reward_config_rejects_non_zero_sum_win_loss() {
+        let cfg = RewardConfig {
+            terminal_win: 1.0,
+            terminal_loss: -0.75,
+            terminal_draw: 0.0,
+            ..RewardConfig::default()
+        };
+        let err = cfg
+            .validate_zero_sum()
+            .expect_err("non-zero-sum win/loss must fail");
+        assert!(err.contains("must be zero-sum"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn reward_config_rejects_non_zero_draw() {
+        let cfg = RewardConfig {
+            terminal_draw: 0.25,
+            ..RewardConfig::default()
+        };
+        let err = cfg
+            .validate_zero_sum()
+            .expect_err("non-zero draw must fail");
+        assert!(
+            err.contains("terminal_draw must be 0"),
+            "unexpected error: {err}"
+        );
+    }
 }

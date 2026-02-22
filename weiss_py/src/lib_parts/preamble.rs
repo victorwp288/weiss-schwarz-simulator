@@ -64,15 +64,15 @@ fn parse_curriculum_config(curriculum_json: Option<String>) -> PyResult<Curricul
 fn parse_error_policy(error_policy: Option<String>) -> PyResult<ErrorPolicy> {
     if let Some(policy) = error_policy {
         match policy.to_lowercase().as_str() {
-            "strict" => Ok(ErrorPolicy::Strict),
-            "lenient_terminate" | "lenient" => Ok(ErrorPolicy::LenientTerminate),
-            "lenient_noop" => Ok(ErrorPolicy::LenientNoop),
+            "raise" => Ok(ErrorPolicy::Strict),
+            "replace" => Ok(ErrorPolicy::LenientNoop),
+            "terminate" => Ok(ErrorPolicy::LenientTerminate),
             other => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "error_policy must be one of strict, lenient_terminate, lenient_noop (got {other})"
+                "error_policy must be one of raise, replace, terminate (got {other})"
             ))),
         }
     } else {
-        Ok(ErrorPolicy::LenientTerminate)
+        Ok(ErrorPolicy::LenientNoop)
     }
 }
 
@@ -104,6 +104,49 @@ fn parse_end_condition_policy(
     } else {
         Ok(EndConditionPolicy::default())
     }
+}
+
+fn config_error_to_issue_dict<'py>(
+    py: Python<'py>,
+    err: ConfigError,
+) -> PyResult<Py<PyDict>> {
+    let dict = PyDict::new(py);
+    match err {
+        ConfigError::DeckLength {
+            player,
+            got,
+            expected,
+        } => {
+            dict.set_item("kind", "deck_length")?;
+            dict.set_item("player", player)?;
+            dict.set_item("got", got)?;
+            dict.set_item("expected", expected)?;
+        }
+        ConfigError::UnknownCardId { player, card_id } => {
+            dict.set_item("kind", "unknown_card_id")?;
+            dict.set_item("player", player)?;
+            dict.set_item("card_id", card_id)?;
+        }
+        ConfigError::ClimaxCount { player, got, max } => {
+            dict.set_item("kind", "climax_count")?;
+            dict.set_item("player", player)?;
+            dict.set_item("got", got)?;
+            dict.set_item("max", max)?;
+        }
+        ConfigError::CardCopyCount {
+            player,
+            card_id,
+            got,
+            max,
+        } => {
+            dict.set_item("kind", "card_copy_count")?;
+            dict.set_item("player", player)?;
+            dict.set_item("card_id", card_id)?;
+            dict.set_item("got", got)?;
+            dict.set_item("max", max)?;
+        }
+    }
+    Ok(dict.unbind())
 }
 
 fn map_pool_init_error(err: AnyhowError) -> PyErr {

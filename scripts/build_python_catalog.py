@@ -8,9 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-
-def load_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
+from coverage_common import load_json, load_json_any
 
 
 def _profile_supported_ids(report: dict[str, Any], profile: str) -> set[int]:
@@ -64,7 +62,7 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    cards_raw = load_json(cards_raw_path)
+    cards_raw = load_json_any(cards_raw_path)
     if not isinstance(cards_raw, list):
         raise SystemExit(f"expected list in {cards_raw_path}")
     report = load_json(coverage_path)

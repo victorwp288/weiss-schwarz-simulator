@@ -56,9 +56,7 @@ def first_legal_actions_from_mask(mask: np.ndarray) -> np.ndarray:
     for env_i in range(mask.shape[0]):
         ids = np.flatnonzero(mask[env_i])
         actions[env_i] = (
-            np.uint32(weiss_sim.PASS_ACTION_ID)
-            if ids.size == 0
-            else np.uint32(int(ids[0]))
+            np.uint32(weiss_sim.PASS_ACTION_ID) if ids.size == 0 else np.uint32(int(ids[0]))
         )
     return actions
 

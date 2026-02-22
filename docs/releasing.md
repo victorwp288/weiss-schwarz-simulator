@@ -13,7 +13,7 @@ If either script fails, fix locally and re-run until green.
 
 ## Version alignment
 
-For a release at `0.5.0`, keep these in sync:
+For a release at `0.6.0`, keep these in sync:
 
 - `pyproject.toml` (`[project].version`)
 - `weiss_core/Cargo.toml` (`[package].version`)
@@ -39,4 +39,3 @@ After the release tag exists:
 1) Verify `.github/workflows/wheels.yml` ran for the tag.
 2) Confirm artifacts were uploaded/published as expected (wheels + sdist).
 3) If a workflow didn’t trigger automatically, re-run/dispatch it for the release tag.
-

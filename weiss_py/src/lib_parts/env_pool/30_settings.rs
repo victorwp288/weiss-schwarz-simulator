@@ -12,6 +12,43 @@
         Ok(())
     }
 
+    #[staticmethod]
+    #[pyo3(signature = (deck_lists, db_path=None, deck_ids=None))]
+    fn validate_deck_issues<'py>(
+        py: Python<'py>,
+        deck_lists: Vec<Vec<u32>>,
+        db_path: Option<String>,
+        deck_ids: Option<Vec<u32>>,
+    ) -> PyResult<Vec<Py<PyDict>>> {
+        if deck_lists.len() != 2 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "deck_lists must have length 2",
+            ));
+        }
+        let deck_ids_vec = deck_ids.unwrap_or_else(|| vec![0, 1]);
+        if deck_ids_vec.len() != 2 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "deck_ids must have length 2",
+            ));
+        }
+        let db = load_card_db(db_path)?;
+        let config = EnvConfig {
+            deck_lists: [deck_lists[0].clone(), deck_lists[1].clone()],
+            deck_ids: [deck_ids_vec[0], deck_ids_vec[1]],
+            max_decisions: 1,
+            max_ticks: 1,
+            reward: RewardConfig::default(),
+            error_policy: ErrorPolicy::LenientNoop,
+            observation_visibility: ObservationVisibility::Public,
+            end_condition_policy: EndConditionPolicy::default(),
+        };
+        config
+            .validate_with_db_all_issues(&db)
+            .into_iter()
+            .map(|issue| config_error_to_issue_dict(py, issue))
+            .collect()
+    }
+
     fn set_output_mask_enabled(&mut self, enabled: bool) {
         self.pool.set_output_mask_enabled(enabled);
     }
@@ -59,6 +96,10 @@
 
     fn config_hash(&self) -> u64 {
         self.pool.config_hash()
+    }
+
+    fn debug_event_ring_capacity(&self) -> usize {
+        self.pool.debug_event_ring_capacity()
     }
 
     fn max_card_id(&self) -> u32 {

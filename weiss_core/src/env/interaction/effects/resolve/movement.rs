@@ -11,7 +11,7 @@ fn collect_targets_for_zone(payload: &EffectPayload, zone: TargetZone) -> Vec<Ta
 }
 
 #[inline(always)]
-fn apply_targets_in_reverse_index<F>(targets: &mut Vec<TargetRef>, mut apply: F)
+fn apply_targets_in_reverse_index<F>(targets: &mut [TargetRef], mut apply: F)
 where
     F: FnMut(TargetRef),
 {
@@ -30,9 +30,7 @@ fn remove_indexed_card_if_matches(
     if idx >= cards.len() {
         return None;
     }
-    let Some(card) = cards.get(idx).copied() else {
-        return None;
-    };
+    let card = cards.get(idx).copied()?;
     if card.instance_id != target.instance_id {
         return None;
     }
@@ -61,7 +59,7 @@ fn remove_deck_card_by_top_offset_if_matches(
 #[inline(always)]
 fn move_indexed_zone_targets<ZoneCards, AfterMove>(
     env: &mut GameEnv,
-    targets: &mut Vec<TargetRef>,
+    targets: &mut [TargetRef],
     from_zone: Zone,
     to_zone: Zone,
     mut zone_cards: ZoneCards,
@@ -87,7 +85,7 @@ fn move_indexed_zone_targets<ZoneCards, AfterMove>(
 #[inline(always)]
 fn move_deck_targets<AfterMove>(
     env: &mut GameEnv,
-    targets: &mut Vec<TargetRef>,
+    targets: &mut [TargetRef],
     to_zone: Zone,
     mut after_move: AfterMove,
 ) where
