@@ -34,16 +34,17 @@ def run_case(
     db_path = fixture_dir / "cards.wsdb"
     legal_deck = (list(range(1, 14)) * 4)[:50]
 
-    pool = weiss_sim.EnvPool.new_rl_train(
-        num_envs,
-        str(db_path),
+    layout = "mask" if output_masks else "nomask"
+    pool, buffers = weiss_sim.make_pool(
+        mode="train",
+        num_envs=num_envs,
+        db_path=str(db_path),
         deck_lists=[legal_deck, legal_deck],
         deck_ids=[1, 2],
         seed=seed,
         num_threads=num_threads,
-        output_masks=output_masks,
+        layout=layout,
     )
-    buffers = weiss_sim.EnvPoolBuffers(pool)
     out = buffers.reset()
     actions = buffers.actions
     seeds = None

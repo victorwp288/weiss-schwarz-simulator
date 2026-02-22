@@ -1,8 +1,11 @@
 use super::super::GameEnv;
-use crate::db::{
-    AbilityDefConditions, AbilityKind, CardColor, CardStatic, CardType, ConditionTurn,
-};
+use crate::db::{AbilityDefConditions, AbilityKind, CardStatic, CardType, ConditionTurn};
 use crate::events::Zone;
+use crate::legal::hand_play_requirements::{
+    meets_color_requirement as shared_meets_color_requirement,
+    meets_cost_requirement as shared_meets_cost_requirement,
+    meets_level_requirement as shared_meets_level_requirement,
+};
 use anyhow::{anyhow, Result};
 
 impl GameEnv {
@@ -98,39 +101,29 @@ impl GameEnv {
     }
 
     pub(in crate::env) fn meets_level_requirement(&self, player: u8, card: &CardStatic) -> bool {
-        let mut required_level = card.level as i32 + self.hand_play_level_delta(player, card);
-        if required_level < 0 {
-            required_level = 0;
-        }
-        required_level as usize <= self.state.players[player as usize].level.len()
+        shared_meets_level_requirement(
+            card,
+            self.state.players[player as usize].level.len(),
+            self.hand_play_level_delta(player, card),
+        )
     }
 
     pub(in crate::env) fn meets_cost_requirement(&self, player: u8, card: &CardStatic) -> bool {
-        if !self.curriculum.enforce_cost_requirement {
-            return true;
-        }
-        self.state.players[player as usize].stock.len() >= card.cost as usize
+        shared_meets_cost_requirement(
+            card,
+            self.state.players[player as usize].stock.len(),
+            self.curriculum.enforce_cost_requirement,
+        )
     }
 
     pub(in crate::env) fn meets_color_requirement(&self, player: u8, card: &CardStatic) -> bool {
-        if self.hand_play_ignores_color_requirement(player, card) {
-            return true;
-        }
-        if !self.curriculum.enforce_color_requirement {
-            return true;
-        }
-        if card.level == 0 || card.color == CardColor::Colorless {
-            return true;
-        }
-        let p = &self.state.players[player as usize];
-        for card_id in p.level.iter().chain(p.clock.iter()) {
-            if let Some(c) = self.db.get(card_id.id) {
-                if c.color == card.color {
-                    return true;
-                }
-            }
-        }
-        false
+        shared_meets_color_requirement(
+            card,
+            &self.state.players[player as usize],
+            &self.db,
+            self.curriculum.enforce_color_requirement,
+            self.hand_play_ignores_color_requirement(player, card),
+        )
     }
 
     pub(in crate::env) fn pay_cost(&mut self, player: u8, cost: usize) -> Result<()> {

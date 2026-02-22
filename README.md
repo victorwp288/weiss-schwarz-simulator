@@ -38,10 +38,10 @@ maturin develop --release --manifest-path weiss_py/Cargo.toml
 import numpy as np
 import weiss_sim
 
-sim = weiss_sim.train(num_envs=32, seed=0)
-reset = sim.reset()
-actions = np.full((32,), weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
-step = sim.step(actions)
+with weiss_sim.fast(num_envs=32, seed=0) as sim:
+    reset = sim.reset()
+    actions = reset.legal.sample_uniform(seed=123)
+    step = sim.step(actions)
 ```
 
 ### Minimal low-level loop

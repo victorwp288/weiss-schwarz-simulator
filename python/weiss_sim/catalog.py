@@ -7,12 +7,12 @@ from functools import lru_cache
 from importlib import resources
 from pathlib import Path
 
+from ._presets import get_preset as _get_preset, preset_names as _preset_names
 from .config_types import CardPoolMode, DeckInput, RulesProfile
 from .errors import CardLookupError, DbMismatchError
 from .types import CardRef
 
 _CATALOG_FILE = "card_catalog.json.gz"
-_PRESETS_FILE = "deck_presets.json"
 _META_FILE = "catalog_meta.json"
 _DEFAULT_WSDB_FILE = "default_cards.wsdb"
 
@@ -71,26 +71,6 @@ def load_catalog_meta() -> dict[str, object]:
 
 
 @lru_cache(maxsize=1)
-def _load_presets() -> dict[str, list[int]]:
-    try:
-        raw = _read_data_bytes(_PRESETS_FILE)
-        payload = json.loads(raw.decode("utf-8"))
-    except FileNotFoundError:
-        payload = {"starter_v1": (list(range(1, 14)) * 4)[:50]}
-    if not isinstance(payload, dict):
-        raise ValueError(f"{_PRESETS_FILE} must decode to an object")
-    out: dict[str, list[int]] = {}
-    for key, value in payload.items():
-        if not isinstance(key, str):
-            continue
-        if not isinstance(value, list):
-            continue
-        ids = [int(v) for v in value]
-        out[key] = ids
-    return out
-
-
-@lru_cache(maxsize=1)
 def _catalog_maps() -> tuple[dict[int, CardRef], dict[str, CardRef]]:
     by_id: dict[int, CardRef] = {}
     by_card_no: dict[str, CardRef] = {}
@@ -113,15 +93,11 @@ def _catalog_maps() -> tuple[dict[int, CardRef], dict[str, CardRef]]:
 
 
 def presets() -> list[str]:
-    return sorted(_load_presets().keys())
+    return _preset_names()
 
 
 def get_preset(name: str) -> list[int]:
-    key = name.strip()
-    try:
-        return list(_load_presets()[key])
-    except KeyError as exc:
-        raise CardLookupError(f"unknown preset '{name}'") from exc
+    return _get_preset(name)
 
 
 def get_card(identifier: int | str) -> CardRef:
@@ -212,13 +188,18 @@ def resolve_card_id(identifier: int | str) -> int:
 
 
 class _CardsNamespace:
+    """Namespace wrapper exposed as `weiss_sim.cards`."""
+
     def search(self, query: str, *, limit: int = 20) -> list[CardRef]:
+        """Search the packaged catalog by card name or card number."""
         return search_cards(query, limit=limit)
 
     def get(self, identifier: int | str) -> CardRef:
+        """Look up a card by numeric id or card number."""
         return get_card(identifier)
 
     def presets(self) -> list[str]:
+        """List available deck preset names."""
         return presets()
 
     def resolve_deck(
@@ -229,6 +210,7 @@ class _CardsNamespace:
         card_pool: CardPoolMode,
         db_path: str | Path | None = None,
     ) -> list[int]:
+        """Resolve a `DeckInput` into a validated list of 50 card ids."""
         from .decks import resolve_deck
 
         return resolve_deck(

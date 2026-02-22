@@ -44,6 +44,8 @@ include = [
   "python/weiss_sim/data/*.json",
   "python/weiss_sim/data/*.json.gz",
   "python/weiss_sim/data/*.wsdb",
+  "python/weiss_sim/py.typed",
+  "python/weiss_sim/weiss_sim.pyi",
 ]
 
 [tool.ruff]

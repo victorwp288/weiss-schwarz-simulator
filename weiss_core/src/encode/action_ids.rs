@@ -33,81 +33,443 @@ pub struct ActionIdDesc {
     pub params: Vec<ActionParam>,
 }
 
-/// Decode an action id into a human-readable description.
-pub fn decode_action_id(id: usize) -> Option<ActionIdDesc> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+enum ActionFamily {
+    MulliganConfirm,
+    MulliganSelect,
+    Pass,
+    ClockFromHand,
+    MainPlayCharacter,
+    MainPlayEvent,
+    MainMove,
+    ClimaxPlay,
+    Attack,
+    LevelUp,
+    EncorePay,
+    EncoreDecline,
+    TriggerOrder,
+    ChoiceSelect,
+    ChoicePrevPage,
+    ChoiceNextPage,
+    Concede,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ActionKey {
+    MulliganConfirm,
+    MulliganSelect {
+        hand_index: usize,
+    },
+    Pass,
+    ClockFromHand {
+        hand_index: usize,
+    },
+    MainPlayCharacter {
+        hand_index: usize,
+        stage_slot: usize,
+    },
+    MainPlayEvent {
+        hand_index: usize,
+    },
+    MainMove {
+        from_slot: usize,
+        to_slot: usize,
+    },
+    ClimaxPlay {
+        hand_index: usize,
+    },
+    Attack {
+        slot: usize,
+        attack_type_code: usize,
+    },
+    LevelUp {
+        index: usize,
+    },
+    EncorePay {
+        slot: usize,
+    },
+    EncoreDecline {
+        slot: usize,
+    },
+    TriggerOrder {
+        index: usize,
+    },
+    ChoiceSelect {
+        index: usize,
+    },
+    ChoicePrevPage,
+    ChoiceNextPage,
+    Concede,
+}
+
+const ACTION_FAMILY_ORDER: [ActionFamily; 17] = [
+    ActionFamily::MulliganConfirm,
+    ActionFamily::MulliganSelect,
+    ActionFamily::Pass,
+    ActionFamily::ClockFromHand,
+    ActionFamily::MainPlayCharacter,
+    ActionFamily::MainPlayEvent,
+    ActionFamily::MainMove,
+    ActionFamily::ClimaxPlay,
+    ActionFamily::Attack,
+    ActionFamily::LevelUp,
+    ActionFamily::EncorePay,
+    ActionFamily::EncoreDecline,
+    ActionFamily::TriggerOrder,
+    ActionFamily::ChoiceSelect,
+    ActionFamily::ChoicePrevPage,
+    ActionFamily::ChoiceNextPage,
+    ActionFamily::Concede,
+];
+
+const ACTION_FAMILY_BASES: [usize; ACTION_FAMILY_ORDER.len()] = [
+    MULLIGAN_CONFIRM_ID,
+    MULLIGAN_SELECT_BASE,
+    PASS_ACTION_ID,
+    CLOCK_HAND_BASE,
+    MAIN_PLAY_CHAR_BASE,
+    MAIN_PLAY_EVENT_BASE,
+    MAIN_MOVE_BASE,
+    CLIMAX_PLAY_BASE,
+    ATTACK_BASE,
+    LEVEL_UP_BASE,
+    ENCORE_PAY_BASE,
+    ENCORE_DECLINE_BASE,
+    TRIGGER_ORDER_BASE,
+    CHOICE_BASE,
+    CHOICE_PREV_ID,
+    CHOICE_NEXT_ID,
+    CONCEDE_ID,
+];
+
+const ACTION_FAMILY_COUNTS: [usize; ACTION_FAMILY_ORDER.len()] = [
+    1,
+    MULLIGAN_SELECT_COUNT,
+    1,
+    CLOCK_HAND_COUNT,
+    MAIN_PLAY_CHAR_COUNT,
+    MAIN_PLAY_EVENT_COUNT,
+    MAIN_MOVE_COUNT,
+    CLIMAX_PLAY_COUNT,
+    ATTACK_COUNT,
+    LEVEL_UP_COUNT,
+    ENCORE_PAY_COUNT,
+    ENCORE_DECLINE_COUNT,
+    TRIGGER_ORDER_COUNT,
+    CHOICE_COUNT,
+    1,
+    1,
+    1,
+];
+
+#[inline]
+const fn action_family_idx(family: ActionFamily) -> usize {
+    family as usize
+}
+
+#[inline]
+fn action_family_base(family: ActionFamily) -> usize {
+    ACTION_FAMILY_BASES[action_family_idx(family)]
+}
+
+#[inline]
+fn action_family_count(family: ActionFamily) -> usize {
+    ACTION_FAMILY_COUNTS[action_family_idx(family)]
+}
+
+#[inline]
+fn action_family_offset_for_id(id: usize) -> Option<(ActionFamily, usize)> {
     if id >= ACTION_SPACE_SIZE {
         return None;
     }
-    if id == MULLIGAN_CONFIRM_ID {
-        return Some(ActionIdDesc {
+    for family in ACTION_FAMILY_ORDER {
+        let base = action_family_base(family);
+        if id < base {
+            break;
+        }
+        let offset = id - base;
+        if offset < action_family_count(family) {
+            return Some((family, offset));
+        }
+    }
+    None
+}
+
+#[inline]
+fn action_id_for_family_offset(family: ActionFamily, offset: usize) -> Option<usize> {
+    if offset < action_family_count(family) {
+        Some(action_family_base(family) + offset)
+    } else {
+        None
+    }
+}
+
+#[inline]
+fn action_key_from_family_offset(family: ActionFamily, offset: usize) -> ActionKey {
+    match family {
+        ActionFamily::MulliganConfirm => ActionKey::MulliganConfirm,
+        ActionFamily::MulliganSelect => ActionKey::MulliganSelect { hand_index: offset },
+        ActionFamily::Pass => ActionKey::Pass,
+        ActionFamily::ClockFromHand => ActionKey::ClockFromHand { hand_index: offset },
+        ActionFamily::MainPlayCharacter => ActionKey::MainPlayCharacter {
+            hand_index: offset / MAX_STAGE,
+            stage_slot: offset % MAX_STAGE,
+        },
+        ActionFamily::MainPlayEvent => ActionKey::MainPlayEvent { hand_index: offset },
+        ActionFamily::MainMove => {
+            let from_slot = offset / (MAX_STAGE - 1);
+            let to_index = offset % (MAX_STAGE - 1);
+            let to_slot = if to_index >= from_slot {
+                to_index + 1
+            } else {
+                to_index
+            };
+            ActionKey::MainMove { from_slot, to_slot }
+        }
+        ActionFamily::ClimaxPlay => ActionKey::ClimaxPlay { hand_index: offset },
+        ActionFamily::Attack => ActionKey::Attack {
+            slot: offset / 3,
+            attack_type_code: offset % 3,
+        },
+        ActionFamily::LevelUp => ActionKey::LevelUp { index: offset },
+        ActionFamily::EncorePay => ActionKey::EncorePay { slot: offset },
+        ActionFamily::EncoreDecline => ActionKey::EncoreDecline { slot: offset },
+        ActionFamily::TriggerOrder => ActionKey::TriggerOrder { index: offset },
+        ActionFamily::ChoiceSelect => ActionKey::ChoiceSelect { index: offset },
+        ActionFamily::ChoicePrevPage => ActionKey::ChoicePrevPage,
+        ActionFamily::ChoiceNextPage => ActionKey::ChoiceNextPage,
+        ActionFamily::Concede => ActionKey::Concede,
+    }
+}
+
+#[inline]
+fn family_offset_for_action_key(action: ActionKey) -> Option<(ActionFamily, usize)> {
+    match action {
+        ActionKey::MulliganConfirm => Some((ActionFamily::MulliganConfirm, 0)),
+        ActionKey::MulliganSelect { hand_index } if hand_index < MULLIGAN_SELECT_COUNT => {
+            Some((ActionFamily::MulliganSelect, hand_index))
+        }
+        ActionKey::Pass => Some((ActionFamily::Pass, 0)),
+        ActionKey::ClockFromHand { hand_index } if hand_index < MAX_HAND => {
+            Some((ActionFamily::ClockFromHand, hand_index))
+        }
+        ActionKey::MainPlayCharacter {
+            hand_index,
+            stage_slot,
+        } if hand_index < MAX_HAND && stage_slot < MAX_STAGE => Some((
+            ActionFamily::MainPlayCharacter,
+            hand_index * MAX_STAGE + stage_slot,
+        )),
+        ActionKey::MainPlayEvent { hand_index } if hand_index < MAX_HAND => {
+            Some((ActionFamily::MainPlayEvent, hand_index))
+        }
+        ActionKey::MainMove { from_slot, to_slot }
+            if from_slot < MAX_STAGE && to_slot < MAX_STAGE && from_slot != to_slot =>
+        {
+            let to_index = if to_slot < from_slot {
+                to_slot
+            } else {
+                to_slot - 1
+            };
+            Some((
+                ActionFamily::MainMove,
+                from_slot * (MAX_STAGE - 1) + to_index,
+            ))
+        }
+        ActionKey::ClimaxPlay { hand_index } if hand_index < MAX_HAND => {
+            Some((ActionFamily::ClimaxPlay, hand_index))
+        }
+        ActionKey::Attack {
+            slot,
+            attack_type_code,
+        } if slot < ATTACK_SLOT_COUNT && attack_type_code < 3 => {
+            Some((ActionFamily::Attack, slot * 3 + attack_type_code))
+        }
+        ActionKey::LevelUp { index } if index < LEVEL_UP_COUNT => {
+            Some((ActionFamily::LevelUp, index))
+        }
+        ActionKey::EncorePay { slot } if slot < ENCORE_PAY_COUNT => {
+            Some((ActionFamily::EncorePay, slot))
+        }
+        ActionKey::EncoreDecline { slot } if slot < ENCORE_DECLINE_COUNT => {
+            Some((ActionFamily::EncoreDecline, slot))
+        }
+        ActionKey::TriggerOrder { index } if index < TRIGGER_ORDER_COUNT => {
+            Some((ActionFamily::TriggerOrder, index))
+        }
+        ActionKey::ChoiceSelect { index } if index < CHOICE_COUNT => {
+            Some((ActionFamily::ChoiceSelect, index))
+        }
+        ActionKey::ChoicePrevPage => Some((ActionFamily::ChoicePrevPage, 0)),
+        ActionKey::ChoiceNextPage => Some((ActionFamily::ChoiceNextPage, 0)),
+        ActionKey::Concede => Some((ActionFamily::Concede, 0)),
+        _ => None,
+    }
+}
+
+#[inline]
+fn action_key_for_id(id: usize) -> Option<ActionKey> {
+    let (family, offset) = action_family_offset_for_id(id)?;
+    Some(action_key_from_family_offset(family, offset))
+}
+
+#[inline]
+fn action_id_for_key(action: ActionKey) -> Option<usize> {
+    let (family, offset) = family_offset_for_action_key(action)?;
+    action_id_for_family_offset(family, offset)
+}
+
+#[inline]
+fn action_key_for_desc(action: &ActionDesc) -> Option<ActionKey> {
+    match action {
+        ActionDesc::MulliganConfirm => Some(ActionKey::MulliganConfirm),
+        ActionDesc::MulliganSelect { hand_index } => Some(ActionKey::MulliganSelect {
+            hand_index: *hand_index as usize,
+        }),
+        ActionDesc::Pass => Some(ActionKey::Pass),
+        ActionDesc::Clock { hand_index } => Some(ActionKey::ClockFromHand {
+            hand_index: *hand_index as usize,
+        }),
+        ActionDesc::MainPlayCharacter {
+            hand_index,
+            stage_slot,
+        } => Some(ActionKey::MainPlayCharacter {
+            hand_index: *hand_index as usize,
+            stage_slot: *stage_slot as usize,
+        }),
+        ActionDesc::MainPlayEvent { hand_index } => Some(ActionKey::MainPlayEvent {
+            hand_index: *hand_index as usize,
+        }),
+        ActionDesc::MainMove { from_slot, to_slot } => Some(ActionKey::MainMove {
+            from_slot: *from_slot as usize,
+            to_slot: *to_slot as usize,
+        }),
+        ActionDesc::MainActivateAbility { .. } => None,
+        ActionDesc::ClimaxPlay { hand_index } => Some(ActionKey::ClimaxPlay {
+            hand_index: *hand_index as usize,
+        }),
+        ActionDesc::Attack { slot, attack_type } => Some(ActionKey::Attack {
+            slot: *slot as usize,
+            attack_type_code: attack_type_to_i32(*attack_type) as usize,
+        }),
+        ActionDesc::CounterPlay { .. } => None,
+        ActionDesc::LevelUp { index } => Some(ActionKey::LevelUp {
+            index: *index as usize,
+        }),
+        ActionDesc::EncorePay { slot } => Some(ActionKey::EncorePay {
+            slot: *slot as usize,
+        }),
+        ActionDesc::EncoreDecline { slot } => Some(ActionKey::EncoreDecline {
+            slot: *slot as usize,
+        }),
+        ActionDesc::TriggerOrder { index } => Some(ActionKey::TriggerOrder {
+            index: *index as usize,
+        }),
+        ActionDesc::ChoiceSelect { index } => Some(ActionKey::ChoiceSelect {
+            index: *index as usize,
+        }),
+        ActionDesc::ChoicePrevPage => Some(ActionKey::ChoicePrevPage),
+        ActionDesc::ChoiceNextPage => Some(ActionKey::ChoiceNextPage),
+        ActionDesc::Concede => Some(ActionKey::Concede),
+    }
+}
+
+#[inline]
+fn action_desc_for_key(action: ActionKey) -> ActionDesc {
+    match action {
+        ActionKey::MulliganConfirm => ActionDesc::MulliganConfirm,
+        ActionKey::MulliganSelect { hand_index } => ActionDesc::MulliganSelect {
+            hand_index: hand_index as u8,
+        },
+        ActionKey::Pass => ActionDesc::Pass,
+        ActionKey::ClockFromHand { hand_index } => ActionDesc::Clock {
+            hand_index: hand_index as u8,
+        },
+        ActionKey::MainPlayCharacter {
+            hand_index,
+            stage_slot,
+        } => ActionDesc::MainPlayCharacter {
+            hand_index: hand_index as u8,
+            stage_slot: stage_slot as u8,
+        },
+        ActionKey::MainPlayEvent { hand_index } => ActionDesc::MainPlayEvent {
+            hand_index: hand_index as u8,
+        },
+        ActionKey::MainMove { from_slot, to_slot } => ActionDesc::MainMove {
+            from_slot: from_slot as u8,
+            to_slot: to_slot as u8,
+        },
+        ActionKey::ClimaxPlay { hand_index } => ActionDesc::ClimaxPlay {
+            hand_index: hand_index as u8,
+        },
+        ActionKey::Attack {
+            slot,
+            attack_type_code,
+        } => ActionDesc::Attack {
+            slot: slot as u8,
+            attack_type: attack_type_from_code(attack_type_code),
+        },
+        ActionKey::LevelUp { index } => ActionDesc::LevelUp { index: index as u8 },
+        ActionKey::EncorePay { slot } => ActionDesc::EncorePay { slot: slot as u8 },
+        ActionKey::EncoreDecline { slot } => ActionDesc::EncoreDecline { slot: slot as u8 },
+        ActionKey::TriggerOrder { index } => ActionDesc::TriggerOrder { index: index as u8 },
+        ActionKey::ChoiceSelect { index } => ActionDesc::ChoiceSelect { index: index as u8 },
+        ActionKey::ChoicePrevPage => ActionDesc::ChoicePrevPage,
+        ActionKey::ChoiceNextPage => ActionDesc::ChoiceNextPage,
+        ActionKey::Concede => ActionDesc::Concede,
+    }
+}
+
+#[inline]
+fn action_id_desc_for_key(action: ActionKey) -> ActionIdDesc {
+    match action {
+        ActionKey::MulliganConfirm => ActionIdDesc {
             family: "mulligan_confirm",
             params: vec![],
-        });
-    }
-    if (MULLIGAN_SELECT_BASE..MULLIGAN_SELECT_BASE + MULLIGAN_SELECT_COUNT).contains(&id) {
-        let hand_index = (id - MULLIGAN_SELECT_BASE) as i32;
-        return Some(ActionIdDesc {
+        },
+        ActionKey::MulliganSelect { hand_index } => ActionIdDesc {
             family: "mulligan_select",
             params: vec![ActionParam {
                 name: "hand_index",
-                value: ActionParamValue::Int(hand_index),
+                value: ActionParamValue::Int(hand_index as i32),
             }],
-        });
-    }
-    if id == PASS_ACTION_ID {
-        return Some(ActionIdDesc {
+        },
+        ActionKey::Pass => ActionIdDesc {
             family: "pass",
             params: vec![],
-        });
-    }
-    if (CLOCK_HAND_BASE..CLOCK_HAND_BASE + CLOCK_HAND_COUNT).contains(&id) {
-        let hand_index = (id - CLOCK_HAND_BASE) as i32;
-        return Some(ActionIdDesc {
+        },
+        ActionKey::ClockFromHand { hand_index } => ActionIdDesc {
             family: "clock_from_hand",
             params: vec![ActionParam {
                 name: "hand_index",
-                value: ActionParamValue::Int(hand_index),
+                value: ActionParamValue::Int(hand_index as i32),
             }],
-        });
-    }
-    if (MAIN_PLAY_CHAR_BASE..MAIN_PLAY_CHAR_BASE + MAIN_PLAY_CHAR_COUNT).contains(&id) {
-        let offset = id - MAIN_PLAY_CHAR_BASE;
-        let hand_index = (offset / MAX_STAGE) as i32;
-        let stage_slot = (offset % MAX_STAGE) as i32;
-        return Some(ActionIdDesc {
+        },
+        ActionKey::MainPlayCharacter {
+            hand_index,
+            stage_slot,
+        } => ActionIdDesc {
             family: "main_play_character",
             params: vec![
                 ActionParam {
                     name: "hand_index",
-                    value: ActionParamValue::Int(hand_index),
+                    value: ActionParamValue::Int(hand_index as i32),
                 },
                 ActionParam {
                     name: "stage_slot",
-                    value: ActionParamValue::Int(stage_slot),
+                    value: ActionParamValue::Int(stage_slot as i32),
                 },
             ],
-        });
-    }
-    if (MAIN_PLAY_EVENT_BASE..MAIN_PLAY_EVENT_BASE + MAIN_PLAY_EVENT_COUNT).contains(&id) {
-        let hand_index = (id - MAIN_PLAY_EVENT_BASE) as i32;
-        return Some(ActionIdDesc {
+        },
+        ActionKey::MainPlayEvent { hand_index } => ActionIdDesc {
             family: "main_play_event",
             params: vec![ActionParam {
                 name: "hand_index",
-                value: ActionParamValue::Int(hand_index),
+                value: ActionParamValue::Int(hand_index as i32),
             }],
-        });
-    }
-    if (MAIN_MOVE_BASE..MAIN_MOVE_BASE + MAIN_MOVE_COUNT).contains(&id) {
-        let offset = id - MAIN_MOVE_BASE;
-        let from_slot = offset / (MAX_STAGE - 1);
-        let to_index = offset % (MAX_STAGE - 1);
-        let to_slot = if to_index >= from_slot {
-            to_index + 1
-        } else {
-            to_index
-        };
-        return Some(ActionIdDesc {
+        },
+        ActionKey::MainMove { from_slot, to_slot } => ActionIdDesc {
             family: "main_move",
             params: vec![
                 ActionParam {
@@ -119,314 +481,100 @@ pub fn decode_action_id(id: usize) -> Option<ActionIdDesc> {
                     value: ActionParamValue::Int(to_slot as i32),
                 },
             ],
-        });
-    }
-    if (CLIMAX_PLAY_BASE..CLIMAX_PLAY_BASE + CLIMAX_PLAY_COUNT).contains(&id) {
-        let hand_index = (id - CLIMAX_PLAY_BASE) as i32;
-        return Some(ActionIdDesc {
+        },
+        ActionKey::ClimaxPlay { hand_index } => ActionIdDesc {
             family: "climax_play",
             params: vec![ActionParam {
                 name: "hand_index",
-                value: ActionParamValue::Int(hand_index),
+                value: ActionParamValue::Int(hand_index as i32),
             }],
-        });
-    }
-    if (ATTACK_BASE..ATTACK_BASE + ATTACK_COUNT).contains(&id) {
-        let offset = id - ATTACK_BASE;
-        let slot = (offset / 3) as i32;
-        let attack_type = match (offset % 3) as i32 {
-            0 => "frontal",
-            1 => "side",
-            _ => "direct",
-        };
-        return Some(ActionIdDesc {
+        },
+        ActionKey::Attack {
+            slot,
+            attack_type_code,
+        } => ActionIdDesc {
             family: "attack",
             params: vec![
                 ActionParam {
                     name: "slot",
-                    value: ActionParamValue::Int(slot),
+                    value: ActionParamValue::Int(slot as i32),
                 },
                 ActionParam {
                     name: "attack_type",
-                    value: ActionParamValue::Str(attack_type),
+                    value: ActionParamValue::Str(match attack_type_code {
+                        0 => "frontal",
+                        1 => "side",
+                        _ => "direct",
+                    }),
                 },
             ],
-        });
-    }
-    if (LEVEL_UP_BASE..LEVEL_UP_BASE + LEVEL_UP_COUNT).contains(&id) {
-        let index = (id - LEVEL_UP_BASE) as i32;
-        return Some(ActionIdDesc {
+        },
+        ActionKey::LevelUp { index } => ActionIdDesc {
             family: "level_up",
             params: vec![ActionParam {
                 name: "index",
-                value: ActionParamValue::Int(index),
+                value: ActionParamValue::Int(index as i32),
             }],
-        });
-    }
-    if (ENCORE_PAY_BASE..ENCORE_PAY_BASE + ENCORE_PAY_COUNT).contains(&id) {
-        let slot = (id - ENCORE_PAY_BASE) as i32;
-        return Some(ActionIdDesc {
+        },
+        ActionKey::EncorePay { slot } => ActionIdDesc {
             family: "encore_pay",
             params: vec![ActionParam {
                 name: "slot",
-                value: ActionParamValue::Int(slot),
+                value: ActionParamValue::Int(slot as i32),
             }],
-        });
-    }
-    if (ENCORE_DECLINE_BASE..ENCORE_DECLINE_BASE + ENCORE_DECLINE_COUNT).contains(&id) {
-        let slot = (id - ENCORE_DECLINE_BASE) as i32;
-        return Some(ActionIdDesc {
+        },
+        ActionKey::EncoreDecline { slot } => ActionIdDesc {
             family: "encore_decline",
             params: vec![ActionParam {
                 name: "slot",
-                value: ActionParamValue::Int(slot),
+                value: ActionParamValue::Int(slot as i32),
             }],
-        });
-    }
-    if (TRIGGER_ORDER_BASE..TRIGGER_ORDER_BASE + TRIGGER_ORDER_COUNT).contains(&id) {
-        let index = (id - TRIGGER_ORDER_BASE) as i32;
-        return Some(ActionIdDesc {
+        },
+        ActionKey::TriggerOrder { index } => ActionIdDesc {
             family: "trigger_order",
             params: vec![ActionParam {
                 name: "index",
-                value: ActionParamValue::Int(index),
+                value: ActionParamValue::Int(index as i32),
             }],
-        });
-    }
-    if (CHOICE_BASE..CHOICE_BASE + CHOICE_COUNT).contains(&id) {
-        let index = (id - CHOICE_BASE) as i32;
-        return Some(ActionIdDesc {
+        },
+        ActionKey::ChoiceSelect { index } => ActionIdDesc {
             family: "choice_select",
             params: vec![ActionParam {
                 name: "index",
-                value: ActionParamValue::Int(index),
+                value: ActionParamValue::Int(index as i32),
             }],
-        });
-    }
-    if id == CHOICE_PREV_ID {
-        return Some(ActionIdDesc {
+        },
+        ActionKey::ChoicePrevPage => ActionIdDesc {
             family: "choice_prev_page",
             params: vec![],
-        });
-    }
-    if id == CHOICE_NEXT_ID {
-        return Some(ActionIdDesc {
+        },
+        ActionKey::ChoiceNextPage => ActionIdDesc {
             family: "choice_next_page",
             params: vec![],
-        });
-    }
-    if id == CONCEDE_ID {
-        return Some(ActionIdDesc {
+        },
+        ActionKey::Concede => ActionIdDesc {
             family: "concede",
             params: vec![],
-        });
+        },
     }
-    None
+}
+
+/// Decode an action id into a human-readable description.
+pub fn decode_action_id(id: usize) -> Option<ActionIdDesc> {
+    let action = action_key_for_id(id)?;
+    Some(action_id_desc_for_key(action))
 }
 
 /// Decode an action id into a canonical action descriptor.
 pub fn action_desc_for_id(id: usize) -> Option<ActionDesc> {
-    if id >= ACTION_SPACE_SIZE {
-        return None;
-    }
-    if id == MULLIGAN_CONFIRM_ID {
-        return Some(ActionDesc::MulliganConfirm);
-    }
-    if (MULLIGAN_SELECT_BASE..MULLIGAN_SELECT_BASE + MULLIGAN_SELECT_COUNT).contains(&id) {
-        let hand_index = (id - MULLIGAN_SELECT_BASE) as u8;
-        return Some(ActionDesc::MulliganSelect { hand_index });
-    }
-    if id == PASS_ACTION_ID {
-        return Some(ActionDesc::Pass);
-    }
-    if (CLOCK_HAND_BASE..CLOCK_HAND_BASE + CLOCK_HAND_COUNT).contains(&id) {
-        let hand_index = (id - CLOCK_HAND_BASE) as u8;
-        return Some(ActionDesc::Clock { hand_index });
-    }
-    if (MAIN_PLAY_CHAR_BASE..MAIN_PLAY_CHAR_BASE + MAIN_PLAY_CHAR_COUNT).contains(&id) {
-        let offset = id - MAIN_PLAY_CHAR_BASE;
-        let hand_index = (offset / MAX_STAGE) as u8;
-        let stage_slot = (offset % MAX_STAGE) as u8;
-        return Some(ActionDesc::MainPlayCharacter {
-            hand_index,
-            stage_slot,
-        });
-    }
-    if (MAIN_PLAY_EVENT_BASE..MAIN_PLAY_EVENT_BASE + MAIN_PLAY_EVENT_COUNT).contains(&id) {
-        let hand_index = (id - MAIN_PLAY_EVENT_BASE) as u8;
-        return Some(ActionDesc::MainPlayEvent { hand_index });
-    }
-    if (MAIN_MOVE_BASE..MAIN_MOVE_BASE + MAIN_MOVE_COUNT).contains(&id) {
-        let offset = id - MAIN_MOVE_BASE;
-        let from_slot = (offset / (MAX_STAGE - 1)) as u8;
-        let to_index = (offset % (MAX_STAGE - 1)) as u8;
-        let to_slot = if to_index < from_slot {
-            to_index
-        } else {
-            to_index + 1
-        };
-        return Some(ActionDesc::MainMove { from_slot, to_slot });
-    }
-    if (CLIMAX_PLAY_BASE..CLIMAX_PLAY_BASE + CLIMAX_PLAY_COUNT).contains(&id) {
-        let hand_index = (id - CLIMAX_PLAY_BASE) as u8;
-        return Some(ActionDesc::ClimaxPlay { hand_index });
-    }
-    if (ATTACK_BASE..ATTACK_BASE + ATTACK_COUNT).contains(&id) {
-        let offset = id - ATTACK_BASE;
-        let slot = (offset / 3) as u8;
-        let attack_type = match (offset % 3) as i32 {
-            0 => AttackType::Frontal,
-            1 => AttackType::Side,
-            _ => AttackType::Direct,
-        };
-        return Some(ActionDesc::Attack { slot, attack_type });
-    }
-    if (LEVEL_UP_BASE..LEVEL_UP_BASE + LEVEL_UP_COUNT).contains(&id) {
-        let index = (id - LEVEL_UP_BASE) as u8;
-        return Some(ActionDesc::LevelUp { index });
-    }
-    if (ENCORE_PAY_BASE..ENCORE_PAY_BASE + ENCORE_PAY_COUNT).contains(&id) {
-        let slot = (id - ENCORE_PAY_BASE) as u8;
-        return Some(ActionDesc::EncorePay { slot });
-    }
-    if (ENCORE_DECLINE_BASE..ENCORE_DECLINE_BASE + ENCORE_DECLINE_COUNT).contains(&id) {
-        let slot = (id - ENCORE_DECLINE_BASE) as u8;
-        return Some(ActionDesc::EncoreDecline { slot });
-    }
-    if (TRIGGER_ORDER_BASE..TRIGGER_ORDER_BASE + TRIGGER_ORDER_COUNT).contains(&id) {
-        let index = (id - TRIGGER_ORDER_BASE) as u8;
-        return Some(ActionDesc::TriggerOrder { index });
-    }
-    if (CHOICE_BASE..CHOICE_BASE + CHOICE_COUNT).contains(&id) {
-        let index = (id - CHOICE_BASE) as u8;
-        return Some(ActionDesc::ChoiceSelect { index });
-    }
-    if id == CHOICE_PREV_ID {
-        return Some(ActionDesc::ChoicePrevPage);
-    }
-    if id == CHOICE_NEXT_ID {
-        return Some(ActionDesc::ChoiceNextPage);
-    }
-    if id == CONCEDE_ID {
-        return Some(ActionDesc::Concede);
-    }
-    None
+    let action = action_key_for_id(id)?;
+    Some(action_desc_for_key(action))
 }
 
 /// Encode a canonical action descriptor into an action id.
 pub fn action_id_for(action: &ActionDesc) -> Option<usize> {
-    match action {
-        ActionDesc::MulliganConfirm => Some(MULLIGAN_CONFIRM_ID),
-        ActionDesc::MulliganSelect { hand_index } => {
-            let hi = *hand_index as usize;
-            if hi < MULLIGAN_SELECT_COUNT {
-                Some(MULLIGAN_SELECT_BASE + hi)
-            } else {
-                None
-            }
-        }
-        ActionDesc::Pass => Some(PASS_ACTION_ID),
-        ActionDesc::Clock { hand_index } => {
-            let hi = *hand_index as usize;
-            if hi < MAX_HAND {
-                Some(CLOCK_HAND_BASE + hi)
-            } else {
-                None
-            }
-        }
-        ActionDesc::MainPlayCharacter {
-            hand_index,
-            stage_slot,
-        } => {
-            let hi = *hand_index as usize;
-            let ss = *stage_slot as usize;
-            if hi < MAX_HAND && ss < MAX_STAGE {
-                Some(MAIN_PLAY_CHAR_BASE + hi * MAX_STAGE + ss)
-            } else {
-                None
-            }
-        }
-        ActionDesc::MainPlayEvent { hand_index } => {
-            let hi = *hand_index as usize;
-            if hi < MAX_HAND {
-                Some(MAIN_PLAY_EVENT_BASE + hi)
-            } else {
-                None
-            }
-        }
-        ActionDesc::MainMove { from_slot, to_slot } => {
-            let fs = *from_slot as usize;
-            let ts = *to_slot as usize;
-            if fs < MAX_STAGE && ts < MAX_STAGE && fs != ts {
-                let to_index = if ts < fs { ts } else { ts - 1 };
-                Some(MAIN_MOVE_BASE + fs * (MAX_STAGE - 1) + to_index)
-            } else {
-                None
-            }
-        }
-        ActionDesc::MainActivateAbility { .. } => None,
-        ActionDesc::ClimaxPlay { hand_index } => {
-            let hi = *hand_index as usize;
-            if hi < MAX_HAND {
-                Some(CLIMAX_PLAY_BASE + hi)
-            } else {
-                None
-            }
-        }
-        ActionDesc::Attack { slot, attack_type } => {
-            let s = *slot as usize;
-            let t = attack_type_to_i32(*attack_type) as usize;
-            if s < ATTACK_SLOT_COUNT && t < 3 {
-                Some(ATTACK_BASE + s * 3 + t)
-            } else {
-                None
-            }
-        }
-        ActionDesc::CounterPlay { .. } => None,
-        ActionDesc::LevelUp { index } => {
-            let idx = *index as usize;
-            if idx < LEVEL_UP_COUNT {
-                Some(LEVEL_UP_BASE + idx)
-            } else {
-                None
-            }
-        }
-        ActionDesc::EncorePay { slot } => {
-            let s = *slot as usize;
-            if s < ENCORE_PAY_COUNT {
-                Some(ENCORE_PAY_BASE + s)
-            } else {
-                None
-            }
-        }
-        ActionDesc::EncoreDecline { slot } => {
-            let s = *slot as usize;
-            if s < ENCORE_DECLINE_COUNT {
-                Some(ENCORE_DECLINE_BASE + s)
-            } else {
-                None
-            }
-        }
-        ActionDesc::TriggerOrder { index } => {
-            let idx = *index as usize;
-            if idx < TRIGGER_ORDER_COUNT {
-                Some(TRIGGER_ORDER_BASE + idx)
-            } else {
-                None
-            }
-        }
-        ActionDesc::ChoiceSelect { index } => {
-            let idx = *index as usize;
-            if idx < CHOICE_COUNT {
-                Some(CHOICE_BASE + idx)
-            } else {
-                None
-            }
-        }
-        ActionDesc::ChoicePrevPage => Some(CHOICE_PREV_ID),
-        ActionDesc::ChoiceNextPage => Some(CHOICE_NEXT_ID),
-        ActionDesc::Concede => Some(CONCEDE_ID),
-    }
+    let action = action_key_for_desc(action)?;
+    action_id_for_key(action)
 }
 
 fn attack_type_to_i32(attack_type: AttackType) -> i32 {
@@ -434,5 +582,14 @@ fn attack_type_to_i32(attack_type: AttackType) -> i32 {
         AttackType::Frontal => 0,
         AttackType::Side => 1,
         AttackType::Direct => 2,
+    }
+}
+
+#[inline]
+fn attack_type_from_code(code: usize) -> AttackType {
+    match code {
+        0 => AttackType::Frontal,
+        1 => AttackType::Side,
+        _ => AttackType::Direct,
     }
 }

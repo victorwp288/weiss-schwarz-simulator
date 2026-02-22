@@ -61,7 +61,7 @@ flowchart TD
 ## Full docs index
 
 - [Quickstart](quickstart.md): install paths, first reset/step, and integration sanity checks.
-- [Python API](python_api.md): `create/train/evaluate`, `SimRunner`, `EnvPool`, buffer classes, and helper APIs.
+- [Python API](python_api.md): `make/fast/inspect`, `WeissEnv`, `batch.legal`, and canonical low-level APIs (`make_pool`, `EnvPoolBuffers`, `EnvPoolTrajectoryBuffers`, `reset_rl`, `step_rl`, logits helpers).
 - [RL Contract](rl_contract.md): step semantics, output schema, and compatibility checksum table.
 - [Encodings](encodings.md): observation/action spec model and compatibility process.
 - [Encodings Changelog](encodings_changelog.md): append-only encoding/schema history.

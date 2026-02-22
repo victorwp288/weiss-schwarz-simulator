@@ -4,17 +4,26 @@ import numpy as np
 import weiss_sim
 
 
-def make_pool(db_path: Path, deck: list[int], seed: int) -> weiss_sim.EnvPool:
-    return weiss_sim.EnvPool.new_rl_eval(
-        1,
-        str(db_path),
+def make_pool(db_path: Path, deck: list[int], seed: int):
+    pool, _ = weiss_sim.make_pool(
+        mode="eval",
+        num_envs=1,
+        db_path=str(db_path),
         deck_lists=[deck, deck],
-        deck_ids=[1, 2],
+        deck_ids=[11, 12],
+        seed=seed,
         max_decisions=200,
         max_ticks=10_000,
-        seed=seed,
-        error_policy="strict",
+        layout="mask",
     )
+    return pool
+
+
+def first_legal_action(step) -> np.ndarray:
+    legal = np.flatnonzero(step.masks[0])
+    if legal.size == 0:
+        return np.array([weiss_sim.PASS_ACTION_ID], dtype=np.uint32)
+    return np.array([int(legal[0])], dtype=np.uint32)
 
 
 def main() -> None:
@@ -27,26 +36,16 @@ def main() -> None:
 
     pool_a = make_pool(db_path, legal_deck, seed=123)
     pool_b = make_pool(db_path, legal_deck, seed=123)
-    buffers_a = weiss_sim.EnvPoolBuffers(pool_a)
-    buffers_b = weiss_sim.EnvPoolBuffers(pool_b)
 
-    out_a = buffers_a.reset()
-    out_b = buffers_b.reset()
+    out_a = weiss_sim.reset_rl(pool_a, layout="mask")
+    out_b = weiss_sim.reset_rl(pool_b, layout="mask")
     assert np.array_equal(out_a.obs, out_b.obs)
     assert np.array_equal(out_a.masks, out_b.masks)
 
-    actions = np.empty(out_a.masks.shape[0], dtype=np.uint32)
     for _ in range(5):
-        ids, offsets = buffers_a.legal_action_ids()
-        for i in range(out_a.masks.shape[0]):
-            start = int(offsets[i])
-            end = int(offsets[i + 1])
-            if start == end:
-                actions[i] = weiss_sim.PASS_ACTION_ID
-            else:
-                actions[i] = int(ids[start])
-        out_a = buffers_a.step(actions)
-        out_b = buffers_b.step(actions)
+        actions = first_legal_action(out_a)
+        out_a = weiss_sim.step_rl(pool_a, actions, layout="mask")
+        out_b = weiss_sim.step_rl(pool_b, actions, layout="mask")
         assert np.array_equal(out_a.obs, out_b.obs)
         assert np.array_equal(out_a.masks, out_b.masks)
 

@@ -48,7 +48,7 @@ Typical low-level outputs (`BatchOut*` / buffer wrappers):
 | `engine_status` | `(N,)` | engine fault code (`0` healthy) |
 | `spec_hash` | `(N,)` | compatibility hash |
 
-Legal action surfaces:
+Low-level legal action surfaces:
 
 - dense mask (`masks`) when enabled
 - packed ids (`legal_ids`, `legal_offsets`) depending on buffer/API mode
@@ -62,6 +62,11 @@ Common fields:
 - `decision_id`, `engine_status`, `spec_hash`
 - optional legal surfaces: `legal_mask`, `legal_ids`, `legal_offsets`
 
+Preferred high-level legal API:
+
+- use `batch.legal` for ids/mask/logit helpers
+- `legal_ids` and `legal_offsets` remain available as raw properties for advanced integration
+
 `StepBatch` adds:
 
 - `reward`, `terminated`, `truncated`
@@ -72,6 +77,12 @@ Invariants enforced in high-level path:
 
 - `terminated` and `truncated` are never both true at one index
 - legal ids (when present) are strictly ascending and unique per env slice
+
+`batch.legal` behavior:
+
+- `batch.legal.ids(i)` returns legal action ids for env `i`
+- `batch.legal.mask` returns dense legal mask view
+- `batch.legal.select_from_logits(...)` / `sample_from_logits(...)` enforce legality
 
 ## Decision kind encoding
 
@@ -145,8 +156,12 @@ Mask-based baseline:
 import numpy as np
 import weiss_sim
 
-pool = weiss_sim.EnvPool.new_rl_train(...)
-buf = weiss_sim.EnvPoolBuffers(pool)
+pool, buf = weiss_sim.make_pool(
+    mode="train",
+    num_envs=64,
+    deck_lists=[deck_a, deck_b],
+    layout="mask",
+)
 out = buf.reset()
 
 for _ in range(1000):
@@ -157,6 +172,28 @@ for _ in range(1000):
             actions[i] = int(legal[0])
     out = buf.step(actions)
 ```
+
+RL helper baseline (same contract, no manual buffer wrapper):
+
+```python
+step = weiss_sim.reset_rl(pool, layout="mask")
+actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
+for i in range(pool.envs_len):
+    legal = np.flatnonzero(step.masks[i])
+    if legal.size:
+        actions[i] = int(legal[0])
+step = weiss_sim.step_rl(pool, actions, layout="mask")
+```
+
+## Advanced: raw packed legality arrays
+
+When you need packed legality payloads directly, use:
+
+- `batch.legal_ids`
+- `batch.legal_offsets`
+- optional `batch.legal_mask`
+
+Packed ids are authoritative for their selected representation and remain part of the stable contract, but higher-level integrations should prefer `batch.legal`.
 
 Packed-id pattern:
 

@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 use std::collections::HashSet;
 
 use crate::config::CurriculumConfig;
-use crate::db::{AbilityCost, CardColor, CardDb, CardStatic, CardType};
+use crate::db::{AbilityCost, CardDb, CardType};
 use crate::encode::{
     ACTION_SPACE_SIZE, ATTACK_BASE, CHOICE_BASE, CHOICE_COUNT, CHOICE_NEXT_ID, CHOICE_PREV_ID,
     CLIMAX_PLAY_BASE, CLOCK_HAND_BASE, CONCEDE_ID, ENCORE_DECLINE_BASE, ENCORE_PAY_BASE,
@@ -13,6 +13,10 @@ use crate::encode::{
     MULLIGAN_SELECT_BASE, PASS_ACTION_ID, TRIGGER_ORDER_BASE,
 };
 use crate::state::{AttackType, CardInstance, GameState, ModifierKind, StageSlot, StageStatus};
+
+use self::hand_play_requirements::{card_set_allowed, meets_play_requirements};
+
+pub(crate) mod hand_play_requirements;
 
 const MAX_HAND: usize = crate::encode::MAX_HAND;
 const MAX_STAGE: usize = 5;
@@ -310,6 +314,77 @@ fn can_pay_encore_for_slot(
         })
 }
 
+#[derive(Clone, Copy)]
+enum PlayableHandCard {
+    MainCharacter { hand_index: usize },
+    MainEvent { hand_index: usize },
+    Climax { hand_index: usize },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum HandScanMode {
+    Main,
+    Climax,
+}
+
+#[inline(always)]
+fn for_each_playable_hand_card<F>(
+    player: &crate::state::PlayerState,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    allowed_card_sets: Option<&HashSet<String>>,
+    mode: HandScanMode,
+    events_locked: bool,
+    mut visit: F,
+) where
+    F: FnMut(PlayableHandCard),
+{
+    let can_play_climax =
+        curriculum.enable_climax_phase && curriculum.allow_climax && player.climax.is_empty();
+    if mode == HandScanMode::Climax && !can_play_climax {
+        return;
+    }
+
+    for (hand_index, card_inst) in player.hand.iter().enumerate() {
+        if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
+            break;
+        }
+        let Some(card) = db.get(card_inst.id) else {
+            continue;
+        };
+        if !card_set_allowed(card, curriculum, allowed_card_sets) {
+            continue;
+        }
+        match mode {
+            HandScanMode::Main => match card.card_type {
+                CardType::Character => {
+                    if curriculum.allow_character
+                        && meets_play_requirements(card, player, db, curriculum, 0, false)
+                    {
+                        visit(PlayableHandCard::MainCharacter { hand_index });
+                    }
+                }
+                CardType::Event => {
+                    if !events_locked
+                        && curriculum.allow_event
+                        && meets_play_requirements(card, player, db, curriculum, 0, false)
+                    {
+                        visit(PlayableHandCard::MainEvent { hand_index });
+                    }
+                }
+                CardType::Climax => {}
+            },
+            HandScanMode::Climax => {
+                if card.card_type == CardType::Climax
+                    && meets_play_requirements(card, player, db, curriculum, 0, false)
+                {
+                    visit(PlayableHandCard::Climax { hand_index });
+                }
+            }
+        }
+    }
+}
+
 /// Compute legal action ids for a decision into a reusable buffer.
 #[inline(always)]
 pub fn legal_action_ids_cached_into(
@@ -358,41 +433,26 @@ pub fn legal_action_ids_cached_into(
             };
             let events_locked = modifier_cache.cannot_play_events_from_hand;
             push_id(out, PASS_ACTION_ID);
-            for (hand_index, card_inst) in p.hand.iter().enumerate() {
-                if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
-                    break;
-                }
-                if let Some(card) = db.get(card_inst.id) {
-                    if !card_set_allowed(card, curriculum, allowed_card_sets) {
-                        continue;
-                    }
-                    match card.card_type {
-                        CardType::Character => {
-                            if curriculum.allow_character
-                                && meets_level_requirement(card, p.level.len())
-                                && meets_color_requirement(card, p, db, curriculum)
-                                && meets_cost_requirement(card, p, curriculum)
-                            {
-                                for slot in 0..max_slot {
-                                    let id = MAIN_PLAY_CHAR_BASE + hand_index * MAX_STAGE + slot;
-                                    push_id(out, id);
-                                }
-                            }
+            for_each_playable_hand_card(
+                p,
+                db,
+                curriculum,
+                allowed_card_sets,
+                HandScanMode::Main,
+                events_locked,
+                |playable| match playable {
+                    PlayableHandCard::MainCharacter { hand_index } => {
+                        for slot in 0..max_slot {
+                            let id = MAIN_PLAY_CHAR_BASE + hand_index * MAX_STAGE + slot;
+                            push_id(out, id);
                         }
-                        CardType::Event => {
-                            if !events_locked
-                                && curriculum.allow_event
-                                && meets_level_requirement(card, p.level.len())
-                                && meets_color_requirement(card, p, db, curriculum)
-                                && meets_cost_requirement(card, p, curriculum)
-                            {
-                                push_id(out, MAIN_PLAY_EVENT_BASE + hand_index);
-                            }
-                        }
-                        CardType::Climax => {}
                     }
-                }
-            }
+                    PlayableHandCard::MainEvent { hand_index } => {
+                        push_id(out, MAIN_PLAY_EVENT_BASE + hand_index);
+                    }
+                    PlayableHandCard::Climax { .. } => {}
+                },
+            );
             for from in 0..max_slot {
                 for to in 0..max_slot {
                     if from == to {
@@ -417,27 +477,19 @@ pub fn legal_action_ids_cached_into(
         DecisionKind::Climax => {
             let p = &state.players[player];
             push_id(out, PASS_ACTION_ID);
-            if curriculum.enable_climax_phase {
-                for (hand_index, card_inst) in p.hand.iter().enumerate() {
-                    if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
-                        break;
+            for_each_playable_hand_card(
+                p,
+                db,
+                curriculum,
+                allowed_card_sets,
+                HandScanMode::Climax,
+                false,
+                |playable| {
+                    if let PlayableHandCard::Climax { hand_index } = playable {
+                        push_id(out, CLIMAX_PLAY_BASE + hand_index);
                     }
-                    if let Some(card) = db.get(card_inst.id) {
-                        if !card_set_allowed(card, curriculum, allowed_card_sets) {
-                            continue;
-                        }
-                        if card.card_type == CardType::Climax
-                            && curriculum.allow_climax
-                            && p.climax.is_empty()
-                            && meets_level_requirement(card, p.level.len())
-                            && meets_color_requirement(card, p, db, curriculum)
-                            && meets_cost_requirement(card, p, curriculum)
-                        {
-                            push_id(out, CLIMAX_PLAY_BASE + hand_index);
-                        }
-                    }
-                }
-            }
+                },
+            );
         }
         DecisionKind::AttackDeclaration => {
             if starting_player_first_turn_attack_used(state, decision.player) {
@@ -770,47 +822,30 @@ pub fn legal_actions_cached_into(
             };
             let events_locked = modifier_cache.cannot_play_events_from_hand;
             actions.push(ActionDesc::Pass);
-            for (hand_index, card_inst) in p.hand.iter().enumerate() {
-                if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
-                    break;
-                }
-                if let Some(card) = db.get(card_inst.id) {
-                    if !card_set_allowed(card, curriculum, allowed_card_sets) {
-                        continue;
-                    }
-                    match card.card_type {
-                        CardType::Character => {
-                            if curriculum.allow_character
-                                && meets_level_requirement(card, p.level.len())
-                                && meets_color_requirement(card, p, db, curriculum)
-                                && meets_cost_requirement(card, p, curriculum)
-                            {
-                                for slot in 0..max_slot {
-                                    actions.push(ActionDesc::MainPlayCharacter {
-                                        hand_index: hand_index as u8,
-                                        stage_slot: slot as u8,
-                                    });
-                                }
-                            }
-                        }
-                        CardType::Event => {
-                            if !events_locked
-                                && curriculum.allow_event
-                                && meets_level_requirement(card, p.level.len())
-                                && meets_color_requirement(card, p, db, curriculum)
-                                && meets_cost_requirement(card, p, curriculum)
-                            {
-                                actions.push(ActionDesc::MainPlayEvent {
-                                    hand_index: hand_index as u8,
-                                });
-                            }
-                        }
-                        CardType::Climax => {
-                            // Climax cards are played in the Climax phase.
+            for_each_playable_hand_card(
+                p,
+                db,
+                curriculum,
+                allowed_card_sets,
+                HandScanMode::Main,
+                events_locked,
+                |playable| match playable {
+                    PlayableHandCard::MainCharacter { hand_index } => {
+                        for slot in 0..max_slot {
+                            actions.push(ActionDesc::MainPlayCharacter {
+                                hand_index: hand_index as u8,
+                                stage_slot: slot as u8,
+                            });
                         }
                     }
-                }
-            }
+                    PlayableHandCard::MainEvent { hand_index } => {
+                        actions.push(ActionDesc::MainPlayEvent {
+                            hand_index: hand_index as u8,
+                        });
+                    }
+                    PlayableHandCard::Climax { .. } => {}
+                },
+            );
             for from in 0..max_slot {
                 for to in 0..max_slot {
                     if from == to {
@@ -836,29 +871,21 @@ pub fn legal_actions_cached_into(
         DecisionKind::Climax => {
             let p = &state.players[player];
             actions.push(ActionDesc::Pass);
-            if curriculum.enable_climax_phase {
-                for (hand_index, card_inst) in p.hand.iter().enumerate() {
-                    if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
-                        break;
+            for_each_playable_hand_card(
+                p,
+                db,
+                curriculum,
+                allowed_card_sets,
+                HandScanMode::Climax,
+                false,
+                |playable| {
+                    if let PlayableHandCard::Climax { hand_index } = playable {
+                        actions.push(ActionDesc::ClimaxPlay {
+                            hand_index: hand_index as u8,
+                        });
                     }
-                    if let Some(card) = db.get(card_inst.id) {
-                        if !card_set_allowed(card, curriculum, allowed_card_sets) {
-                            continue;
-                        }
-                        if card.card_type == CardType::Climax
-                            && curriculum.allow_climax
-                            && p.climax.is_empty()
-                            && meets_level_requirement(card, p.level.len())
-                            && meets_color_requirement(card, p, db, curriculum)
-                            && meets_cost_requirement(card, p, curriculum)
-                        {
-                            actions.push(ActionDesc::ClimaxPlay {
-                                hand_index: hand_index as u8,
-                            });
-                        }
-                    }
-                }
-            }
+                },
+            );
         }
         DecisionKind::AttackDeclaration => {
             actions.push(ActionDesc::Pass);
@@ -927,64 +954,6 @@ pub fn legal_actions_cached_into(
     if curriculum.allow_concede {
         actions.push(ActionDesc::Concede);
     }
-}
-
-fn card_set_allowed(
-    card: &CardStatic,
-    curriculum: &CurriculumConfig,
-    allowed_card_sets: Option<&HashSet<String>>,
-) -> bool {
-    match (allowed_card_sets, &card.card_set) {
-        (Some(set), Some(set_id)) => set.contains(set_id),
-        (Some(_), None) => false,
-        (None, _) => {
-            if curriculum.allowed_card_sets.is_empty() {
-                true
-            } else {
-                card.card_set
-                    .as_ref()
-                    .map(|s| curriculum.allowed_card_sets.iter().any(|a| a == s))
-                    .unwrap_or(false)
-            }
-        }
-    }
-}
-
-fn meets_level_requirement(card: &CardStatic, level_count: usize) -> bool {
-    card.level as usize <= level_count
-}
-
-fn meets_cost_requirement(
-    card: &CardStatic,
-    player: &crate::state::PlayerState,
-    curriculum: &CurriculumConfig,
-) -> bool {
-    if !curriculum.enforce_cost_requirement {
-        return true;
-    }
-    player.stock.len() >= card.cost as usize
-}
-
-fn meets_color_requirement(
-    card: &CardStatic,
-    player: &crate::state::PlayerState,
-    db: &CardDb,
-    curriculum: &CurriculumConfig,
-) -> bool {
-    if !curriculum.enforce_color_requirement {
-        return true;
-    }
-    if card.level == 0 || card.color == CardColor::Colorless {
-        return true;
-    }
-    for card_id in player.level.iter().chain(player.clock.iter()) {
-        if let Some(c) = db.get(card_id.id) {
-            if c.color == card.color {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 fn is_character_slot(slot: &StageSlot, db: &CardDb) -> bool {

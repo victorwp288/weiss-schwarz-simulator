@@ -14,24 +14,25 @@ def _first_legal_actions(masks):
     return actions
 
 
-def _make_pool(seed=888, num_envs=2):
+def _make_pool(seed=888, num_envs=2, *, layout="mask"):
     fixture_dir = Path(__file__).parent / "fixtures"
     db_path = fixture_dir / "cards.wsdb"
     legal_deck = (list(range(1, 14)) * 4)[:50]
-    return weiss_sim.EnvPool.new_rl_train(
-        num_envs,
-        str(db_path),
+    return weiss_sim.make_pool(
+        mode="train",
+        num_envs=num_envs,
+        db_path=str(db_path),
         deck_lists=[legal_deck, legal_deck],
         deck_ids=[1, 2],
         max_decisions=200,
         max_ticks=10_000,
         seed=seed,
+        layout=layout,
     )
 
 
 def test_envpool_buffers_step_reuses_buffers():
-    pool = _make_pool()
-    buffers = weiss_sim.EnvPoolBuffers(pool)
+    pool, buffers = _make_pool(layout="mask")
     out_reset = buffers.reset()
     assert out_reset is buffers.out
 
@@ -46,3 +47,5 @@ def test_envpool_buffers_step_reuses_buffers():
     assert buffers.actor is buffers.out.actor
     assert buffers.decision_id is buffers.out.decision_id
     assert buffers.engine_status is buffers.out.engine_status
+    assert buffers.layout == "mask"
+    assert pool.envs_len == 2

@@ -1,13 +1,13 @@
 # Quickstart
 
-Use this page to go from clone/install to a verified deterministic step loop.
+Use this page to go from install to a verified reset/step loop with the v2 high-level API.
 
 Next read: [RL Contract](rl_contract.md)
 
 ## Prerequisites
 
 - Python 3.10+
-- Rust stable (`rustup default stable`)
+- Rust stable (`rustup default stable`) for local source builds
 - `pip`
 
 Recommended:
@@ -30,86 +30,87 @@ python -m pip install -U maturin numpy
 maturin develop --release --manifest-path weiss_py/Cargo.toml
 ```
 
-## First successful reset + step
+## First successful reset + step (recommended path)
 
 ```python
-import numpy as np
 import weiss_sim
 
-legal_deck = (list(range(1, 14)) * 4)[:50]
-
-pool = weiss_sim.EnvPool.new_rl_train(
-    32,
-    deck_lists=[legal_deck, legal_deck],
-    deck_ids=[1, 2],
-    seed=0,
-)
-buf = weiss_sim.EnvPoolBuffers(pool)
-out = buf.reset()
-
-actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
-out = buf.step(actions)
-
-print(out.obs.shape, out.rewards.shape, out.engine_status[:4])
+with weiss_sim.make(mode="inspect", num_envs=32, seed=0, card_pool="all") as sim:
+    batch = sim.reset()
+    actions = batch.legal.sample_uniform(seed=123)
+    step = sim.step(actions)
+    print(step.obs.shape, step.reward.shape, step.engine_status[:4])
 ```
 
 Expected result:
 
 - no exception
-- stable shapes across runs
+- stable output shapes
 - `engine_status == 0` for healthy envs
 
 ## Which API should you use?
 
-- `weiss_sim.train(...)` / `weiss_sim.evaluate(...)`: recommended for most users
-- `weiss_sim.EnvPool.*`: lower-level control for custom pipelines
+- `weiss_sim.make(...)`, `weiss_sim.fast(...)`, `weiss_sim.inspect(...)`: recommended for most users
+- low-level canonical surface: `make_pool(...)`, `EnvPoolBuffers(..., layout=...)`, `EnvPoolTrajectoryBuffers(..., layout=...)`, `reset_rl(...)`, `step_rl(...)`
 
-## High-level API defaults (`create/train/evaluate`)
+## High-level defaults (`make`/`fast`/`inspect`)
 
-From `python/weiss_sim/api.py`:
+Common defaults:
 
 - `rules_profile="strict"`
-- `runtime_mode="speed"` for `train()`, `"eval_debug"` for `evaluate()`
 - `card_pool="parsed_only"`
 - `observation_visibility="public"`
-- `error_policy="lenient_terminate"`
+- `error_policy="replace"`
 - `max_decisions=2000`, `max_ticks=100000`
 
-Runtime-mode defaults:
+Mode defaults:
 
-| runtime_mode | legal_repr | obs_dtype | ids_safety |
-| --- | --- | --- | --- |
-| `speed` | `ids_u16` | `i16` | `checked` |
-| `eval_debug` | `both` | `i32` | n/a |
+| mode | internal runtime_mode | legal_repr | obs_dtype | ids_safety |
+| --- | --- | --- | --- | --- |
+| `fast` | `speed` | `ids_u16` | `i16` | `checked` |
+| `inspect` | `eval_debug` | `both` | `i32` | n/a |
 
-Auto sizing rules:
+`runtime_mode=` is rejected on the high-level API.
 
-- `num_threads="auto"` -> `min(16, cpu_count)` then capped at `num_envs`
-- `num_envs="auto"` -> `min(128, max(32, 4 * resolved_threads))`
+## Seed behavior and determinism
 
-Public-visibility behavior in high-level API:
+- `seed=None` (default) uses entropy.
+- `seed=<int>` uses a deterministic user seed.
+- For reproducible trajectories, hold fixed:
 
-- opponent private zones stay masked
-- `memory_is_public` is forced to `False` unless explicitly overridden
-- `reveal_opponent_hand_stock_counts` defaults to `False`
+1. seed
+2. deck lists/ids
+3. action sequence
+4. curriculum/reward/end-condition settings
+5. compatibility constants (`OBS_ENCODING_VERSION`, `ACTION_ENCODING_VERSION`, `SPEC_HASH`)
 
-## High-level minimal loop
+## Legal actions: use `batch.legal`
+
+Preferred:
+
+- `batch.legal.ids(i)`
+- `batch.legal.contains(i, action_id)`
+- `batch.legal.mask`
+- `batch.legal.sample_uniform(seed=...)`
+- `batch.legal.select_from_logits(logits)`
+
+Raw properties are still available for advanced integrations:
+
+- `batch.legal_ids`
+- `batch.legal_offsets`
+- `batch.legal_mask`
+
+## Fast and inspect shortcuts
 
 ```python
-import numpy as np
 import weiss_sim
 
-sim = weiss_sim.train(num_envs=32, seed=0)
-reset = sim.reset()
-actions = np.full((32,), weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
-step = sim.step(actions)
+with weiss_sim.fast(num_envs=32, seed=0) as sim:
+    batch = sim.reset()
+
+with weiss_sim.inspect(num_envs=32, seed=0) as sim:
+    batch = sim.reset()
 ```
-
-Seat-aware helpers for two-policy play:
-
-- `sim.current_to_play_seat()`
-- `sim.merge_actions_by_seat(seat0_actions, seat1_actions, default_action=...)`
-- `sim.step_by_seat(seat0_actions, seat1_actions, default_action=...)`
 
 ## Deck inputs in high-level API
 
@@ -120,45 +121,34 @@ Seat-aware helpers for two-policy play:
 - preset string (`"preset:starter_v1"`)
 - path string (`"file:..."` or path-like string)
 
-Examples:
-
-```python
-import weiss_sim
-
-sim = weiss_sim.create(
-    deck="preset:starter_v1",
-    opponent_deck="preset:starter_v1",
-    card_pool="parsed_only",
-)
-```
-
 `card_pool="parsed_only"` enforces catalog/db hash compatibility and raises `DbMismatchError` on mismatch.
 
-## Low-level constructor behavior
+## Low-level canonical API (layout-based)
 
-- `EnvPool.new_rl_train(...)` and `EnvPool.new_rl_eval(...)`:
-  - force public observation visibility
-  - force `enable_visibility_policies=true`
-  - force `allow_concede=false`
-- `EnvPool.new_debug(...)`:
-  - no RL policy overrides; use when you need exact curriculum/control
+Use `make_pool` as the single constructor for low-level RL loops:
 
-## Determinism checklist
+```python
+import numpy as np
+import weiss_sim
 
-For reproducible episodes, keep all of these fixed:
+pool, buffers = weiss_sim.make_pool(
+    mode="train",                # "train" or "eval"
+    num_envs=8,
+    deck_lists=[deck_a, deck_b],
+    seed=7,
+    profile="fast",              # optional: fast / balanced / eval / debug
+    layout="mask",               # mask / nomask / i16 / i16_legal_ids
+)
 
-1. seed
-2. deck lists/ids
-3. action sequence
-4. config/curriculum/reward/end-condition settings
-5. contract versions (`OBS_ENCODING_VERSION`, `ACTION_ENCODING_VERSION`, `SPEC_HASH`)
+step = weiss_sim.reset_rl(pool, layout="mask")
+actions = np.array([int(np.flatnonzero(step.masks[i])[0]) for i in range(pool.envs_len)], dtype=np.uint32)
+step = weiss_sim.step_rl(pool, actions, layout="mask")
+```
 
-Useful metadata surfaces:
+Logit helpers are canonical and layout-aware:
 
-- `episode_seed_batch()`
-- `episode_index_batch()`
-- `env_index_batch()`
-- `starting_player_batch()`
+- `step_rl_select_from_logits(pool, logits, layout=..., actions=None, out=None)`
+- `step_rl_sample_from_logits(pool, logits, seeds, layout=..., actions=None, out=None)`
 
 ## Sanity checks before long runs
 

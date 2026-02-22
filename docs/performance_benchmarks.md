@@ -6,7 +6,14 @@ This page documents the benchmark workflow that is actually used by scripts/CI.
 
 - Rust micro/engine benches (`core_benches`, `alloc_benches`)
 - Python boundary throughput (`python/examples/bench_python_boundary.py`)
+- low-level step throughput (`python/examples/bench_envpool_step.py`)
 - optional scaling study (`python/examples/bench_scaling.py`)
+
+All Python benchmark scripts use the canonical low-level API surface:
+
+- `make_pool(mode=..., layout=...)`
+- `EnvPoolBuffers(pool, layout=...)`
+- `reset_rl(...)` / `step_rl(...)` where appropriate
 
 ## Canonical snapshot command path
 
@@ -21,6 +28,9 @@ PYTHONPATH=python python python/examples/bench_python_boundary.py \
   --warmup 200 \
   --reset-reps 200 \
   --mode both
+PYTHONPATH=python python python/examples/bench_envpool_step.py \
+  --num-envs 128 \
+  --steps 2000
 ```
 
 ## Perf budget gate

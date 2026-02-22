@@ -2,29 +2,41 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, overload
 
+from ._config_norm import (
+    normalize_card_pool,
+    normalize_error_policy,
+    normalize_ids_safety,
+    normalize_legal_repr,
+    normalize_mode,
+    normalize_observation_visibility,
+    normalize_obs_dtype,
+    normalize_rules_profile,
+    resolve_mode_defaults,
+    resolve_seed,
+    resolve_threads_and_envs,
+)
 from .catalog import db_info as _db_info
 from .config_types import (
     CardPoolMode,
     CurriculumOverrides,
     DeckInput,
     EndConditionOverrides,
-    ErrorPolicy,
     IdsSafety,
     LegalRepr,
     NumLike,
     ObservationVisibility,
     ObsDType,
     RulesProfile,
-    RuntimeMode,
     ThreadsLike,
 )
 from .decks import resolve_match_decks
 from .errors import ConfigConflictError
-from .runner import SimRunner
+from .runner import WeissEnv
 from .weiss_sim import (
     ACTION_SPACE_SIZE,
     POLICY_VERSION,
@@ -42,86 +54,61 @@ _KNOWN_CURRICULUM_KEYS = set(CurriculumOverrides.__annotations__.keys())
 _KNOWN_END_CONDITION_KEYS = {"simultaneous_loss", "allow_draw_on_simultaneous_loss"}
 
 
-def _normalize_runtime_mode(value: RuntimeMode | str) -> RuntimeMode:
-    token = str(value).strip().lower()
-    if token not in {"speed", "eval_debug"}:
-        raise ConfigConflictError(f"runtime_mode must be one of speed/eval_debug (got {value!r})")
-    return token  # type: ignore[return-value]
-
-
-def _normalize_rules_profile(value: RulesProfile | str) -> RulesProfile:
-    token = str(value).strip().lower()
-    if token not in {"strict", "approx"}:
-        raise ConfigConflictError(f"rules_profile must be strict or approx (got {value!r})")
-    return token  # type: ignore[return-value]
-
-
-def _normalize_card_pool(value: CardPoolMode | str) -> CardPoolMode:
-    token = str(value).strip().lower()
-    if token not in {"parsed_only", "all"}:
-        raise ConfigConflictError(f"card_pool must be parsed_only or all (got {value!r})")
-    return token  # type: ignore[return-value]
-
-
-def _normalize_legal_repr(value: LegalRepr | str | None) -> LegalRepr | None:
+def _coerce_optional_object_payload(
+    value: object | None,
+    *,
+    field_name: str,
+    typed_name: str,
+    typed_cls: type[object],
+    allow_json_string: bool,
+) -> dict[str, object] | None:
     if value is None:
         return None
-    token = str(value).strip().lower()
-    if token not in {"ids_u16", "ids_u32", "mask_u8", "both"}:
-        raise ConfigConflictError(
-            f"legal_repr must be one of ids_u16/ids_u32/mask_u8/both (got {value!r})"
-        )
-    return token  # type: ignore[return-value]
+
+    if allow_json_string and isinstance(value, str):
+        if not value.strip():
+            raise ConfigConflictError(
+                f"{field_name} must be non-empty when provided as a JSON string"
+            )
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ConfigConflictError(f"{field_name} JSON parse error: {exc}") from exc
+        if not isinstance(decoded, dict):
+            raise ConfigConflictError(f"{field_name} JSON must decode to an object")
+        return dict(decoded)
+
+    if isinstance(value, typed_cls):
+        return value.to_dict()  # type: ignore[attr-defined]
+    if is_dataclass(value):
+        return {k: v for k, v in asdict(value).items() if v is not None}
+    if isinstance(value, Mapping):
+        return dict(value)
+
+    accepted = f"{typed_name}, mapping, dataclass, or None"
+    if allow_json_string:
+        accepted = f"{typed_name}, mapping, JSON string, dataclass, or None"
+    raise ConfigConflictError(f"{field_name} must be {accepted}")
 
 
-def _normalize_obs_dtype(value: ObsDType | str | None) -> ObsDType | None:
-    if value is None:
-        return None
-    token = str(value).strip().lower()
-    if token not in {"i16", "i32"}:
-        raise ConfigConflictError(f"obs_dtype must be one of i16/i32 (got {value!r})")
-    return token  # type: ignore[return-value]
+def _reject_unknown_fields(
+    payload: dict[str, object], *, known_keys: set[str], field_name: str
+) -> None:
+    unknown = sorted(set(payload.keys()) - known_keys)
+    if unknown:
+        raise ConfigConflictError(f"unknown {field_name} fields: {', '.join(unknown)}")
 
 
-def _normalize_ids_safety(value: IdsSafety | str | None) -> IdsSafety | None:
-    if value is None:
-        return None
-    token = str(value).strip().lower()
-    if token not in {"checked", "unsafe"}:
-        raise ConfigConflictError(f"ids_safety must be one of checked/unsafe (got {value!r})")
-    return token  # type: ignore[return-value]
-
-
-def _normalize_error_policy(value: ErrorPolicy | str) -> ErrorPolicy:
-    token = str(value).strip().lower()
-    if token not in {"strict", "lenient_terminate", "lenient_noop"}:
-        raise ConfigConflictError(
-            f"error_policy must be one of strict/lenient_terminate/lenient_noop (got {value!r})"
-        )
-    return token  # type: ignore[return-value]
-
-
-def _normalize_observation_visibility(
-    value: ObservationVisibility | str,
-) -> ObservationVisibility:
-    token = str(value).strip().lower()
-    if token not in {"public", "full"}:
-        raise ConfigConflictError(
-            f"observation_visibility must be one of public/full (got {value!r})"
-        )
-    return token  # type: ignore[return-value]
-
-
-def _normalize_reward_json(value: str | dict[str, object] | None) -> str | None:
+def _normalize_reward_json(value: str | Mapping[str, object] | None) -> str | None:
     if value is None:
         return None
     if isinstance(value, str):
         if not value.strip():
             raise ConfigConflictError("reward_json must be non-empty when provided as a string")
         return value
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return json.dumps(value)
-    raise ConfigConflictError("reward_json must be a JSON string, dict, or None")
+    raise ConfigConflictError("reward_json must be a JSON string, mapping, or None")
 
 
 def _normalize_simultaneous_loss_policy(value: object) -> str:
@@ -142,37 +129,20 @@ def _normalize_simultaneous_loss_policy(value: object) -> str:
 
 
 def _normalize_end_condition_policy_json(
-    value: EndConditionOverrides | dict[str, object] | str | None,
+    value: EndConditionOverrides | Mapping[str, object] | str | None,
 ) -> str | None:
-    if value is None:
+    payload = _coerce_optional_object_payload(
+        value,
+        field_name="end_condition_policy",
+        typed_name="EndConditionOverrides",
+        typed_cls=EndConditionOverrides,
+        allow_json_string=True,
+    )
+    if payload is None:
         return None
-    payload: dict[str, object]
-    if isinstance(value, str):
-        if not value.strip():
-            raise ConfigConflictError(
-                "end_condition_policy must be non-empty when provided as a JSON string"
-            )
-        try:
-            decoded = json.loads(value)
-        except json.JSONDecodeError as exc:
-            raise ConfigConflictError(f"end_condition_policy JSON parse error: {exc}") from exc
-        if not isinstance(decoded, dict):
-            raise ConfigConflictError("end_condition_policy JSON must decode to an object")
-        payload = dict(decoded)
-    elif isinstance(value, EndConditionOverrides):
-        payload = value.to_dict()
-    elif is_dataclass(value):
-        payload = {k: v for k, v in asdict(value).items() if v is not None}
-    elif isinstance(value, dict):
-        payload = dict(value)
-    else:
-        raise ConfigConflictError(
-            "end_condition_policy must be EndConditionOverrides, dict, JSON string, dataclass, or None"
-        )
-
-    unknown = sorted(set(payload.keys()) - _KNOWN_END_CONDITION_KEYS)
-    if unknown:
-        raise ConfigConflictError(f"unknown end_condition_policy fields: {', '.join(unknown)}")
+    _reject_unknown_fields(
+        payload, known_keys=_KNOWN_END_CONDITION_KEYS, field_name="end_condition_policy"
+    )
 
     normalized: dict[str, object] = {}
     if "simultaneous_loss" in payload:
@@ -186,51 +156,20 @@ def _normalize_end_condition_policy_json(
     return json.dumps(normalized)
 
 
-def _resolve_threads_and_envs(num_envs: NumLike, num_threads: ThreadsLike) -> tuple[int, int]:
-    cpu = max(1, int(os.cpu_count() or 1))
-    auto_threads = min(16, cpu)
-    if isinstance(num_threads, int):
-        if num_threads <= 0:
-            raise ConfigConflictError(f"num_threads must be > 0 (got {num_threads})")
-        resolved_threads = num_threads
-    elif num_threads in ("auto", None):
-        resolved_threads = auto_threads
-    else:
-        raise ConfigConflictError(f"num_threads must be int, 'auto', or None (got {num_threads!r})")
-
-    if isinstance(num_envs, int):
-        if num_envs <= 0:
-            raise ConfigConflictError(f"num_envs must be > 0 (got {num_envs})")
-        resolved_envs = num_envs
-    elif num_envs == "auto":
-        resolved_envs = min(128, max(32, 4 * resolved_threads))
-    else:
-        raise ConfigConflictError(f"num_envs must be int or 'auto' (got {num_envs!r})")
-
-    resolved_threads = min(resolved_threads, resolved_envs)
-    return resolved_envs, resolved_threads
-
-
 def _normalize_curriculum(
-    curriculum: CurriculumOverrides | dict[str, object] | None, rules_profile: RulesProfile
+    curriculum: CurriculumOverrides | Mapping[str, object] | None, rules_profile: RulesProfile
 ) -> dict[str, object]:
-    payload: dict[str, object]
-    if curriculum is None:
+    payload = _coerce_optional_object_payload(
+        curriculum,
+        field_name="curriculum",
+        typed_name="CurriculumOverrides",
+        typed_cls=CurriculumOverrides,
+        allow_json_string=False,
+    )
+    if payload is None:
         payload = {}
-    elif isinstance(curriculum, CurriculumOverrides):
-        payload = curriculum.to_dict()
-    elif is_dataclass(curriculum):
-        payload = {k: v for k, v in asdict(curriculum).items() if v is not None}
-    elif isinstance(curriculum, dict):
-        payload = dict(curriculum)
-    else:
-        raise ConfigConflictError(
-            "curriculum must be CurriculumOverrides, dict, dataclass, or None"
-        )
 
-    unknown = sorted(set(payload.keys()) - _KNOWN_CURRICULUM_KEYS)
-    if unknown:
-        raise ConfigConflictError(f"unknown curriculum fields: {', '.join(unknown)}")
+    _reject_unknown_fields(payload, known_keys=_KNOWN_CURRICULUM_KEYS, field_name="curriculum")
 
     if "enable_approx_effects" in payload:
         requested = bool(payload["enable_approx_effects"])
@@ -242,34 +181,6 @@ def _normalize_curriculum(
     else:
         payload["enable_approx_effects"] = bool(rules_profile == "approx")
     return payload
-
-
-def _resolve_mode_defaults(
-    runtime_mode: RuntimeMode,
-    legal_repr: LegalRepr | None,
-    obs_dtype: ObsDType | None,
-    ids_safety: IdsSafety | None,
-) -> tuple[LegalRepr, ObsDType, IdsSafety | None]:
-    if runtime_mode == "speed":
-        default_legal_repr: LegalRepr = "ids_u16"
-        default_obs_dtype: ObsDType = "i16"
-        default_ids_safety: IdsSafety | None = "checked"
-    else:
-        default_legal_repr = "both"
-        default_obs_dtype = "i32"
-        default_ids_safety = None
-
-    effective_legal_repr = legal_repr or default_legal_repr
-    effective_obs_dtype = obs_dtype or default_obs_dtype
-    explicit_ids_safety = ids_safety
-    if effective_legal_repr == "ids_u16":
-        effective_ids_safety = explicit_ids_safety or default_ids_safety or "checked"
-    else:
-        if explicit_ids_safety is not None:
-            raise ConfigConflictError("ids_safety is only valid when legal_repr='ids_u16'")
-        effective_ids_safety = None
-
-    return effective_legal_repr, effective_obs_dtype, effective_ids_safety
 
 
 def _select_out_mode(
@@ -332,6 +243,7 @@ def _select_out_mode(
 
 
 def export_spec_bundle() -> dict[str, object]:
+    """Export the current observation/action specs and compatibility hashes."""
     return {
         "policy_version": POLICY_VERSION,
         "spec_hash": SPEC_HASH,
@@ -341,43 +253,60 @@ def export_spec_bundle() -> dict[str, object]:
 
 
 def db_info(db_path: str | Path | None = None) -> dict[str, object]:
+    """Return hash/compatibility metadata for the selected card database."""
     return _db_info(db_path=db_path)
 
 
-def create(
+def make(
     *,
+    mode: Literal["fast", "inspect"] = "fast",
     deck: DeckInput | None = None,
     opponent_deck: DeckInput | None = None,
     db_path: str | None = None,
     rules_profile: RulesProfile = "strict",
-    runtime_mode: RuntimeMode = "speed",
     card_pool: CardPoolMode = "parsed_only",
-    curriculum: CurriculumOverrides | dict[str, object] | None = None,
-    reward_json: str | dict[str, object] | None = None,
-    end_condition_policy: EndConditionOverrides | dict[str, object] | str | None = None,
+    curriculum: CurriculumOverrides | Mapping[str, object] | None = None,
+    reward_json: str | Mapping[str, object] | None = None,
+    end_condition_policy: EndConditionOverrides | Mapping[str, object] | str | None = None,
     observation_visibility: ObservationVisibility = "public",
     reveal_opponent_hand_stock_counts: bool | None = None,
     legal_repr: LegalRepr | None = None,
     obs_dtype: ObsDType | None = None,
     ids_safety: IdsSafety | None = None,
-    num_envs: NumLike = "auto",
+    num_envs: NumLike = 1,
     num_threads: ThreadsLike = "auto",
-    seed: int = 0,
+    seed: int | None = None,
     max_decisions: int = 2000,
     max_ticks: int = 100_000,
-    error_policy: ErrorPolicy = "lenient_terminate",
+    error_policy: Literal["raise", "replace", "terminate"] = "replace",
     control_seat: Literal[0, 1] | None = None,
-) -> SimRunner:
-    runtime_mode = _normalize_runtime_mode(runtime_mode)
-    rules_profile = _normalize_rules_profile(rules_profile)
-    card_pool = _normalize_card_pool(card_pool)
-    observation_visibility = _normalize_observation_visibility(observation_visibility)
-    legal_repr = _normalize_legal_repr(legal_repr)
-    obs_dtype = _normalize_obs_dtype(obs_dtype)
-    ids_safety = _normalize_ids_safety(ids_safety)
-    error_policy = _normalize_error_policy(error_policy)
+    **deprecated_overrides: object,
+) -> WeissEnv:
+    """Create a high-level `WeissEnv` for batched reset/step loops.
+
+    `make()` is the preferred entry point for most Python integrations. It wraps
+    the Rust `EnvPool` and returns a `WeissEnv` with stable observation/action
+    contracts and ergonomic legality helpers via `batch.legal`.
+    """
+    if "runtime_mode" in deprecated_overrides:
+        raise ConfigConflictError(
+            "runtime_mode is no longer supported; use mode='fast' or mode='inspect'"
+        )
+    if deprecated_overrides:
+        unknown = ", ".join(sorted(deprecated_overrides))
+        raise ConfigConflictError(f"unknown override(s): {unknown}")
+
+    mode, runtime_mode = normalize_mode(mode)
+    rules_profile = normalize_rules_profile(rules_profile)
+    card_pool = normalize_card_pool(card_pool)
+    observation_visibility = normalize_observation_visibility(observation_visibility)
+    legal_repr = normalize_legal_repr(legal_repr)
+    obs_dtype = normalize_obs_dtype(obs_dtype)
+    ids_safety = normalize_ids_safety(ids_safety)
+    error_policy, backend_error_policy = normalize_error_policy(error_policy)
     reward_json_payload = _normalize_reward_json(reward_json)
     end_condition_policy_json = _normalize_end_condition_policy_json(end_condition_policy)
+    seed_value, seed_source = resolve_seed(seed, urandom_fn=os.urandom)
     if control_seat not in (None, 0, 1):
         raise ConfigConflictError("control_seat must be one of None, 0, or 1")
     if max_decisions <= 0 or max_ticks <= 0:
@@ -400,8 +329,12 @@ def create(
         card_pool=card_pool,
         db_path=db_path,
     )
-    resolved_num_envs, resolved_num_threads = _resolve_threads_and_envs(num_envs, num_threads)
-    legal_repr, obs_dtype, ids_safety = _resolve_mode_defaults(
+    resolved_num_envs, resolved_num_threads = resolve_threads_and_envs(
+        num_envs,
+        num_threads,
+        cpu_count_fn=os.cpu_count,
+    )
+    legal_repr, obs_dtype, ids_safety = resolve_mode_defaults(
         runtime_mode, legal_repr, obs_dtype, ids_safety
     )
     constructor_output_masks = legal_repr in {"mask_u8", "both"}
@@ -414,11 +347,11 @@ def create(
         deck_ids=[0, 1],
         max_decisions=max_decisions,
         max_ticks=max_ticks,
-        seed=int(seed),
+        seed=seed_value,
         curriculum_json=json.dumps(curriculum_payload),
         reward_json=reward_json_payload,
         end_condition_policy_json=end_condition_policy_json,
-        error_policy=error_policy,
+        error_policy=backend_error_policy,
         observation_visibility=observation_visibility,
         num_threads=resolved_num_threads,
         output_masks=constructor_output_masks,
@@ -452,7 +385,9 @@ def create(
             end_condition_policy_effective = end_condition_policy_json
 
     effective = {
+        "mode": mode,
         "runtime_mode": runtime_mode,
+        "internal_runtime_mode": runtime_mode,
         "rules_profile": rules_profile,
         "card_pool": card_pool,
         "observation_visibility": observation_visibility,
@@ -461,10 +396,12 @@ def create(
         "ids_safety": ids_safety,
         "num_envs": resolved_num_envs,
         "num_threads": resolved_num_threads,
-        "seed": int(seed),
+        "seed": seed_value,
+        "seed_source": seed_source,
         "max_decisions": int(max_decisions),
         "max_ticks": int(max_ticks),
         "error_policy": error_policy,
+        "error_policy_backend": backend_error_policy,
         "reward": reward_effective,
         "end_condition_policy": end_condition_policy_effective,
         "curriculum": curriculum_payload,
@@ -483,7 +420,7 @@ def create(
         "needs_runtime_legal_ids": needs_runtime_ids,
     }
 
-    return SimRunner(
+    return WeissEnv(
         pool=pool,
         out=out,
         reset_method=reset_method,
@@ -499,15 +436,67 @@ def create(
     )
 
 
-def train(**kwargs) -> SimRunner:
-    if "runtime_mode" in kwargs:
-        raise ConfigConflictError("train() does not accept runtime_mode; it is fixed to 'speed'")
-    return create(runtime_mode="speed", **kwargs)
+@overload
+def fast(
+    *,
+    deck: DeckInput | None = None,
+    opponent_deck: DeckInput | None = None,
+    db_path: str | None = None,
+    rules_profile: RulesProfile = "strict",
+    card_pool: CardPoolMode = "parsed_only",
+    curriculum: CurriculumOverrides | Mapping[str, object] | None = None,
+    reward_json: str | Mapping[str, object] | None = None,
+    end_condition_policy: EndConditionOverrides | Mapping[str, object] | str | None = None,
+    observation_visibility: ObservationVisibility = "public",
+    reveal_opponent_hand_stock_counts: bool | None = None,
+    legal_repr: LegalRepr | None = None,
+    obs_dtype: ObsDType | None = None,
+    ids_safety: IdsSafety | None = None,
+    num_envs: NumLike = 1,
+    num_threads: ThreadsLike = "auto",
+    seed: int | None = None,
+    max_decisions: int = 2000,
+    max_ticks: int = 100_000,
+    error_policy: Literal["raise", "replace", "terminate"] = "replace",
+    control_seat: Literal[0, 1] | None = None,
+) -> WeissEnv: ...
 
 
-def evaluate(**kwargs) -> SimRunner:
-    if "runtime_mode" in kwargs:
-        raise ConfigConflictError(
-            "evaluate() does not accept runtime_mode; it is fixed to 'eval_debug'"
-        )
-    return create(runtime_mode="eval_debug", **kwargs)
+def fast(**kwargs: object) -> WeissEnv:
+    """Shortcut for `make(mode="fast", ...)`."""
+    if "mode" in kwargs:
+        raise ConfigConflictError("fast() does not accept mode; it is fixed to 'fast'")
+    return make(mode="fast", **kwargs)
+
+
+@overload
+def inspect(
+    *,
+    deck: DeckInput | None = None,
+    opponent_deck: DeckInput | None = None,
+    db_path: str | None = None,
+    rules_profile: RulesProfile = "strict",
+    card_pool: CardPoolMode = "parsed_only",
+    curriculum: CurriculumOverrides | Mapping[str, object] | None = None,
+    reward_json: str | Mapping[str, object] | None = None,
+    end_condition_policy: EndConditionOverrides | Mapping[str, object] | str | None = None,
+    observation_visibility: ObservationVisibility = "public",
+    reveal_opponent_hand_stock_counts: bool | None = None,
+    legal_repr: LegalRepr | None = None,
+    obs_dtype: ObsDType | None = None,
+    ids_safety: IdsSafety | None = None,
+    num_envs: NumLike = 1,
+    num_threads: ThreadsLike = "auto",
+    seed: int | None = None,
+    max_decisions: int = 2000,
+    max_ticks: int = 100_000,
+    error_policy: Literal["raise", "replace", "terminate"] = "replace",
+    control_seat: Literal[0, 1] | None = None,
+) -> WeissEnv: ...
+
+
+def inspect(**kwargs: object) -> WeissEnv:
+    """Shortcut for `make(mode="inspect", ...)`."""
+    if "mode" in kwargs:
+        raise ConfigConflictError("inspect() does not accept mode; it is fixed to 'inspect'")
+    return make(mode="inspect", **kwargs)

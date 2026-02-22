@@ -1,5 +1,8 @@
 use crate::config::{CurriculumConfig, ObservationVisibility};
 use crate::db::CardDb;
+use crate::legal::hand_play_requirements::{
+    card_set_allowed, meets_color_requirement, meets_cost_requirement, meets_level_requirement,
+};
 use crate::legal::{ActionDesc, Decision, DecisionKind};
 use crate::state::{AttackType, GameState, ModifierKind, Phase, StageStatus, TerminalResult};
 
@@ -499,7 +502,7 @@ fn compute_reason_bits(
             let Some(card) = db.get(card_inst.id) else {
                 continue;
             };
-            if !card_set_allowed(card, curriculum) {
+            if !card_set_allowed(card, curriculum, None) {
                 continue;
             }
             if in_main {
@@ -524,14 +527,14 @@ fn compute_reason_bits(
                     continue;
                 }
             }
-            if !meets_level_requirement(card, p.level.len()) {
+            if !meets_level_requirement(card, p.level.len(), 0) {
                 continue;
             }
             any_candidate = true;
-            if !meets_cost_requirement(card, p, curriculum) {
+            if !meets_cost_requirement(card, p.stock.len(), curriculum.enforce_cost_requirement) {
                 stock_blocked = true;
             }
-            if !meets_color_requirement(card, p, db, curriculum) {
+            if !meets_color_requirement(card, p, db, curriculum.enforce_color_requirement, false) {
                 color_blocked = true;
             }
         }
@@ -566,58 +569,6 @@ fn compute_context_bits(state: &GameState) -> [i32; OBS_CONTEXT_LEN] {
     out[OBS_CONTEXT_STACK_NONEMPTY] = i32::from(!state.turn.stack.is_empty());
     out[OBS_CONTEXT_ENCORE_PENDING] = i32::from(!state.turn.encore_queue.is_empty());
     out
-}
-
-fn card_set_allowed(card: &crate::db::CardStatic, curriculum: &CurriculumConfig) -> bool {
-    if let Some(set) = curriculum.allowed_card_sets_cache.as_ref() {
-        match &card.card_set {
-            Some(set_id) => set.contains(set_id),
-            None => false,
-        }
-    } else if curriculum.allowed_card_sets.is_empty() {
-        true
-    } else {
-        card.card_set
-            .as_ref()
-            .map(|s| curriculum.allowed_card_sets.iter().any(|a| a == s))
-            .unwrap_or(false)
-    }
-}
-
-fn meets_level_requirement(card: &crate::db::CardStatic, level_count: usize) -> bool {
-    card.level as usize <= level_count
-}
-
-fn meets_cost_requirement(
-    card: &crate::db::CardStatic,
-    player: &crate::state::PlayerState,
-    curriculum: &CurriculumConfig,
-) -> bool {
-    if !curriculum.enforce_cost_requirement {
-        return true;
-    }
-    player.stock.len() >= card.cost as usize
-}
-
-fn meets_color_requirement(
-    card: &crate::db::CardStatic,
-    player: &crate::state::PlayerState,
-    db: &CardDb,
-    curriculum: &CurriculumConfig,
-) -> bool {
-    if !curriculum.enforce_color_requirement {
-        return true;
-    }
-    if card.level == 0 || card.color == crate::db::CardColor::Colorless {
-        return true;
-    }
-    for card_id in player.level.iter().chain(player.clock.iter()) {
-        let id = card_id.id;
-        if id != 0 && db.color_by_id(id) == card.color {
-            return true;
-        }
-    }
-    false
 }
 
 fn phase_to_i32(phase: Phase) -> i32 {

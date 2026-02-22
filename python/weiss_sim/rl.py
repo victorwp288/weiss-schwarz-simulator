@@ -1,24 +1,14 @@
-"""Lightweight RL helpers for the Weiss simulator.
-
-Spec exports:
-- `weiss_sim.observation_spec_json()` and `weiss_sim.action_spec_json()` for
-  the stable layout and versioned encoding contract.
-- `weiss_sim.spec_bundle()` for a combined, self-describing spec payload.
-
-Episode metadata:
-- `EnvPool.episode_seed_batch()`, `episode_index_batch()`, `env_index_batch()`,
-  `starting_player_batch()` for deterministic bookkeeping.
-
-Replay controls:
-- `EnvPool.enable_replay_sampling(..., visibility_mode="public"|"full")`
-"""
+"""Lightweight RL helpers for the Weiss simulator."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 
+from ._logits_utils import prepare_logits, prepare_seeds
 from .weiss_sim import (
     ACTOR_NONE,
     PASS_ACTION_ID,
@@ -28,11 +18,12 @@ from .weiss_sim import (
     EnvPool,
 )
 
+Layout = Literal["mask", "nomask", "i16_legal_ids"]
+
 
 @dataclass(frozen=True)
 class RlStep:
     obs: np.ndarray
-    masks: np.ndarray
     rewards: np.ndarray
     terminated: np.ndarray
     truncated: np.ndarray
@@ -41,6 +32,9 @@ class RlStep:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    masks: np.ndarray | None = None
+    legal_ids: np.ndarray | None = None
+    legal_offsets: np.ndarray | None = None
 
     @property
     def engine_error(self) -> np.ndarray:
@@ -56,261 +50,151 @@ class RlStep:
 
 
 @dataclass(frozen=True)
-class RlStepNoMask:
-    obs: np.ndarray
-    rewards: np.ndarray
-    terminated: np.ndarray
-    truncated: np.ndarray
-    actor: np.ndarray
-    decision_kind: np.ndarray
-    decision_id: np.ndarray
-    engine_status: np.ndarray
-    spec_hash: np.ndarray
-
-    @property
-    def engine_error(self) -> np.ndarray:
-        return self.engine_status != 0
-
-    @property
-    def reset_recommended(self) -> np.ndarray:
-        return self.engine_status != 0
-
-    @property
-    def actor_known(self) -> np.ndarray:
-        return self.actor != ACTOR_NONE
+class _LayoutSpec:
+    out_cls: type
+    reset_method: str
+    step_method: str
+    step_select_logits_method: str
+    step_sample_logits_method: str
+    include_masks: bool
+    include_legal_ids: bool
 
 
-@dataclass(frozen=True)
-class RlStepI16LegalIds:
-    obs: np.ndarray
-    legal_ids: np.ndarray
-    legal_offsets: np.ndarray
-    rewards: np.ndarray
-    terminated: np.ndarray
-    truncated: np.ndarray
-    actor: np.ndarray
-    decision_kind: np.ndarray
-    decision_id: np.ndarray
-    engine_status: np.ndarray
-    spec_hash: np.ndarray
+_LAYOUT_DISPATCH: dict[str, _LayoutSpec] = {
+    "mask": _LayoutSpec(
+        out_cls=BatchOutMinimal,
+        reset_method="reset_into",
+        step_method="step_into",
+        step_select_logits_method="step_select_from_logits_into",
+        step_sample_logits_method="step_sample_from_logits_into",
+        include_masks=True,
+        include_legal_ids=False,
+    ),
+    "nomask": _LayoutSpec(
+        out_cls=BatchOutMinimalNoMask,
+        reset_method="reset_into_nomask",
+        step_method="step_into_nomask",
+        step_select_logits_method="step_select_from_logits_into_nomask",
+        step_sample_logits_method="step_sample_from_logits_into_nomask",
+        include_masks=False,
+        include_legal_ids=False,
+    ),
+    "i16_legal_ids": _LayoutSpec(
+        out_cls=BatchOutMinimalI16LegalIds,
+        reset_method="reset_into_i16_legal_ids",
+        step_method="step_into_i16_legal_ids",
+        step_select_logits_method="step_select_from_logits_into_i16_legal_ids",
+        step_sample_logits_method="step_sample_from_logits_into_i16_legal_ids",
+        include_masks=False,
+        include_legal_ids=True,
+    ),
+}
 
-    @property
-    def engine_error(self) -> np.ndarray:
-        return self.engine_status != 0
 
-    @property
-    def reset_recommended(self) -> np.ndarray:
-        return self.engine_status != 0
-
-    @property
-    def actor_known(self) -> np.ndarray:
-        return self.actor != ACTOR_NONE
+def _resolve_layout(layout: str) -> _LayoutSpec:
+    try:
+        return _LAYOUT_DISPATCH[layout]
+    except KeyError as exc:
+        allowed = ", ".join(sorted(_LAYOUT_DISPATCH))
+        raise ValueError(f"unknown layout {layout!r}; expected one of: {allowed}") from exc
 
 
-def pass_action_id_for_decision_kind(decision_kind):
+def _prepare_out(pool: EnvPool, out, spec: _LayoutSpec):
+    if out is None:
+        return spec.out_cls(pool.envs_len)
+    if not isinstance(out, spec.out_cls):
+        raise TypeError(f"out must be {spec.out_cls.__name__} for layout, got {type(out).__name__}")
+    return out
+
+
+def _prepare_actions(actions, num_envs: int) -> np.ndarray:
+    if actions is None:
+        return np.empty(num_envs, dtype=np.uint32)
+    arr = np.asarray(actions, dtype=np.uint32)
+    arr = np.ravel(arr)
+    if arr.shape[0] != int(num_envs):
+        raise ValueError(f"actions length must equal num_envs ({num_envs}), got {arr.shape[0]}")
+    return np.ascontiguousarray(arr, dtype=np.uint32)
+
+
+def _pack_step(out, spec: _LayoutSpec) -> RlStep:
+    return RlStep(
+        obs=out.obs,
+        masks=out.masks if spec.include_masks else None,
+        legal_ids=out.legal_ids if spec.include_legal_ids else None,
+        legal_offsets=out.legal_offsets if spec.include_legal_ids else None,
+        rewards=out.rewards,
+        terminated=out.terminated,
+        truncated=out.truncated,
+        actor=out.actor,
+        decision_kind=out.decision_kind,
+        decision_id=out.decision_id,
+        engine_status=out.engine_status,
+        spec_hash=out.spec_hash,
+    )
+
+
+def pass_action_id_for_decision_kind(decision_kind: object) -> int:
+    """Return the action id corresponding to "pass" for a decision kind.
+
+    This is currently a thin wrapper around the global `PASS_ACTION_ID`.
+    """
     return PASS_ACTION_ID
 
 
-def reset_rl(pool: EnvPool) -> RlStep:
-    """Reset the pool and return a minimal step bundle."""
-    out = BatchOutMinimal(pool.envs_len)
-    return reset_rl_into(pool, out)
+def reset_rl(pool: EnvPool, *, layout: Layout = "mask", out: object | None = None) -> RlStep:
+    """Reset the pool and return an `RlStep` view over the output buffers."""
+    spec = _resolve_layout(layout)
+    out_buf = _prepare_out(pool, out, spec)
+    getattr(pool, spec.reset_method)(out_buf)
+    return _pack_step(out_buf, spec)
 
 
-def step_rl(pool: EnvPool, actions) -> RlStep:
-    """Step the pool once with one action per env and return a minimal bundle."""
-    out = BatchOutMinimal(pool.envs_len)
-    return step_rl_into(pool, actions, out)
+def step_rl(
+    pool: EnvPool,
+    actions: Sequence[int] | np.ndarray,
+    *,
+    layout: Layout = "mask",
+    out: object | None = None,
+) -> RlStep:
+    """Step the pool once and return an `RlStep` view over the output buffers."""
+    spec = _resolve_layout(layout)
+    out_buf = _prepare_out(pool, out, spec)
+    getattr(pool, spec.step_method)(actions, out_buf)
+    return _pack_step(out_buf, spec)
 
 
-def reset_rl_into(pool: EnvPool, out: BatchOutMinimal) -> RlStep:
-    """Reset the pool into a preallocated BatchOutMinimal."""
-    pool.reset_into(out)
-    return RlStep(
-        obs=out.obs,
-        masks=out.masks,
-        rewards=out.rewards,
-        terminated=out.terminated,
-        truncated=out.truncated,
-        actor=out.actor,
-        decision_kind=out.decision_kind,
-        decision_id=out.decision_id,
-        engine_status=out.engine_status,
-        spec_hash=out.spec_hash,
-    )
-
-
-def step_rl_into(pool: EnvPool, actions, out: BatchOutMinimal) -> RlStep:
-    """Step the pool into a preallocated BatchOutMinimal."""
-    pool.step_into(actions, out)
-    return RlStep(
-        obs=out.obs,
-        masks=out.masks,
-        rewards=out.rewards,
-        terminated=out.terminated,
-        truncated=out.truncated,
-        actor=out.actor,
-        decision_kind=out.decision_kind,
-        decision_id=out.decision_id,
-        engine_status=out.engine_status,
-        spec_hash=out.spec_hash,
-    )
-
-
-def reset_rl_nomask(pool: EnvPool) -> RlStepNoMask:
-    """Reset the pool and return a minimal bundle without dense masks."""
-    out = BatchOutMinimalNoMask(pool.envs_len)
-    return reset_rl_nomask_into(pool, out)
-
-
-def step_rl_nomask(pool: EnvPool, actions) -> RlStepNoMask:
-    """Step the pool once without dense masks."""
-    out = BatchOutMinimalNoMask(pool.envs_len)
-    return step_rl_nomask_into(pool, actions, out)
-
-
-def reset_rl_nomask_into(pool: EnvPool, out: BatchOutMinimalNoMask) -> RlStepNoMask:
-    """Reset the pool into a preallocated BatchOutMinimalNoMask."""
-    pool.reset_into_nomask(out)
-    return RlStepNoMask(
-        obs=out.obs,
-        rewards=out.rewards,
-        terminated=out.terminated,
-        truncated=out.truncated,
-        actor=out.actor,
-        decision_kind=out.decision_kind,
-        decision_id=out.decision_id,
-        engine_status=out.engine_status,
-        spec_hash=out.spec_hash,
-    )
-
-
-def step_rl_nomask_into(pool: EnvPool, actions, out: BatchOutMinimalNoMask) -> RlStepNoMask:
-    """Step the pool into a preallocated BatchOutMinimalNoMask."""
-    pool.step_into_nomask(actions, out)
-    return RlStepNoMask(
-        obs=out.obs,
-        rewards=out.rewards,
-        terminated=out.terminated,
-        truncated=out.truncated,
-        actor=out.actor,
-        decision_kind=out.decision_kind,
-        decision_id=out.decision_id,
-        engine_status=out.engine_status,
-        spec_hash=out.spec_hash,
-    )
-
-
-def reset_rl_i16_legal_ids(pool: EnvPool) -> RlStepI16LegalIds:
-    """Reset the pool and return an i16+legal-ids step bundle."""
-    out = BatchOutMinimalI16LegalIds(pool.envs_len)
-    return reset_rl_i16_legal_ids_into(pool, out)
-
-
-def step_rl_i16_legal_ids(pool: EnvPool, actions) -> RlStepI16LegalIds:
-    """Step the pool once with one action per env and return i16+legal-ids bundle."""
-    out = BatchOutMinimalI16LegalIds(pool.envs_len)
-    return step_rl_i16_legal_ids_into(pool, actions, out)
-
-
-def reset_rl_i16_legal_ids_into(
-    pool: EnvPool, out: BatchOutMinimalI16LegalIds
-) -> RlStepI16LegalIds:
-    """Reset the pool into a preallocated BatchOutMinimalI16LegalIds."""
-    pool.reset_into_i16_legal_ids(out)
-    return RlStepI16LegalIds(
-        obs=out.obs,
-        legal_ids=out.legal_ids,
-        legal_offsets=out.legal_offsets,
-        rewards=out.rewards,
-        terminated=out.terminated,
-        truncated=out.truncated,
-        actor=out.actor,
-        decision_kind=out.decision_kind,
-        decision_id=out.decision_id,
-        engine_status=out.engine_status,
-        spec_hash=out.spec_hash,
-    )
-
-
-def step_rl_i16_legal_ids_into(
-    pool: EnvPool, actions, out: BatchOutMinimalI16LegalIds
-) -> RlStepI16LegalIds:
-    """Step the pool into a preallocated BatchOutMinimalI16LegalIds."""
-    pool.step_into_i16_legal_ids(actions, out)
-    return RlStepI16LegalIds(
-        obs=out.obs,
-        legal_ids=out.legal_ids,
-        legal_offsets=out.legal_offsets,
-        rewards=out.rewards,
-        terminated=out.terminated,
-        truncated=out.truncated,
-        actor=out.actor,
-        decision_kind=out.decision_kind,
-        decision_id=out.decision_id,
-        engine_status=out.engine_status,
-        spec_hash=out.spec_hash,
-    )
-
-
-def step_rl_select_from_logits_i16_legal_ids(pool: EnvPool, logits):
-    """Select actions from logits in Rust, step envs, return i16+legal-ids bundle."""
-    out = BatchOutMinimalI16LegalIds(pool.envs_len)
-    actions = np.empty(pool.envs_len, dtype=np.uint32)
-    return step_rl_select_from_logits_i16_legal_ids_into(pool, logits, actions, out)
-
-
-def step_rl_sample_from_logits_i16_legal_ids(pool: EnvPool, logits, seeds):
-    """Sample actions from logits in Rust, step envs, return i16+legal-ids bundle."""
-    out = BatchOutMinimalI16LegalIds(pool.envs_len)
-    actions = np.empty(pool.envs_len, dtype=np.uint32)
-    return step_rl_sample_from_logits_i16_legal_ids_into(pool, logits, seeds, actions, out)
-
-
-def step_rl_select_from_logits_i16_legal_ids_into(
-    pool: EnvPool, logits, actions, out: BatchOutMinimalI16LegalIds
+def step_rl_select_from_logits(
+    pool: EnvPool,
+    logits: object,
+    *,
+    layout: Layout = "i16_legal_ids",
+    actions: Sequence[int] | np.ndarray | None = None,
+    out: object | None = None,
 ):
-    """Select actions from logits into preallocated buffers."""
-    logits = np.ascontiguousarray(logits, dtype=np.float32)
-    pool.step_select_from_logits_into_i16_legal_ids(logits, actions, out)
-    return (
-        RlStepI16LegalIds(
-            obs=out.obs,
-            legal_ids=out.legal_ids,
-            legal_offsets=out.legal_offsets,
-            rewards=out.rewards,
-            terminated=out.terminated,
-            truncated=out.truncated,
-            actor=out.actor,
-            decision_kind=out.decision_kind,
-            decision_id=out.decision_id,
-            engine_status=out.engine_status,
-            spec_hash=out.spec_hash,
-        ),
-        actions,
-    )
+    """Select argmax actions from `logits` (respecting legality) and step the pool."""
+    spec = _resolve_layout(layout)
+    out_buf = _prepare_out(pool, out, spec)
+    logits_buf = prepare_logits(logits, pool.envs_len, action_space=pool.action_space)
+    actions_buf = _prepare_actions(actions, pool.envs_len)
+    getattr(pool, spec.step_select_logits_method)(logits_buf, actions_buf, out_buf)
+    return _pack_step(out_buf, spec), actions_buf
 
 
-def step_rl_sample_from_logits_i16_legal_ids_into(
-    pool: EnvPool, logits, seeds, actions, out: BatchOutMinimalI16LegalIds
+def step_rl_sample_from_logits(
+    pool: EnvPool,
+    logits: object,
+    seeds: int | Sequence[int] | np.ndarray,
+    *,
+    layout: Layout = "i16_legal_ids",
+    actions: Sequence[int] | np.ndarray | None = None,
+    out: object | None = None,
 ):
-    """Sample actions from logits into preallocated buffers."""
-    logits = np.ascontiguousarray(logits, dtype=np.float32)
-    seeds = np.asarray(seeds, dtype=np.uint64).ravel()
-    pool.step_sample_from_logits_into_i16_legal_ids(logits, seeds, actions, out)
-    return (
-        RlStepI16LegalIds(
-            obs=out.obs,
-            legal_ids=out.legal_ids,
-            legal_offsets=out.legal_offsets,
-            rewards=out.rewards,
-            terminated=out.terminated,
-            truncated=out.truncated,
-            actor=out.actor,
-            decision_kind=out.decision_kind,
-            decision_id=out.decision_id,
-            engine_status=out.engine_status,
-            spec_hash=out.spec_hash,
-        ),
-        actions,
-    )
+    """Sample actions from `logits` (respecting legality) and step the pool."""
+    spec = _resolve_layout(layout)
+    out_buf = _prepare_out(pool, out, spec)
+    logits_buf = prepare_logits(logits, pool.envs_len, action_space=pool.action_space)
+    seeds_buf = prepare_seeds(seeds, pool.envs_len)
+    actions_buf = _prepare_actions(actions, pool.envs_len)
+    getattr(pool, spec.step_sample_logits_method)(logits_buf, seeds_buf, actions_buf, out_buf)
+    return _pack_step(out_buf, spec), actions_buf

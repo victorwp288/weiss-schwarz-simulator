@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -92,6 +93,41 @@ def _assert_common_step_contract(step, *, num_envs: int, obs_dtype: np.dtype) ->
     assert step.tick_count.dtype == np.uint32
 
 
+def _assert_same_optional_array(lhs: np.ndarray | None, rhs: np.ndarray | None) -> None:
+    if lhs is None or rhs is None:
+        assert lhs is None and rhs is None
+        return
+    assert np.array_equal(lhs, rhs)
+
+
+def _assert_reset_batches_equal(lhs, rhs) -> None:
+    assert np.array_equal(lhs.obs, rhs.obs)
+    assert np.array_equal(lhs.to_play_seat, rhs.to_play_seat)
+    assert np.array_equal(lhs.starting_seat, rhs.starting_seat)
+    assert np.array_equal(lhs.episode_seed, rhs.episode_seed)
+    assert np.array_equal(lhs.episode_index, rhs.episode_index)
+    assert np.array_equal(lhs.env_index, rhs.env_index)
+    assert np.array_equal(lhs.episode_key, rhs.episode_key)
+    assert np.array_equal(lhs.decision_id, rhs.decision_id)
+    assert np.array_equal(lhs.engine_status, rhs.engine_status)
+    assert np.array_equal(lhs.spec_hash, rhs.spec_hash)
+    _assert_same_optional_array(lhs.legal_mask, rhs.legal_mask)
+    _assert_same_optional_array(lhs.legal_ids, rhs.legal_ids)
+    _assert_same_optional_array(lhs.legal_offsets, rhs.legal_offsets)
+
+
+def _assert_step_batches_equal(lhs, rhs) -> None:
+    _assert_reset_batches_equal(lhs, rhs)
+    assert np.array_equal(lhs.reward, rhs.reward)
+    assert np.array_equal(lhs.terminated, rhs.terminated)
+    assert np.array_equal(lhs.truncated, rhs.truncated)
+    assert np.array_equal(
+        lhs.terminal_during_internal_opponent, rhs.terminal_during_internal_opponent
+    )
+    assert np.array_equal(lhs.decision_count, rhs.decision_count)
+    assert np.array_equal(lhs.tick_count, rhs.tick_count)
+
+
 @pytest.mark.parametrize(
     ("legal_repr", "obs_dtype", "expects_mask", "expects_ids", "ids_dtype"),
     [
@@ -101,11 +137,11 @@ def _assert_common_step_contract(step, *, num_envs: int, obs_dtype: np.dtype) ->
         ("both", "i32", True, True, np.uint32),
     ],
 )
-def test_create_output_contract_by_legal_repr(
+def test_make_output_contract_by_legal_repr(
     legal_repr, obs_dtype, expects_mask, expects_ids, ids_dtype
 ):
-    sim = weiss_sim.create(
-        runtime_mode="eval_debug",
+    sim = weiss_sim.make(
+        mode="inspect",
         num_envs=2,
         seed=123,
         legal_repr=legal_repr,
@@ -155,27 +191,261 @@ def test_create_output_contract_by_legal_repr(
         assert step.legal_offsets is None
 
 
-def test_train_and_evaluate_zero_config_reset_step_contract():
-    with weiss_sim.train(num_envs=2, seed=123) as train_sim:
-        train_reset = train_sim.reset()
-        train_actions = _first_legal_actions(train_reset, 2)
-        train_step = train_sim.step(train_actions)
-        _assert_common_step_contract(train_step, num_envs=2, obs_dtype=np.int16)
+def test_fast_and_inspect_zero_config_reset_step_contract():
+    with weiss_sim.fast(num_envs=2, seed=123) as fast_sim:
+        fast_reset = fast_sim.reset()
+        fast_actions = _first_legal_actions(fast_reset, 2)
+        fast_step = fast_sim.step(fast_actions)
+        _assert_common_step_contract(fast_step, num_envs=2, obs_dtype=np.int16)
+        assert fast_reset.legal_mask is None
+        assert fast_reset.legal_ids is not None
+        assert fast_step.legal_mask is None
+        assert fast_step.legal_ids is not None
 
-    with weiss_sim.evaluate(num_envs=2, seed=123) as eval_sim:
-        eval_reset = eval_sim.reset()
-        eval_actions = _first_legal_actions(eval_reset, 2)
-        eval_step = eval_sim.step(eval_actions)
-        _assert_common_step_contract(eval_step, num_envs=2, obs_dtype=np.int32)
-        assert eval_reset.legal_mask is not None
-        assert eval_reset.legal_ids is not None
-        assert eval_step.legal_mask is not None
-        assert eval_step.legal_ids is not None
+    with weiss_sim.inspect(num_envs=2, seed=123) as inspect_sim:
+        inspect_reset = inspect_sim.reset()
+        inspect_actions = _first_legal_actions(inspect_reset, 2)
+        inspect_step = inspect_sim.step(inspect_actions)
+        _assert_common_step_contract(inspect_step, num_envs=2, obs_dtype=np.int32)
+        assert inspect_reset.legal_mask is not None
+        assert inspect_reset.legal_ids is not None
+        assert inspect_step.legal_mask is not None
+        assert inspect_step.legal_ids is not None
+
+
+def test_mode_mapping_defaults_and_runtime_mode_rejected():
+    with weiss_sim.make(mode="fast", num_envs=2, seed=41, card_pool="all") as fast_sim:
+        cfg = fast_sim.effective_config()
+        assert cfg["mode"] == "fast"
+        assert cfg["runtime_mode"] == "speed"
+        assert cfg["legal_repr"] == "ids_u16"
+        assert cfg["obs_dtype"] == "i16"
+        assert cfg["ids_safety"] == "checked"
+
+    with weiss_sim.make(mode="inspect", num_envs=2, seed=41, card_pool="all") as inspect_sim:
+        cfg = inspect_sim.effective_config()
+        assert cfg["mode"] == "inspect"
+        assert cfg["runtime_mode"] == "eval_debug"
+        assert cfg["legal_repr"] == "both"
+        assert cfg["obs_dtype"] == "i32"
+        assert cfg["ids_safety"] is None
+
+    with pytest.raises(weiss_sim.ConfigConflictError, match="runtime_mode is no longer supported"):
+        weiss_sim.make(runtime_mode="eval_debug")
+
+
+def test_removed_legacy_entrypoints_and_weissenv_exported():
+    for legacy in ("create", "train", "evaluate"):
+        assert not hasattr(weiss_sim, legacy)
+        assert not hasattr(api_mod, legacy)
+    assert weiss_sim.WeissEnv is runner_mod.WeissEnv
+
+
+@pytest.mark.parametrize(
+    ("policy", "backend"),
+    [
+        ("raise", "strict"),
+        ("replace", "lenient_noop"),
+        ("terminate", "lenient_terminate"),
+    ],
+)
+def test_error_policy_mapping(policy: str, backend: str):
+    with weiss_sim.make(num_envs=2, seed=77, card_pool="all", error_policy=policy) as sim:
+        cfg = sim.effective_config()
+        assert cfg["error_policy"] == policy
+        assert cfg["error_policy_backend"] == backend
+
+
+def test_error_policy_unknown_value_rejected():
+    with pytest.raises(weiss_sim.ConfigConflictError, match="error_policy must be one of"):
+        weiss_sim.make(num_envs=2, seed=77, card_pool="all", error_policy="strict")
+
+
+def test_make_seed_none_entropy_and_explicit_seed_determinism():
+    with (
+        weiss_sim.make(num_envs=2, seed=None, card_pool="all") as entropy_a,
+        weiss_sim.make(num_envs=2, seed=None, card_pool="all") as entropy_b,
+    ):
+        cfg_a = entropy_a.effective_config()
+        cfg_b = entropy_b.effective_config()
+        assert cfg_a["seed_source"] == "entropy"
+        assert cfg_b["seed_source"] == "entropy"
+        assert int(cfg_a["seed"]) != int(cfg_b["seed"])
+
+    with (
+        weiss_sim.make(num_envs=2, seed=123, card_pool="all") as det_a,
+        weiss_sim.make(num_envs=2, seed=123, card_pool="all") as det_b,
+    ):
+        cfg_a = det_a.effective_config()
+        cfg_b = det_b.effective_config()
+        assert cfg_a["seed_source"] == "user"
+        assert cfg_b["seed_source"] == "user"
+        assert int(cfg_a["seed"]) == 123
+        assert int(cfg_b["seed"]) == 123
+
+        reset_a = det_a.reset()
+        reset_b = det_b.reset()
+        _assert_reset_batches_equal(reset_a, reset_b)
+
+        actions_a = _first_legal_actions(reset_a, 2)
+        actions_b = _first_legal_actions(reset_b, 2)
+        assert np.array_equal(actions_a, actions_b)
+
+        step_a = det_a.step(actions_a)
+        step_b = det_b.step(actions_b)
+        _assert_step_batches_equal(step_a, step_b)
+
+
+def test_reset_seed_none_keeps_rng_state():
+    with (
+        weiss_sim.make(num_envs=2, seed=555, card_pool="all") as sim_a,
+        weiss_sim.make(num_envs=2, seed=555, card_pool="all") as sim_b,
+    ):
+        reset_a = sim_a.reset(seed=None)
+        reset_b = sim_b.reset()
+        _assert_reset_batches_equal(reset_a, reset_b)
+
+        step_a = sim_a.step(_first_legal_actions(reset_a, 2))
+        step_b = sim_b.step(_first_legal_actions(reset_b, 2))
+        _assert_step_batches_equal(step_a, step_b)
+
+        followup_a = sim_a.reset(seed=None)
+        followup_b = sim_b.reset()
+        _assert_reset_batches_equal(followup_a, followup_b)
+
+
+@pytest.mark.parametrize(("factory_name", "expects_mask"), [("fast", False), ("inspect", True)])
+def test_batch_legal_properties_and_legal_view_behavior(factory_name: str, expects_mask: bool):
+    factory = getattr(weiss_sim, factory_name)
+    with factory(num_envs=2, seed=123, card_pool="all") as sim:
+        reset = sim.reset()
+        legal = reset.legal
+        assert sim.latest_batch is reset
+        assert sim.legal is legal
+        assert reset.legal is legal
+
+        assert reset.legal_ids is not None
+        assert reset.legal_offsets is not None
+        assert legal.legal_ids is reset.legal_ids
+        assert legal.legal_offsets is reset.legal_offsets
+
+        if expects_mask:
+            assert reset.legal_mask is not None
+            assert legal.mask is reset.legal_mask
+        else:
+            assert reset.legal_mask is None
+            dense = legal.mask
+            assert dense is not None
+            assert dense.shape[0] == 2
+
+        for i in range(2):
+            start = int(reset.legal_offsets[i])
+            end = int(reset.legal_offsets[i + 1])
+            expected_ids = reset.legal_ids[start:end]
+            assert np.array_equal(legal.ids(i), expected_ids)
+            if expected_ids.size:
+                assert legal.contains(i, int(expected_ids[0]))
+
+        step = sim.step(_first_legal_actions(reset, 2))
+        assert sim.latest_batch is step
+        assert sim.legal is step.legal
+        assert sim.legal is not legal
+        assert step.legal_ids is not None
+        assert step.legal_offsets is not None
+        if expects_mask:
+            assert step.legal_mask is not None
+        else:
+            assert step.legal_mask is None
+
+
+def test_step_select_and_sample_from_logits_fast_path():
+    with weiss_sim.make(mode="inspect", num_envs=4, seed=321, card_pool="all") as sim:
+        batch = sim.reset()
+        logits = np.random.default_rng(11).standard_normal(
+            (sim.num_envs, sim.action_space_n), dtype=np.float32
+        )
+        step_select, actions_select = sim.step_select_from_logits(logits)
+        assert actions_select.shape == (4,)
+        for i in range(4):
+            assert batch.legal.contains(i, int(actions_select[i]))
+
+        logits_2 = np.random.default_rng(12).standard_normal(
+            (sim.num_envs, sim.action_space_n), dtype=np.float32
+        )
+        step_sample, actions_sample = sim.step_sample_from_logits(logits_2, seed=99)
+        assert actions_sample.shape == (4,)
+        for i in range(4):
+            assert step_select.legal.contains(i, int(actions_sample[i])) or bool(
+                step_select.done[i]
+            )
+
+
+def test_reset_done_and_reset_indices_partial_helpers():
+    with weiss_sim.make(mode="inspect", num_envs=4, seed=404, card_pool="all") as sim:
+        reset = sim.reset()
+        step = sim.step(_first_legal_actions(reset, 4))
+
+        done_mask = np.asarray(step.done, dtype=np.bool_)
+        if not done_mask.any():
+            done_mask = np.array([True, False, False, False], dtype=np.bool_)
+        reset_done = sim.reset_done(done_mask)
+        assert reset_done.obs.shape == (4, weiss_sim.OBS_LEN)
+        assert sim.latest_batch is reset_done
+
+        reset_indices = sim.reset_indices([1, 3])
+        assert reset_indices.obs.shape == (4, weiss_sim.OBS_LEN)
+        assert sim.latest_batch is reset_indices
+
+
+def test_as_single_env_adapter_contract():
+    with weiss_sim.make(mode="inspect", num_envs=1, seed=7, card_pool="all").as_single_env() as env:
+        obs = env.reset()
+        assert obs.shape == (weiss_sim.OBS_LEN,)
+
+        action = env.legal.sample_uniform(seed=5)
+        assert isinstance(action, int)
+        assert env.legal.contains(action)
+
+        obs2, reward, terminated, truncated, info = env.step(action)
+        assert obs2.shape == (weiss_sim.OBS_LEN,)
+        assert isinstance(reward, float)
+        assert isinstance(terminated, bool)
+        assert isinstance(truncated, bool)
+        assert "legal_ids" in info
+
+
+def test_as_single_env_requires_num_envs_one():
+    with weiss_sim.make(mode="inspect", num_envs=2, seed=7, card_pool="all") as env:
+        with pytest.raises(weiss_sim.WeissSimError, match="num_envs == 1"):
+            env.as_single_env()
+
+
+def test_as_gym_adapter_contract_if_installed():
+    if importlib.util.find_spec("gymnasium") is None and importlib.util.find_spec("gym") is None:
+        pytest.skip("gymnasium/gym not installed")
+
+    with weiss_sim.make(mode="inspect", num_envs=2, seed=42, card_pool="all") as env:
+        gym_env = env.as_gym()
+        obs, info = gym_env.reset(seed=42)
+        assert obs.shape == (2, weiss_sim.OBS_LEN)
+        assert "to_play_seat" in info
+
+        masks = gym_env.action_masks()
+        if masks is not None:
+            assert masks.shape == (2, weiss_sim.ACTION_SPACE_SIZE)
+
+        actions = env.legal.sample_uniform(seed=9)
+        obs2, reward, terminated, truncated, info2 = gym_env.step(actions)
+        assert obs2.shape == (2, weiss_sim.OBS_LEN)
+        assert reward.shape == (2,)
+        assert terminated.shape == (2,)
+        assert truncated.shape == (2,)
+        assert "decision_id" in info2
 
 
 def test_termination_truncation_exclusive_and_timeout_reward_zero():
-    with weiss_sim.create(
-        runtime_mode="eval_debug",
+    with weiss_sim.make(
+        mode="inspect",
         num_envs=4,
         seed=7,
         max_decisions=1,
@@ -190,7 +460,7 @@ def test_termination_truncation_exclusive_and_timeout_reward_zero():
 
 def test_strict_profile_conflicting_curriculum_rejected():
     with pytest.raises(weiss_sim.ConfigConflictError):
-        weiss_sim.create(
+        weiss_sim.make(
             deck="preset:starter_v1",
             rules_profile="strict",
             curriculum={"enable_approx_effects": True},
@@ -199,7 +469,7 @@ def test_strict_profile_conflicting_curriculum_rejected():
 
 def test_ids_safety_only_allowed_with_ids_u16():
     with pytest.raises(weiss_sim.ConfigConflictError):
-        weiss_sim.create(
+        weiss_sim.make(
             legal_repr="both",
             ids_safety="checked",
             card_pool="all",
@@ -213,7 +483,7 @@ def test_parsed_only_rejects_mismatched_external_db(tmp_path: Path):
     bad_wsdb = tmp_path / "bad.wsdb"
     bad_wsdb.write_bytes(default_wsdb_path.read_bytes() + b"\x00")
     with pytest.raises(weiss_sim.DbMismatchError) as exc_info:
-        weiss_sim.create(
+        weiss_sim.make(
             deck="preset:starter_v1",
             db_path=str(bad_wsdb),
             card_pool="parsed_only",
@@ -350,20 +620,21 @@ def test_deck_resolve_db_probe_surfaces_non_membership_errors(monkeypatch):
 
 def test_auto_sizing_deterministic(monkeypatch):
     monkeypatch.setattr(api_mod.os, "cpu_count", lambda: 20)
-    with weiss_sim.train(num_envs="auto", num_threads="auto", card_pool="all") as sim:
+    with weiss_sim.fast(num_envs="auto", num_threads="auto", card_pool="all") as sim:
         cfg = sim.effective_config()
         assert int(cfg["num_threads"]) == 16
         assert int(cfg["num_envs"]) == 64
 
-    with weiss_sim.train(num_envs=5, num_threads="auto", card_pool="all") as sim:
+    with weiss_sim.fast(num_envs=5, num_threads="auto", card_pool="all") as sim:
         cfg = sim.effective_config()
         assert int(cfg["num_threads"]) == 5
         assert int(cfg["num_envs"]) == 5
 
 
 def test_effective_config_and_spec_export_contract():
-    with weiss_sim.evaluate(num_envs=2, seed=99, card_pool="all") as sim:
+    with weiss_sim.inspect(num_envs=2, seed=99, card_pool="all") as sim:
         cfg = sim.effective_config()
+        assert cfg["mode"] == "inspect"
         assert cfg["runtime_mode"] == "eval_debug"
         assert cfg["rules_profile"] == "strict"
         assert cfg["card_pool"] == "all"
@@ -390,13 +661,13 @@ def test_effective_config_and_spec_export_contract():
 
 
 def test_observation_visibility_default_and_override():
-    with weiss_sim.evaluate(num_envs=2, seed=99, card_pool="all") as sim:
+    with weiss_sim.inspect(num_envs=2, seed=99, card_pool="all") as sim:
         cfg = sim.effective_config()
         assert cfg["observation_visibility"] == "public"
         assert cfg["reveal_opponent_hand_stock_counts"] is False
         assert cfg["curriculum"]["memory_is_public"] is False
 
-    with weiss_sim.evaluate(
+    with weiss_sim.inspect(
         num_envs=2,
         seed=99,
         card_pool="all",
@@ -407,7 +678,7 @@ def test_observation_visibility_default_and_override():
 
 
 def test_reveal_opponent_hand_stock_counts_top_level_override():
-    with weiss_sim.evaluate(
+    with weiss_sim.inspect(
         num_envs=2,
         seed=42,
         card_pool="all",
@@ -427,18 +698,18 @@ def test_reward_json_dict_supported_in_high_level_api():
         "enable_shaping": True,
         "damage_reward": 0.05,
     }
-    with weiss_sim.evaluate(num_envs=2, seed=17, card_pool="all", reward_json=reward_cfg) as sim:
+    with weiss_sim.inspect(num_envs=2, seed=17, card_pool="all", reward_json=reward_cfg) as sim:
         cfg = sim.effective_config()
         assert cfg["reward"] == reward_cfg
 
 
 def test_reward_json_empty_string_rejected():
     with pytest.raises(weiss_sim.ConfigConflictError):
-        weiss_sim.create(card_pool="all", reward_json="")
+        weiss_sim.make(card_pool="all", reward_json="")
 
 
 def test_end_condition_policy_override_supported_in_high_level_api():
-    with weiss_sim.evaluate(
+    with weiss_sim.inspect(
         num_envs=2,
         seed=88,
         card_pool="all",
@@ -456,14 +727,14 @@ def test_end_condition_policy_override_supported_in_high_level_api():
 
 def test_end_condition_policy_invalid_simultaneous_loss_rejected():
     with pytest.raises(weiss_sim.ConfigConflictError):
-        weiss_sim.create(
+        weiss_sim.make(
             card_pool="all",
             end_condition_policy={"simultaneous_loss": "who_knows"},
         )
 
 
 def test_typed_override_dataclasses_supported():
-    with weiss_sim.evaluate(
+    with weiss_sim.inspect(
         num_envs=2,
         seed=91,
         card_pool="all",
@@ -486,7 +757,7 @@ def test_typed_override_dataclasses_supported():
 
 
 def test_seat_action_helpers_for_switching_and_manual_control():
-    with weiss_sim.evaluate(num_envs=4, seed=123, card_pool="all") as sim:
+    with weiss_sim.inspect(num_envs=4, seed=123, card_pool="all") as sim:
         reset = sim.reset()
         assert np.array_equal(sim.current_to_play_seat(), reset.to_play_seat)
 
@@ -516,7 +787,7 @@ def test_legal_id_contract_checked_every_step_in_eval_debug(monkeypatch):
 
     monkeypatch.setattr(runner_mod, "_validate_legal_ids_contract", wrapped)
 
-    with weiss_sim.evaluate(num_envs=2, seed=123, card_pool="all") as sim:
+    with weiss_sim.inspect(num_envs=2, seed=123, card_pool="all") as sim:
         reset = sim.reset()
         assert call_count == 1
         step_1 = sim.step(_first_legal_actions(reset, 2))
@@ -535,7 +806,7 @@ def test_legal_id_contract_spotcheck_in_speed(monkeypatch):
 
     monkeypatch.setattr(runner_mod, "_validate_legal_ids_contract", wrapped)
 
-    with weiss_sim.train(num_envs=2, seed=321, card_pool="all") as sim:
+    with weiss_sim.fast(num_envs=2, seed=321, card_pool="all") as sim:
         reset = sim.reset()
         assert call_count == 1
         step_1 = sim.step(_first_legal_actions(reset, 2))
@@ -549,7 +820,7 @@ def test_legal_id_contract_spotcheck_in_speed(monkeypatch):
 
 def test_legal_id_contract_holds_across_eval_rollout():
     rng = np.random.default_rng(12345)
-    with weiss_sim.evaluate(num_envs=32, seed=7, card_pool="all") as sim:
+    with weiss_sim.inspect(num_envs=32, seed=7, card_pool="all") as sim:
         batch = sim.reset()
         assert batch.legal_ids is not None
         assert batch.legal_offsets is not None
@@ -571,8 +842,8 @@ def test_legal_id_contract_holds_across_eval_rollout():
 
 
 def test_terminal_during_internal_opponent_behavior():
-    with weiss_sim.create(
-        runtime_mode="eval_debug",
+    with weiss_sim.make(
+        mode="inspect",
         num_envs=4,
         seed=5,
         max_decisions=1,
@@ -586,8 +857,8 @@ def test_terminal_during_internal_opponent_behavior():
         expected = np.logical_and(done, to_play_before != 0)
         assert np.array_equal(step.terminal_during_internal_opponent, expected)
 
-    with weiss_sim.create(
-        runtime_mode="eval_debug",
+    with weiss_sim.make(
+        mode="inspect",
         num_envs=4,
         seed=5,
         max_decisions=1,
