@@ -200,32 +200,11 @@ def _default_db_sha256() -> str:
     return _sha256_hex(default_wsdb_bytes())
 
 
-@lru_cache(maxsize=256)
-def _compute_db_sha256_from_stat(
-    path_str: str,
-    st_dev: int,
-    st_ino: int,
-    st_size: int,
-    st_mtime_ns: int,
-    st_ctime_ns: int,
-) -> str:
-    del st_dev, st_ino, st_size, st_mtime_ns, st_ctime_ns
-    return _sha256_hex(Path(path_str).read_bytes())
-
-
 def compute_db_sha256(db_path: str | Path | None = None) -> str:
     if db_path is None:
         return _default_db_sha256()
     resolved_path = Path(db_path).expanduser().resolve(strict=True)
-    stat = resolved_path.stat()
-    return _compute_db_sha256_from_stat(
-        str(resolved_path),
-        int(stat.st_dev),
-        int(stat.st_ino),
-        int(stat.st_size),
-        int(stat.st_mtime_ns),
-        int(stat.st_ctime_ns),
-    )
+    return _sha256_hex(resolved_path.read_bytes())
 
 
 def db_hash_matches_catalog(db_path: str | Path | None = None) -> bool:
