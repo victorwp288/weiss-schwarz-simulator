@@ -174,7 +174,9 @@ fi
 run "Cargo audit" cargo audit "${AUDIT_DB_ARGS[@]}"
 
 if [[ "${PIP_AUDIT_OFFLINE:-0}" == "1" ]] || ! can_resolve_host "pypi.org"; then
-  run "pip-audit (offline dry-run)" \
+  echo
+  echo "WARNING: pip-audit offline dry-run does not check for known vulnerabilities." >&2
+  run "pip-audit (offline dry-run; no vuln check)" \
     "$PYTHON_BIN" -m pip_audit \
     --local \
     --dry-run \

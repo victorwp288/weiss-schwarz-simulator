@@ -1112,6 +1112,7 @@ pub(super) fn rest_target(env: &mut GameEnv, payload: &EffectPayload) {
         env.state.players[p].stage[slot].status = StageStatus::Rest;
         env.mark_slot_power_dirty(target.player, target.index);
         env.mark_continuous_modifiers_dirty();
+        env.touch_player_obs(target.player);
     }
 }
 
@@ -1134,6 +1135,7 @@ pub(super) fn stand_target(env: &mut GameEnv, payload: &EffectPayload) {
         env.state.players[p].stage[slot].status = StageStatus::Stand;
         env.mark_slot_power_dirty(target.player, target.index);
         env.mark_continuous_modifiers_dirty();
+        env.touch_player_obs(target.player);
     }
 }
 

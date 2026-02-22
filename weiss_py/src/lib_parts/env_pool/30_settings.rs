@@ -719,8 +719,14 @@
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
     }
 
-    fn render_ansi(&self, env_index: usize, perspective: u8) -> String {
-        self.pool.render_ansi(env_index, perspective)
+    fn render_ansi(&self, env_index: usize, perspective: u8) -> PyResult<String> {
+        let num_envs = self.pool.envs.len();
+        if env_index >= num_envs {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "env_index {env_index} out of bounds (num_envs = {num_envs})"
+            )));
+        }
+        Ok(self.pool.render_ansi(env_index, perspective))
     }
 
     #[getter]

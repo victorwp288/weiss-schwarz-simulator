@@ -115,7 +115,6 @@ Common helpers:
 ### Minimal high-level loop (preferred)
 
 ```python
-import numpy as np
 import weiss_sim
 
 with weiss_sim.make(mode="inspect", num_envs=8, seed=7, card_pool="all") as sim:

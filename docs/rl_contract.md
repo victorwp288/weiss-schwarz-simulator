@@ -183,12 +183,13 @@ pool, _ = weiss_sim.make_pool(
     layout="mask",
 )
 step = weiss_sim.reset_rl(pool, layout="mask")
-actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
-for i in range(pool.envs_len):
-    legal = np.flatnonzero(step.masks[i])
-    if legal.size:
-        actions[i] = int(legal[0])
-step = weiss_sim.step_rl(pool, actions, layout="mask")
+for _ in range(1000):
+    actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
+    for i in range(pool.envs_len):
+        legal = np.flatnonzero(step.masks[i])
+        if legal.size:
+            actions[i] = int(legal[0])
+    step = weiss_sim.step_rl(pool, actions, layout="mask")
 ```
 
 ## Advanced: raw packed legality arrays

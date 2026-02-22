@@ -67,6 +67,7 @@ impl EnvPool {
                 if let Some(err) = err {
                     return Err(err);
                 }
+                return Err(anyhow!("parallel sampling failed"));
             }
         } else {
             for (i, ((slot, env), &seed)) in out
@@ -123,6 +124,7 @@ impl EnvPool {
                 if let Some(err) = err {
                     return Err(err);
                 }
+                return Err(anyhow!("parallel sampling failed"));
             }
         } else {
             for (i, (slot, env)) in out.iter_mut().zip(self.envs.iter()).enumerate() {
@@ -215,6 +217,7 @@ impl EnvPool {
                 if let Some(err) = err {
                     return Err(err);
                 }
+                return Err(anyhow!("parallel sampling failed"));
             }
         }
         Ok(total)
@@ -244,7 +247,10 @@ impl EnvPool {
         offsets[0] = 0;
         let mut total = 0usize;
         for (i, &count) in counts.iter().enumerate() {
-            total = total.saturating_add(count);
+            total = match total.checked_add(count) {
+                Some(value) => value,
+                None => anyhow::bail!("ids offset total overflow"),
+            };
             if total > ids.len() {
                 anyhow::bail!("ids buffer size mismatch");
             }

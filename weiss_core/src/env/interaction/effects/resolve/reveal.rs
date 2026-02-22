@@ -158,6 +158,9 @@ pub(super) fn reveal_top_if_level_at_least_move_this_to_hand(
     let Some(source_ref) = payload.source_ref else {
         return;
     };
+    if source_ref.zone != TargetZone::Stage {
+        return;
+    }
     let option = ChoiceOptionRef {
         card_id: source_ref.card_id,
         instance_id: source_ref.instance_id,

@@ -525,6 +525,9 @@ pub(super) fn cannot_use_auto_encore_for_player(
         controller <= 1,
         "controller must be 0 or 1 in cannot_use_auto_encore_for_player"
     );
+    if controller > 1 {
+        return;
+    }
     let target_player = match target {
         TargetSide::SelfSide => controller,
         TargetSide::Opponent => 1 - controller,

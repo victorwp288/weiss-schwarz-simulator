@@ -65,6 +65,8 @@ pub(super) fn counter_backup(env: &mut GameEnv, controller: u8, source_id: CardI
     if let Some(def_slot) = dirty_slot {
         env.mark_slot_power_dirty(controller, def_slot);
     }
+    // Log the counter play attempt even if it doesn't apply power (e.g., no active defender slot),
+    // so replays/debug streams still reflect the counter action.
     env.log_event(Event::Counter {
         player: controller,
         card: source_id,
