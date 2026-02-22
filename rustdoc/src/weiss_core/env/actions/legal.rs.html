@@ -74,34 +74,40 @@
 <a href=#74 id=74 data-nosnippet>74</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.action_cache.last_action_ids
 <a href=#75 id=75 data-nosnippet>75</a>    }
 <a href=#76 id=76 data-nosnippet>76</a>
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>update_action_cache(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-<a href=#78 id=78 data-nosnippet>78</a>        <span class="kw">let </span>(decision_kind, <span class="kw">_</span>) = <span class="kw">match </span><span class="self">self</span>.decision.as_ref() {
-<a href=#79 id=79 data-nosnippet>79</a>            <span class="prelude-val">Some</span>(decision) =&gt; (decision.kind, decision.player),
-<a href=#80 id=80 data-nosnippet>80</a>            <span class="prelude-val">None </span>=&gt; {
-<a href=#81 id=81 data-nosnippet>81</a>                <span class="self">self</span>.action_cache.clear();
-<a href=#82 id=82 data-nosnippet>82</a>                <span class="kw">return</span>;
-<a href=#83 id=83 data-nosnippet>83</a>            }
-<a href=#84 id=84 data-nosnippet>84</a>        };
-<a href=#85 id=85 data-nosnippet>85</a>        <span class="kw">if </span>decision_kind == <span class="kw">crate</span>::legal::DecisionKind::AttackDeclaration
-<a href=#86 id=86 data-nosnippet>86</a>            &amp;&amp; <span class="self">self</span>.state.turn.derived_attack.is_none()
-<a href=#87 id=87 data-nosnippet>87</a>        {
-<a href=#88 id=88 data-nosnippet>88</a>            <span class="self">self</span>.recompute_derived_attack();
-<a href=#89 id=89 data-nosnippet>89</a>        }
-<a href=#90 id=90 data-nosnippet>90</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(decision) = <span class="self">self</span>.decision.as_ref() {
-<a href=#91 id=91 data-nosnippet>91</a>            <span class="self">self</span>.last_perspective = decision.player;
-<a href=#92 id=92 data-nosnippet>92</a>            <span class="self">self</span>.action_cache.update(
-<a href=#93 id=93 data-nosnippet>93</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.state,
-<a href=#94 id=94 data-nosnippet>94</a>                decision,
-<a href=#95 id=95 data-nosnippet>95</a>                <span class="self">self</span>.decision_id,
-<a href=#96 id=96 data-nosnippet>96</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.db,
-<a href=#97 id=97 data-nosnippet>97</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.curriculum,
-<a href=#98 id=98 data-nosnippet>98</a>                <span class="self">self</span>.curriculum.allowed_card_sets_cache.as_ref(),
-<a href=#99 id=99 data-nosnippet>99</a>                <span class="self">self</span>.output_mask_enabled,
-<a href=#100 id=100 data-nosnippet>100</a>                <span class="self">self</span>.output_mask_bits_enabled,
-<a href=#101 id=101 data-nosnippet>101</a>            );
-<a href=#102 id=102 data-nosnippet>102</a>        } <span class="kw">else </span>{
-<a href=#103 id=103 data-nosnippet>103</a>            <span class="self">self</span>.action_cache.clear();
-<a href=#104 id=104 data-nosnippet>104</a>        }
-<a href=#105 id=105 data-nosnippet>105</a>    }
-<a href=#106 id=106 data-nosnippet>106</a>}
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="doccomment">/// Refresh the cached legal-action ids and masks for the current decision.
+<a href=#78 id=78 data-nosnippet>78</a>    ///
+<a href=#79 id=79 data-nosnippet>79</a>    /// The cache key is `(decision_id, decision_kind, decision_player)`. This
+<a href=#80 id=80 data-nosnippet>80</a>    /// method also ensures derived attack data is materialized before
+<a href=#81 id=81 data-nosnippet>81</a>    /// `AttackDeclaration` legality is evaluated so mask generation stays
+<a href=#82 id=82 data-nosnippet>82</a>    /// deterministic across call sites.
+<a href=#83 id=83 data-nosnippet>83</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>update_action_cache(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">let </span>(decision_kind, <span class="kw">_</span>) = <span class="kw">match </span><span class="self">self</span>.decision.as_ref() {
+<a href=#85 id=85 data-nosnippet>85</a>            <span class="prelude-val">Some</span>(decision) =&gt; (decision.kind, decision.player),
+<a href=#86 id=86 data-nosnippet>86</a>            <span class="prelude-val">None </span>=&gt; {
+<a href=#87 id=87 data-nosnippet>87</a>                <span class="self">self</span>.action_cache.clear();
+<a href=#88 id=88 data-nosnippet>88</a>                <span class="kw">return</span>;
+<a href=#89 id=89 data-nosnippet>89</a>            }
+<a href=#90 id=90 data-nosnippet>90</a>        };
+<a href=#91 id=91 data-nosnippet>91</a>        <span class="kw">if </span>decision_kind == <span class="kw">crate</span>::legal::DecisionKind::AttackDeclaration
+<a href=#92 id=92 data-nosnippet>92</a>            &amp;&amp; <span class="self">self</span>.state.turn.derived_attack.is_none()
+<a href=#93 id=93 data-nosnippet>93</a>        {
+<a href=#94 id=94 data-nosnippet>94</a>            <span class="self">self</span>.recompute_derived_attack();
+<a href=#95 id=95 data-nosnippet>95</a>        }
+<a href=#96 id=96 data-nosnippet>96</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(decision) = <span class="self">self</span>.decision.as_ref() {
+<a href=#97 id=97 data-nosnippet>97</a>            <span class="self">self</span>.last_perspective = decision.player;
+<a href=#98 id=98 data-nosnippet>98</a>            <span class="self">self</span>.action_cache.update(
+<a href=#99 id=99 data-nosnippet>99</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.state,
+<a href=#100 id=100 data-nosnippet>100</a>                decision,
+<a href=#101 id=101 data-nosnippet>101</a>                <span class="self">self</span>.decision_id,
+<a href=#102 id=102 data-nosnippet>102</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.db,
+<a href=#103 id=103 data-nosnippet>103</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.curriculum,
+<a href=#104 id=104 data-nosnippet>104</a>                <span class="self">self</span>.curriculum.allowed_card_sets_cache.as_ref(),
+<a href=#105 id=105 data-nosnippet>105</a>                <span class="self">self</span>.output_mask_enabled,
+<a href=#106 id=106 data-nosnippet>106</a>                <span class="self">self</span>.output_mask_bits_enabled,
+<a href=#107 id=107 data-nosnippet>107</a>            );
+<a href=#108 id=108 data-nosnippet>108</a>        } <span class="kw">else </span>{
+<a href=#109 id=109 data-nosnippet>109</a>            <span class="self">self</span>.action_cache.clear();
+<a href=#110 id=110 data-nosnippet>110</a>        }
+<a href=#111 id=111 data-nosnippet>111</a>    }
+<a href=#112 id=112 data-nosnippet>112</a>}
 </code></pre></div></section></main></body></html>

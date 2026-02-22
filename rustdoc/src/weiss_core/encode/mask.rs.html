@@ -13,9 +13,9 @@
 <a href=#13 id=13 data-nosnippet>13</a>    <span class="kw">for </span>slot <span class="kw">in </span>lookup.iter_mut() {
 <a href=#14 id=14 data-nosnippet>14</a>        <span class="kw-2">*</span>slot = <span class="prelude-val">None</span>;
 <a href=#15 id=15 data-nosnippet>15</a>    }
-<a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">for </span>action <span class="kw">in </span>actions {
-<a href=#17 id=17 data-nosnippet>17</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = action_id_for(action) {
-<a href=#18 id=18 data-nosnippet>18</a>            <span class="kw">let </span>max_len = mask.len().min(lookup.len());
+<a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">let </span>max_len = mask.len().min(lookup.len());
+<a href=#17 id=17 data-nosnippet>17</a>    <span class="kw">for </span>action <span class="kw">in </span>actions {
+<a href=#18 id=18 data-nosnippet>18</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = action_id_for(action) {
 <a href=#19 id=19 data-nosnippet>19</a>            <span class="kw">if </span>id &lt; max_len {
 <a href=#20 id=20 data-nosnippet>20</a>                mask[id] = <span class="number">1</span>;
 <a href=#21 id=21 data-nosnippet>21</a>                lookup[id] = <span class="prelude-val">Some</span>(action.clone());
@@ -77,7 +77,15 @@
 <a href=#77 id=77 data-nosnippet>77</a></span><span class="kw">pub fn </span>build_action_mask(actions: <span class="kw-2">&amp;</span>[ActionDesc]) -&gt; (Vec&lt;u8&gt;, Vec&lt;<span class="prelude-ty">Option</span>&lt;ActionDesc&gt;&gt;) {
 <a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">let </span><span class="kw-2">mut </span>mask = <span class="macro">vec!</span>[<span class="number">0u8</span>; ACTION_SPACE_SIZE];
 <a href=#79 id=79 data-nosnippet>79</a>    <span class="kw">let </span><span class="kw-2">mut </span>lookup = <span class="macro">vec!</span>[<span class="prelude-val">None</span>; ACTION_SPACE_SIZE];
-<a href=#80 id=80 data-nosnippet>80</a>    fill_action_mask(actions, <span class="kw-2">&amp;mut </span>mask, <span class="kw-2">&amp;mut </span>lookup);
-<a href=#81 id=81 data-nosnippet>81</a>    (mask, lookup)
-<a href=#82 id=82 data-nosnippet>82</a>}
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="kw">let </span>max_len = mask.len().min(lookup.len());
+<a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">for </span>action <span class="kw">in </span>actions {
+<a href=#82 id=82 data-nosnippet>82</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = action_id_for(action) {
+<a href=#83 id=83 data-nosnippet>83</a>            <span class="kw">if </span>id &lt; max_len {
+<a href=#84 id=84 data-nosnippet>84</a>                mask[id] = <span class="number">1</span>;
+<a href=#85 id=85 data-nosnippet>85</a>                lookup[id] = <span class="prelude-val">Some</span>(action.clone());
+<a href=#86 id=86 data-nosnippet>86</a>            }
+<a href=#87 id=87 data-nosnippet>87</a>        }
+<a href=#88 id=88 data-nosnippet>88</a>    }
+<a href=#89 id=89 data-nosnippet>89</a>    (mask, lookup)
+<a href=#90 id=90 data-nosnippet>90</a>}
 </code></pre></div></section></main></body></html>
