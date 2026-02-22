@@ -365,7 +365,7 @@ def make_pool(
     pool = constructor(
         num_envs,
         db_path,
-        deck_lists,
+        deck_lists=deck_lists,
         deck_ids=deck_ids,
         max_decisions=max_decisions,
         max_ticks=max_ticks,
