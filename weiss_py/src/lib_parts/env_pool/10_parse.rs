@@ -2,7 +2,7 @@
 fn parse_pool_init(
     num_envs: usize,
     db_path: Option<String>,
-    deck_lists: Option<Vec<Vec<u32>>>,
+    deck_lists: Vec<Vec<u32>>,
     deck_ids: Option<Vec<u32>>,
     max_decisions: u32,
     max_ticks: u32,
@@ -20,8 +20,6 @@ fn parse_pool_init(
             "num_envs must be > 0",
         ));
     }
-    let deck_lists =
-        deck_lists.ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("deck_lists is required"))?;
     let reward = parse_reward_config(reward_json)?;
     let end_condition_policy = parse_end_condition_policy(end_condition_policy_json)?;
     let curriculum = parse_curriculum_config(curriculum_json)?;
@@ -89,4 +87,3 @@ fn build_rl_pool(
     pool.set_output_mask_enabled(output_masks);
     Ok(PyEnvPool { pool })
 }
-

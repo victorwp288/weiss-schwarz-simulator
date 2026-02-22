@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Callable, Literal
 
@@ -422,6 +423,11 @@ class WeissEnv:
                 all_indices = np.arange(self._num_envs, dtype=np.int64)
                 episode_seeds = _episode_seeds_for_indices(seed, all_indices)
                 if not self._call_reset_indices_with_episode_seeds(all_indices, episode_seeds):
+                    warnings.warn(
+                        "seed parameter ignored: pool does not support episode seeds",
+                        UserWarning,
+                        stacklevel=2,
+                    )
                     self._call_reset()
             return self._finalize_reset(reset_indices=None)
 
@@ -431,6 +437,11 @@ class WeissEnv:
         else:
             episode_seeds = _episode_seeds_for_indices(seed, reset_indices)
             if not self._call_reset_indices_with_episode_seeds(reset_indices, episode_seeds):
+                warnings.warn(
+                    "seed parameter ignored: pool does not support episode seeds",
+                    UserWarning,
+                    stacklevel=2,
+                )
                 self._call_reset_indices(reset_indices)
         return self._finalize_reset(reset_indices=reset_indices)
 

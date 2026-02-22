@@ -6,7 +6,10 @@
 
 #[inline]
 pub(super) fn i32_slice_as_bytes(slice: &[i32]) -> &[u8] {
-    let len = slice.len().saturating_mul(std::mem::size_of::<i32>());
+    let len = slice
+        .len()
+        .checked_mul(std::mem::size_of::<i32>())
+        .expect("i32_slice_as_bytes length overflow");
     // SAFETY:
     // - `slice.as_ptr()` is valid for `slice.len()` elements.
     // - `i32` has no padding bytes and is plain data.
@@ -16,14 +19,20 @@ pub(super) fn i32_slice_as_bytes(slice: &[i32]) -> &[u8] {
 
 #[inline]
 pub(super) fn u64_slice_as_bytes(slice: &[u64]) -> &[u8] {
-    let len = slice.len().saturating_mul(std::mem::size_of::<u64>());
+    let len = slice
+        .len()
+        .checked_mul(std::mem::size_of::<u64>())
+        .expect("u64_slice_as_bytes length overflow");
     // SAFETY: Same invariants as `i32_slice_as_bytes`.
     unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const u8, len) }
 }
 
 #[inline]
 pub(super) fn u16_slice_as_bytes(slice: &[u16]) -> &[u8] {
-    let len = slice.len().saturating_mul(std::mem::size_of::<u16>());
+    let len = slice
+        .len()
+        .checked_mul(std::mem::size_of::<u16>())
+        .expect("u16_slice_as_bytes length overflow");
     // SAFETY: Same invariants as `i32_slice_as_bytes`.
     unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const u8, len) }
 }

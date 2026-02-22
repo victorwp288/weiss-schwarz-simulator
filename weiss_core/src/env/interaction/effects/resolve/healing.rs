@@ -6,17 +6,14 @@ pub(super) fn heal(env: &mut GameEnv, payload: &EffectPayload) {
             continue;
         }
         let p = target.player as usize;
-        let idx = target.index as usize;
-        if idx >= env.state.players[p].clock.len() {
-            continue;
-        }
-        let Some(card) = env.state.players[p].clock.get(idx).copied() else {
+        let Some(pos) = env.state.players[p]
+            .clock
+            .iter()
+            .position(|card| card.instance_id == target.instance_id)
+        else {
             continue;
         };
-        if card.instance_id != target.instance_id {
-            continue;
-        }
-        let card = env.state.players[p].clock.remove(idx);
+        let card = env.state.players[p].clock.remove(pos);
         env.move_card_between_zones(
             target.player,
             card,

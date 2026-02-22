@@ -147,6 +147,7 @@ If you need zero-overhead packed legality arrays, consume batch properties direc
 Example packed-id first-legal selection:
 
 ```python
+num_envs = int(len(batch.legal_offsets) - 1)
 actions = np.full((num_envs,), weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
 for i in range(num_envs):
     start = int(batch.legal_offsets[i])

@@ -80,7 +80,7 @@ def _coerce_optional_object_payload(
 
     if isinstance(value, typed_cls):
         return value.to_dict()  # type: ignore[attr-defined]
-    if is_dataclass(value):
+    if is_dataclass(value) and not isinstance(value, type):
         return {k: v for k, v in asdict(value).items() if v is not None}
     if isinstance(value, Mapping):
         return dict(value)

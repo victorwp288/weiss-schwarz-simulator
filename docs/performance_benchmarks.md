@@ -6,7 +6,6 @@ This page documents the benchmark workflow that is actually used by scripts/CI.
 
 - Rust micro/engine benches (`core_benches`, `alloc_benches`)
 - Python boundary throughput (`python/examples/bench_python_boundary.py`)
-- low-level step throughput (`python/examples/bench_envpool_step.py`)
 - optional scaling study (`python/examples/bench_scaling.py`)
 
 All Python benchmark scripts use the canonical low-level API surface:
@@ -28,9 +27,6 @@ PYTHONPATH=python python python/examples/bench_python_boundary.py \
   --warmup 200 \
   --reset-reps 200 \
   --mode both
-PYTHONPATH=python python python/examples/bench_envpool_step.py \
-  --num-envs 128 \
-  --steps 2000
 ```
 
 ## Perf budget gate
@@ -81,6 +77,12 @@ For deeper local profiling (not baseline gate inputs), you can run larger scenar
 
 ```bash
 python python/examples/bench_scaling.py --envs 128,512,1024 --threads 1,2,4,8,16 --steps 200 --warmup 50
+```
+
+Or a single low-level step-throughput run:
+
+```bash
+PYTHONPATH=python python python/examples/bench_envpool_step.py --num-envs 128 --steps 2000
 ```
 
 ## Measurement discipline

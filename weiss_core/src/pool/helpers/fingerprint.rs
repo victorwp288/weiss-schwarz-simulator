@@ -74,6 +74,9 @@ impl EnvPool {
         {
             anyhow::bail!("debug buffer size mismatch");
         }
+        if self.output_mask_enabled && out.minimal.masks.len() != num_envs * ACTION_SPACE_SIZE {
+            anyhow::bail!("mask buffer size mismatch");
+        }
         let event_capacity = if num_envs == 0 {
             0
         } else if !out.event_codes.len().is_multiple_of(num_envs) {

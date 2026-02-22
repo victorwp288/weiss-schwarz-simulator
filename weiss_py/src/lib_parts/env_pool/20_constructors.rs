@@ -6,7 +6,8 @@
     #[pyo3(signature = (
         num_envs,
         db_path=None,
-        deck_lists=None,
+        *,
+        deck_lists,
         deck_ids=None,
         max_decisions=2000,
         max_ticks=100_000,
@@ -26,7 +27,7 @@
         _cls: &Bound<'_, PyType>,
         num_envs: usize,
         db_path: Option<String>,
-        deck_lists: Option<Vec<Vec<u32>>>,
+        deck_lists: Vec<Vec<u32>>,
         deck_ids: Option<Vec<u32>>,
         max_decisions: u32,
         max_ticks: u32,
@@ -67,7 +68,8 @@
     #[pyo3(signature = (
         num_envs,
         db_path=None,
-        deck_lists=None,
+        *,
+        deck_lists,
         deck_ids=None,
         max_decisions=2000,
         max_ticks=100_000,
@@ -87,7 +89,7 @@
         _cls: &Bound<'_, PyType>,
         num_envs: usize,
         db_path: Option<String>,
-        deck_lists: Option<Vec<Vec<u32>>>,
+        deck_lists: Vec<Vec<u32>>,
         deck_ids: Option<Vec<u32>>,
         max_decisions: u32,
         max_ticks: u32,
@@ -129,7 +131,8 @@
     #[pyo3(signature = (
         num_envs,
         db_path=None,
-        deck_lists=None,
+        *,
+        deck_lists,
         deck_ids=None,
         max_decisions=2000,
         max_ticks=100_000,
@@ -148,7 +151,7 @@
         _cls: &Bound<'_, PyType>,
         num_envs: usize,
         db_path: Option<String>,
-        deck_lists: Option<Vec<Vec<u32>>>,
+        deck_lists: Vec<Vec<u32>>,
         deck_ids: Option<Vec<u32>>,
         max_decisions: u32,
         max_ticks: u32,
@@ -190,4 +193,3 @@
         .map_err(map_pool_init_error)?;
         Ok(Self { pool })
     }
-

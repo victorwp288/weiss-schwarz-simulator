@@ -20,7 +20,7 @@ def _read_data_bytes(name: str) -> bytes:
 
 
 @lru_cache(maxsize=1)
-def load_presets() -> dict[str, list[int]]:
+def _load_presets_cached() -> dict[str, list[int]]:
     try:
         raw = _read_data_bytes(_PRESETS_FILE)
         payload = json.loads(raw.decode("utf-8"))
@@ -36,6 +36,10 @@ def load_presets() -> dict[str, list[int]]:
             continue
         out[key] = [int(v) for v in value]
     return out
+
+
+def load_presets() -> dict[str, list[int]]:
+    return {k: list(v) for k, v in _load_presets_cached().items()}
 
 
 def preset_names() -> list[str]:

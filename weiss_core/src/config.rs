@@ -266,7 +266,7 @@ pub struct CurriculumConfig {
     #[serde(default)]
     /// Enable approximated non-combat effects listed in docs/approximation_policy.md.
     pub enable_approx_effects: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     /// Enable explicit priority windows.
     pub enable_priority_windows: bool,
     #[serde(default)]
@@ -275,13 +275,13 @@ pub struct CurriculumConfig {
     #[serde(default)]
     /// Use alternate end-condition handling rules.
     pub use_alternate_end_conditions: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     /// Auto-pick when only one action is available in priority.
     pub priority_autopick_single_action: bool,
     #[serde(default = "default_true")]
     /// Allow pass actions during priority windows.
     pub priority_allow_pass: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     /// Enforce strict priority legality (debug/audit mode).
     pub strict_priority_mode: bool,
     #[serde(default)]

@@ -176,6 +176,12 @@ for _ in range(1000):
 RL helper baseline (same contract, no manual buffer wrapper):
 
 ```python
+pool, _ = weiss_sim.make_pool(
+    mode="train",
+    num_envs=64,
+    deck_lists=[deck_a, deck_b],
+    layout="mask",
+)
 step = weiss_sim.reset_rl(pool, layout="mask")
 actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
 for i in range(pool.envs_len):
