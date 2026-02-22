@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 from typing import Literal, overload
 
@@ -34,7 +34,7 @@ from .config_types import (
     RulesProfile,
     ThreadsLike,
 )
-from .decks import resolve_match_decks
+from .decks import resolve_match_decks, summarize_resolved_deck
 from .errors import ConfigConflictError
 from .runner import WeissEnv
 from .weiss_sim import (
@@ -257,6 +257,298 @@ def db_info(db_path: str | Path | None = None) -> dict[str, object]:
     return _db_info(db_path=db_path)
 
 
+@dataclass(slots=True)
+class _MakeNormalized:
+    mode: Literal["fast", "inspect"]
+    runtime_mode: str
+    deck: DeckInput
+    opponent_deck: DeckInput | None
+    db_path: str | None
+    rules_profile: RulesProfile
+    card_pool: CardPoolMode
+    curriculum_payload: dict[str, object]
+    reward_json_payload: str | None
+    end_condition_policy_json: str | None
+    observation_visibility: ObservationVisibility
+    legal_repr: LegalRepr
+    obs_dtype: ObsDType
+    ids_safety: IdsSafety | None
+    num_envs: NumLike
+    num_threads: ThreadsLike
+    seed_value: int
+    seed_source: str
+    max_decisions: int
+    max_ticks: int
+    error_policy: Literal["raise", "replace", "terminate"]
+    control_seat: Literal[0, 1] | None
+
+
+@dataclass(slots=True)
+class _MakeResolved:
+    normalized: _MakeNormalized
+    deck_a: list[int]
+    deck_b: list[int]
+    resolved_decks: dict[str, object]
+    resolved_num_envs: int
+    resolved_num_threads: int
+    legal_repr: LegalRepr
+    obs_dtype: ObsDType
+    ids_safety: IdsSafety | None
+
+
+@dataclass(slots=True)
+class _LayoutSelection:
+    out: object
+    reset_method: str
+    step_method: str
+    has_mask: bool
+    embedded_ids: bool
+    needs_runtime_ids: bool
+
+
+def _make_stage_normalize(
+    *,
+    mode: Literal["fast", "inspect"],
+    deck: DeckInput | None,
+    opponent_deck: DeckInput | None,
+    db_path: str | None,
+    rules_profile: RulesProfile,
+    card_pool: CardPoolMode,
+    curriculum: CurriculumOverrides | Mapping[str, object] | None,
+    reward_json: str | Mapping[str, object] | None,
+    end_condition_policy: EndConditionOverrides | Mapping[str, object] | str | None,
+    observation_visibility: ObservationVisibility,
+    reveal_opponent_hand_stock_counts: bool | None,
+    legal_repr: LegalRepr | None,
+    obs_dtype: ObsDType | None,
+    ids_safety: IdsSafety | None,
+    num_envs: NumLike,
+    num_threads: ThreadsLike,
+    seed: int | None,
+    max_decisions: int,
+    max_ticks: int,
+    error_policy: Literal["raise", "replace", "terminate"],
+    control_seat: Literal[0, 1] | None,
+) -> _MakeNormalized:
+    normalized_mode, runtime_mode = normalize_mode(mode)
+    normalized_rules_profile = normalize_rules_profile(rules_profile)
+    normalized_card_pool = normalize_card_pool(card_pool)
+    normalized_observation_visibility = normalize_observation_visibility(observation_visibility)
+    normalized_legal_repr = normalize_legal_repr(legal_repr)
+    normalized_obs_dtype = normalize_obs_dtype(obs_dtype)
+    normalized_ids_safety = normalize_ids_safety(ids_safety)
+    normalized_error_policy = normalize_error_policy(error_policy)
+    reward_json_payload = _normalize_reward_json(reward_json)
+    end_condition_policy_json = _normalize_end_condition_policy_json(end_condition_policy)
+    seed_value, seed_source = resolve_seed(seed, urandom_fn=os.urandom)
+
+    if control_seat not in (None, 0, 1):
+        raise ConfigConflictError("control_seat must be one of None, 0, or 1")
+    if max_decisions <= 0 or max_ticks <= 0:
+        raise ConfigConflictError("max_decisions and max_ticks must both be > 0")
+
+    resolved_deck = deck if deck is not None else "preset:starter_v1"
+    curriculum_payload = _normalize_curriculum(curriculum, normalized_rules_profile)
+    if (
+        normalized_observation_visibility == "public"
+        and "memory_is_public" not in curriculum_payload
+    ):
+        curriculum_payload["memory_is_public"] = False
+    if reveal_opponent_hand_stock_counts is not None:
+        curriculum_payload["reveal_opponent_hand_stock_counts"] = bool(
+            reveal_opponent_hand_stock_counts
+        )
+
+    return _MakeNormalized(
+        mode=normalized_mode,
+        runtime_mode=runtime_mode,
+        deck=resolved_deck,
+        opponent_deck=opponent_deck,
+        db_path=db_path,
+        rules_profile=normalized_rules_profile,
+        card_pool=normalized_card_pool,
+        curriculum_payload=curriculum_payload,
+        reward_json_payload=reward_json_payload,
+        end_condition_policy_json=end_condition_policy_json,
+        observation_visibility=normalized_observation_visibility,
+        legal_repr=normalized_legal_repr,
+        obs_dtype=normalized_obs_dtype,
+        ids_safety=normalized_ids_safety,
+        num_envs=num_envs,
+        num_threads=num_threads,
+        seed_value=seed_value,
+        seed_source=seed_source,
+        max_decisions=max_decisions,
+        max_ticks=max_ticks,
+        error_policy=normalized_error_policy,
+        control_seat=control_seat,
+    )
+
+
+def _make_stage_resolve_decks(normalized: _MakeNormalized) -> _MakeResolved:
+    deck_a, deck_b = resolve_match_decks(
+        normalized.deck,
+        normalized.opponent_deck,
+        rules_profile=normalized.rules_profile,
+        card_pool=normalized.card_pool,
+        db_path=normalized.db_path,
+    )
+    resolved_decks = {
+        "player": summarize_resolved_deck(deck_a),
+        "opponent": summarize_resolved_deck(deck_b),
+    }
+    resolved_num_envs, resolved_num_threads = resolve_threads_and_envs(
+        normalized.num_envs,
+        normalized.num_threads,
+        cpu_count_fn=os.cpu_count,
+    )
+    legal_repr, obs_dtype, ids_safety = resolve_mode_defaults(
+        normalized.runtime_mode,
+        normalized.legal_repr,
+        normalized.obs_dtype,
+        normalized.ids_safety,
+    )
+    return _MakeResolved(
+        normalized=normalized,
+        deck_a=deck_a,
+        deck_b=deck_b,
+        resolved_decks=resolved_decks,
+        resolved_num_envs=resolved_num_envs,
+        resolved_num_threads=resolved_num_threads,
+        legal_repr=legal_repr,
+        obs_dtype=obs_dtype,
+        ids_safety=ids_safety,
+    )
+
+
+def _make_stage_build_pool(resolved: _MakeResolved) -> EnvPool:
+    constructor = (
+        EnvPool.new_rl_train
+        if resolved.normalized.runtime_mode == "speed"
+        else EnvPool.new_rl_eval
+    )
+    constructor_output_masks = resolved.legal_repr in {"mask_u8", "both"}
+    return constructor(
+        resolved.resolved_num_envs,
+        db_path=resolved.normalized.db_path,
+        deck_lists=[resolved.deck_a, resolved.deck_b],
+        deck_ids=[0, 1],
+        max_decisions=resolved.normalized.max_decisions,
+        max_ticks=resolved.normalized.max_ticks,
+        seed=resolved.normalized.seed_value,
+        curriculum_json=json.dumps(resolved.normalized.curriculum_payload),
+        reward_json=resolved.normalized.reward_json_payload,
+        end_condition_policy_json=resolved.normalized.end_condition_policy_json,
+        error_policy=resolved.normalized.error_policy,
+        observation_visibility=resolved.normalized.observation_visibility,
+        num_threads=resolved.resolved_num_threads,
+        output_masks=constructor_output_masks,
+    )
+
+
+def _make_stage_select_layout(
+    pool: EnvPool, *, legal_repr: LegalRepr, obs_dtype: ObsDType
+) -> _LayoutSelection:
+    out, reset_method, step_method, has_mask, embedded_ids, needs_runtime_ids = _select_out_mode(
+        pool, legal_repr, obs_dtype
+    )
+    if not has_mask:
+        pool.set_output_mask_enabled(False)
+        pool.set_output_mask_bits_enabled(False)
+    if obs_dtype == "i16":
+        pool.set_i16_clamp_enabled(True)
+    return _LayoutSelection(
+        out=out,
+        reset_method=reset_method,
+        step_method=step_method,
+        has_mask=has_mask,
+        embedded_ids=embedded_ids,
+        needs_runtime_ids=needs_runtime_ids,
+    )
+
+
+def _make_stage_build_effective_config(
+    resolved: _MakeResolved, layout: _LayoutSelection
+) -> dict[str, object]:
+    db_hash_info = db_info(db_path=resolved.normalized.db_path)
+
+    reward_effective: object | None = None
+    if resolved.normalized.reward_json_payload is not None:
+        try:
+            reward_effective = json.loads(resolved.normalized.reward_json_payload)
+        except json.JSONDecodeError:
+            reward_effective = resolved.normalized.reward_json_payload
+
+    end_condition_policy_effective: object
+    if resolved.normalized.end_condition_policy_json is None:
+        end_condition_policy_effective = {
+            "simultaneous_loss": "Draw",
+            "allow_draw_on_simultaneous_loss": True,
+        }
+    else:
+        try:
+            end_condition_policy_effective = json.loads(
+                resolved.normalized.end_condition_policy_json
+            )
+        except json.JSONDecodeError:
+            end_condition_policy_effective = resolved.normalized.end_condition_policy_json
+
+    return {
+        "mode": resolved.normalized.mode,
+        "runtime_mode": resolved.normalized.runtime_mode,
+        "internal_runtime_mode": resolved.normalized.runtime_mode,
+        "rules_profile": resolved.normalized.rules_profile,
+        "card_pool": resolved.normalized.card_pool,
+        "observation_visibility": resolved.normalized.observation_visibility,
+        "legal_repr": resolved.legal_repr,
+        "obs_dtype": resolved.obs_dtype,
+        "ids_safety": resolved.ids_safety,
+        "num_envs": resolved.resolved_num_envs,
+        "num_threads": resolved.resolved_num_threads,
+        "seed": resolved.normalized.seed_value,
+        "seed_source": resolved.normalized.seed_source,
+        "max_decisions": int(resolved.normalized.max_decisions),
+        "max_ticks": int(resolved.normalized.max_ticks),
+        "error_policy": resolved.normalized.error_policy,
+        "reward": reward_effective,
+        "end_condition_policy": end_condition_policy_effective,
+        "curriculum": resolved.normalized.curriculum_payload,
+        "db": db_hash_info,
+        "reward_timeout_policy": {
+            "timeout_uses_terminal_draw_reward": True,
+            "terminal_draw_expected_zero_sum": True,
+            "terminal_draw_expected_value": 0.0,
+        },
+        "resolved_decks": resolved.resolved_decks,
+        "spec_hash": int(SPEC_HASH),
+        "action_space": int(ACTION_SPACE_SIZE),
+        "control_seat": resolved.normalized.control_seat,
+        "reveal_opponent_hand_stock_counts": bool(
+            resolved.normalized.curriculum_payload.get("reveal_opponent_hand_stock_counts", False)
+        ),
+        "needs_runtime_legal_ids": layout.needs_runtime_ids,
+    }
+
+
+def _make_stage_create_env(
+    *, pool: EnvPool, resolved: _MakeResolved, layout: _LayoutSelection, effective: dict[str, object]
+) -> WeissEnv:
+    return WeissEnv(
+        pool=pool,
+        out=layout.out,
+        reset_method=layout.reset_method,
+        step_method=layout.step_method,
+        has_mask=layout.has_mask,
+        embedded_legal_ids=layout.embedded_ids,
+        legal_repr=resolved.legal_repr,
+        ids_safety=resolved.ids_safety,
+        runtime_mode=resolved.normalized.runtime_mode,
+        control_seat=resolved.normalized.control_seat,
+        effective=effective,
+        spec_fn=export_spec_bundle,
+    )
+
+
 def make(
     *,
     mode: Literal["fast", "inspect"] = "fast",
@@ -280,7 +572,6 @@ def make(
     max_ticks: int = 100_000,
     error_policy: Literal["raise", "replace", "terminate"] = "replace",
     control_seat: Literal[0, 1] | None = None,
-    **deprecated_overrides: object,
 ) -> WeissEnv:
     """Create a high-level `WeissEnv` for batched reset/step loops.
 
@@ -288,152 +579,38 @@ def make(
     the Rust `EnvPool` and returns a `WeissEnv` with stable observation/action
     contracts and ergonomic legality helpers via `batch.legal`.
     """
-    if "runtime_mode" in deprecated_overrides:
-        raise ConfigConflictError(
-            "runtime_mode is no longer supported; use mode='fast' or mode='inspect'"
-        )
-    if deprecated_overrides:
-        unknown = ", ".join(sorted(deprecated_overrides))
-        raise ConfigConflictError(f"unknown override(s): {unknown}")
-
-    mode, runtime_mode = normalize_mode(mode)
-    rules_profile = normalize_rules_profile(rules_profile)
-    card_pool = normalize_card_pool(card_pool)
-    observation_visibility = normalize_observation_visibility(observation_visibility)
-    legal_repr = normalize_legal_repr(legal_repr)
-    obs_dtype = normalize_obs_dtype(obs_dtype)
-    ids_safety = normalize_ids_safety(ids_safety)
-    error_policy, backend_error_policy = normalize_error_policy(error_policy)
-    reward_json_payload = _normalize_reward_json(reward_json)
-    end_condition_policy_json = _normalize_end_condition_policy_json(end_condition_policy)
-    seed_value, seed_source = resolve_seed(seed, urandom_fn=os.urandom)
-    if control_seat not in (None, 0, 1):
-        raise ConfigConflictError("control_seat must be one of None, 0, or 1")
-    if max_decisions <= 0 or max_ticks <= 0:
-        raise ConfigConflictError("max_decisions and max_ticks must both be > 0")
-
-    if deck is None:
-        deck = "preset:starter_v1"
-    curriculum_payload = _normalize_curriculum(curriculum, rules_profile)
-    # Public observations should not expose memory-zone identities unless explicitly requested.
-    if observation_visibility == "public" and "memory_is_public" not in curriculum_payload:
-        curriculum_payload["memory_is_public"] = False
-    if reveal_opponent_hand_stock_counts is not None:
-        curriculum_payload["reveal_opponent_hand_stock_counts"] = bool(
-            reveal_opponent_hand_stock_counts
-        )
-    deck_a, deck_b = resolve_match_decks(
-        deck,
-        opponent_deck,
+    normalized = _make_stage_normalize(
+        mode=mode,
+        deck=deck,
+        opponent_deck=opponent_deck,
+        db_path=db_path,
         rules_profile=rules_profile,
         card_pool=card_pool,
-        db_path=db_path,
-    )
-    resolved_num_envs, resolved_num_threads = resolve_threads_and_envs(
-        num_envs,
-        num_threads,
-        cpu_count_fn=os.cpu_count,
-    )
-    legal_repr, obs_dtype, ids_safety = resolve_mode_defaults(
-        runtime_mode, legal_repr, obs_dtype, ids_safety
-    )
-    constructor_output_masks = legal_repr in {"mask_u8", "both"}
-
-    constructor = EnvPool.new_rl_train if runtime_mode == "speed" else EnvPool.new_rl_eval
-    pool = constructor(
-        resolved_num_envs,
-        db_path=db_path,
-        deck_lists=[deck_a, deck_b],
-        deck_ids=[0, 1],
+        curriculum=curriculum,
+        reward_json=reward_json,
+        end_condition_policy=end_condition_policy,
+        observation_visibility=observation_visibility,
+        reveal_opponent_hand_stock_counts=reveal_opponent_hand_stock_counts,
+        legal_repr=legal_repr,
+        obs_dtype=obs_dtype,
+        ids_safety=ids_safety,
+        num_envs=num_envs,
+        num_threads=num_threads,
+        seed=seed,
         max_decisions=max_decisions,
         max_ticks=max_ticks,
-        seed=seed_value,
-        curriculum_json=json.dumps(curriculum_payload),
-        reward_json=reward_json_payload,
-        end_condition_policy_json=end_condition_policy_json,
-        error_policy=backend_error_policy,
-        observation_visibility=observation_visibility,
-        num_threads=resolved_num_threads,
-        output_masks=constructor_output_masks,
-    )
-
-    out, reset_method, step_method, has_mask, embedded_ids, needs_runtime_ids = _select_out_mode(
-        pool, legal_repr, obs_dtype
-    )
-    if not has_mask:
-        pool.set_output_mask_enabled(False)
-        pool.set_output_mask_bits_enabled(False)
-    if obs_dtype == "i16":
-        pool.set_i16_clamp_enabled(True)
-    db_hash_info = db_info(db_path=db_path)
-    reward_effective: object | None = None
-    if reward_json_payload is not None:
-        try:
-            reward_effective = json.loads(reward_json_payload)
-        except json.JSONDecodeError:
-            reward_effective = reward_json_payload
-    end_condition_policy_effective: object
-    if end_condition_policy_json is None:
-        end_condition_policy_effective = {
-            "simultaneous_loss": "Draw",
-            "allow_draw_on_simultaneous_loss": True,
-        }
-    else:
-        try:
-            end_condition_policy_effective = json.loads(end_condition_policy_json)
-        except json.JSONDecodeError:
-            end_condition_policy_effective = end_condition_policy_json
-
-    effective = {
-        "mode": mode,
-        "runtime_mode": runtime_mode,
-        "internal_runtime_mode": runtime_mode,
-        "rules_profile": rules_profile,
-        "card_pool": card_pool,
-        "observation_visibility": observation_visibility,
-        "legal_repr": legal_repr,
-        "obs_dtype": obs_dtype,
-        "ids_safety": ids_safety,
-        "num_envs": resolved_num_envs,
-        "num_threads": resolved_num_threads,
-        "seed": seed_value,
-        "seed_source": seed_source,
-        "max_decisions": int(max_decisions),
-        "max_ticks": int(max_ticks),
-        "error_policy": error_policy,
-        "error_policy_backend": backend_error_policy,
-        "reward": reward_effective,
-        "end_condition_policy": end_condition_policy_effective,
-        "curriculum": curriculum_payload,
-        "db": db_hash_info,
-        "reward_timeout_policy": {
-            "timeout_uses_terminal_draw_reward": True,
-            "terminal_draw_expected_zero_sum": True,
-            "terminal_draw_expected_value": 0.0,
-        },
-        "spec_hash": int(SPEC_HASH),
-        "action_space": int(ACTION_SPACE_SIZE),
-        "control_seat": control_seat,
-        "reveal_opponent_hand_stock_counts": bool(
-            curriculum_payload.get("reveal_opponent_hand_stock_counts", False)
-        ),
-        "needs_runtime_legal_ids": needs_runtime_ids,
-    }
-
-    return WeissEnv(
-        pool=pool,
-        out=out,
-        reset_method=reset_method,
-        step_method=step_method,
-        has_mask=has_mask,
-        embedded_legal_ids=embedded_ids,
-        legal_repr=legal_repr,
-        ids_safety=ids_safety,
-        runtime_mode=runtime_mode,
+        error_policy=error_policy,
         control_seat=control_seat,
-        effective=effective,
-        spec_fn=export_spec_bundle,
     )
+    resolved = _make_stage_resolve_decks(normalized)
+    pool = _make_stage_build_pool(resolved)
+    layout = _make_stage_select_layout(
+        pool,
+        legal_repr=resolved.legal_repr,
+        obs_dtype=resolved.obs_dtype,
+    )
+    effective = _make_stage_build_effective_config(resolved, layout)
+    return _make_stage_create_env(pool=pool, resolved=resolved, layout=layout, effective=effective)
 
 
 @overload

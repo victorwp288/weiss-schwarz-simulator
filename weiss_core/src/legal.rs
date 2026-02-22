@@ -10,10 +10,12 @@ use crate::encode::{
     LEVEL_UP_BASE, MAIN_MOVE_BASE, MAIN_PLAY_CHAR_BASE, MAIN_PLAY_EVENT_BASE, MULLIGAN_CONFIRM_ID,
     MULLIGAN_SELECT_BASE, PASS_ACTION_ID, TRIGGER_ORDER_BASE,
 };
+use crate::modifier_queries::{collect_attack_slot_state, modifier_targets_slot_card};
 use crate::state::{AttackType, CardInstance, GameState, ModifierKind, StageSlot, StageStatus};
 
 use self::hand_play_requirements::{card_set_allowed, meets_play_requirements};
 
+/// Shared play-requirement predicates used by legality and observation reasons.
 pub(crate) mod hand_play_requirements;
 
 const MAX_HAND: usize = crate::encode::MAX_HAND;
@@ -44,7 +46,7 @@ impl StageModifierCache {
             slot_card_ids[slot] = slot_state.card.map(|c| c.id).unwrap_or(0);
         }
         for modifier in &state.modifiers {
-            if modifier.target_player as usize != player || modifier.magnitude == 0 {
+            if modifier.magnitude == 0 {
                 continue;
             }
             let slot = modifier.target_slot as usize;
@@ -52,7 +54,7 @@ impl StageModifierCache {
                 continue;
             }
             let card_id = slot_card_ids[slot];
-            if card_id == 0 || modifier.target_card != card_id {
+            if card_id == 0 || !modifier_targets_slot_card(modifier, player, slot, card_id) {
                 continue;
             }
             match modifier.kind {
@@ -326,13 +328,10 @@ fn can_pay_encore_for_slot(
         }
     } else {
         for modifier in &state.modifiers {
-            if modifier.target_player as usize != player || modifier.target_slot as usize != slot {
-                continue;
-            }
-            if modifier.target_card != card_inst.id {
-                continue;
-            }
             if modifier.kind != ModifierKind::EncoreStockCost || modifier.magnitude <= 0 {
+                continue;
+            }
+            if !modifier_targets_slot_card(modifier, player, slot, card_inst.id) {
                 continue;
             }
             let cost = modifier.magnitude as usize;
@@ -433,6 +432,427 @@ fn for_each_playable_hand_card<F>(
     }
 }
 
+#[inline(always)]
+fn append_mulligan_action_ids(state: &GameState, player: usize, out: &mut LegalActionIds) {
+    push_id(out, MULLIGAN_CONFIRM_ID);
+    let p = &state.players[player];
+    for (hand_index, _) in p.hand.iter().enumerate() {
+        if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
+            break;
+        }
+        push_id(out, MULLIGAN_SELECT_BASE + hand_index);
+    }
+}
+
+#[inline(always)]
+fn append_clock_action_ids(
+    state: &GameState,
+    player: usize,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    allowed_card_sets: Option<&HashSet<String>>,
+    out: &mut LegalActionIds,
+) {
+    push_id(out, PASS_ACTION_ID);
+    let p = &state.players[player];
+    for (hand_index, card_inst) in p.hand.iter().enumerate() {
+        if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
+            break;
+        }
+        if let Some(card) = db.get(card_inst.id) {
+            if !card_set_allowed(card, curriculum, allowed_card_sets) {
+                continue;
+            }
+            push_id(out, CLOCK_HAND_BASE + hand_index);
+        }
+    }
+}
+
+#[inline(always)]
+fn append_main_action_ids(
+    state: &GameState,
+    player: usize,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    allowed_card_sets: Option<&HashSet<String>>,
+    out: &mut LegalActionIds,
+) {
+    let p = &state.players[player];
+    let modifier_cache = StageModifierCache::build(state, player);
+    let max_slot = if curriculum.reduced_stage_mode {
+        1
+    } else {
+        MAX_STAGE
+    };
+    let events_locked = modifier_cache.cannot_play_events_from_hand;
+    push_id(out, PASS_ACTION_ID);
+    for_each_playable_hand_card(
+        p,
+        db,
+        curriculum,
+        allowed_card_sets,
+        HandScanMode::Main,
+        events_locked,
+        |playable| match playable {
+            PlayableHandCard::MainCharacter { hand_index } => {
+                for slot in 0..max_slot {
+                    let id = MAIN_PLAY_CHAR_BASE + hand_index * MAX_STAGE + slot;
+                    push_id(out, id);
+                }
+            }
+            PlayableHandCard::MainEvent { hand_index } => {
+                push_id(out, MAIN_PLAY_EVENT_BASE + hand_index);
+            }
+            PlayableHandCard::Climax { .. } => {}
+        },
+    );
+    for from in 0..max_slot {
+        for to in 0..max_slot {
+            if from == to {
+                continue;
+            }
+            let from_slot = &p.stage[from];
+            let to_slot = &p.stage[to];
+            if from_slot.card.is_some()
+                && is_character_slot(from_slot, db)
+                && (to_slot.card.is_none() || is_character_slot(to_slot, db))
+                && !modifier_cache.cannot_move_stage_position[from]
+                && (to_slot.card.is_none() || !modifier_cache.cannot_move_stage_position[to])
+            {
+                let to_index = if to < from { to } else { to - 1 };
+                let id = MAIN_MOVE_BASE + from * (MAX_STAGE - 1) + to_index;
+                push_id(out, id);
+            }
+        }
+    }
+}
+
+#[inline(always)]
+fn append_climax_action_ids(
+    state: &GameState,
+    player: usize,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    allowed_card_sets: Option<&HashSet<String>>,
+    out: &mut LegalActionIds,
+) {
+    let p = &state.players[player];
+    push_id(out, PASS_ACTION_ID);
+    for_each_playable_hand_card(
+        p,
+        db,
+        curriculum,
+        allowed_card_sets,
+        HandScanMode::Climax,
+        false,
+        |playable| {
+            if let PlayableHandCard::Climax { hand_index } = playable {
+                push_id(out, CLIMAX_PLAY_BASE + hand_index);
+            }
+        },
+    );
+}
+
+#[inline(always)]
+fn append_attack_declaration_action_ids(
+    state: &GameState,
+    player: u8,
+    curriculum: &CurriculumConfig,
+    out: &mut LegalActionIds,
+) {
+    push_id(out, PASS_ACTION_ID);
+    if starting_player_first_turn_attack_used(state, player) {
+        return;
+    }
+    let max_slot = if curriculum.reduced_stage_mode { 1 } else { 3 };
+    for slot in 0..max_slot {
+        let slot_u8 = slot as u8;
+        for attack_type in [AttackType::Frontal, AttackType::Side, AttackType::Direct] {
+            if can_declare_attack(state, player, slot_u8, attack_type, curriculum).is_ok() {
+                let id = ATTACK_BASE + slot * 3 + attack_type_to_index(attack_type);
+                push_id(out, id);
+            }
+        }
+    }
+}
+
+#[inline(always)]
+fn append_level_up_action_ids(state: &GameState, player: usize, out: &mut LegalActionIds) {
+    if state.players[player].clock.len() >= 7 {
+        for idx in 0..7 {
+            push_id(out, LEVEL_UP_BASE + idx);
+        }
+    }
+}
+
+#[inline(always)]
+fn append_encore_action_ids(
+    state: &GameState,
+    player: usize,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    out: &mut LegalActionIds,
+) {
+    let p = &state.players[player];
+    let modifier_cache = StageModifierCache::build(state, player);
+    for slot in 0..p.stage.len() {
+        if p.stage[slot].card.is_some()
+            && p.stage[slot].status == StageStatus::Reverse
+            && can_pay_encore_for_slot(state, db, curriculum, player, slot, Some(&modifier_cache))
+        {
+            push_id(out, ENCORE_PAY_BASE + slot);
+        }
+    }
+    for slot in 0..p.stage.len() {
+        if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
+            push_id(out, ENCORE_DECLINE_BASE + slot);
+        }
+    }
+}
+
+#[inline(always)]
+fn append_trigger_order_action_ids(state: &GameState, out: &mut LegalActionIds) {
+    let choices = state
+        .turn
+        .trigger_order
+        .as_ref()
+        .map(|o| o.choices.len())
+        .unwrap_or(0);
+    let max = choices.min(10);
+    for idx in 0..max {
+        push_id(out, TRIGGER_ORDER_BASE + idx);
+    }
+}
+
+#[inline(always)]
+fn append_choice_action_ids(state: &GameState, out: &mut LegalActionIds) {
+    if let Some(choice) = state.turn.choice.as_ref() {
+        let total = choice.total_candidates as usize;
+        let page_start = choice.page_start as usize;
+        let safe_start = page_start.min(total);
+        let page_end = total.min(safe_start + CHOICE_COUNT);
+        for idx in 0..(page_end - safe_start) {
+            push_id(out, CHOICE_BASE + idx);
+        }
+        if page_start >= CHOICE_COUNT {
+            push_id(out, CHOICE_PREV_ID);
+        }
+        if page_start + CHOICE_COUNT < total {
+            push_id(out, CHOICE_NEXT_ID);
+        }
+    }
+}
+
+#[inline(always)]
+fn append_mulligan_actions(state: &GameState, player: usize, actions: &mut LegalActions) {
+    let p = &state.players[player];
+    actions.push(ActionDesc::MulliganConfirm);
+    for (hand_index, _) in p.hand.iter().enumerate() {
+        if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
+            break;
+        }
+        actions.push(ActionDesc::MulliganSelect {
+            hand_index: hand_index as u8,
+        });
+    }
+}
+
+#[inline(always)]
+fn append_clock_actions(
+    state: &GameState,
+    player: usize,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    allowed_card_sets: Option<&HashSet<String>>,
+    actions: &mut LegalActions,
+) {
+    actions.push(ActionDesc::Pass);
+    let p = &state.players[player];
+    for (hand_index, card_inst) in p.hand.iter().enumerate() {
+        if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
+            break;
+        }
+        if let Some(card) = db.get(card_inst.id) {
+            if !card_set_allowed(card, curriculum, allowed_card_sets) {
+                continue;
+            }
+            actions.push(ActionDesc::Clock {
+                hand_index: hand_index as u8,
+            });
+        }
+    }
+}
+
+#[inline(always)]
+fn append_main_actions(
+    state: &GameState,
+    player: usize,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    allowed_card_sets: Option<&HashSet<String>>,
+    actions: &mut LegalActions,
+) {
+    let p = &state.players[player];
+    let modifier_cache = StageModifierCache::build(state, player);
+    let max_slot = if curriculum.reduced_stage_mode {
+        1
+    } else {
+        MAX_STAGE
+    };
+    let events_locked = modifier_cache.cannot_play_events_from_hand;
+    actions.push(ActionDesc::Pass);
+    for_each_playable_hand_card(
+        p,
+        db,
+        curriculum,
+        allowed_card_sets,
+        HandScanMode::Main,
+        events_locked,
+        |playable| match playable {
+            PlayableHandCard::MainCharacter { hand_index } => {
+                for slot in 0..max_slot {
+                    actions.push(ActionDesc::MainPlayCharacter {
+                        hand_index: hand_index as u8,
+                        stage_slot: slot as u8,
+                    });
+                }
+            }
+            PlayableHandCard::MainEvent { hand_index } => {
+                actions.push(ActionDesc::MainPlayEvent {
+                    hand_index: hand_index as u8,
+                });
+            }
+            PlayableHandCard::Climax { .. } => {}
+        },
+    );
+    for from in 0..max_slot {
+        for to in 0..max_slot {
+            if from == to {
+                continue;
+            }
+            let from_slot = &p.stage[from];
+            let to_slot = &p.stage[to];
+            if from_slot.card.is_some()
+                && is_character_slot(from_slot, db)
+                && (to_slot.card.is_none() || is_character_slot(to_slot, db))
+                && !modifier_cache.cannot_move_stage_position[from]
+                && (to_slot.card.is_none() || !modifier_cache.cannot_move_stage_position[to])
+            {
+                actions.push(ActionDesc::MainMove {
+                    from_slot: from as u8,
+                    to_slot: to as u8,
+                });
+            }
+        }
+    }
+}
+
+#[inline(always)]
+fn append_climax_actions(
+    state: &GameState,
+    player: usize,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    allowed_card_sets: Option<&HashSet<String>>,
+    actions: &mut LegalActions,
+) {
+    let p = &state.players[player];
+    actions.push(ActionDesc::Pass);
+    for_each_playable_hand_card(
+        p,
+        db,
+        curriculum,
+        allowed_card_sets,
+        HandScanMode::Climax,
+        false,
+        |playable| {
+            if let PlayableHandCard::Climax { hand_index } = playable {
+                actions.push(ActionDesc::ClimaxPlay {
+                    hand_index: hand_index as u8,
+                });
+            }
+        },
+    );
+}
+
+#[inline(always)]
+fn append_attack_declaration_actions(
+    state: &GameState,
+    player: u8,
+    curriculum: &CurriculumConfig,
+    actions: &mut LegalActions,
+) {
+    actions.push(ActionDesc::Pass);
+    legal_attack_actions_into(state, player, curriculum, actions);
+}
+
+#[inline(always)]
+fn append_level_up_actions(state: &GameState, player: usize, actions: &mut LegalActions) {
+    if state.players[player].clock.len() >= 7 {
+        for idx in 0..7 {
+            actions.push(ActionDesc::LevelUp { index: idx as u8 });
+        }
+    }
+}
+
+#[inline(always)]
+fn append_encore_actions(
+    state: &GameState,
+    player: usize,
+    db: &CardDb,
+    curriculum: &CurriculumConfig,
+    actions: &mut LegalActions,
+) {
+    let p = &state.players[player];
+    let modifier_cache = StageModifierCache::build(state, player);
+    for slot in 0..p.stage.len() {
+        if p.stage[slot].card.is_some()
+            && p.stage[slot].status == StageStatus::Reverse
+            && can_pay_encore_for_slot(state, db, curriculum, player, slot, Some(&modifier_cache))
+        {
+            actions.push(ActionDesc::EncorePay { slot: slot as u8 });
+        }
+    }
+    for slot in 0..p.stage.len() {
+        if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
+            actions.push(ActionDesc::EncoreDecline { slot: slot as u8 });
+        }
+    }
+}
+
+#[inline(always)]
+fn append_trigger_order_actions(state: &GameState, actions: &mut LegalActions) {
+    let choices = state
+        .turn
+        .trigger_order
+        .as_ref()
+        .map(|o| o.choices.len())
+        .unwrap_or(0);
+    let max = choices.min(10);
+    for idx in 0..max {
+        actions.push(ActionDesc::TriggerOrder { index: idx as u8 });
+    }
+}
+
+#[inline(always)]
+fn append_choice_actions(state: &GameState, actions: &mut LegalActions) {
+    if let Some(choice) = state.turn.choice.as_ref() {
+        let total = choice.total_candidates as usize;
+        let page_start = choice.page_start as usize;
+        let safe_start = page_start.min(total);
+        let page_end = total.min(safe_start + CHOICE_COUNT);
+        for idx in 0..(page_end - safe_start) {
+            actions.push(ActionDesc::ChoiceSelect { index: idx as u8 });
+        }
+        if page_start >= CHOICE_COUNT {
+            actions.push(ActionDesc::ChoicePrevPage);
+        }
+        if page_start + CHOICE_COUNT < total {
+            actions.push(ActionDesc::ChoiceNextPage);
+        }
+    }
+}
+
 /// Compute legal action ids for a decision into a reusable buffer.
 #[inline(always)]
 pub fn legal_action_ids_cached_into(
@@ -443,188 +863,29 @@ pub fn legal_action_ids_cached_into(
     allowed_card_sets: Option<&HashSet<String>>,
     out: &mut LegalActionIds,
 ) {
+    // Invariants:
+    // - Preserve canonical legal action ordering and action-id packing per decision.
+    // - Keep descriptor/id parity covered by `weiss_core/tests/legal_cache_parity_tests.rs`.
     let player = decision.player as usize;
     out.clear();
     match decision.kind {
-        DecisionKind::Mulligan => {
-            push_id(out, MULLIGAN_CONFIRM_ID);
-            let p = &state.players[player];
-            for (hand_index, _) in p.hand.iter().enumerate() {
-                if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
-                    break;
-                }
-                push_id(out, MULLIGAN_SELECT_BASE + hand_index);
-            }
-        }
+        DecisionKind::Mulligan => append_mulligan_action_ids(state, player, out),
         DecisionKind::Clock => {
-            push_id(out, PASS_ACTION_ID);
-            let p = &state.players[player];
-            for (hand_index, card_inst) in p.hand.iter().enumerate() {
-                if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
-                    break;
-                }
-                if let Some(card) = db.get(card_inst.id) {
-                    if !card_set_allowed(card, curriculum, allowed_card_sets) {
-                        continue;
-                    }
-                    push_id(out, CLOCK_HAND_BASE + hand_index);
-                }
-            }
+            append_clock_action_ids(state, player, db, curriculum, allowed_card_sets, out)
         }
         DecisionKind::Main => {
-            let p = &state.players[player];
-            let modifier_cache = StageModifierCache::build(state, player);
-            let max_slot = if curriculum.reduced_stage_mode {
-                1
-            } else {
-                MAX_STAGE
-            };
-            let events_locked = modifier_cache.cannot_play_events_from_hand;
-            push_id(out, PASS_ACTION_ID);
-            for_each_playable_hand_card(
-                p,
-                db,
-                curriculum,
-                allowed_card_sets,
-                HandScanMode::Main,
-                events_locked,
-                |playable| match playable {
-                    PlayableHandCard::MainCharacter { hand_index } => {
-                        for slot in 0..max_slot {
-                            let id = MAIN_PLAY_CHAR_BASE + hand_index * MAX_STAGE + slot;
-                            push_id(out, id);
-                        }
-                    }
-                    PlayableHandCard::MainEvent { hand_index } => {
-                        push_id(out, MAIN_PLAY_EVENT_BASE + hand_index);
-                    }
-                    PlayableHandCard::Climax { .. } => {}
-                },
-            );
-            for from in 0..max_slot {
-                for to in 0..max_slot {
-                    if from == to {
-                        continue;
-                    }
-                    let from_slot = &p.stage[from];
-                    let to_slot = &p.stage[to];
-                    if from_slot.card.is_some()
-                        && is_character_slot(from_slot, db)
-                        && (to_slot.card.is_none() || is_character_slot(to_slot, db))
-                        && !modifier_cache.cannot_move_stage_position[from]
-                        && (to_slot.card.is_none()
-                            || !modifier_cache.cannot_move_stage_position[to])
-                    {
-                        let to_index = if to < from { to } else { to - 1 };
-                        let id = MAIN_MOVE_BASE + from * (MAX_STAGE - 1) + to_index;
-                        push_id(out, id);
-                    }
-                }
-            }
+            append_main_action_ids(state, player, db, curriculum, allowed_card_sets, out)
         }
         DecisionKind::Climax => {
-            let p = &state.players[player];
-            push_id(out, PASS_ACTION_ID);
-            for_each_playable_hand_card(
-                p,
-                db,
-                curriculum,
-                allowed_card_sets,
-                HandScanMode::Climax,
-                false,
-                |playable| {
-                    if let PlayableHandCard::Climax { hand_index } = playable {
-                        push_id(out, CLIMAX_PLAY_BASE + hand_index);
-                    }
-                },
-            );
+            append_climax_action_ids(state, player, db, curriculum, allowed_card_sets, out)
         }
         DecisionKind::AttackDeclaration => {
-            if starting_player_first_turn_attack_used(state, decision.player) {
-                push_id(out, PASS_ACTION_ID);
-            } else {
-                push_id(out, PASS_ACTION_ID);
-                let max_slot = if curriculum.reduced_stage_mode { 1 } else { 3 };
-                for slot in 0..max_slot {
-                    let slot_u8 = slot as u8;
-                    for attack_type in [AttackType::Frontal, AttackType::Side, AttackType::Direct] {
-                        if can_declare_attack(
-                            state,
-                            decision.player,
-                            slot_u8,
-                            attack_type,
-                            curriculum,
-                        )
-                        .is_ok()
-                        {
-                            let id = ATTACK_BASE + slot * 3 + attack_type_to_index(attack_type);
-                            push_id(out, id);
-                        }
-                    }
-                }
-            }
+            append_attack_declaration_action_ids(state, decision.player, curriculum, out)
         }
-        DecisionKind::LevelUp => {
-            if state.players[player].clock.len() >= 7 {
-                for idx in 0..7 {
-                    push_id(out, LEVEL_UP_BASE + idx);
-                }
-            }
-        }
-        DecisionKind::Encore => {
-            let p = &state.players[player];
-            let modifier_cache = StageModifierCache::build(state, player);
-            for slot in 0..p.stage.len() {
-                if p.stage[slot].card.is_some()
-                    && p.stage[slot].status == StageStatus::Reverse
-                    && can_pay_encore_for_slot(
-                        state,
-                        db,
-                        curriculum,
-                        player,
-                        slot,
-                        Some(&modifier_cache),
-                    )
-                {
-                    push_id(out, ENCORE_PAY_BASE + slot);
-                }
-            }
-            for slot in 0..p.stage.len() {
-                if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
-                    push_id(out, ENCORE_DECLINE_BASE + slot);
-                }
-            }
-        }
-        DecisionKind::TriggerOrder => {
-            let choices = state
-                .turn
-                .trigger_order
-                .as_ref()
-                .map(|o| o.choices.len())
-                .unwrap_or(0);
-            let max = choices.min(10);
-            for idx in 0..max {
-                push_id(out, TRIGGER_ORDER_BASE + idx);
-            }
-        }
-        DecisionKind::Choice => {
-            if let Some(choice) = state.turn.choice.as_ref() {
-                let total = choice.total_candidates as usize;
-                let page_size = CHOICE_COUNT;
-                let page_start = choice.page_start as usize;
-                let safe_start = page_start.min(total);
-                let page_end = total.min(safe_start + page_size);
-                for idx in 0..(page_end - safe_start) {
-                    push_id(out, CHOICE_BASE + idx);
-                }
-                if page_start >= page_size {
-                    push_id(out, CHOICE_PREV_ID);
-                }
-                if page_start + page_size < total {
-                    push_id(out, CHOICE_NEXT_ID);
-                }
-            }
-        }
+        DecisionKind::LevelUp => append_level_up_action_ids(state, player, out),
+        DecisionKind::Encore => append_encore_action_ids(state, player, db, curriculum, out),
+        DecisionKind::TriggerOrder => append_trigger_order_action_ids(state, out),
+        DecisionKind::Choice => append_choice_action_ids(state, out),
     }
     if curriculum.allow_concede {
         push_id(out, CONCEDE_ID);
@@ -670,52 +931,23 @@ pub fn can_declare_attack(
                 entry.attack_cost,
             )
         } else {
-            let mut cannot_attack = attacker_slot.cannot_attack;
-            let mut cannot_side_attack = false;
-            let mut cannot_frontal_attack = false;
-            let mut attack_cost = attacker_slot.attack_cost;
             if let Some(card_inst) = attacker_slot.card {
-                let card_id = card_inst.id;
-                for modifier in &state.modifiers {
-                    if modifier.target_player as usize != p || modifier.target_slot as usize != s {
-                        continue;
-                    }
-                    if modifier.target_card != card_id {
-                        continue;
-                    }
-                    match modifier.kind {
-                        crate::state::ModifierKind::AttackCost => {
-                            if modifier.magnitude > 0 {
-                                let cost_delta =
-                                    (modifier.magnitude as u16).min(u8::MAX as u16) as u8;
-                                attack_cost = attack_cost.saturating_add(cost_delta);
-                            }
-                        }
-                        crate::state::ModifierKind::CannotAttack => {
-                            if modifier.magnitude != 0 {
-                                cannot_attack = true;
-                            }
-                        }
-                        crate::state::ModifierKind::CannotSideAttack => {
-                            if modifier.magnitude != 0 {
-                                cannot_side_attack = true;
-                            }
-                        }
-                        crate::state::ModifierKind::CannotFrontalAttack => {
-                            if modifier.magnitude != 0 {
-                                cannot_frontal_attack = true;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
+                collect_attack_slot_state(
+                    state,
+                    p,
+                    s,
+                    card_inst.id,
+                    attacker_slot.cannot_attack,
+                    attacker_slot.attack_cost,
+                )
+            } else {
+                (
+                    attacker_slot.cannot_attack,
+                    false,
+                    false,
+                    attacker_slot.attack_cost,
+                )
             }
-            (
-                cannot_attack,
-                cannot_side_attack,
-                cannot_frontal_attack,
-                attack_cost,
-            )
         };
     if cannot_attack {
         return Err("Attacker cannot attack");
@@ -828,176 +1060,29 @@ pub fn legal_actions_cached_into(
     allowed_card_sets: Option<&HashSet<String>>,
     actions: &mut LegalActions,
 ) {
+    // Invariants:
+    // - Preserve canonical legal action ordering so `action_id_for` stays parity-aligned.
+    // - Ordering/id parity is covered by `weiss_core/tests/legal_cache_parity_tests.rs`.
     let player = decision.player as usize;
     actions.clear();
     match decision.kind {
-        DecisionKind::Mulligan => {
-            let p = &state.players[player];
-            actions.push(ActionDesc::MulliganConfirm);
-            for (hand_index, _) in p.hand.iter().enumerate() {
-                if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
-                    break;
-                }
-                actions.push(ActionDesc::MulliganSelect {
-                    hand_index: hand_index as u8,
-                });
-            }
-        }
+        DecisionKind::Mulligan => append_mulligan_actions(state, player, actions),
         DecisionKind::Clock => {
-            actions.push(ActionDesc::Pass);
-            let p = &state.players[player];
-            for (hand_index, card_inst) in p.hand.iter().enumerate() {
-                if hand_index >= MAX_HAND || hand_index > u8::MAX as usize {
-                    break;
-                }
-                if let Some(card) = db.get(card_inst.id) {
-                    if !card_set_allowed(card, curriculum, allowed_card_sets) {
-                        continue;
-                    }
-                    actions.push(ActionDesc::Clock {
-                        hand_index: hand_index as u8,
-                    });
-                }
-            }
+            append_clock_actions(state, player, db, curriculum, allowed_card_sets, actions)
         }
         DecisionKind::Main => {
-            let p = &state.players[player];
-            let modifier_cache = StageModifierCache::build(state, player);
-            let max_slot = if curriculum.reduced_stage_mode {
-                1
-            } else {
-                MAX_STAGE
-            };
-            let events_locked = modifier_cache.cannot_play_events_from_hand;
-            actions.push(ActionDesc::Pass);
-            for_each_playable_hand_card(
-                p,
-                db,
-                curriculum,
-                allowed_card_sets,
-                HandScanMode::Main,
-                events_locked,
-                |playable| match playable {
-                    PlayableHandCard::MainCharacter { hand_index } => {
-                        for slot in 0..max_slot {
-                            actions.push(ActionDesc::MainPlayCharacter {
-                                hand_index: hand_index as u8,
-                                stage_slot: slot as u8,
-                            });
-                        }
-                    }
-                    PlayableHandCard::MainEvent { hand_index } => {
-                        actions.push(ActionDesc::MainPlayEvent {
-                            hand_index: hand_index as u8,
-                        });
-                    }
-                    PlayableHandCard::Climax { .. } => {}
-                },
-            );
-            for from in 0..max_slot {
-                for to in 0..max_slot {
-                    if from == to {
-                        continue;
-                    }
-                    let from_slot = &p.stage[from];
-                    let to_slot = &p.stage[to];
-                    if from_slot.card.is_some()
-                        && is_character_slot(from_slot, db)
-                        && (to_slot.card.is_none() || is_character_slot(to_slot, db))
-                        && !modifier_cache.cannot_move_stage_position[from]
-                        && (to_slot.card.is_none()
-                            || !modifier_cache.cannot_move_stage_position[to])
-                    {
-                        actions.push(ActionDesc::MainMove {
-                            from_slot: from as u8,
-                            to_slot: to as u8,
-                        });
-                    }
-                }
-            }
+            append_main_actions(state, player, db, curriculum, allowed_card_sets, actions)
         }
         DecisionKind::Climax => {
-            let p = &state.players[player];
-            actions.push(ActionDesc::Pass);
-            for_each_playable_hand_card(
-                p,
-                db,
-                curriculum,
-                allowed_card_sets,
-                HandScanMode::Climax,
-                false,
-                |playable| {
-                    if let PlayableHandCard::Climax { hand_index } = playable {
-                        actions.push(ActionDesc::ClimaxPlay {
-                            hand_index: hand_index as u8,
-                        });
-                    }
-                },
-            );
+            append_climax_actions(state, player, db, curriculum, allowed_card_sets, actions)
         }
         DecisionKind::AttackDeclaration => {
-            actions.push(ActionDesc::Pass);
-            legal_attack_actions_into(state, decision.player, curriculum, actions);
+            append_attack_declaration_actions(state, decision.player, curriculum, actions)
         }
-        DecisionKind::LevelUp => {
-            if state.players[player].clock.len() >= 7 {
-                actions.extend((0..7).map(|idx| ActionDesc::LevelUp { index: idx }));
-            }
-        }
-        DecisionKind::Encore => {
-            let p = &state.players[player];
-            let modifier_cache = StageModifierCache::build(state, player);
-            for slot in 0..p.stage.len() {
-                if p.stage[slot].card.is_some()
-                    && p.stage[slot].status == StageStatus::Reverse
-                    && can_pay_encore_for_slot(
-                        state,
-                        db,
-                        curriculum,
-                        player,
-                        slot,
-                        Some(&modifier_cache),
-                    )
-                {
-                    actions.push(ActionDesc::EncorePay { slot: slot as u8 });
-                }
-            }
-            for slot in 0..p.stage.len() {
-                if p.stage[slot].card.is_some() && p.stage[slot].status == StageStatus::Reverse {
-                    actions.push(ActionDesc::EncoreDecline { slot: slot as u8 });
-                }
-            }
-        }
-        DecisionKind::TriggerOrder => {
-            let choices = state
-                .turn
-                .trigger_order
-                .as_ref()
-                .map(|o| o.choices.len())
-                .unwrap_or(0);
-            let max = choices.min(10);
-            for idx in 0..max {
-                actions.push(ActionDesc::TriggerOrder { index: idx as u8 });
-            }
-        }
-        DecisionKind::Choice => {
-            if let Some(choice) = state.turn.choice.as_ref() {
-                let total = choice.total_candidates as usize;
-                let page_size = crate::encode::CHOICE_COUNT;
-                let page_start = choice.page_start as usize;
-                let safe_start = page_start.min(total);
-                let page_end = total.min(safe_start + page_size);
-                for idx in 0..(page_end - safe_start) {
-                    actions.push(ActionDesc::ChoiceSelect { index: idx as u8 });
-                }
-                if page_start >= page_size {
-                    actions.push(ActionDesc::ChoicePrevPage);
-                }
-                if page_start + page_size < total {
-                    actions.push(ActionDesc::ChoiceNextPage);
-                }
-            }
-        }
+        DecisionKind::LevelUp => append_level_up_actions(state, player, actions),
+        DecisionKind::Encore => append_encore_actions(state, player, db, curriculum, actions),
+        DecisionKind::TriggerOrder => append_trigger_order_actions(state, actions),
+        DecisionKind::Choice => append_choice_actions(state, actions),
     }
     if curriculum.allow_concede {
         actions.push(ActionDesc::Concede);

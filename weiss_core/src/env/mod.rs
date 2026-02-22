@@ -74,10 +74,19 @@ impl GameEnv {
         )
     }
 
+    /// Mark rule-action fixpoint work as stale for the next engine advance.
+    ///
+    /// Any mutation that can enable or disable rule actions should call this so
+    /// `run_rule_actions_if_needed` re-evaluates invariants before the next
+    /// decision boundary.
     pub(crate) fn mark_rule_actions_dirty(&mut self) {
         self.rule_actions_dirty = true;
     }
 
+    /// Mark continuous-modifier derived state as stale for recomputation.
+    ///
+    /// This is paired with power/cache invalidation and ensures continuous
+    /// effects are reapplied exactly once on the next advance pass.
     pub(crate) fn mark_continuous_modifiers_dirty(&mut self) {
         self.continuous_modifiers_dirty = true;
     }
@@ -209,6 +218,10 @@ impl GameEnv {
         self.ability_conditions_met(controller, &def.conditions)
     }
 
+    /// Compute terminal reward from `perspective` using the configured reward table.
+    ///
+    /// Non-terminal states always produce `0.0`; faults/timeouts are treated as
+    /// draw-equivalent rewards.
     pub(crate) fn terminal_reward_for(&self, perspective: u8) -> f32 {
         let RewardConfig {
             terminal_win,

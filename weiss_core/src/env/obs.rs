@@ -62,10 +62,17 @@ impl GameEnv {
         self.player_block_cache_version[p] = self.player_obs_version[p];
     }
 
+    /// Build a `StepOutcome` without cloning the observation buffer.
     pub(crate) fn build_outcome_no_copy(&mut self, reward: f32) -> StepOutcome {
         self.build_outcome_with_obs(reward, false)
     }
 
+    /// Build a `StepOutcome`, encoding observations as needed.
+    ///
+    /// A full re-encode is used when global observation context changed; else a
+    /// partial update path patches header/reason/reveal/context plus any dirty
+    /// per-player blocks. This keeps output deterministic while avoiding
+    /// repeated full-buffer writes.
     pub(crate) fn build_outcome_with_obs(&mut self, reward: f32, copy_obs: bool) -> StepOutcome {
         let perspective = self
             .decision

@@ -45,6 +45,7 @@ pub struct StepOutcome {
 }
 
 #[derive(Clone, Copy, Debug)]
+/// Viewer-specific visibility inputs used when sanitizing state/events.
 pub struct VisibilityContext {
     pub(crate) viewer: Option<u8>,
     pub(crate) mode: ObservationVisibility,
@@ -52,6 +53,7 @@ pub struct VisibilityContext {
 }
 
 impl VisibilityContext {
+    /// Whether public-view sanitization rules should apply.
     pub(crate) fn is_public(self) -> bool {
         self.policies_enabled && self.mode == ObservationVisibility::Public
     }

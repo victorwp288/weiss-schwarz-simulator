@@ -74,6 +74,12 @@ impl GameEnv {
         &self.action_cache.last_action_ids
     }
 
+    /// Refresh the cached legal-action ids and masks for the current decision.
+    ///
+    /// The cache key is `(decision_id, decision_kind, decision_player)`. This
+    /// method also ensures derived attack data is materialized before
+    /// `AttackDeclaration` legality is evaluated so mask generation stays
+    /// deterministic across call sites.
     pub(crate) fn update_action_cache(&mut self) {
         let (decision_kind, _) = match self.decision.as_ref() {
             Some(decision) => (decision.kind, decision.player),

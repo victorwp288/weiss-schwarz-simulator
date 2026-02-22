@@ -5,6 +5,7 @@ use crate::state::{ChoiceOptionRef, GameState, TargetRef};
 
 use super::actions;
 
+/// Reusable scratch vectors for transient legality/targeting work.
 pub(crate) struct EnvScratch {
     pub(crate) targets: Vec<TargetRef>,
     pub(crate) choice_options: Vec<ChoiceOptionRef>,
@@ -12,6 +13,7 @@ pub(crate) struct EnvScratch {
 }
 
 impl EnvScratch {
+    /// Allocate scratch buffers with stable default capacities.
     pub(crate) fn new() -> Self {
         Self {
             targets: Vec::with_capacity(32),
@@ -21,6 +23,7 @@ impl EnvScratch {
     }
 }
 
+/// Cached legal-action ids and mask views for the active decision.
 pub(crate) struct ActionCache {
     pub(crate) mask: Vec<u8>,
     pub(crate) mask_bits: Vec<u64>,
@@ -31,6 +34,7 @@ pub(crate) struct ActionCache {
 }
 
 impl ActionCache {
+    /// Create an empty cache sized for the full action space.
     pub(crate) fn new() -> Self {
         Self {
             mask: vec![0u8; crate::encode::ACTION_SPACE_SIZE],
@@ -42,6 +46,7 @@ impl ActionCache {
         }
     }
 
+    /// Clear cached ids and zero any enabled mask representations.
     pub(crate) fn clear(&mut self) {
         if self.mask.len() != crate::encode::ACTION_SPACE_SIZE {
             self.mask.resize(crate::encode::ACTION_SPACE_SIZE, 0);
@@ -57,6 +62,10 @@ impl ActionCache {
         self.decision_player = 0;
     }
 
+    /// Refresh cache contents when decision identity changes.
+    ///
+    /// Uses the previous id list to clear only touched mask entries before
+    /// writing the newly legal ids, avoiding full-mask rewrites each step.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn update(
         &mut self,

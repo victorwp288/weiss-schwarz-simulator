@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ._buffers import EnvPoolBuffers, EnvPoolTrajectoryBuffers, make_pool
+from ._buffers import EnvPoolBuffers, EnvPoolTrajectoryBuffers, make_batch_out_debug, make_pool
 from .weiss_sim import (
     ACTION_SPACE_SIZE,
     ACTOR_NONE,
@@ -36,6 +36,7 @@ from .rl import (
 from .api import db_info, export_spec_bundle, fast, inspect, make
 from .catalog import cards
 from .config_types import CurriculumOverrides, DeckInput, EndConditionOverrides
+from .deck_builder import DeckBuilder
 from .league import (
     AgentSummary,
     ClockGreedSummary,
@@ -58,7 +59,14 @@ from .errors import (
     WeissSimError,
 )
 from .runner import WeissEnv
-from .types import CardRef, LegalActions, ResetBatch, StepBatch
+from .types import (
+    CardRef,
+    DeckValidationIssue,
+    DeckValidationReport,
+    LegalActions,
+    ResetBatch,
+    StepBatch,
+)
 
 
 def spec_bundle() -> dict[str, object]:
@@ -97,6 +105,7 @@ __all__ = [
     "decode_action_id",
     "build_info",
     "make_pool",
+    "make_batch_out_debug",
     "spec_bundle",
     "export_spec_bundle",
     "db_info",
@@ -108,6 +117,7 @@ __all__ = [
     "CurriculumOverrides",
     "EndConditionOverrides",
     "DeckInput",
+    "DeckBuilder",
     "MatchRecord",
     "AgentSummary",
     "FirstPlayerBiasSummary",
@@ -120,6 +130,8 @@ __all__ = [
     "summarize_clock_greed_from_replay",
     "rank_agents",
     "CardRef",
+    "DeckValidationIssue",
+    "DeckValidationReport",
     "LegalActions",
     "ResetBatch",
     "StepBatch",

@@ -61,7 +61,7 @@ class SingleEnvLegalActions:
 
     def select_from_logits(self, logits, *, illegal_value: float = -1e9) -> int:
         try:
-            return int(self._legal.select_from_logits(logits, illegal_value=illegal_value)[0])
+            return int(self._legal.argmax_logits(logits, illegal_value=illegal_value)[0])
         except ValueError as exc:
             if str(exc).startswith("logits must have shape"):
                 raise WeissSimError("single-env logits must have shape (A,) or (1, A)") from exc
@@ -77,7 +77,7 @@ class SingleEnvLegalActions:
     ) -> int:
         try:
             return int(
-                self._legal.sample_from_logits(
+                self._legal.sample_logits(
                     logits,
                     seed=seed,
                     temperature=temperature,
@@ -199,7 +199,7 @@ class GymVectorEnvAdapter:
         )
 
     def action_masks(self) -> np.ndarray | None:
-        return self.env.legal.mask
+        return self.env.legal.mask_for_action_space(self.env.action_space_n)
 
     def render(self, mode: str = "ansi"):
         return self.env.render(env_i=0, mode=mode)

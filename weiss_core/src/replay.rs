@@ -207,8 +207,10 @@ impl ReplayWriter {
 }
 
 fn write_replay_file(path: &Path, data: &ReplayData, compress: bool) -> Result<()> {
-    // Write to a sidecar temp file first and atomically rename into place so readers never
-    // observe partially-written replay payloads.
+    // Write to a sidecar temp file first and atomically rename into place so
+    // readers never observe partially-written replay payloads.
+    // `sync_all` before rename keeps crash windows bounded to either "old file"
+    // or "complete new file", never torn replay bytes.
     let mut tmp_path = path.to_path_buf();
     let tmp_extension = path
         .extension()
@@ -228,6 +230,9 @@ fn write_replay_to_writer<W: Write>(
     data: &ReplayData,
     compress: bool,
 ) -> Result<()> {
+    // Replay payload bytes are postcard-encoded from a fixed schema and then
+    // wrapped in a stable framing header (magic, flags, explicit len). This
+    // preserves deterministic binary output for the same `ReplayData`.
     let base = postcard::to_stdvec(data)?;
     let payload = if compress {
         #[cfg(feature = "replay-zstd")]
@@ -313,6 +318,21 @@ fn read_replay_from_reader<R: Read>(reader: &mut R) -> Result<ReplayData> {
 mod tests {
     use super::*;
     use std::io::Cursor;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_path(suffix: &str) -> PathBuf {
+        let mut path = std::env::temp_dir();
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        path.push(format!(
+            "weiss_core_replay_{suffix}_{}_{}",
+            std::process::id(),
+            ts
+        ));
+        path
+    }
 
     fn sample_replay_data() -> ReplayData {
         ReplayData {
@@ -407,5 +427,72 @@ mod tests {
         write_replay_to_writer(&mut bytes, &replay, false).expect("write replay");
         let decoded = read_replay_from_reader(&mut Cursor::new(bytes)).expect("read replay");
         assert_replay_eq(&decoded, &replay);
+    }
+
+    #[test]
+    fn replay_config_rebuild_cache_clamps_sample_rate() {
+        let mut cfg = ReplayConfig::default();
+
+        cfg.sample_rate = -0.25;
+        cfg.rebuild_cache();
+        assert_eq!(cfg.sample_threshold, 0);
+
+        cfg.sample_rate = 0.0;
+        cfg.rebuild_cache();
+        assert_eq!(cfg.sample_threshold, 0);
+
+        cfg.sample_rate = 0.5;
+        cfg.rebuild_cache();
+        let expected_half = (0.5f32 * (u32::MAX as f32)).round() as u32;
+        assert_eq!(cfg.sample_threshold, expected_half);
+
+        cfg.sample_rate = 1.0;
+        cfg.rebuild_cache();
+        assert_eq!(cfg.sample_threshold, u32::MAX);
+
+        cfg.sample_rate = 1.25;
+        cfg.rebuild_cache();
+        assert_eq!(cfg.sample_threshold, u32::MAX);
+    }
+
+    #[test]
+    fn replay_writer_new_creates_output_directory_and_accepts_send() {
+        let out_dir = unique_temp_path("writer_ok");
+        let cfg = ReplayConfig {
+            enabled: true,
+            out_dir: out_dir.clone(),
+            ..ReplayConfig::default()
+        };
+        let writer = ReplayWriter::new(&cfg).expect("writer should create output directory");
+        assert!(out_dir.is_dir(), "writer did not create output directory");
+        writer
+            .send(sample_replay_data())
+            .expect("writer channel should accept replay payload");
+
+        drop(writer);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let _ = std::fs::remove_dir_all(&out_dir);
+    }
+
+    #[test]
+    fn replay_writer_new_surfaces_directory_creation_errors() {
+        let file_path = unique_temp_path("writer_err");
+        std::fs::write(&file_path, b"not a directory").expect("write temp file");
+        let cfg = ReplayConfig {
+            out_dir: file_path.clone(),
+            ..ReplayConfig::default()
+        };
+
+        let err = match ReplayWriter::new(&cfg) {
+            Err(err) => err,
+            Ok(_) => panic!("expected create_dir_all failure"),
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Failed to create replay output directory"),
+            "unexpected error: {msg}"
+        );
+
+        let _ = std::fs::remove_file(&file_path);
     }
 }

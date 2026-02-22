@@ -123,12 +123,7 @@ impl GameEnv {
             fault_latched: None,
         };
         let reset_outcome = env.reset();
-        if env.is_fault_latched() || reset_outcome.info.engine_error {
-            return Err(EnvError::InitialResetFault {
-                code: reset_outcome.info.engine_error_code,
-            });
-        }
-        Ok(env)
+        Self::finalize_after_initial_reset(env, reset_outcome)
     }
 
     /// Compatibility helper for tests/benches.
@@ -153,6 +148,18 @@ impl GameEnv {
         .expect("GameEnv::new_or_panic failed")
     }
 
+    fn finalize_after_initial_reset(
+        env: Self,
+        reset_outcome: StepOutcome,
+    ) -> Result<Self, EnvError> {
+        if env.is_fault_latched() || reset_outcome.info.engine_error {
+            return Err(EnvError::InitialResetFault {
+                code: reset_outcome.info.engine_error_code,
+            });
+        }
+        Ok(env)
+    }
+
     /// Reset the environment and return a full observation.
     pub fn reset(&mut self) -> StepOutcome {
         self.reset_with_obs(true)
@@ -167,6 +174,9 @@ impl GameEnv {
     }
 
     /// Reset the environment with an explicit episode seed.
+    ///
+    /// Passing the same `episode_seed` with identical config/db yields the same
+    /// initial game state and first decision.
     pub fn reset_with_episode_seed(&mut self, episode_seed: u64) -> StepOutcome {
         self.reset_with_episode_seed_internal(episode_seed, true)
     }
@@ -186,16 +196,27 @@ impl GameEnv {
         self.decision_id
     }
 
+    /// Reset using the env-local meta RNG to derive the next episode seed.
+    ///
+    /// The meta RNG is seeded from `base_seed`, so seed progression is stable
+    /// for a fixed call order.
     fn reset_with_obs(&mut self, copy_obs: bool) -> StepOutcome {
         let episode_seed = self.meta_rng.next_u64();
         self.reset_with_episode_seed_internal(episode_seed, copy_obs)
     }
 
+    /// Reset all per-episode state from `episode_seed`.
+    ///
+    /// Determinism invariants:
+    /// - `episode_seed` fully controls starting player and initial deck shuffle.
+    /// - caches/dirty flags/replay buffers are reset to canonical defaults.
+    /// - `decision_id` starts at `u32::MAX` so the first `set_decision` wraps to `0`.
     fn reset_with_episode_seed_internal(
         &mut self,
         episode_seed: u64,
         copy_obs: bool,
     ) -> StepOutcome {
+        // Keep the same starting-player rule in construction and reset paths.
         let starting_player = if (episode_seed & 1) == 1 { 1 } else { 0 };
         self.episode_seed = episode_seed;
         self.episode_index = self.episode_index.wrapping_add(1);
@@ -266,6 +287,7 @@ impl GameEnv {
                 ring.clear();
             }
         }
+        // Replay sampling also consumes the deterministic meta RNG stream.
         let threshold = self.replay_config.sample_threshold;
         self.recording = self.replay_config.enabled
             && (threshold == u32::MAX || (threshold > 0 && self.meta_rng.next_u32() <= threshold));
@@ -284,6 +306,7 @@ impl GameEnv {
         self.build_outcome_with_obs(0.0, copy_obs)
     }
 
+    /// Clear per-step status flags while preserving latched fault visibility.
     pub(crate) fn clear_status_flags(&mut self) {
         self.last_illegal_action = false;
         if let Some(record) = self.fault_latched {
@@ -329,5 +352,128 @@ impl GameEnv {
         if !enabled {
             self.action_cache.mask_bits.fill(0);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{
+        CurriculumConfig, EnvConfig, ErrorPolicy, ObservationVisibility, RewardConfig,
+    };
+    use crate::db::{CardColor, CardDb, CardStatic, CardType};
+    use crate::env::{EngineErrorCode, FaultRecord, FaultSource};
+    use std::sync::Arc;
+
+    fn make_db() -> Arc<CardDb> {
+        let mut cards = Vec::new();
+        for id in 1..=13 {
+            cards.push(CardStatic {
+                id,
+                card_set: None,
+                card_type: CardType::Character,
+                color: CardColor::Red,
+                level: 0,
+                cost: 0,
+                power: 500,
+                soul: 1,
+                triggers: vec![],
+                traits: vec![],
+                abilities: vec![],
+                ability_defs: vec![],
+                counter_timing: false,
+                raw_text: None,
+            });
+        }
+        Arc::new(CardDb::new(cards).expect("db build"))
+    }
+
+    fn make_deck() -> Vec<u32> {
+        let mut deck = Vec::new();
+        for id in 1..=13u32 {
+            for _ in 0..4 {
+                deck.push(id);
+            }
+        }
+        deck.truncate(crate::encode::MAX_DECK);
+        deck
+    }
+
+    fn make_env() -> GameEnv {
+        let db = make_db();
+        let deck = make_deck();
+        let config = EnvConfig {
+            deck_lists: [deck.clone(), deck],
+            deck_ids: [1, 2],
+            max_decisions: 100,
+            max_ticks: 1000,
+            reward: RewardConfig::default(),
+            error_policy: ErrorPolicy::Strict,
+            observation_visibility: ObservationVisibility::Public,
+            end_condition_policy: Default::default(),
+        };
+        GameEnv::new_or_panic(
+            db,
+            config,
+            CurriculumConfig::default(),
+            77,
+            ReplayConfig::default(),
+            None,
+            0,
+        )
+    }
+
+    #[test]
+    fn finalize_after_initial_reset_returns_error_when_engine_error_is_set() {
+        let mut env = make_env();
+        let mut outcome = env.reset();
+        outcome.info.engine_error = true;
+        outcome.info.engine_error_code = EngineErrorCode::ResetError as u8;
+
+        let err = match GameEnv::finalize_after_initial_reset(env, outcome) {
+            Err(err) => err,
+            Ok(_) => panic!("engine error should fail initial reset"),
+        };
+        match err {
+            EnvError::InitialResetFault { code } => {
+                assert_eq!(code, EngineErrorCode::ResetError as u8)
+            }
+            _ => panic!("unexpected error variant"),
+        }
+    }
+
+    #[test]
+    fn finalize_after_initial_reset_returns_error_when_fault_is_latched() {
+        let mut env = make_env();
+        let mut outcome = env.reset();
+        env.fault_latched = Some(FaultRecord {
+            code: EngineErrorCode::ResetError,
+            actor: None,
+            fingerprint: 1,
+            source: FaultSource::Reset,
+            reward_emitted: false,
+        });
+        outcome.info.engine_error = false;
+        outcome.info.engine_error_code = EngineErrorCode::ResetError as u8;
+
+        let err = match GameEnv::finalize_after_initial_reset(env, outcome) {
+            Err(err) => err,
+            Ok(_) => panic!("latched fault should fail initial reset"),
+        };
+        match err {
+            EnvError::InitialResetFault { code } => {
+                assert_eq!(code, EngineErrorCode::ResetError as u8)
+            }
+            _ => panic!("unexpected error variant"),
+        }
+    }
+
+    #[test]
+    fn finalize_after_initial_reset_returns_env_when_no_faults() {
+        let mut env = make_env();
+        let outcome = env.reset();
+        let ok_env =
+            GameEnv::finalize_after_initial_reset(env, outcome).expect("expected healthy env");
+        assert!(!ok_env.is_fault_latched());
     }
 }

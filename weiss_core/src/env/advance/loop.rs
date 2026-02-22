@@ -5,6 +5,14 @@ use crate::state::{Phase, TerminalResult};
 use super::super::{EngineErrorCode, GameEnv, STACK_AUTO_RESOLVE_CAP};
 
 impl GameEnv {
+    /// Advance engine state until a player decision is required or play terminates.
+    ///
+    /// This is the main deterministic progression loop used after reset and
+    /// after action application. It repeatedly runs rule actions, continuous
+    /// modifier refresh, trigger/priority handling, and phase progression in a
+    /// fixed order. When priority windows are disabled it may auto-resolve
+    /// stack items, but that path is capped by `STACK_AUTO_RESOLVE_CAP` to
+    /// prevent silent infinite loops.
     pub(crate) fn advance_until_decision(&mut self) {
         let mut auto_resolve_steps: u32 = 0;
         loop {

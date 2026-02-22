@@ -3,12 +3,20 @@ use crate::db::*;
 use crate::effects::EffectKind;
 use crate::encode::MAX_STAGE;
 use crate::events::*;
+use crate::modifier_queries::collect_attack_slot_state;
 use crate::state::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AttackAutoResolvePhase {
     TriggerStep,
     DamageStep,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AttackPipelineFlow {
+    Continue,
+    Break,
+    Return,
 }
 
 impl GameEnv {
@@ -31,40 +39,19 @@ impl GameEnv {
                         derived.per_player[player][slot] = entry;
                         continue;
                     }
-                    for modifier in &self.state.modifiers {
-                        if modifier.target_player as usize != player
-                            || modifier.target_slot as usize != slot
-                        {
-                            continue;
-                        }
-                        if modifier.target_card != card_id {
-                            continue;
-                        }
-                        match modifier.kind {
-                            ModifierKind::AttackCost => {
-                                if modifier.magnitude > 0 {
-                                    entry.attack_cost =
-                                        entry.attack_cost.saturating_add(modifier.magnitude as u8);
-                                }
-                            }
-                            ModifierKind::CannotAttack => {
-                                if modifier.magnitude != 0 {
-                                    entry.cannot_attack = true;
-                                }
-                            }
-                            ModifierKind::CannotSideAttack => {
-                                if modifier.magnitude != 0 {
-                                    entry.cannot_side_attack = true;
-                                }
-                            }
-                            ModifierKind::CannotFrontalAttack => {
-                                if modifier.magnitude != 0 {
-                                    entry.cannot_frontal_attack = true;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
+                    let (cannot_attack, cannot_side_attack, cannot_frontal_attack, attack_cost) =
+                        collect_attack_slot_state(
+                            &self.state,
+                            player,
+                            slot,
+                            card_id,
+                            entry.cannot_attack,
+                            entry.attack_cost,
+                        );
+                    entry.cannot_attack = cannot_attack;
+                    entry.cannot_side_attack = cannot_side_attack;
+                    entry.cannot_frontal_attack = cannot_frontal_attack;
+                    entry.attack_cost = attack_cost;
                 }
                 derived.per_player[player][slot] = entry;
             }
@@ -79,213 +66,231 @@ impl GameEnv {
     }
 
     pub(in crate::env) fn resolve_attack_pipeline(&mut self) {
+        // Invariants:
+        // - Preserve deterministic damage modifier application order.
+        //   See `weiss_core/tests/determinism_tests.rs`.
         loop {
-            let Some(mut ctx) = self.state.turn.attack.take() else {
+            let Some(ctx) = self.state.turn.attack.take() else {
                 return;
             };
-            match ctx.step {
-                AttackStep::Trigger => {
-                    if self.curriculum.enable_priority_windows && !ctx.decl_window_done {
-                        ctx.decl_window_done = true;
-                        self.state.turn.attack = Some(ctx);
-                        if self.state.turn.priority.is_none() {
-                            self.enter_timing_window(
-                                TimingWindow::AttackDeclarationWindow,
-                                self.state.turn.active_player,
-                            );
-                        }
-                        break;
-                    }
-                    if !ctx.auto_trigger_enqueued {
-                        self.enqueue_other_attack_declaration_auto_effects(
-                            &ctx,
-                            self.state.turn.active_player,
-                        );
-                        self.enqueue_attack_auto_effects(
-                            &ctx,
-                            self.state.turn.active_player,
-                            AttackAutoResolvePhase::TriggerStep,
-                        );
-                        ctx.auto_trigger_enqueued = true;
-                        if !self.state.turn.stack.is_empty()
-                            || self.state.turn.pending_level_up.is_some()
-                            || !self.state.turn.pending_triggers.is_empty()
-                            || self.state.turn.pending_cost.is_some()
-                            || self.state.turn.choice.is_some()
-                        {
-                            self.state.turn.attack = Some(ctx);
-                            if self.maybe_validate_state("attack_decl_auto_pause") {
-                                return;
-                            }
-                            break;
-                        }
-                    }
-                    self.resolve_trigger_step(&mut ctx);
-                    ctx.trigger_checks_resolved = ctx.trigger_checks_resolved.saturating_add(1);
-                    let trigger_checks_total = ctx.trigger_checks_total.max(1);
-                    if ctx.trigger_checks_resolved >= trigger_checks_total {
-                        if ctx.counter_allowed && self.curriculum.enable_counters {
-                            ctx.step = AttackStep::Counter;
-                        } else {
-                            ctx.step = AttackStep::Damage;
-                        }
-                    } else {
-                        // Re-enter trigger step for additional trigger checks granted this attack.
-                        ctx.step = AttackStep::Trigger;
-                        ctx.trigger_window_done = false;
-                    }
-                    if self.state.turn.pending_level_up.is_some()
-                        || !self.state.turn.pending_triggers.is_empty()
-                    {
-                        self.state.turn.attack = Some(ctx);
-                        if self.maybe_validate_state("attack_trigger_pause") {
-                            return;
-                        }
-                        break;
-                    }
-                    if self.curriculum.enable_priority_windows && !ctx.trigger_window_done {
-                        ctx.trigger_window_done = true;
-                        self.state.turn.attack = Some(ctx);
-                        if self.state.turn.priority.is_none() {
-                            self.enter_timing_window(
-                                TimingWindow::TriggerResolutionWindow,
-                                self.state.turn.active_player,
-                            );
-                        }
-                        break;
-                    }
-                    self.state.turn.attack = Some(ctx);
-                }
-                AttackStep::Counter => {
-                    if self.curriculum.enable_priority_windows && !ctx.trigger_window_done {
-                        ctx.trigger_window_done = true;
-                        self.state.turn.attack = Some(ctx);
-                        if self.state.turn.priority.is_none() {
-                            self.enter_timing_window(
-                                TimingWindow::TriggerResolutionWindow,
-                                self.state.turn.active_player,
-                            );
-                        }
-                        break;
-                    }
-                    let defender = 1 - self.state.turn.active_player;
-                    self.state.turn.attack = Some(ctx);
-                    if self.state.turn.priority.is_none() {
-                        self.enter_timing_window(TimingWindow::CounterWindow, defender);
-                    }
-                    if self.maybe_validate_state("attack_counter_window") {
-                        return;
-                    }
-                    break;
-                }
-                AttackStep::Damage => {
-                    if self.curriculum.enable_priority_windows && !ctx.trigger_window_done {
-                        ctx.trigger_window_done = true;
-                        self.state.turn.attack = Some(ctx);
-                        if self.state.turn.priority.is_none() {
-                            self.enter_timing_window(
-                                TimingWindow::TriggerResolutionWindow,
-                                self.state.turn.active_player,
-                            );
-                        }
-                        break;
-                    }
-                    if !ctx.auto_damage_enqueued {
-                        self.enqueue_attack_auto_effects(
-                            &ctx,
-                            self.state.turn.active_player,
-                            AttackAutoResolvePhase::DamageStep,
-                        );
-                        ctx.auto_damage_enqueued = true;
-                        if !self.state.turn.stack.is_empty()
-                            || self.state.turn.pending_level_up.is_some()
-                            || !self.state.turn.pending_triggers.is_empty()
-                            || self.state.turn.pending_cost.is_some()
-                            || self.state.turn.choice.is_some()
-                        {
-                            self.state.turn.attack = Some(ctx);
-                            if self.maybe_validate_state("attack_damage_auto_pause") {
-                                return;
-                            }
-                            break;
-                        }
-                    }
-                    let pause = self.resolve_damage_step(&mut ctx);
-                    if pause {
-                        self.state.turn.attack = Some(ctx);
-                        if self.maybe_validate_state("attack_damage_pause") {
-                            return;
-                        }
-                        break;
-                    }
-                    if ctx.attack_type == AttackType::Direct {
-                        self.clear_battle_mods();
-                        self.state.turn.attack = None;
-                        self.state.turn.attack_decl_check_done = false;
-                        self.run_check_timing(crate::db::AbilityTiming::EndOfAttack);
-                        if self.state.turn.pending_level_up.is_some()
-                            || !self.state.turn.pending_triggers.is_empty()
-                        {
-                            break;
-                        }
-                        if self.maybe_validate_state("attack_direct_done") {
-                            return;
-                        }
-                        break;
-                    }
-                    ctx.step = AttackStep::Battle;
-                    if self.curriculum.enable_priority_windows && !ctx.damage_window_done {
-                        ctx.damage_window_done = true;
-                        self.state.turn.attack = Some(ctx);
-                        if self.state.turn.priority.is_none() {
-                            self.enter_timing_window(
-                                TimingWindow::DamageResolutionWindow,
-                                self.state.turn.active_player,
-                            );
-                        }
-                        break;
-                    }
-                    self.state.turn.attack = Some(ctx);
-                }
-                AttackStep::Battle => {
-                    if self.curriculum.enable_priority_windows && !ctx.damage_window_done {
-                        ctx.damage_window_done = true;
-                        self.state.turn.attack = Some(ctx);
-                        if self.state.turn.priority.is_none() {
-                            self.enter_timing_window(
-                                TimingWindow::DamageResolutionWindow,
-                                self.state.turn.active_player,
-                            );
-                        }
-                        break;
-                    }
-                    self.resolve_battle_step(&ctx);
-                    self.clear_battle_mods();
-                    self.state.turn.attack = None;
-                    self.state.turn.attack_decl_check_done = false;
-                    self.run_check_timing(crate::db::AbilityTiming::EndOfAttack);
-                    if self.state.turn.pending_level_up.is_some()
-                        || !self.state.turn.pending_triggers.is_empty()
-                    {
-                        break;
-                    }
-                    if self.maybe_validate_state("attack_battle_done") {
-                        return;
-                    }
-                    break;
-                }
-                AttackStep::Encore => {
-                    self.state.turn.attack = Some(ctx);
-                    if self.maybe_validate_state("attack_encore_hold") {
-                        return;
-                    }
-                    break;
-                }
+            let flow = match ctx.step {
+                AttackStep::Trigger => self.resolve_attack_pipeline_trigger_step(ctx),
+                AttackStep::Counter => self.resolve_attack_pipeline_counter_step(ctx),
+                AttackStep::Damage => self.resolve_attack_pipeline_damage_step(ctx),
+                AttackStep::Battle => self.resolve_attack_pipeline_battle_step(ctx),
+                AttackStep::Encore => self.resolve_attack_pipeline_encore_step(ctx),
+            };
+            match flow {
+                AttackPipelineFlow::Continue => {}
+                AttackPipelineFlow::Break => break,
+                AttackPipelineFlow::Return => return,
             }
             if self.maybe_validate_state("attack_pipeline") {
                 return;
             }
         }
+    }
+
+    fn resolve_attack_pipeline_trigger_step(
+        &mut self,
+        mut ctx: AttackContext,
+    ) -> AttackPipelineFlow {
+        if self.curriculum.enable_priority_windows && !ctx.decl_window_done {
+            ctx.decl_window_done = true;
+            self.state.turn.attack = Some(ctx);
+            self.attack_enter_timing_window_if_idle(
+                TimingWindow::AttackDeclarationWindow,
+                self.state.turn.active_player,
+            );
+            return AttackPipelineFlow::Break;
+        }
+        if !ctx.auto_trigger_enqueued {
+            self.enqueue_other_attack_declaration_auto_effects(&ctx, self.state.turn.active_player);
+            self.enqueue_attack_auto_effects(
+                &ctx,
+                self.state.turn.active_player,
+                AttackAutoResolvePhase::TriggerStep,
+            );
+            ctx.auto_trigger_enqueued = true;
+            if self.attack_has_pending_resolution_work() {
+                self.state.turn.attack = Some(ctx);
+                if self.maybe_validate_state("attack_decl_auto_pause") {
+                    return AttackPipelineFlow::Return;
+                }
+                return AttackPipelineFlow::Break;
+            }
+        }
+        self.resolve_trigger_step(&mut ctx);
+        ctx.trigger_checks_resolved = ctx.trigger_checks_resolved.saturating_add(1);
+        let trigger_checks_total = ctx.trigger_checks_total.max(1);
+        if ctx.trigger_checks_resolved >= trigger_checks_total {
+            if ctx.counter_allowed && self.curriculum.enable_counters {
+                ctx.step = AttackStep::Counter;
+            } else {
+                ctx.step = AttackStep::Damage;
+            }
+        } else {
+            // Re-enter trigger step for additional trigger checks granted this attack.
+            ctx.step = AttackStep::Trigger;
+            ctx.trigger_window_done = false;
+        }
+        if self.attack_has_pending_level_or_trigger() {
+            self.state.turn.attack = Some(ctx);
+            if self.maybe_validate_state("attack_trigger_pause") {
+                return AttackPipelineFlow::Return;
+            }
+            return AttackPipelineFlow::Break;
+        }
+        if self.curriculum.enable_priority_windows && !ctx.trigger_window_done {
+            ctx.trigger_window_done = true;
+            self.state.turn.attack = Some(ctx);
+            self.attack_enter_timing_window_if_idle(
+                TimingWindow::TriggerResolutionWindow,
+                self.state.turn.active_player,
+            );
+            return AttackPipelineFlow::Break;
+        }
+        self.state.turn.attack = Some(ctx);
+        AttackPipelineFlow::Continue
+    }
+
+    fn resolve_attack_pipeline_counter_step(
+        &mut self,
+        mut ctx: AttackContext,
+    ) -> AttackPipelineFlow {
+        if self.curriculum.enable_priority_windows && !ctx.trigger_window_done {
+            ctx.trigger_window_done = true;
+            self.state.turn.attack = Some(ctx);
+            self.attack_enter_timing_window_if_idle(
+                TimingWindow::TriggerResolutionWindow,
+                self.state.turn.active_player,
+            );
+            return AttackPipelineFlow::Break;
+        }
+        let defender = 1 - self.state.turn.active_player;
+        self.state.turn.attack = Some(ctx);
+        self.attack_enter_timing_window_if_idle(TimingWindow::CounterWindow, defender);
+        if self.maybe_validate_state("attack_counter_window") {
+            return AttackPipelineFlow::Return;
+        }
+        AttackPipelineFlow::Break
+    }
+
+    fn resolve_attack_pipeline_damage_step(
+        &mut self,
+        mut ctx: AttackContext,
+    ) -> AttackPipelineFlow {
+        if self.curriculum.enable_priority_windows && !ctx.trigger_window_done {
+            ctx.trigger_window_done = true;
+            self.state.turn.attack = Some(ctx);
+            self.attack_enter_timing_window_if_idle(
+                TimingWindow::TriggerResolutionWindow,
+                self.state.turn.active_player,
+            );
+            return AttackPipelineFlow::Break;
+        }
+        if !ctx.auto_damage_enqueued {
+            self.enqueue_attack_auto_effects(
+                &ctx,
+                self.state.turn.active_player,
+                AttackAutoResolvePhase::DamageStep,
+            );
+            ctx.auto_damage_enqueued = true;
+            if self.attack_has_pending_resolution_work() {
+                self.state.turn.attack = Some(ctx);
+                if self.maybe_validate_state("attack_damage_auto_pause") {
+                    return AttackPipelineFlow::Return;
+                }
+                return AttackPipelineFlow::Break;
+            }
+        }
+        let pause = self.resolve_damage_step(&mut ctx);
+        if pause {
+            self.state.turn.attack = Some(ctx);
+            if self.maybe_validate_state("attack_damage_pause") {
+                return AttackPipelineFlow::Return;
+            }
+            return AttackPipelineFlow::Break;
+        }
+        if ctx.attack_type == AttackType::Direct {
+            self.finish_attack_and_run_end_of_attack_timing();
+            if self.attack_has_pending_level_or_trigger() {
+                return AttackPipelineFlow::Break;
+            }
+            if self.maybe_validate_state("attack_direct_done") {
+                return AttackPipelineFlow::Return;
+            }
+            return AttackPipelineFlow::Break;
+        }
+        ctx.step = AttackStep::Battle;
+        if self.curriculum.enable_priority_windows && !ctx.damage_window_done {
+            ctx.damage_window_done = true;
+            self.state.turn.attack = Some(ctx);
+            self.attack_enter_timing_window_if_idle(
+                TimingWindow::DamageResolutionWindow,
+                self.state.turn.active_player,
+            );
+            return AttackPipelineFlow::Break;
+        }
+        self.state.turn.attack = Some(ctx);
+        AttackPipelineFlow::Continue
+    }
+
+    fn resolve_attack_pipeline_battle_step(
+        &mut self,
+        mut ctx: AttackContext,
+    ) -> AttackPipelineFlow {
+        if self.curriculum.enable_priority_windows && !ctx.damage_window_done {
+            ctx.damage_window_done = true;
+            self.state.turn.attack = Some(ctx);
+            self.attack_enter_timing_window_if_idle(
+                TimingWindow::DamageResolutionWindow,
+                self.state.turn.active_player,
+            );
+            return AttackPipelineFlow::Break;
+        }
+        self.resolve_battle_step(&ctx);
+        self.finish_attack_and_run_end_of_attack_timing();
+        if self.attack_has_pending_level_or_trigger() {
+            return AttackPipelineFlow::Break;
+        }
+        if self.maybe_validate_state("attack_battle_done") {
+            return AttackPipelineFlow::Return;
+        }
+        AttackPipelineFlow::Break
+    }
+
+    fn resolve_attack_pipeline_encore_step(&mut self, ctx: AttackContext) -> AttackPipelineFlow {
+        self.state.turn.attack = Some(ctx);
+        if self.maybe_validate_state("attack_encore_hold") {
+            return AttackPipelineFlow::Return;
+        }
+        AttackPipelineFlow::Break
+    }
+
+    fn attack_enter_timing_window_if_idle(&mut self, window: TimingWindow, player: u8) {
+        if self.state.turn.priority.is_none() {
+            self.enter_timing_window(window, player);
+        }
+    }
+
+    fn attack_has_pending_resolution_work(&self) -> bool {
+        !self.state.turn.stack.is_empty()
+            || self.state.turn.pending_level_up.is_some()
+            || !self.state.turn.pending_triggers.is_empty()
+            || self.state.turn.pending_cost.is_some()
+            || self.state.turn.choice.is_some()
+    }
+
+    fn attack_has_pending_level_or_trigger(&self) -> bool {
+        self.state.turn.pending_level_up.is_some() || !self.state.turn.pending_triggers.is_empty()
+    }
+
+    fn finish_attack_and_run_end_of_attack_timing(&mut self) {
+        self.clear_battle_mods();
+        self.state.turn.attack = None;
+        self.state.turn.attack_decl_check_done = false;
+        self.run_check_timing(crate::db::AbilityTiming::EndOfAttack);
     }
 
     pub(in crate::env) fn resolve_trigger_step(&mut self, ctx: &mut AttackContext) {

@@ -52,92 +52,141 @@ fn pending_trigger_sort_key(trigger: &PendingTrigger) -> (u32, u8, u32, u8, u64,
 }
 
 impl GameEnv {
+    fn collect_stage_timing_trigger_seeds(
+        &self,
+        player: u8,
+        timing: AbilityTiming,
+        pending: &mut Vec<TriggerSeed>,
+    ) {
+        for slot_idx in 0..self.state.players[player as usize].stage.len() {
+            let Some(card_inst) = self.state.players[player as usize].stage[slot_idx].card else {
+                continue;
+            };
+            let card_id = card_inst.id;
+            if self.db.get(card_id).is_none() {
+                continue;
+            }
+            let total_abilities = self.live_stage_ability_count(player, slot_idx as u8);
+            for ability_index in 0..total_abilities {
+                let Some(live) = self.live_stage_ability_at(player, slot_idx as u8, ability_index)
+                else {
+                    continue;
+                };
+                let spec = live.spec;
+                if spec.kind != AbilityKind::Auto {
+                    continue;
+                }
+                if spec.timing() == Some(timing) {
+                    if !self.auto_ability_conditions_met(player, card_id, spec) {
+                        continue;
+                    }
+                    let effect = if let Some(grant_id) = live.grant_id {
+                        TriggerEffect::GrantedAutoAbility { grant_id }
+                    } else {
+                        let Ok(ability_index) = u8::try_from(ability_index) else {
+                            debug_assert!(
+                                ability_index <= u8::MAX as usize,
+                                "ability index out of range"
+                            );
+                            continue;
+                        };
+                        TriggerEffect::AutoAbility { ability_index }
+                    };
+                    pending.push(TriggerSeed {
+                        player,
+                        source: card_id,
+                        effect,
+                    });
+                }
+            }
+        }
+    }
+
+    fn collect_canonical_card_auto_ability_seeds(
+        &self,
+        player: u8,
+        card_id: CardId,
+        timing: AbilityTiming,
+        pending: &mut Vec<TriggerSeed>,
+    ) {
+        if self.db.get(card_id).is_none() {
+            return;
+        }
+        let specs = self.db.iter_card_abilities_in_canonical_order(card_id);
+        for (ability_index, spec) in specs.iter().enumerate() {
+            if spec.kind != AbilityKind::Auto {
+                continue;
+            }
+            if spec.timing() == Some(timing) {
+                if !self.auto_ability_conditions_met(player, card_id, spec) {
+                    continue;
+                }
+                let Ok(ability_index) = u8::try_from(ability_index) else {
+                    debug_assert!(
+                        ability_index > u8::MAX as usize,
+                        "ability index out of range"
+                    );
+                    continue;
+                };
+                pending.push(TriggerSeed {
+                    player,
+                    source: card_id,
+                    effect: TriggerEffect::AutoAbility { ability_index },
+                });
+            }
+        }
+    }
+
+    fn queue_new_trigger_seed_group(&mut self, pending: Vec<TriggerSeed>) -> bool {
+        if pending.is_empty() {
+            return false;
+        }
+        let group_id = self.allocate_trigger_group();
+        self.queue_trigger_group_batch(group_id, pending);
+        true
+    }
+
+    fn queue_new_trigger_seed_group_and_validate(
+        &mut self,
+        pending: Vec<TriggerSeed>,
+        validate_tag: &'static str,
+    ) {
+        if self.queue_new_trigger_seed_group(pending) {
+            let _ = self.maybe_validate_state(validate_tag);
+        }
+    }
+
+    fn sort_pending_triggers(&mut self) {
+        self.state
+            .turn
+            .pending_triggers
+            .sort_by_key(pending_trigger_sort_key);
+        self.state.turn.pending_triggers_sorted = true;
+    }
+
+    fn ensure_pending_triggers_sorted(&mut self) {
+        if !self.state.turn.pending_triggers_sorted {
+            self.sort_pending_triggers();
+        }
+    }
+
     pub(in crate::env) fn queue_timing_triggers(&mut self, timing: AbilityTiming) {
         if !self.curriculum.enable_triggers {
             return;
         }
         let mut pending: Vec<TriggerSeed> = Vec::new();
         for player in 0..2u8 {
-            for slot_idx in 0..self.state.players[player as usize].stage.len() {
-                let Some(card_inst) = self.state.players[player as usize].stage[slot_idx].card
-                else {
-                    continue;
-                };
-                let card_id = card_inst.id;
-                if self.db.get(card_id).is_none() {
-                    continue;
-                }
-                let total_abilities = self.live_stage_ability_count(player, slot_idx as u8);
-                for ability_index in 0..total_abilities {
-                    let Some(live) =
-                        self.live_stage_ability_at(player, slot_idx as u8, ability_index)
-                    else {
-                        continue;
-                    };
-                    let spec = live.spec;
-                    if spec.kind != AbilityKind::Auto {
-                        continue;
-                    }
-                    if spec.timing() == Some(timing) {
-                        if !self.auto_ability_conditions_met(player, card_id, spec) {
-                            continue;
-                        }
-                        let effect = if let Some(grant_id) = live.grant_id {
-                            TriggerEffect::GrantedAutoAbility { grant_id }
-                        } else {
-                            let Ok(ability_index) = u8::try_from(ability_index) else {
-                                debug_assert!(
-                                    ability_index <= u8::MAX as usize,
-                                    "ability index out of range"
-                                );
-                                continue;
-                            };
-                            TriggerEffect::AutoAbility { ability_index }
-                        };
-                        pending.push(TriggerSeed {
-                            player,
-                            source: card_id,
-                            effect,
-                        });
-                    }
-                }
-            }
+            self.collect_stage_timing_trigger_seeds(player, timing, &mut pending);
             for card_inst in &self.state.players[player as usize].climax {
-                let card_id = card_inst.id;
-                if self.db.get(card_id).is_none() {
-                    continue;
-                }
-                let specs = self.db.iter_card_abilities_in_canonical_order(card_id);
-                for (ability_index, spec) in specs.iter().enumerate() {
-                    if spec.kind != AbilityKind::Auto {
-                        continue;
-                    }
-                    if spec.timing() == Some(timing) {
-                        if !self.auto_ability_conditions_met(player, card_id, spec) {
-                            continue;
-                        }
-                        let Ok(ability_index) = u8::try_from(ability_index) else {
-                            debug_assert!(
-                                ability_index > u8::MAX as usize,
-                                "ability index out of range"
-                            );
-                            continue;
-                        };
-                        pending.push(TriggerSeed {
-                            player,
-                            source: card_id,
-                            effect: TriggerEffect::AutoAbility { ability_index },
-                        });
-                    }
-                }
+                self.collect_canonical_card_auto_ability_seeds(
+                    player,
+                    card_inst.id,
+                    timing,
+                    &mut pending,
+                );
             }
         }
-        if pending.is_empty() {
-            return;
-        }
-        let group_id = self.allocate_trigger_group();
-        self.queue_trigger_group_batch(group_id, pending);
-        let _ = self.maybe_validate_state("check_timing_triggers");
+        self.queue_new_trigger_seed_group_and_validate(pending, "check_timing_triggers");
     }
 
     pub(in crate::env) fn queue_on_reverse_triggers(&mut self, reversed: &[(u8, CardId)]) {
@@ -146,39 +195,14 @@ impl GameEnv {
         }
         let mut pending: Vec<TriggerSeed> = Vec::new();
         for (player, card_id) in reversed {
-            if self.db.get(*card_id).is_none() {
-                continue;
-            }
-            let specs = self.db.iter_card_abilities_in_canonical_order(*card_id);
-            for (ability_index, spec) in specs.iter().enumerate() {
-                if spec.kind != AbilityKind::Auto {
-                    continue;
-                }
-                if spec.timing() == Some(AbilityTiming::OnReverse) {
-                    if !self.auto_ability_conditions_met(*player, *card_id, spec) {
-                        continue;
-                    }
-                    let Ok(ability_index) = u8::try_from(ability_index) else {
-                        debug_assert!(
-                            ability_index > u8::MAX as usize,
-                            "ability index out of range"
-                        );
-                        continue;
-                    };
-                    pending.push(TriggerSeed {
-                        player: *player,
-                        source: *card_id,
-                        effect: TriggerEffect::AutoAbility { ability_index },
-                    });
-                }
-            }
+            self.collect_canonical_card_auto_ability_seeds(
+                *player,
+                *card_id,
+                AbilityTiming::OnReverse,
+                &mut pending,
+            );
         }
-        if pending.is_empty() {
-            return;
-        }
-        let group_id = self.allocate_trigger_group();
-        self.queue_trigger_group_batch(group_id, pending);
-        let _ = self.maybe_validate_state("on_reverse_triggers");
+        self.queue_new_trigger_seed_group_and_validate(pending, "on_reverse_triggers");
     }
 
     pub(in crate::env) fn queue_battle_opponent_reverse_triggers(
@@ -190,42 +214,20 @@ impl GameEnv {
         }
         let mut pending: Vec<TriggerSeed> = Vec::new();
         for (player, card_id) in sources {
-            if self.db.get(*card_id).is_none() {
-                continue;
-            }
-            let specs = self.db.iter_card_abilities_in_canonical_order(*card_id);
-            for (ability_index, spec) in specs.iter().enumerate() {
-                if spec.kind != AbilityKind::Auto {
-                    continue;
-                }
-                if spec.timing() == Some(AbilityTiming::BattleOpponentReverse) {
-                    if !self.auto_ability_conditions_met(*player, *card_id, spec) {
-                        continue;
-                    }
-                    let Ok(ability_index) = u8::try_from(ability_index) else {
-                        debug_assert!(
-                            ability_index > u8::MAX as usize,
-                            "ability index out of range"
-                        );
-                        continue;
-                    };
-                    pending.push(TriggerSeed {
-                        player: *player,
-                        source: *card_id,
-                        effect: TriggerEffect::AutoAbility { ability_index },
-                    });
-                }
-            }
+            self.collect_canonical_card_auto_ability_seeds(
+                *player,
+                *card_id,
+                AbilityTiming::BattleOpponentReverse,
+                &mut pending,
+            );
         }
-        if pending.is_empty() {
-            return;
-        }
-        let group_id = self.allocate_trigger_group();
-        self.queue_trigger_group_batch(group_id, pending);
-        let _ = self.maybe_validate_state("battle_opponent_reverse_triggers");
+        self.queue_new_trigger_seed_group_and_validate(pending, "battle_opponent_reverse_triggers");
     }
 
     pub(in crate::env) fn handle_trigger_pipeline(&mut self) -> bool {
+        // Invariants:
+        // - Preserve pending trigger stable sort key/order.
+        //   See `weiss_core/tests/trigger_order_tests.rs`.
         if let Some(choice) = &self.state.turn.choice {
             self.set_decision(Decision {
                 player: choice.player,
@@ -241,13 +243,7 @@ impl GameEnv {
             self.state.turn.trigger_order = None;
             return false;
         }
-        if !self.state.turn.pending_triggers_sorted {
-            self.state
-                .turn
-                .pending_triggers
-                .sort_by_key(pending_trigger_sort_key);
-            self.state.turn.pending_triggers_sorted = true;
-        }
+        self.ensure_pending_triggers_sorted();
 
         if let Some(order) = &self.state.turn.trigger_order {
             self.set_decision(Decision {
@@ -347,7 +343,6 @@ impl GameEnv {
         if effects.is_empty() {
             return;
         }
-        let group_id = self.allocate_trigger_group();
         let triggers = effects
             .into_iter()
             .map(|effect| TriggerSeed {
@@ -356,7 +351,7 @@ impl GameEnv {
                 effect,
             })
             .collect();
-        self.queue_trigger_group_batch(group_id, triggers);
+        let _ = self.queue_new_trigger_seed_group(triggers);
     }
 
     fn queue_trigger_group_batch(&mut self, group_id: u32, mut triggers: Vec<TriggerSeed>) {
@@ -401,11 +396,7 @@ impl GameEnv {
         if !trigger_ids.is_empty() {
             self.state.turn.pending_triggers_sorted = false;
         }
-        self.state
-            .turn
-            .pending_triggers
-            .sort_by_key(pending_trigger_sort_key);
-        self.state.turn.pending_triggers_sorted = true;
+        self.sort_pending_triggers();
         if !trigger_ids.is_empty() {
             self.log_event(Event::TriggerGrouped {
                 group_id,

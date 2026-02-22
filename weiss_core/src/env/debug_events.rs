@@ -2,6 +2,7 @@ use crate::replay::ReplayEvent;
 
 use super::GameEnv;
 
+/// Fixed-capacity ring storing recent replay events for debug inspection.
 pub(crate) struct EventRing {
     capacity: usize,
     events: Vec<ReplayEvent>,
@@ -10,6 +11,7 @@ pub(crate) struct EventRing {
 }
 
 impl EventRing {
+    /// Create a ring with `capacity` events.
     pub(crate) fn new(capacity: usize) -> Self {
         let mut events = Vec::with_capacity(capacity);
         events.reserve(capacity);
@@ -21,12 +23,14 @@ impl EventRing {
         }
     }
 
+    /// Clear all buffered events.
     pub(crate) fn clear(&mut self) {
         self.events.clear();
         self.next = 0;
         self.full = false;
     }
 
+    /// Push one event, evicting the oldest when full.
     pub(crate) fn push(&mut self, event: ReplayEvent) {
         if self.capacity == 0 {
             return;
@@ -43,6 +47,7 @@ impl EventRing {
         }
     }
 
+    /// Number of currently stored events.
     pub(crate) fn len(&self) -> usize {
         if self.capacity == 0 {
             0
@@ -53,6 +58,9 @@ impl EventRing {
         }
     }
 
+    /// Copy a chronological snapshot as numeric event codes into `out`.
+    ///
+    /// Returns the number of written entries (remaining slots are zero-filled).
     pub(crate) fn snapshot_codes<F: Fn(&ReplayEvent) -> u32>(
         &self,
         out: &mut [u32],
@@ -77,6 +85,7 @@ impl EventRing {
         len
     }
 
+    /// Clone a chronological snapshot of stored events.
     pub(crate) fn snapshot_events(&self) -> Vec<ReplayEvent> {
         let len = self.len();
         if len == 0 {
@@ -92,6 +101,7 @@ impl EventRing {
     }
 }
 
+/// Stable numeric code for each canonical replay event variant.
 pub(crate) fn event_code(event: &ReplayEvent) -> u32 {
     use crate::events::Event;
     match event {

@@ -38,6 +38,7 @@ pub fn encode_observation(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Encode the observation header section (`OBS_HEADER_LEN` values).
 pub(crate) fn encode_obs_header(
     state: &GameState,
     perspective: u8,
@@ -88,6 +89,10 @@ pub(crate) fn encode_obs_header(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Encode one player's observation block into the full observation buffer.
+///
+/// `player_index` selects the source player; block placement (`self` vs `opp`)
+/// is derived from `perspective`.
 pub(crate) fn encode_obs_player_block(
     state: &GameState,
     db: &CardDb,
@@ -127,6 +132,10 @@ pub(crate) fn encode_obs_player_block(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Encode one player's observation block into `out` only.
+///
+/// This variant accepts explicit visibility booleans and is used by the
+/// incremental observation cache path.
 pub(crate) fn encode_obs_player_block_into(
     state: &GameState,
     db: &CardDb,
@@ -326,6 +335,7 @@ fn private_count_visible(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Encode the reason-bit section describing current decision constraints.
 pub(crate) fn encode_obs_reason(
     state: &GameState,
     db: &CardDb,
@@ -340,6 +350,7 @@ pub(crate) fn encode_obs_reason(
     out[reason_base..reason_base + OBS_REASON_LEN].copy_from_slice(&reason_bits);
 }
 
+/// Encode reveal-history features for `perspective`.
 pub(crate) fn encode_obs_reveal(state: &GameState, perspective: u8, out: &mut [i32]) {
     assert!(out.len() >= OBS_REVEAL_BASE + OBS_REVEAL_LEN);
     let reveal_base = OBS_REVEAL_BASE;
@@ -347,6 +358,7 @@ pub(crate) fn encode_obs_reveal(state: &GameState, perspective: u8, out: &mut [i
     state.reveal_history[perspective as usize].write_chronological(reveal_slice);
 }
 
+/// Encode compact context bits (priority/choice/stack/encore state).
 pub(crate) fn encode_obs_context(state: &GameState, out: &mut [i32]) {
     assert!(out.len() >= OBS_CONTEXT_BASE + OBS_CONTEXT_LEN);
     let context_base = OBS_CONTEXT_BASE;
@@ -355,6 +367,10 @@ pub(crate) fn encode_obs_context(state: &GameState, out: &mut [i32]) {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Encode a full observation using caller-provided per-slot power values.
+///
+/// Supplying `slot_powers` allows callers to reuse cached power calculations
+/// across repeated observation builds.
 pub(crate) fn encode_observation_with_slot_power(
     state: &GameState,
     db: &CardDb,

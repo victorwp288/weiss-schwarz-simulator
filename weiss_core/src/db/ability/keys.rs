@@ -1041,6 +1041,7 @@ fn ability_template_key(template: &AbilityTemplate) -> Vec<u64> {
     out
 }
 
+/// Deterministic sort key for canonical ability ordering in card DBs.
 pub(crate) fn ability_sort_key(spec: &AbilitySpec) -> (u8, Vec<u64>) {
     let tag = spec.template.tag() as u8;
     (tag, ability_template_key(&spec.template))

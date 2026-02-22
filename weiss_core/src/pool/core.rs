@@ -66,6 +66,7 @@ pub struct EnvPool {
     pub(super) template_curriculum: CurriculumConfig,
     pub(super) template_replay_config: ReplayConfig,
     pub(super) template_replay_writer: Option<ReplayWriter>,
+    /// Base seed from which per-env episode streams are derived.
     pub(super) pool_seed: u64,
 }
 
@@ -86,6 +87,8 @@ impl EnvPool {
         let replay_config = ReplayConfig::default();
         let mut envs = Vec::with_capacity(num_envs);
         for i in 0..num_envs {
+            // Mix the pool seed with env index using an odd 64-bit constant so
+            // each env gets an independent, deterministic RNG stream.
             let env_seed = seed ^ (i as u64).wrapping_mul(0x9E3779B97F4A7C15);
             let mut env = GameEnv::new(
                 db.clone(),

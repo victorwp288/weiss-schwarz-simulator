@@ -49,6 +49,8 @@ pub mod events;
 pub mod fingerprint;
 /// Legal action generation and decision modeling.
 pub mod legal;
+/// Shared modifier query helpers used by legality/encoding internals.
+pub(crate) mod modifier_queries;
 /// Batched stepping/reset and parallel environment pooling.
 pub mod pool;
 /// Replay file format, IO, and supporting data structures.

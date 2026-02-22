@@ -2,19 +2,31 @@ from __future__ import annotations
 
 import copy
 import warnings
+from dataclasses import dataclass
 from types import TracebackType
 from typing import TYPE_CHECKING, Callable, Literal
 
 import numpy as np
 
+from ._coerce import coerce_actions_u32, coerce_logits, expand_sample_seeds
 from .config_types import IdsSafety, LegalRepr, RuntimeMode
 from .errors import ConfigConflictError, WeissSimError
 from ._legal_payloads import cast_legal_ids, cast_legal_offsets, materialize_legal_ids_u16
 from .types import LegalActions, ResetBatch, StepBatch
-from .weiss_sim import EnvPool, PASS_ACTION_ID, decode_action_id
+from .weiss_sim import (
+    BatchOutMinimal,
+    BatchOutMinimalNoMask,
+    EnvPool,
+    PASS_ACTION_ID,
+    decode_action_id,
+)
 
 _U64_MASK = np.uint64(0xFFFFFFFFFFFFFFFF)
 _LEGAL_SPOTCHECK_INTERVAL = 4096
+_DEFAULT_ILLEGAL_VALUE = -1e9
+_ILLEGAL_VALUE_COMPAT_WARNING_EMITTED = False
+_I16_MIN = int(np.iinfo(np.int16).min)
+_I16_MAX = int(np.iinfo(np.int16).max)
 
 if TYPE_CHECKING:
     from .adapters import GymVectorEnvAdapter, SingleEnvAdapter
@@ -70,6 +82,43 @@ def _validate_legal_ids_contract(
             raise WeissSimError(
                 f"legal ids for env {env_index} must be strictly ascending with no duplicates"
             )
+
+
+@dataclass(slots=True, frozen=True)
+class _CommonBatchPayload:
+    obs: np.ndarray
+    to_play_seat: np.ndarray
+    starting_seat: np.ndarray
+    episode_seed: np.ndarray
+    episode_index: np.ndarray
+    env_index: np.ndarray
+    decision_id: np.ndarray
+    engine_status: np.ndarray
+    spec_hash: np.ndarray
+
+
+@dataclass(slots=True, frozen=True)
+class _LegalPayload:
+    mask: np.ndarray | None
+    ids: np.ndarray | None
+    offsets: np.ndarray | None
+
+
+@dataclass(slots=True, frozen=True)
+class _MaterializedBatchPayload:
+    obs: np.ndarray
+    to_play_seat: np.ndarray
+    starting_seat: np.ndarray
+    episode_seed: np.ndarray
+    episode_index: np.ndarray
+    env_index: np.ndarray
+    episode_key: np.ndarray
+    decision_id: np.ndarray
+    engine_status: np.ndarray
+    spec_hash: np.ndarray
+    legal_mask: np.ndarray | None
+    legal_ids: np.ndarray | None
+    legal_offsets: np.ndarray | None
 
 
 class WeissEnv:
@@ -187,6 +236,26 @@ class WeissEnv:
         """Return the effective config used to construct this environment."""
         return copy.deepcopy(self._effective)
 
+    def enable_replay_sampling(
+        self,
+        sample_rate: float,
+        out_dir: str | None = None,
+        compress: bool = False,
+        include_trigger_card_id: bool = False,
+        visibility_mode: str | None = None,
+        store_actions: bool = True,
+    ) -> None:
+        """Enable replay sampling on the underlying pool."""
+        self._require_open()
+        self.pool.enable_replay_sampling(
+            sample_rate=sample_rate,
+            out_dir=out_dir,
+            compress=compress,
+            include_trigger_card_id=include_trigger_card_id,
+            visibility_mode=visibility_mode,
+            store_actions=store_actions,
+        )
+
     def _require_open(self) -> None:
         if self._closed:
             raise WeissSimError("WeissEnv is closed")
@@ -232,13 +301,59 @@ class WeissEnv:
     def _call_step(self, actions: np.ndarray) -> None:
         getattr(self.pool, self._step_method)(actions, self._out)
 
+    def _call_step_argmax_logits(self, logits: np.ndarray, actions_out: np.ndarray) -> None:
+        method_name = self._method_for_reset_suffix("step_select_from_logits_into")
+        method = getattr(self.pool, method_name)
+        method(logits, actions_out, self._out)
+
+    def _call_step_sample_logits(
+        self,
+        logits: np.ndarray,
+        seeds: np.ndarray,
+        actions_out: np.ndarray,
+    ) -> None:
+        method_name = self._method_for_reset_suffix("step_sample_from_logits_into")
+        method = getattr(self.pool, method_name)
+        method(logits, seeds, actions_out, self._out)
+
+    def _coerce_logits(self, logits: object) -> np.ndarray:
+        return coerce_logits(logits, num_envs=self._num_envs, action_space=self._action_space)
+
+    def _coerce_sample_seeds(self, seed: int | np.ndarray | None) -> np.ndarray:
+        return expand_sample_seeds(seed, num_envs=self._num_envs)
+
+    @staticmethod
+    def _is_default_illegal_value(illegal_value: float) -> bool:
+        return float(illegal_value) == float(_DEFAULT_ILLEGAL_VALUE)
+
+    def _warn_illegal_value_compatibility_once(self) -> None:
+        global _ILLEGAL_VALUE_COMPAT_WARNING_EMITTED
+        if _ILLEGAL_VALUE_COMPAT_WARNING_EMITTED:
+            return
+        warnings.warn(
+            "non-default illegal_value uses compatibility masking before Rust logits fast-path",
+            UserWarning,
+            stacklevel=3,
+        )
+        _ILLEGAL_VALUE_COMPAT_WARNING_EMITTED = True
+
+    def _apply_illegal_value_compatibility_mask(
+        self,
+        logits: np.ndarray,
+        *,
+        illegal_value: float,
+    ) -> np.ndarray:
+        if self._is_default_illegal_value(illegal_value):
+            return logits
+        self._warn_illegal_value_compatibility_once()
+        dense_legal_mask = self._require_latest_batch().legal.mask_for_action_space(
+            self._action_space
+        )
+        masked = np.where(dense_legal_mask != 0, logits, np.float32(illegal_value))
+        return np.ascontiguousarray(masked, dtype=np.float32)
+
     def _coerce_actions(self, actions, *, name: str) -> np.ndarray:
-        arr = np.asarray(actions, dtype=np.uint32).ravel()
-        if arr.shape[0] != self._num_envs:
-            raise WeissSimError(
-                f"{name} length must equal num_envs ({self._num_envs}), got {arr.shape[0]}"
-            )
-        return arr
+        return coerce_actions_u32(actions, num_envs=self._num_envs, name=name, error_cls=WeissSimError)
 
     def _coerce_indices(self, indices, *, name: str) -> np.ndarray:
         arr = np.asarray(indices)
@@ -266,7 +381,7 @@ class WeissEnv:
             )
         return mask
 
-    def _legal_ids_payload(self) -> tuple[np.ndarray | None, np.ndarray | None]:
+    def _materialize_legal_ids_payload(self) -> tuple[np.ndarray | None, np.ndarray | None]:
         if self._legal_repr not in {"ids_u16", "ids_u32", "both"}:
             return None, None
         ids_u16, offsets_u32 = materialize_legal_ids_u16(
@@ -280,28 +395,40 @@ class WeissEnv:
         offsets_payload = cast_legal_offsets(offsets_u32)
         return ids_payload, offsets_payload
 
-    def _legal_mask_payload(self) -> np.ndarray | None:
+    def _materialize_legal_mask_payload(self) -> np.ndarray | None:
         if not self._has_mask:
             return None
         return self._out.masks.astype(np.uint8, copy=False)
 
-    def _common_batch_payload(self) -> dict[str, np.ndarray]:
+    def _extract_legal_payload(self) -> _LegalPayload:
+        ids, offsets = self._materialize_legal_ids_payload()
+        mask = self._materialize_legal_mask_payload()
+        if ids is None:
+            return _LegalPayload(mask=mask, ids=None, offsets=None)
+        self._validate_ids_safety(ids)
+        if self._should_strict_check_legal_ids():
+            if offsets is None:
+                raise WeissSimError("legal offsets are required when legal ids are materialized")
+            _validate_legal_ids_contract(ids, offsets, self._num_envs, self._action_space)
+        return _LegalPayload(mask=mask, ids=ids, offsets=offsets)
+
+    def _collect_common_batch_payload(self) -> _CommonBatchPayload:
         to_play = self._out.actor.astype(np.int8, copy=False)
         episode_seed = self.pool.episode_seed_batch()
         episode_index = self.pool.episode_index_batch()
         env_index = self.pool.env_index_batch()
         starting_seat = self.pool.starting_player_batch()
-        return {
-            "obs": self._out.obs,
-            "to_play_seat": to_play,
-            "starting_seat": starting_seat.astype(np.uint8, copy=False),
-            "episode_seed": episode_seed.astype(np.uint64, copy=False),
-            "episode_index": episode_index.astype(np.uint32, copy=False),
-            "env_index": env_index.astype(np.uint32, copy=False),
-            "decision_id": self._out.decision_id.astype(np.uint32, copy=False),
-            "engine_status": self._out.engine_status.astype(np.uint8, copy=False),
-            "spec_hash": self._out.spec_hash.astype(np.uint64, copy=False),
-        }
+        return _CommonBatchPayload(
+            obs=self._out.obs,
+            to_play_seat=to_play,
+            starting_seat=starting_seat.astype(np.uint8, copy=False),
+            episode_seed=episode_seed.astype(np.uint64, copy=False),
+            episode_index=episode_index.astype(np.uint32, copy=False),
+            env_index=env_index.astype(np.uint32, copy=False),
+            decision_id=self._out.decision_id.astype(np.uint32, copy=False),
+            engine_status=self._out.engine_status.astype(np.uint8, copy=False),
+            spec_hash=self._out.spec_hash.astype(np.uint64, copy=False),
+        )
 
     def _should_strict_check_legal_ids(self) -> bool:
         if self._legal_repr not in {"ids_u16", "ids_u32", "both"}:
@@ -316,43 +443,41 @@ class WeissEnv:
         if ids.size and int(ids.max()) > self._u16_max:
             raise WeissSimError("ids_u16 safety check failed: legal id exceeds uint16 max")
 
-    def _collect_batch_materialized(
-        self,
-    ) -> tuple[
-        dict[str, np.ndarray],
-        np.ndarray | None,
-        np.ndarray | None,
-        np.ndarray | None,
-        np.ndarray,
-    ]:
-        payload = self._common_batch_payload()
-        ids, offsets = self._legal_ids_payload()
-        mask = self._legal_mask_payload()
-        if ids is not None:
-            self._validate_ids_safety(ids)
-            if self._should_strict_check_legal_ids():
-                _validate_legal_ids_contract(ids, offsets, self._num_envs, self._action_space)
-        episode_key = _episode_key(
-            payload["episode_seed"], payload["episode_index"], payload["env_index"]
+    def _materialize_batch_payload(self) -> _MaterializedBatchPayload:
+        common = self._collect_common_batch_payload()
+        legal = self._extract_legal_payload()
+        return _MaterializedBatchPayload(
+            obs=common.obs,
+            to_play_seat=common.to_play_seat,
+            starting_seat=common.starting_seat,
+            episode_seed=common.episode_seed,
+            episode_index=common.episode_index,
+            env_index=common.env_index,
+            episode_key=_episode_key(common.episode_seed, common.episode_index, common.env_index),
+            decision_id=common.decision_id,
+            engine_status=common.engine_status,
+            spec_hash=common.spec_hash,
+            legal_mask=legal.mask,
+            legal_ids=legal.ids,
+            legal_offsets=legal.offsets,
         )
-        return payload, ids, offsets, mask, episode_key
 
     def _build_reset_batch(self) -> ResetBatch:
-        payload, ids, offsets, mask, episode_key = self._collect_batch_materialized()
+        payload = self._materialize_batch_payload()
         return ResetBatch(
-            obs=payload["obs"],
-            to_play_seat=payload["to_play_seat"],
-            starting_seat=payload["starting_seat"],
-            episode_seed=payload["episode_seed"],
-            episode_index=payload["episode_index"],
-            env_index=payload["env_index"],
-            episode_key=episode_key,
-            decision_id=payload["decision_id"],
-            engine_status=payload["engine_status"],
-            spec_hash=payload["spec_hash"],
-            legal_mask=mask,
-            legal_ids=ids,
-            legal_offsets=offsets,
+            obs=payload.obs,
+            to_play_seat=payload.to_play_seat,
+            starting_seat=payload.starting_seat,
+            episode_seed=payload.episode_seed,
+            episode_index=payload.episode_index,
+            env_index=payload.env_index,
+            episode_key=payload.episode_key,
+            decision_id=payload.decision_id,
+            engine_status=payload.engine_status,
+            spec_hash=payload.spec_hash,
+            legal_mask=payload.legal_mask,
+            legal_ids=payload.legal_ids,
+            legal_offsets=payload.legal_offsets,
         )
 
     def _finalize_reset(self, *, reset_indices: np.ndarray | None) -> ResetBatch:
@@ -364,6 +489,141 @@ class WeissEnv:
             self._last_done[reset_indices] = False
         self._latest_batch = batch
         return batch
+
+    def _finalize_step_from_current_out(self, *, to_play_before: np.ndarray) -> StepBatch:
+        payload = self._materialize_batch_payload()
+        terminated = self._out.terminated.astype(np.bool_, copy=False)
+        truncated = self._out.truncated.astype(np.bool_, copy=False)
+        if np.any(np.logical_and(terminated, truncated)):
+            raise WeissSimError(
+                "invalid step output: terminated and truncated cannot both be true for the same env"
+            )
+        done = np.logical_or(terminated, truncated)
+        terminal_transition = np.logical_and(np.logical_not(self._last_done), done)
+        if self._control_seat is None:
+            terminal_internal = np.zeros(self._num_envs, dtype=np.bool_)
+        else:
+            terminal_internal = np.logical_and(
+                terminal_transition, to_play_before != self._control_seat
+            )
+        step_batch = StepBatch(
+            obs=payload.obs,
+            to_play_seat=payload.to_play_seat,
+            starting_seat=payload.starting_seat,
+            episode_seed=payload.episode_seed,
+            episode_index=payload.episode_index,
+            env_index=payload.env_index,
+            episode_key=payload.episode_key,
+            decision_id=payload.decision_id,
+            engine_status=payload.engine_status,
+            spec_hash=payload.spec_hash,
+            reward=self._out.rewards.astype(np.float32, copy=False),
+            terminated=terminated,
+            truncated=truncated,
+            terminal_during_internal_opponent=terminal_internal,
+            decision_count=self.pool.decision_count_batch().astype(np.uint32, copy=False),
+            tick_count=self.pool.tick_count_batch().astype(np.uint32, copy=False),
+            legal_mask=payload.legal_mask,
+            legal_ids=payload.legal_ids,
+            legal_offsets=payload.legal_offsets,
+        )
+        self._last_to_play_seat = step_batch.to_play_seat.copy()
+        self._last_done = done.copy()
+        self._step_count += 1
+        self._latest_batch = step_batch
+        return step_batch
+
+    def _coerce_engine_status_codes(self, codes: np.ndarray | None) -> np.ndarray:
+        if codes is None:
+            arr = self._require_latest_batch().engine_status.astype(np.uint8, copy=False)
+        else:
+            arr = np.asarray(codes, dtype=np.uint8)
+        arr = np.ravel(arr)
+        if arr.shape[0] != self._num_envs:
+            raise WeissSimError(
+                f"codes length must equal num_envs ({self._num_envs}), got {arr.shape[0]}"
+            )
+        return np.ascontiguousarray(arr, dtype=np.uint8)
+
+    @staticmethod
+    def _copy_optional_array(value: np.ndarray | None) -> np.ndarray | None:
+        if value is None:
+            return None
+        return value.copy()
+
+    def _snapshot_step_batch(self, step: StepBatch) -> StepBatch:
+        return StepBatch(
+            obs=step.obs.copy(),
+            to_play_seat=step.to_play_seat.copy(),
+            starting_seat=step.starting_seat.copy(),
+            episode_seed=step.episode_seed.copy(),
+            episode_index=step.episode_index.copy(),
+            env_index=step.env_index.copy(),
+            episode_key=step.episode_key.copy(),
+            decision_id=step.decision_id.copy(),
+            engine_status=step.engine_status.copy(),
+            spec_hash=step.spec_hash.copy(),
+            reward=step.reward.copy(),
+            terminated=step.terminated.copy(),
+            truncated=step.truncated.copy(),
+            terminal_during_internal_opponent=step.terminal_during_internal_opponent.copy(),
+            decision_count=step.decision_count.copy(),
+            tick_count=step.tick_count.copy(),
+            legal_mask=self._copy_optional_array(step.legal_mask),
+            legal_ids=self._copy_optional_array(step.legal_ids),
+            legal_offsets=self._copy_optional_array(step.legal_offsets),
+        )
+
+    def _copy_common_out_fields_from_nomask(
+        self, src: BatchOutMinimal | BatchOutMinimalNoMask
+    ) -> None:
+        np.copyto(self._out.rewards, src.rewards)
+        np.copyto(self._out.terminated, src.terminated)
+        np.copyto(self._out.truncated, src.truncated)
+        np.copyto(self._out.actor, src.actor)
+        np.copyto(self._out.decision_kind, src.decision_kind)
+        np.copyto(self._out.decision_id, src.decision_id)
+        np.copyto(self._out.engine_status, src.engine_status)
+        np.copyto(self._out.spec_hash, src.spec_hash)
+
+    def _copy_i16_out_from_minimal(self, src: BatchOutMinimal) -> None:
+        np.clip(src.obs, _I16_MIN, _I16_MAX, out=self._out.obs)
+        np.copyto(self._out.masks, src.masks)
+        self._copy_common_out_fields_from_nomask(src)
+
+    def _copy_i16_legal_ids_out_from_nomask(self, src: BatchOutMinimalNoMask) -> None:
+        np.clip(src.obs, _I16_MIN, _I16_MAX, out=self._out.obs)
+        self._copy_common_out_fields_from_nomask(src)
+        self.pool.legal_action_ids_into(self._out.legal_ids, self._out.legal_offsets)
+
+    def _auto_reset_method_for_suffix(self) -> str:
+        suffix = self._reset_suffix()
+        if suffix in {"", "_i16"}:
+            return "auto_reset_on_error_codes_into"
+        if suffix in {"_nomask", "_i16_legal_ids"}:
+            return "auto_reset_on_error_codes_into_nomask"
+        raise WeissSimError(f"unexpected reset method name: {self._reset_method}")
+
+    def _call_auto_reset_on_error_codes(self, codes: np.ndarray) -> int:
+        method_name = self._auto_reset_method_for_suffix()
+        suffix = self._reset_suffix()
+        if suffix == "":
+            return int(getattr(self.pool, method_name)(codes, self._out))
+        if suffix == "_nomask":
+            return int(getattr(self.pool, method_name)(codes, self._out))
+        if suffix == "_i16":
+            temp_out = BatchOutMinimal(self._num_envs)
+            reset_count = int(getattr(self.pool, method_name)(codes, temp_out))
+            if reset_count:
+                self._copy_i16_out_from_minimal(temp_out)
+            return reset_count
+        if suffix == "_i16_legal_ids":
+            temp_out = BatchOutMinimalNoMask(self._num_envs)
+            reset_count = int(getattr(self.pool, method_name)(codes, temp_out))
+            if reset_count:
+                self._copy_i16_legal_ids_out_from_nomask(temp_out)
+            return reset_count
+        raise WeissSimError(f"unexpected reset method name: {self._reset_method}")
 
     def current_to_play_seat(self) -> np.ndarray:
         """Return the last observed `to_play_seat` vector."""
@@ -464,70 +724,225 @@ class WeissEnv:
         """Advance each env by applying an action for the current seat."""
         self._require_open()
         arr = self._coerce_actions(actions, name="actions")
-        to_play_before = self._last_to_play_seat.copy()
-        self._call_step(arr)
-        payload, ids, offsets, mask, episode_key = self._collect_batch_materialized()
-        terminated = self._out.terminated.astype(np.bool_, copy=False)
-        truncated = self._out.truncated.astype(np.bool_, copy=False)
-        if np.any(np.logical_and(terminated, truncated)):
-            raise WeissSimError(
-                "invalid step output: terminated and truncated cannot both be true for the same env"
-            )
-        done = np.logical_or(terminated, truncated)
-        terminal_transition = np.logical_and(np.logical_not(self._last_done), done)
-        if self._control_seat is None:
-            terminal_internal = np.zeros(self._num_envs, dtype=np.bool_)
-        else:
-            terminal_internal = np.logical_and(
-                terminal_transition, to_play_before != self._control_seat
-            )
-        step_batch = StepBatch(
-            obs=payload["obs"],
-            to_play_seat=payload["to_play_seat"],
-            starting_seat=payload["starting_seat"],
-            episode_seed=payload["episode_seed"],
-            episode_index=payload["episode_index"],
-            env_index=payload["env_index"],
-            episode_key=episode_key,
-            decision_id=payload["decision_id"],
-            engine_status=payload["engine_status"],
-            spec_hash=payload["spec_hash"],
-            reward=self._out.rewards.astype(np.float32, copy=False),
-            terminated=terminated,
-            truncated=truncated,
-            terminal_during_internal_opponent=terminal_internal,
-            decision_count=self.pool.decision_count_batch().astype(np.uint32, copy=False),
-            tick_count=self.pool.tick_count_batch().astype(np.uint32, copy=False),
-            legal_mask=mask,
-            legal_ids=ids,
-            legal_offsets=offsets,
-        )
-        self._last_to_play_seat = step_batch.to_play_seat.copy()
-        self._last_done = done.copy()
-        self._step_count += 1
-        self._latest_batch = step_batch
-        return step_batch
+        return self._step_with_actions(arr)
 
-    def step_select_from_logits(
+    def _step_with_actions(self, actions: np.ndarray) -> StepBatch:
+        to_play_before = self._last_to_play_seat.copy()
+        self._call_step(actions)
+        return self._finalize_step_from_current_out(to_play_before=to_play_before)
+
+    def _auto_reset_done_if_needed(
+        self, done_mask: np.ndarray, *, enabled: bool
+    ) -> ResetBatch | None:
+        if not enabled or not np.any(done_mask):
+            return None
+        return self.reset_done(done_mask)
+
+    def _engine_error_codes_for_auto_reset(
+        self, step: StepBatch, *, clear_done_mask: np.ndarray | None
+    ) -> np.ndarray | None:
+        codes = np.asarray(step.engine_status, dtype=np.uint8).copy()
+        if clear_done_mask is not None:
+            codes[clear_done_mask] = np.uint8(0)
+        if not np.any(codes != 0):
+            return None
+        return codes
+
+    def _auto_reset_engine_errors_if_needed(
+        self, codes: np.ndarray | None, *, enabled: bool
+    ) -> ResetBatch | None:
+        if not enabled or codes is None:
+            return None
+        _, reset_batch = self.auto_reset_on_engine_errors(codes)
+        return reset_batch
+
+    def _apply_auto_resets(
+        self,
+        step: StepBatch,
+        *,
+        reset_done: bool,
+        reset_engine_errors: bool,
+    ) -> ResetBatch | None:
+        done_mask = np.asarray(step.done, dtype=np.bool_)
+        reset_batch = self._auto_reset_done_if_needed(done_mask, enabled=reset_done)
+        codes: np.ndarray | None = None
+        if reset_engine_errors:
+            clear_done = done_mask if reset_done else None
+            codes = self._engine_error_codes_for_auto_reset(step, clear_done_mask=clear_done)
+        error_reset = self._auto_reset_engine_errors_if_needed(codes, enabled=reset_engine_errors)
+        if error_reset is not None:
+            return error_reset
+        return reset_batch
+
+    def step_first_legal(self) -> tuple[StepBatch, np.ndarray]:
+        """Step by selecting the first legal action for each env."""
+        self._require_open()
+        actions = self._require_latest_batch().legal.first_legal()
+        return self._step_with_actions(actions), actions
+
+    def step_uniform_legal(
+        self, seed: int | np.ndarray | None = None
+    ) -> tuple[StepBatch, np.ndarray]:
+        """Step by sampling a uniform-random legal action for each env."""
+        self._require_open()
+        actions = self._require_latest_batch().legal.sample_uniform(seed=seed)
+        return self._step_with_actions(actions), actions
+
+    def step_auto(
+        self,
+        actions: object | None = None,
+        *,
+        policy: Literal["first", "uniform", "random"] = "first",
+        seed: int | np.ndarray | None = None,
+        reset_done: bool = True,
+        reset_engine_errors: bool = True,
+    ) -> tuple[StepBatch, np.ndarray, ResetBatch | None]:
+        """Step once, with optional action selection and automatic reset handling."""
+        self._require_open()
+        batch = self._require_latest_batch()
+        if actions is None:
+            chosen = batch.legal.choose(policy, seed=seed)
+        else:
+            chosen = self._coerce_actions(actions, name="actions")
+        step = self._step_with_actions(chosen)
+        step_snapshot = self._snapshot_step_batch(step)
+        reset_batch = self._apply_auto_resets(
+            step,
+            reset_done=bool(reset_done),
+            reset_engine_errors=bool(reset_engine_errors),
+        )
+        return step_snapshot, chosen, reset_batch
+
+    def rollout(
+        self,
+        steps: int,
+        *,
+        policy: Literal["first", "uniform", "random"] | Callable[[ResetBatch | StepBatch], object] = "uniform",
+        seed: int | np.ndarray | None = None,
+        auto_reset: bool = False,
+        reset_done: bool = True,
+        reset_engine_errors: bool = True,
+    ) -> list[StepBatch]:
+        """Run `steps` decisions with a policy string or callback action function."""
+        self._require_open()
+        steps_int = int(steps)
+        if steps_int <= 0:
+            raise WeissSimError("steps must be > 0")
+
+        if self._latest_batch is None:
+            self.reset()
+
+        rollout_rng: np.random.Generator | None = None
+        policy_token: str | None = None
+        if callable(policy):
+            policy_fn = policy
+        else:
+            policy_fn = None
+            policy_token = str(policy).strip().lower()
+            if policy_token not in {"first", "uniform", "random"}:
+                raise WeissSimError("policy must be one of: first, uniform, random, or callable")
+            if policy_token in {"uniform", "random"} and np.isscalar(seed):
+                rollout_rng = np.random.default_rng(int(seed))
+
+        trajectory: list[StepBatch] = []
+        for _ in range(steps_int):
+            current = self._require_latest_batch()
+            if policy_fn is not None:
+                actions = self._coerce_actions(policy_fn(current), name="policy actions")
+            elif policy_token == "first":
+                actions = current.legal.first_legal()
+            else:
+                step_seed: int | np.ndarray | None = seed
+                if rollout_rng is not None:
+                    step_seed = rollout_rng.integers(
+                        0,
+                        np.iinfo(np.uint64).max,
+                        size=self._num_envs,
+                        dtype=np.uint64,
+                    )
+                actions = current.legal.sample_uniform(seed=step_seed)
+
+            step = self._step_with_actions(actions)
+            trajectory.append(self._snapshot_step_batch(step))
+            if auto_reset:
+                self._apply_auto_resets(
+                    step,
+                    reset_done=bool(reset_done),
+                    reset_engine_errors=bool(reset_engine_errors),
+                )
+
+        return trajectory
+
+    def _prepare_logits_for_step(
+        self,
+        logits: object,
+        *,
+        illegal_value: float,
+        temperature: float = 1.0,
+    ) -> np.ndarray:
+        logits_arr = self._coerce_logits(logits)
+        logits_arr = self._apply_illegal_value_compatibility_mask(
+            logits_arr, illegal_value=illegal_value
+        )
+        if temperature != 1.0:
+            logits_arr = np.ascontiguousarray(logits_arr / np.float32(temperature), dtype=np.float32)
+        return logits_arr
+
+    def _execute_step_argmax_logits(self, logits: np.ndarray) -> tuple[StepBatch, np.ndarray]:
+        actions = np.empty(self._num_envs, dtype=np.uint32)
+        to_play_before = self._last_to_play_seat.copy()
+        self._call_step_argmax_logits(logits, actions)
+        return self._finalize_step_from_current_out(to_play_before=to_play_before), actions
+
+    def _execute_step_sample_logits(
+        self, logits: np.ndarray, seeds: np.ndarray
+    ) -> tuple[StepBatch, np.ndarray]:
+        actions = np.empty(self._num_envs, dtype=np.uint32)
+        to_play_before = self._last_to_play_seat.copy()
+        self._call_step_sample_logits(logits, seeds, actions)
+        return self._finalize_step_from_current_out(to_play_before=to_play_before), actions
+
+    def step_argmax_logits(
         self, logits: np.ndarray, illegal_value: float = -1e9
     ) -> tuple[StepBatch, np.ndarray]:
-        actions = self.legal.select_from_logits(logits, illegal_value=illegal_value)
-        return self.step(actions), actions
+        self._require_open()
+        self._require_latest_batch()
+        logits_arr = self._prepare_logits_for_step(logits, illegal_value=illegal_value)
+        return self._execute_step_argmax_logits(logits_arr)
 
-    def step_sample_from_logits(
+    def step_sample_logits(
         self,
         logits: np.ndarray,
         seed: int | np.ndarray | None = None,
         temperature: float = 1.0,
         illegal_value: float = -1e9,
     ) -> tuple[StepBatch, np.ndarray]:
-        actions = self.legal.sample_from_logits(
-            logits,
-            seed=seed,
-            temperature=temperature,
-            illegal_value=illegal_value,
+        self._require_open()
+        self._require_latest_batch()
+        temp = float(temperature)
+        if temp < 0.0:
+            raise WeissSimError("temperature must be >= 0")
+        if temp == 0.0:
+            return self.step_argmax_logits(logits, illegal_value=illegal_value)
+
+        logits_arr = self._prepare_logits_for_step(
+            logits, illegal_value=illegal_value, temperature=temp
         )
-        return self.step(actions), actions
+        seeds = self._coerce_sample_seeds(seed)
+        return self._execute_step_sample_logits(logits_arr, seeds)
+
+    def auto_reset_on_engine_errors(
+        self, codes: np.ndarray | None = None
+    ) -> tuple[int, ResetBatch | None]:
+        """Auto-reset envs with non-zero engine-status codes via Rust auto-reset APIs."""
+        self._require_open()
+        codes_arr = self._coerce_engine_status_codes(codes)
+        reset_count = self._call_auto_reset_on_error_codes(codes_arr)
+        if reset_count == 0:
+            return 0, None
+        reset_indices = np.flatnonzero(codes_arr != 0).astype(np.int64, copy=False)
+        reset_batch = self._finalize_reset(reset_indices=reset_indices)
+        return reset_count, reset_batch
 
     def decode_action(self, action_id: int) -> dict[str, object]:
         """Decode a numeric action id into a structured Python dict."""

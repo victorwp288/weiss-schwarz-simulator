@@ -8,6 +8,7 @@ use super::debug_fingerprints;
 use super::{EngineErrorCode, FaultSource, GameEnv};
 
 impl GameEnv {
+    /// Whether expensive state validation should run on this step/reset path.
     pub(crate) fn should_validate_state(&self) -> bool {
         if cfg!(debug_assertions) {
             return true;
@@ -15,6 +16,9 @@ impl GameEnv {
         self.validate_state_enabled
     }
 
+    /// Run validation and latch an invariant fault when validation fails.
+    ///
+    /// Returns `true` when a fault was latched (validation failed).
     pub(crate) fn maybe_validate_state(&mut self, context: &str) -> bool {
         if !self.should_validate_state() {
             return false;

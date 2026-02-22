@@ -14,6 +14,12 @@ impl GameEnv {
         true
     }
 
+    /// Drain immediate rule/trigger/priority work until a decision is reached.
+    ///
+    /// This is a quiescence loop used by timing/check paths that should settle
+    /// pending effects without running the full phase machine. When priority
+    /// windows are disabled it may auto-resolve stack items, bounded by
+    /// `CHECK_TIMING_QUIESCENCE_CAP`.
     pub(crate) fn resolve_quiescence_until_decision(&mut self) {
         let mut auto_resolve_steps: u32 = 0;
         loop {
