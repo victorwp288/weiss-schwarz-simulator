@@ -1052,7 +1052,7 @@ def pass_action_id_for_decision_kind(decision_kind: object) -> int: ...
 `cards` is a namespace object exposed as `weiss_sim.cards`.
 
 Methods:
-- `def builder(self, initial: DeckInput | None = None): ...`
+- `def builder(self, initial: DeckInput | None = None) -> DeckBuilder: ...`
 - `def describe_deck(
     self,
     deck_input: DeckInput,
@@ -1070,9 +1070,9 @@ Methods:
     card_pool: CardPoolMode,
     db_path: str | Path | None = None,
     include_meta: bool = True,
-) -> object: ...`
+) -> DeckExportPayload: ...`
 - `def get(self, identifier: int | str) -> CardRef: ...`
-- `def load_deck(self, path: str | Path): ...`
+- `def load_deck(self, path: str | Path) -> DeckRawPayload: ...`
 - `def presets(self) -> list[str]: ...`
 - `def resolve_deck(
     self,
@@ -1104,7 +1104,7 @@ Methods:
     card_pool: CardPoolMode,
     db_path: str | Path | None = None,
     deck_size: int = 50,
-): ...`
+) -> DeckValidationReport: ...`
 
 ### `DeckInput`
 `DeckInput = Sequence[int] | Mapping[int | str, int] | str | Path`

@@ -1,6 +1,6 @@
 # Quickstart
 
-Use this page to go from install to a verified reset/step loop with the current high-level API (`weiss-sim 0.6.x`).
+Use this page to go from install to a verified reset/step loop with the current high-level API (`weiss-sim 0.7.x`).
 
 Next read: [RL Contract](rl_contract.md)
 
@@ -72,13 +72,14 @@ Mode defaults:
 
 `runtime_mode=` is rejected on the high-level API.
 
-## 0.6 migration notes
+## 0.7 migration notes
 
-Breaking changes in `0.6.0`:
+Breaking changes in `0.7.0`:
 
 - `error_policy` accepts only `raise | replace | terminate`.
 - legacy `error_policy` aliases are removed.
 - high-level `make(...)` no longer accepts deprecated compatibility kwargs such as `runtime_mode=...`.
+- `batch.legal.select_from_logits(...)` / `batch.legal.sample_from_logits(...)` were renamed to `batch.legal.argmax_logits(...)` / `batch.legal.sample_logits(...)`.
 - coverage tooling accepts only profile names `strict | approx` (legacy `none` / `rl_v1` aliases removed).
 
 ## Seed behavior and determinism
@@ -101,7 +102,8 @@ Preferred:
 - `batch.legal.contains(i, action_id)`
 - `batch.legal.mask`
 - `batch.legal.sample_uniform(seed=...)`
-- `batch.legal.select_from_logits(logits)`
+- `batch.legal.argmax_logits(logits)`
+- `batch.legal.sample_logits(logits, seed=...)`
 
 Raw properties are still available for advanced integrations:
 

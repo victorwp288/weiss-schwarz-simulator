@@ -87,9 +87,9 @@ weiss_sim.make(
 
 Legacy policy aliases are removed.
 
-## 0.6 migration notes
+## 0.7 migration notes
 
-Breaking API updates in `0.6.0`:
+Breaking API updates in `0.7.0`:
 
 - `make(..., error_policy=...)` now accepts only `raise | replace | terminate`.
 - deprecated `**kwargs` compatibility shim in `make(...)` was removed; unknown kwargs now raise native `TypeError`.
@@ -107,7 +107,7 @@ Canonical names now use clearer intent-focused verbs:
 - `WeissEnv.step_select_from_logits()` -> `WeissEnv.step_argmax_logits()`
 - `WeissEnv.step_sample_from_logits()` -> `WeissEnv.step_sample_logits()`
 
-Old names are intentionally removed in 0.6; update callsites to the canonical names above.
+Old names are intentionally removed in 0.7; update callsites to the canonical names above.
 
 ### Deck input forms
 
@@ -169,11 +169,17 @@ Both logits helpers return `(step, actions)` where `actions` is a `np.ndarray` o
 
 ### Logits helper semantics
 
-- Default path: `illegal_value=-1e9` keeps the Rust logits fast path enabled for both select and sample helpers.
+- Default path: `illegal_value=-1e9` keeps the Rust logits fast path enabled for both argmax and sample helpers.
 - Compatibility path: non-default `illegal_value` keeps legacy masking semantics (materialized compatibility mode) but is slower and can add Python-side allocation overhead.
 - Sampling at zero temperature: `temperature=0.0` is deterministic argmax (equivalent action selection behavior to `step_argmax_logits`).
 
 For throughput-sensitive training loops, keep `illegal_value` at the default unless you explicitly need compatibility masking behavior.
+
+### Uniform legal sampling semantics
+
+- `step_uniform_legal()` now uses a Rust fast path.
+- For the same scalar seed, sampled action sequences can differ from the prior Python implementation.
+- Behavior remains deterministic per seed.
 
 ### Legal actions: primary path (`batch.legal`)
 
@@ -187,8 +193,13 @@ Common helpers:
 - `batch.legal.choose(strategy, logits=..., seed=..., default_action=...)`
 - `batch.legal.mask` (dense mask view)
 - `batch.legal.argmax_logits(logits)`
-- `batch.legal.sample_logits(logits, seed=...)`
+- `batch.legal.sample_logits(logits, seed=..., temperature=1.0, illegal_value=-1e9)`
 - `batch.legal.sample_uniform(seed=...)`
+
+`LegalActions.sample_logits` semantics:
+
+- `temperature=0.0` is deterministic argmax (equivalent action selection to `batch.legal.argmax_logits(...)`).
+- `temperature<0.0` is invalid (`ValueError`).
 
 `ResetBatch` and `StepBatch` still expose `legal_ids` and `legal_offsets` as properties for interoperability, but most code should consume `batch.legal`.
 

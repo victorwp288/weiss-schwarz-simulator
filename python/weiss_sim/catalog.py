@@ -8,11 +8,21 @@ import json
 from functools import lru_cache
 from importlib import resources
 from pathlib import Path
+from typing import TYPE_CHECKING, TypeAlias
 
 from ._presets import get_preset as _get_preset, preset_names as _preset_names
 from .config_types import CardPoolMode, DeckInput, RulesProfile
 from .errors import CardLookupError, DbMismatchError, DeckSpecError
-from .types import CardRef
+from .types import CardRef, DeckValidationReport
+
+if TYPE_CHECKING:
+    from .deck_builder import DeckBuilder
+
+DeckIdList: TypeAlias = list[int]
+DeckCountMap: TypeAlias = dict[int | str, int]
+DeckRawPayload: TypeAlias = DeckIdList | DeckCountMap
+DeckEnvelope: TypeAlias = dict[str, object]
+DeckExportPayload: TypeAlias = DeckRawPayload | DeckEnvelope
 
 _CATALOG_FILE = "card_catalog.json.gz"
 _META_FILE = "catalog_meta.json"
@@ -95,10 +105,12 @@ def _catalog_maps() -> tuple[dict[int, CardRef], dict[str, CardRef]]:
 
 
 def presets() -> list[str]:
+    """Return available bundled deck preset names."""
     return _preset_names()
 
 
 def get_preset(name: str) -> list[int]:
+    """Resolve a preset name to a concrete 50-card id list."""
     return _get_preset(name)
 
 
@@ -188,10 +200,12 @@ def _sha256_hex(data: bytes) -> str:
 
 
 def default_wsdb_bytes() -> bytes:
+    """Return packaged default WSDB bytes."""
     return _read_data_bytes(_DEFAULT_WSDB_FILE)
 
 
 def catalog_db_sha256() -> str:
+    """Return packaged catalog DB sha256."""
     return str(load_catalog_meta().get("catalog_db_sha256", ""))
 
 
@@ -201,6 +215,7 @@ def _default_db_sha256() -> str:
 
 
 def compute_db_sha256(db_path: str | Path | None = None) -> str:
+    """Compute sha256 for the selected DB path or the packaged default DB."""
     if db_path is None:
         return _default_db_sha256()
     resolved_path = Path(db_path).expanduser().resolve(strict=True)
@@ -208,10 +223,12 @@ def compute_db_sha256(db_path: str | Path | None = None) -> str:
 
 
 def db_hash_matches_catalog(db_path: str | Path | None = None) -> bool:
+    """Return whether the selected DB hash matches the packaged catalog hash."""
     return compute_db_sha256(db_path) == catalog_db_sha256()
 
 
 def db_info(db_path: str | Path | None = None) -> dict[str, object]:
+    """Return hash/compatibility metadata for DB/catalog matching."""
     db_sha256 = compute_db_sha256(db_path)
     catalog_sha256 = catalog_db_sha256()
     return {
@@ -224,6 +241,7 @@ def db_info(db_path: str | Path | None = None) -> dict[str, object]:
 def assert_parsed_only_catalog_match(
     card_pool: CardPoolMode, db_path: str | Path | None = None
 ) -> dict[str, object]:
+    """Raise `DbMismatchError` when parsed-only mode uses an incompatible DB."""
     info = db_info(db_path)
     if card_pool == "parsed_only" and not bool(info["matches_catalog"]):
         raise DbMismatchError(
@@ -238,6 +256,7 @@ def assert_parsed_only_catalog_match(
 
 
 def resolve_card_id(identifier: int | str) -> int:
+    """Resolve a user-facing card identifier to a numeric card id."""
     return get_card(identifier).id
 
 
@@ -260,7 +279,7 @@ class _CardsNamespace:
         """List available deck preset names."""
         return presets()
 
-    def builder(self, initial: DeckInput | None = None):
+    def builder(self, initial: DeckInput | None = None) -> DeckBuilder:
         """Create a fluent deck builder."""
         from .deck_builder import DeckBuilder
 
@@ -292,7 +311,7 @@ class _CardsNamespace:
         card_pool: CardPoolMode,
         db_path: str | Path | None = None,
         deck_size: int = 50,
-    ):
+    ) -> DeckValidationReport:
         """Validate a deck and return a structured report without raising."""
         from .decks import validate_deck
 
@@ -331,7 +350,7 @@ class _CardsNamespace:
         card_pool: CardPoolMode,
         db_path: str | Path | None = None,
         include_meta: bool = True,
-    ) -> object:
+    ) -> DeckExportPayload:
         """Export a resolved deck to a deterministic JSON-serializable payload."""
         from .decks import resolve_deck
 
@@ -344,7 +363,7 @@ class _CardsNamespace:
         encoding = format
         counts = Counter(ids)
         if encoding == "id_list":
-            payload: object = list(ids)
+            payload: DeckRawPayload = list(ids)
         elif encoding == "id_map":
             payload = {
                 card_id: int(count)
@@ -396,7 +415,7 @@ class _CardsNamespace:
         out_path.write_text(json.dumps(payload, indent=indent), encoding="utf-8")
         return str(out_path)
 
-    def load_deck(self, path: str | Path):
+    def load_deck(self, path: str | Path) -> DeckRawPayload:
         """Load a deck payload from disk (v1 envelope or raw map/list)."""
         try:
             payload = json.loads(Path(path).read_text(encoding="utf-8"))

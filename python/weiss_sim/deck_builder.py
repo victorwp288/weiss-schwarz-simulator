@@ -40,12 +40,14 @@ class DeckBuilder:
         return value
 
     def add(self, card: int | str, count: int = 1) -> DeckBuilder:
+        """Add `count` copies of a card to the builder."""
         n = self._coerce_positive_count(count, field_name="count")
         card_id = self._resolve(card)
         self._counts[card_id] = int(self._counts.get(card_id, 0) + n)
         return self
 
     def remove(self, card: int | str, count: int = 1) -> DeckBuilder:
+        """Remove up to `count` copies of a card from the builder."""
         n = self._coerce_positive_count(count, field_name="count")
         card_id = self._resolve(card)
         current = int(self._counts.get(card_id, 0))
@@ -57,6 +59,7 @@ class DeckBuilder:
         return self
 
     def set_count(self, card: int | str, count: int) -> DeckBuilder:
+        """Set the exact copy count for a card (`0` removes it)."""
         try:
             n = int(count)
         except Exception as exc:
@@ -71,18 +74,23 @@ class DeckBuilder:
         return self
 
     def count(self, card: int | str) -> int:
+        """Return current copy count for a card."""
         return int(self._counts.get(self._resolve(card), 0))
 
     def total_cards(self) -> int:
+        """Return total cards currently in the builder."""
         return int(sum(self._counts.values()))
 
     def remaining_slots(self, deck_size: int = 50) -> int:
+        """Return remaining cards needed to reach `deck_size`."""
         return int(deck_size) - self.total_cards()
 
     def to_id_map(self) -> dict[int, int]:
+        """Return deterministic `{card_id: count}` payload."""
         return {card_id: int(self._counts[card_id]) for card_id in sorted(self._counts)}
 
     def to_card_no_map(self) -> dict[str, int]:
+        """Return deterministic `{card_no: count}` payload."""
         entries = sorted(
             ((get_card(card_id).card_no, int(count)) for card_id, count in self._counts.items()),
             key=lambda item: item[0],
@@ -90,6 +98,7 @@ class DeckBuilder:
         return {card_no: count for card_no, count in entries}
 
     def to_id_list(self, order: Literal["id_asc"] = "id_asc") -> list[int]:
+        """Return expanded card-id list in deterministic order."""
         if order != "id_asc":
             raise DeckSpecError("order must be 'id_asc'")
         out: list[int] = []
@@ -105,6 +114,7 @@ class DeckBuilder:
         db_path: str | Path | None = None,
         deck_size: int = 50,
     ) -> dict[str, object]:
+        """Validate/build and return resolved deck metadata summary."""
         ids = self.build(
             rules_profile=rules_profile,
             card_pool=card_pool,
@@ -121,6 +131,7 @@ class DeckBuilder:
         db_path: str | Path | None = None,
         deck_size: int = 50,
     ) -> DeckValidationReport:
+        """Validate without raising and return a structured report."""
         return validate_deck(
             self.to_id_map(),
             rules_profile=rules_profile,
@@ -137,6 +148,7 @@ class DeckBuilder:
         db_path: str | Path | None = None,
         deck_size: int = 50,
     ) -> list[int]:
+        """Validate and return final deck ids, raising on invalid decks."""
         report = self.validate(
             rules_profile=rules_profile,
             card_pool=card_pool,

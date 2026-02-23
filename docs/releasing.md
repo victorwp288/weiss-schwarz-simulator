@@ -7,13 +7,13 @@ This repo uses Release Please for automated release PRs and GitHub Releases. Thi
 From the repo root:
 
 - `SKIP_BENCHMARKS=1 ./scripts/run_local_ci_parity.sh`
-- `./scripts/freeze_preflight_235.sh /tmp/wss_freeze_candidate_v0_5_0`
+- `./scripts/freeze_preflight_235.sh /tmp/wss_freeze_candidate_v0_7_0`
 
 If either script fails, fix locally and re-run until green.
 
 ## Version alignment
 
-For a release at `0.6.0`, keep these in sync:
+For a release at `0.7.0`, keep these in sync:
 
 - `pyproject.toml` (`[project].version`)
 - `weiss_core/Cargo.toml` (`[package].version`)
