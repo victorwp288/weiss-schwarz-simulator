@@ -24,6 +24,21 @@ def _assert_actions_compatible(legal, actions: np.ndarray) -> None:
         assert legal.contains(env_i, action)
 
 
+def _snapshot_legal_ids(legal) -> list[np.ndarray]:
+    return [np.asarray(legal.ids(env_i), dtype=np.uint32).copy() for env_i in range(legal.num_envs)]
+
+
+def _assert_actions_compatible_with_snapshot(
+    legal_ids_per_env: list[np.ndarray], actions: np.ndarray
+) -> None:
+    for env_i, ids in enumerate(legal_ids_per_env):
+        action = int(actions[env_i])
+        if ids.size == 0:
+            assert action == int(weiss_sim.PASS_ACTION_ID)
+            continue
+        assert np.any(ids == np.uint32(action))
+
+
 def test_step_argmax_logits_default_fast_path_compatibility():
     with (
         weiss_sim.inspect(num_envs=4, seed=1618, card_pool="all") as sim_fast,
@@ -81,6 +96,7 @@ def test_step_argmax_logits_non_default_illegal_value_warns_once_and_uses_compat
         runner_mod.WeissEnv, "_apply_illegal_value_compatibility_mask", _mask_with_record
     )
     monkeypatch.setattr(types_mod.LegalActions, "argmax_logits", _fail_legacy_argmax)
+    monkeypatch.setattr(runner_mod, "_ILLEGAL_VALUE_COMPAT_WARNING_EMITTED", False)
 
     with weiss_sim.inspect(num_envs=3, seed=123, card_pool="all") as sim:
         sim.reset()
@@ -97,6 +113,8 @@ def test_step_argmax_logits_non_default_illegal_value_warns_once_and_uses_compat
         assert len(compat_warnings_a) == 1
         _assert_actions_compatible(legal_before_a, actions_a)
 
+    with weiss_sim.inspect(num_envs=3, seed=123, card_pool="all") as sim:
+        sim.reset()
         logits_b = np.random.default_rng(23).standard_normal(
             (sim.num_envs, sim.action_space_n), dtype=np.float32
         )
@@ -111,6 +129,38 @@ def test_step_argmax_logits_non_default_illegal_value_warns_once_and_uses_compat
         _assert_actions_compatible(legal_before_b, actions_b)
 
     assert calls == [-321.0, -321.0]
+
+
+def test_step_uniform_legal_uses_rust_fast_path_not_legal_actions(monkeypatch):
+    def _fail_legacy_uniform(_self, seed=None):
+        raise AssertionError(
+            "step_uniform_legal should bypass LegalActions.sample_uniform and use Rust fast-path"
+        )
+
+    monkeypatch.setattr(types_mod.LegalActions, "sample_uniform", _fail_legacy_uniform)
+
+    with weiss_sim.inspect(num_envs=4, seed=313, card_pool="all") as sim:
+        reset = sim.reset()
+        legal_ids_before = _snapshot_legal_ids(reset.legal)
+        step, actions = sim.step_uniform_legal(seed=909)
+        _assert_actions_compatible_with_snapshot(legal_ids_before, actions)
+        assert sim.latest_batch is step
+
+
+def test_step_uniform_legal_seed_reproducible_across_identical_env_setups():
+    with (
+        weiss_sim.inspect(num_envs=4, seed=919, card_pool="all") as sim_a,
+        weiss_sim.inspect(num_envs=4, seed=919, card_pool="all") as sim_b,
+    ):
+        reset_a = sim_a.reset()
+        reset_b = sim_b.reset()
+        _assert_reset_batches_equal(reset_a, reset_b)
+
+        step_a, actions_a = sim_a.step_uniform_legal(seed=4242)
+        step_b, actions_b = sim_b.step_uniform_legal(seed=4242)
+
+        assert np.array_equal(actions_a, actions_b)
+        _assert_step_batches_equal(step_a, step_b)
 
 
 def test_step_sample_logits_temperature_below_zero_rejected():

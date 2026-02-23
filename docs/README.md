@@ -9,9 +9,10 @@ This is the canonical map for repository docs.
 
 Start here:
 
-1. [Quickstart](quickstart.md)
-2. [How it works](how_it_works.md)
-3. [RL Contract](rl_contract.md)
+1. [Beginner happy path](beginner_happy_path.md)
+2. [Quickstart](quickstart.md)
+3. [How it works](how_it_works.md)
+4. [RL Contract](rl_contract.md)
 
 Keep handy:
 
@@ -27,9 +28,10 @@ Keep handy:
 
 ### I want to run training quickly
 
-1. [Quickstart](quickstart.md)
-2. [PPO tutorial](tutorials/ppo.md)
-3. [RL Contract](rl_contract.md)
+1. [Beginner happy path](beginner_happy_path.md)
+2. [Quickstart](quickstart.md)
+3. [PPO tutorial](tutorials/ppo.md)
+4. [RL Contract](rl_contract.md)
 
 ### I want to integrate or extend Python tooling
 
@@ -60,6 +62,7 @@ Keep handy:
 
 ```mermaid
 flowchart TD
+  BG["beginner_happy_path.md"] --> QS["quickstart.md"]
   QS["quickstart.md"] --> HIT["how_it_works.md"]
   QS --> PPO["tutorials/ppo.md"]
   PPO --> IMP["tutorials/impala_vtrace.md"]
@@ -85,6 +88,7 @@ flowchart TD
 
 ## Full docs index
 
+- [Beginner happy path](beginner_happy_path.md): long-form start-to-finish guide from deck building to a minimal reset/step loop and engine mental model.
 - [Quickstart](quickstart.md): install paths, first reset/step, and integration sanity checks.
 - [How it works](how_it_works.md): decision boundaries, legality pipeline, determinism surfaces, and the high/low-level Python layers.
 - [Glossary](glossary.md): contract-facing terms and stable definitions used across docs.

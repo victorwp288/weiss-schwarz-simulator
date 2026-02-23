@@ -362,11 +362,15 @@ class LegalActions:
         temperature: float = 1.0,
         illegal_value: float = -1e9,
     ) -> np.ndarray:
-        if temperature <= 0:
-            raise ValueError("temperature must be > 0")
+        temp = float(temperature)
+        if temp < 0.0:
+            raise ValueError("temperature must be >= 0")
+        if temp == 0.0:
+            return self.argmax_logits(logits, illegal_value=illegal_value)
+
         masked, _ = self._masked_logits_and_legal_presence(logits, illegal_value=illegal_value)
-        if temperature != 1.0:
-            masked = masked / np.float32(temperature)
+        if temp != 1.0:
+            masked = masked / np.float32(temp)
 
         actions = np.full(self.num_envs, np.uint32(PASS_ACTION_ID), dtype=np.uint32)
         global_rng, per_env_seeds = self._resolve_rng_sources(seed)

@@ -316,6 +316,11 @@ class WeissEnv:
         method = getattr(self.pool, method_name)
         method(logits, seeds, actions_out, self._out)
 
+    def _call_step_uniform_legal(self, seeds: np.ndarray, actions_out: np.ndarray) -> None:
+        method_name = self._method_for_reset_suffix("step_sample_legal_action_ids_uniform_into")
+        method = getattr(self.pool, method_name)
+        method(seeds, actions_out, self._out)
+
     def _coerce_logits(self, logits: object) -> np.ndarray:
         return coerce_logits(logits, num_envs=self._num_envs, action_space=self._action_space)
 
@@ -787,8 +792,12 @@ class WeissEnv:
     ) -> tuple[StepBatch, np.ndarray]:
         """Step by sampling a uniform-random legal action for each env."""
         self._require_open()
-        actions = self._require_latest_batch().legal.sample_uniform(seed=seed)
-        return self._step_with_actions(actions), actions
+        self._require_latest_batch()
+        seeds = self._coerce_sample_seeds(seed)
+        actions = np.empty(self._num_envs, dtype=np.uint32)
+        to_play_before = self._last_to_play_seat.copy()
+        self._call_step_uniform_legal(seeds, actions)
+        return self._finalize_step_from_current_out(to_play_before=to_play_before), actions
 
     def step_auto(
         self,

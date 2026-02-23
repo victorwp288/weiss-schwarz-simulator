@@ -40,6 +40,7 @@ SKIP_BENCHMARKS=1 scripts/run_local_ci_parity.sh
 ```bash
 python scripts/check_docs_links.py
 python scripts/check_docs_constants.py
+python scripts/gen_docs_snippets.py --check
 ```
 
 ### Wheel-install pytest path

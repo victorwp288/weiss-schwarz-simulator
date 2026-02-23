@@ -102,6 +102,7 @@ Start in [`docs/README.md`](docs/README.md).
 
 Recommended paths:
 
+- New users: [`docs/beginner_happy_path.md`](docs/beginner_happy_path.md) -> [`docs/quickstart.md`](docs/quickstart.md) -> [`docs/how_it_works.md`](docs/how_it_works.md)
 - RL users: [`docs/quickstart.md`](docs/quickstart.md) -> [`docs/tutorials/ppo.md`](docs/tutorials/ppo.md) -> [`docs/rl_contract.md`](docs/rl_contract.md) -> [`docs/encodings.md`](docs/encodings.md)
 - Off-policy users: [`docs/tutorials/impala_vtrace.md`](docs/tutorials/impala_vtrace.md) -> [`docs/rl_contract.md`](docs/rl_contract.md)
 - Python integrators: [`docs/python_api.md`](docs/python_api.md) -> [`docs/python_api_reference.md`](docs/python_api_reference.md) -> [`docs/troubleshooting.md`](docs/troubleshooting.md)

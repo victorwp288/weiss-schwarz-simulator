@@ -1,17 +1,19 @@
 # How it works
 
-This page is the mental model for how the simulator executes, where step boundaries occur, and how determinism is preserved.
+This page is the practical mental model for how the simulator executes, where boundaries occur, and how Python calls map to engine behavior.
 
 If this page and the code disagree, **the code is authoritative** and this page must be updated in the same PR.
 
-## The core idea: decision-boundary stepping
+## Core idea: decision-boundary stepping
 
-The engine runs an internal loop (`advance_until_decision`) and only returns control to the caller at *decision boundaries*:
+The engine runs an internal loop (`advance_until_decision`) and only returns control at decision boundaries.
 
-- A caller provides **exactly one action id** for the current boundary.
-- The engine applies it, then advances internally (phases, triggers, stack, timing) until the next boundary.
-- One external `step()` may cover many internal transitions.
-- The returned batch contains the next observation plus the next set of legal actions.
+At each boundary:
+
+- caller provides exactly one action id per env row
+- engine applies it
+- engine advances internally until next boundary or terminal/truncated state
+- engine returns next observation + next legal actions
 
 ```mermaid
 flowchart LR
@@ -22,88 +24,145 @@ flowchart LR
   D --> E["terminal or truncated"]
 ```
 
-## Who acts next: `to_play_seat` / `actor`
+One external `step()` may include many internal transitions (timing checks, triggers, stack resolution, phase changes).
 
-At each boundary, the engine reports which seat must act next:
+## End-to-end call path (Python -> Rust -> Python)
 
-- High-level API: `ResetBatch.to_play_seat` / `StepBatch.to_play_seat`
-- Low-level API: `BatchOut*.actor`
+High-level path (`weiss_sim.make/fast/inspect`):
 
-Conventions:
-
-- seat ids are `0` or `1`
-- `-1` means “no actor” (for example, terminal rows)
-
-This is the value you should use to decide “which policy acts now” in self-play or league-style evaluation.
-
-## Legal actions: one truth source, multiple views
-
-Legality is derived, not duplicated:
-
-1. Rust builds a canonical list of legal `ActionDesc` values for the current `DecisionKind`
-2. those actions are mapped into a **fixed action-id space**
-3. Python receives derived views of that legality:
-   - a dense mask (`legal_mask` / `masks`) and/or
-   - packed ids + offsets (`legal_ids`, `legal_offsets`)
-
-Implication: legality bugs should be fixed where actions are generated in Rust; masks/ids are just views over that truth.
+1. Python normalizes config + decks.
+2. Python creates a Rust `EnvPool`.
+3. `reset()`/`step()` call Rust `reset_into*` / `step_into*` methods.
+4. Rust fills preallocated batch buffers.
+5. Python wraps these as `ResetBatch` / `StepBatch` with `batch.legal` helpers.
 
 ```mermaid
 flowchart LR
-  A["DecisionKind"] --> B["Legal ActionDesc (Rust)\ncanonical truth"]
-  B --> C["Fixed action-id mapping"]
-  C --> D["Dense mask view\n(mask_u8)"]
-  C --> E["Packed ids view\n(ids_u16/ids_u32)"]
-  D --> F["caller selects legal action id"]
-  E --> F
-  F --> G["apply action id\nadvance_until_decision"]
+  A["weiss_sim.make(...)\nPython"] --> B["EnvPool\nRust"]
+  B --> C["reset_into*/step_into*\nRust"]
+  C --> D["BatchOut buffers\nRust"]
+  D --> E["ResetBatch/StepBatch\nPython"]
+  E --> F["batch.legal + step(...)\ncaller loop"]
 ```
 
-## Surfaces exposed to Python
+## What happens during `reset()`
 
-The repository exposes two primary integration layers:
+`reset()` is not just "clear state". It also advances to the first playable boundary.
 
-- **High-level**: `weiss_sim.make(...)` / `fast(...)` / `inspect(...)` -> `WeissEnv`
-  - stable batch types (`ResetBatch`, `StepBatch`)
-  - ergonomic legality helpers via `batch.legal`
-  - recommended starting point for most RL and evaluation loops
-- **Low-level**: `EnvPool` + canonical layout/buffer helpers
-  - `weiss_sim.make_pool(...)`, `EnvPoolBuffers`, `reset_rl(...)`, `step_rl(...)`
-  - designed for throughput and direct ownership of numpy buffers
+Returned `ResetBatch` includes:
 
-Both layers share the same contract boundaries. The difference is ergonomics vs. control/allocation patterns.
+- `obs`
+- `to_play_seat`
+- `decision_id`
+- `engine_status`
+- legal action payload (`batch.legal`, and optional raw `legal_mask` / `legal_ids` + `legal_offsets`)
 
-## Determinism and reproducibility
+So after `reset()`, you can immediately choose a legal action and call `step()`.
 
-Determinism comes from explicit ordering and explicit compatibility boundaries.
+## What happens during `step(actions)`
 
-To reproduce trajectories, keep **all** of the following fixed:
+For each env row:
 
-1. seed (and episode seed derivation)
-2. decks and DB/catalog inputs
-3. curriculum/reward/end-condition settings
+1. apply one action id for current actor
+2. run internal progression loop
+3. stop at next boundary or end
+4. emit one `StepBatch` row
+
+`StepBatch` adds:
+
+- `reward`
+- `terminated`
+- `truncated`
+- `decision_count`
+- `tick_count`
+
+Important: `terminated` and `truncated` are mutually exclusive per row.
+
+## Who acts next: `to_play_seat` / `actor`
+
+At each boundary, the engine reports the actor seat:
+
+- high-level: `ResetBatch.to_play_seat` / `StepBatch.to_play_seat`
+- low-level: `BatchOut*.actor`
+
+Conventions:
+
+- `0` / `1`: acting seat
+- `-1`: no actor (for example terminal rows)
+
+Use this for self-play orchestration and per-seat policy dispatch.
+
+## Legal actions: canonical source and derived views
+
+Legality is computed once in Rust from canonical action descriptors and projected into fixed action ids.
+
+Python can expose legality as:
+
+- dense mask
+- packed ids + offsets
+- both
+
+`batch.legal` is the preferred integration surface regardless of underlying representation.
+
+```mermaid
+flowchart LR
+  A["DecisionKind"] --> B["Legal ActionDesc set\nRust canonical truth"]
+  B --> C["Fixed action-id mapping"]
+  C --> D["Dense mask view"]
+  C --> E["Packed ids view"]
+  D --> F["batch.legal helpers"]
+  E --> F
+  F --> G["caller-selected action ids"]
+```
+
+## Reward, terminal, and fault model
+
+Reward is emitted from the acting seat's perspective for the boundary.
+
+Status surfaces:
+
+- `terminated=True`: game ended in win/loss/draw
+- `truncated=True`: limit/fault truncation (for example decision/tick cap or latched fault)
+- `engine_status!=0`: engine fault code is latched until reset
+
+Operationally, treat non-zero `engine_status` as "reset required" for that env row.
+
+## Determinism model
+
+Reproducibility requires fixing all of:
+
+1. seed path
+2. deck inputs/db compatibility
+3. config (curriculum/reward/end-condition)
 4. action sequence
 5. compatibility constants (`OBS_ENCODING_VERSION`, `ACTION_ENCODING_VERSION`, `SPEC_HASH`, replay/wsdb schema versions)
 
-Recommended integration practice:
+Practical guidance:
 
-- persist `spec_hash` in checkpoints/artifacts
-- store replays when debugging drift (`docs/replays_determinism.md`)
+- persist `spec_hash` with training artifacts
+- use replay/fingerprint tooling when investigating drift
 
-```mermaid
-flowchart TB
-  A["seed + decks + config\n(curriculum/reward/end-condition)"] --> B["deterministic runtime"]
-  C["action sequence"] --> B
-  D["compat constants\n(encoding versions + SPEC_HASH)"] --> B
-  B --> E["observations + legal actions + rewards"]
-  B --> F["replay + fingerprints\n(drift debugging)"]
-```
+## High-level vs low-level API choice
+
+Use high-level API by default:
+
+- `make/fast/inspect`
+- `ResetBatch` / `StepBatch`
+- `batch.legal`
+
+Use low-level API when you need strict allocation/layout control:
+
+- `make_pool`
+- `EnvPoolBuffers` / `EnvPoolTrajectoryBuffers`
+- `reset_rl` / `step_rl`
+
+Both paths obey the same contract boundaries.
 
 ## Related
 
+- [Beginner happy path](beginner_happy_path.md)
 - [Quickstart](quickstart.md)
+- [Engine Architecture](engine_architecture.md)
 - [RL Contract](rl_contract.md)
 - [Python API Guide](python_api.md)
-- [Encodings](encodings.md)
 - [Replays & Determinism](replays_determinism.md)
-

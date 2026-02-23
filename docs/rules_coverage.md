@@ -1,21 +1,54 @@
 # Rules Coverage & Local Policy
 
-This page describes implemented rule areas and intentional simulator-local behavior.
+This page shows what is implemented today, what is partial/pending, and where simulator-local policy differs from tabletop expectations.
 
 For machine-checkable integration behavior, see [RL Contract](rl_contract.md).
 
-## Coverage summary by subsystem
+## Coverage snapshot
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Core game flow (mulligan -> stand/draw/clock/main/climax/attack/end) | Implemented | driven by advance loop + phase modules |
-| Attack declaration, trigger checks, counter window, damage/cancel, battle, encore | Implemented | strict ordering in phase/interaction logic |
-| Rule-action loss checks (level/deck+waiting room) | Implemented | enforced in rule-action/lifecycle paths |
+| Core game flow (`mulligan -> stand/draw/clock/main/climax/attack/end`) | Implemented | phase progression and decision boundaries are in the runtime loop |
+| Attack declaration, trigger checks, counter window, damage/cancel, battle, encore | Implemented | deterministic ordering and sequencing |
+| Rule-action loss checks (level/deck+waiting room) | Implemented | enforced as rule/lifecycle checks |
 | Simultaneous-loss resolution policy | Implemented | configurable via `EndConditionPolicy` |
-| Activated abilities / cost payment / target choices | Implemented (broad) | parser/template coverage still expanding |
-| Continuous modifiers / replacements | Implemented (broad) | deterministic recompute + explicit ordering |
-| Card-text ingestion for all effects | Partial | parser/template coverage is ongoing |
-| Win/lose-by-effect (rule 1.2.5 style direct terminal effects) | Partial/pending | tracked in [Project State](../PROJECT_STATE.md) |
+| Activated abilities / costs / target choices | Implemented (broad) | parser/template expansion continues to grow |
+| Continuous modifiers / replacements | Implemented (broad) | deterministic recompute/order; advanced corner layering is still incremental |
+| Card-text ingestion for all effects | Partial | not all card text patterns map to implemented templates yet |
+| Direct win/lose-by-effect handling (rule 1.2.5 style) | Partial/pending | tracked as a known gap in [Project State](../PROJECT_STATE.md) |
+
+## Implemented today (clear list)
+
+The following are implemented in runtime behavior today:
+
+- deterministic decision-boundary stepping (`advance_until_decision` model)
+- full turn-phase cycle with mulligan and per-phase timing windows
+- attack pipeline: declaration, trigger pipeline, counter window, damage/cancel, battle, encore
+- level/deck loss checks and terminal handling
+- simultaneous-loss resolution policy (`Draw`, `ActivePlayerWins`, `NonActivePlayerWins`)
+- legal-action generation in fixed action-id space with mask/id views
+- public visibility sanitization and replay visibility modes
+
+Runtime and test surfaces covering these areas include:
+
+- runtime modules under `weiss_core/src/env/advance/`, `weiss_core/src/env/phases/`, `weiss_core/src/env/interaction/`
+- contract/behavior tests such as:
+  - `weiss_core/tests/turn_cycle_tests.rs`
+  - `weiss_core/tests/combat_basic_tests.rs`
+  - `weiss_core/tests/combat_damage_tests.rs`
+  - `weiss_core/tests/trigger_resolution_tests.rs`
+  - `weiss_core/tests/priority_window_tests.rs`
+  - `weiss_core/tests/rl_contract_tests.rs`
+
+## Partial / not yet implemented (clear list)
+
+These areas are not fully complete yet:
+
+- full card-text effect coverage across the entire card corpus
+- direct win/lose-by-effect handling in the rule 1.2.5 style
+- advanced replacement/prevention corner layering remains incremental
+
+These are tracked in [Project State](../PROJECT_STATE.md) and should be treated as active engineering areas, not silent behavior.
 
 ## Local policy choices
 
@@ -86,6 +119,7 @@ When adding or changing rule behavior:
 
 ## Related
 
+- [Beginner happy path](beginner_happy_path.md)
 - [Engine Architecture](engine_architecture.md)
 - [Approximation Policy](approximation_policy.md)
 - [Project State](../PROJECT_STATE.md)

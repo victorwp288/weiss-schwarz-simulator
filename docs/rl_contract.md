@@ -125,7 +125,7 @@ Invariants enforced in high-level path:
 
 - `batch.legal.ids(i)` returns legal action ids for env `i`
 - `batch.legal.mask` returns dense legal mask view
-- `batch.legal.select_from_logits(...)` / `sample_from_logits(...)` enforce legality
+- `batch.legal.argmax_logits(...)` / `sample_logits(...)` enforce legality
 
 ## Decision kind encoding
 

@@ -391,9 +391,18 @@ def test_step_first_legal_and_step_uniform_legal_helpers():
         assert np.array_equal(actions_first, expected_first)
         assert sim.latest_batch is step_first
 
-        expected_random = step_first.legal.sample_uniform(seed=19)
+        legal_ids_before_random = [
+            np.asarray(step_first.legal.ids(env_i), dtype=np.uint32).copy()
+            for env_i in range(sim.num_envs)
+        ]
         step_random, actions_random = sim.step_uniform_legal(seed=19)
-        assert np.array_equal(actions_random, expected_random)
+        assert actions_random.shape == (4,)
+        for env_i in range(4):
+            ids = legal_ids_before_random[env_i]
+            if ids.size == 0:
+                assert int(actions_random[env_i]) == int(weiss_sim.PASS_ACTION_ID)
+                continue
+            assert np.any(ids == np.uint32(actions_random[env_i]))
         assert sim.latest_batch is step_random
 
 
@@ -435,6 +444,25 @@ def test_legal_actions_choose_helper():
             legal.choose("sample", logits=logits, seed=9),
             legal.sample_logits(logits, seed=9),
         )
+        expected_argmax = legal.argmax_logits(logits)
+        assert np.array_equal(
+            legal.sample_logits(logits, seed=9, temperature=0.0),
+            expected_argmax,
+        )
+        assert np.array_equal(
+            legal.sample_logits(logits, seed=999, temperature=0.0),
+            expected_argmax,
+        )
+        assert np.array_equal(
+            legal.choose("sample", logits=logits, seed=9, temperature=0.0),
+            expected_argmax,
+        )
+        assert np.array_equal(
+            legal.choose("sample", logits=logits, seed=12345, temperature=0.0),
+            expected_argmax,
+        )
+        with pytest.raises(ValueError, match="temperature must be >= 0"):
+            legal.sample_logits(logits, temperature=-0.001)
 
         with pytest.raises(ValueError, match="logits is required"):
             legal.choose("argmax")
