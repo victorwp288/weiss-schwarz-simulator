@@ -45,6 +45,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimal {
             obs: obs_slice,
             masks: mask_slice,
@@ -56,6 +64,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_into(&mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -108,6 +118,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16 {
             obs: obs_slice,
             masks: mask_slice,
@@ -119,6 +137,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_into_i16(&mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -175,6 +195,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
@@ -187,6 +215,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_into_i16_legal_ids(&mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -235,6 +265,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalNoMask {
             obs: obs_slice,
             rewards: rewards_slice,
@@ -245,6 +283,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_into_nomask(&mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -298,6 +338,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimal {
             obs: obs_slice,
             masks: mask_slice,
@@ -309,6 +357,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_indices_into(&indices, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -362,6 +412,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16 {
             obs: obs_slice,
             masks: mask_slice,
@@ -373,6 +431,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_indices_into_i16(&indices, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -430,6 +490,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
@@ -442,6 +510,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| {
             self.pool
@@ -494,6 +564,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalNoMask {
             obs: obs_slice,
             rewards: rewards_slice,
@@ -504,6 +582,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_indices_into_nomask(&indices, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -561,6 +641,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimal {
             obs: obs_slice,
             masks: mask_slice,
@@ -572,6 +660,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_done_into(done, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -629,6 +719,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16 {
             obs: obs_slice,
             masks: mask_slice,
@@ -640,6 +738,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_done_into_i16(done, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -701,6 +801,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
@@ -713,6 +821,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_done_into_i16_legal_ids(done, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -766,6 +876,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalNoMask {
             obs: obs_slice,
             rewards: rewards_slice,
@@ -776,6 +894,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.reset_done_into_nomask(done, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -833,6 +953,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimal {
             obs: obs_slice,
             masks: mask_slice,
@@ -844,6 +972,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.step_into(actions, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -901,6 +1031,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16 {
             obs: obs_slice,
             masks: mask_slice,
@@ -912,6 +1050,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.step_into_i16(actions, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -973,6 +1113,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
@@ -985,6 +1133,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.step_into_i16_legal_ids(actions, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -1038,6 +1188,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalNoMask {
             obs: obs_slice,
             rewards: rewards_slice,
@@ -1048,6 +1206,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.step_into_nomask(actions, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -1106,6 +1266,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimal {
             obs: obs_slice,
             masks: mask_slice,
@@ -1117,6 +1285,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| self.pool.step_first_legal_into(actions_slice, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
@@ -1175,6 +1345,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16 {
             obs: obs_slice,
             masks: mask_slice,
@@ -1186,6 +1364,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| {
             self.pool
@@ -1251,6 +1431,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
@@ -1263,6 +1451,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| {
             self.pool
@@ -1320,6 +1510,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalNoMask {
             obs: obs_slice,
             rewards: rewards_slice,
@@ -1330,6 +1528,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| {
             self.pool
@@ -1396,6 +1596,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimal {
             obs: obs_slice,
             masks: mask_slice,
@@ -1407,6 +1615,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| {
             self.pool
@@ -1473,6 +1683,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16 {
             obs: obs_slice,
             masks: mask_slice,
@@ -1484,6 +1702,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| {
             self.pool.step_sample_legal_action_ids_uniform_into_i16(
@@ -1557,6 +1777,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
@@ -1569,6 +1797,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| {
             self.pool
@@ -1635,6 +1865,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalNoMask {
             obs: obs_slice,
             rewards: rewards_slice,
@@ -1645,6 +1883,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| {
             self.pool.step_sample_legal_action_ids_uniform_into_nomask(
@@ -1709,6 +1949,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut actions = array_mut(py, &out.actions);
         let actions_slice = actions.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
@@ -1724,6 +1972,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
         py.allow_threads(|| self.pool.rollout_first_legal_into(steps, &mut out_traj))
@@ -1783,6 +2033,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut actions = array_mut(py, &out.actions);
         let actions_slice = actions.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
@@ -1798,6 +2056,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
         py.allow_threads(|| self.pool.rollout_first_legal_into_i16(steps, &mut out_traj))
@@ -1861,6 +2121,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut actions = array_mut(py, &out.actions);
         let actions_slice = actions.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
@@ -1877,6 +2145,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
         py.allow_threads(|| {
@@ -1935,6 +2205,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut actions = array_mut(py, &out.actions);
         let actions_slice = actions.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
@@ -1949,6 +2227,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
         py.allow_threads(|| {
@@ -2016,6 +2296,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut actions = array_mut(py, &out.actions);
         let actions_slice = actions.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
@@ -2031,6 +2319,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
         py.allow_threads(|| {
@@ -2098,6 +2388,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut actions = array_mut(py, &out.actions);
         let actions_slice = actions.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
@@ -2113,6 +2411,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
         py.allow_threads(|| {
@@ -2184,6 +2484,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut actions = array_mut(py, &out.actions);
         let actions_slice = actions.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
@@ -2200,6 +2508,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
         py.allow_threads(|| {
@@ -2267,6 +2577,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut actions = array_mut(py, &out.actions);
         let actions_slice = actions.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
@@ -2281,6 +2599,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
         py.allow_threads(|| {
@@ -2343,6 +2663,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut state_fingerprint = array_mut(py, &out.state_fingerprint);
         let state_fingerprint_slice = state_fingerprint.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("state_fingerprint not contiguous")
@@ -2375,6 +2703,8 @@
                 decision_id: decision_id_slice,
                 engine_status: engine_status_slice,
                 spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
             },
             state_fingerprint: state_fingerprint_slice,
             events_fingerprint: events_fingerprint_slice,
@@ -2434,6 +2764,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut state_fingerprint = array_mut(py, &out.state_fingerprint);
         let state_fingerprint_slice = state_fingerprint.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("state_fingerprint not contiguous")
@@ -2466,6 +2804,8 @@
                 decision_id: decision_id_slice,
                 engine_status: engine_status_slice,
                 spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
             },
             state_fingerprint: state_fingerprint_slice,
             events_fingerprint: events_fingerprint_slice,
@@ -2529,6 +2869,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimal {
             obs: obs_slice,
             masks: mask_slice,
@@ -2540,6 +2888,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| {
             self.pool
@@ -2596,6 +2946,14 @@
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
         })?;
+        let mut main_move_action = array_mut(py, &out.main_move_action);
+        let main_move_action_slice = main_move_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_move_action not contiguous")
+        })?;
+        let mut main_pass_action = array_mut(py, &out.main_pass_action);
+        let main_pass_action_slice = main_pass_action.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("main_pass_action not contiguous")
+        })?;
         let mut out_min = BatchOutMinimalNoMask {
             obs: obs_slice,
             rewards: rewards_slice,
@@ -2606,6 +2964,8 @@
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
             spec_hash: spec_hash_slice,
+            main_move_action: main_move_action_slice,
+            main_pass_action: main_pass_action_slice,
         };
         py.allow_threads(|| {
             self.pool

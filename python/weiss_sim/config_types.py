@@ -61,6 +61,7 @@ class CurriculumOverrides:
     allow_concede: bool | None = None
     reveal_opponent_hand_stock_counts: bool | None = None
     memory_is_public: bool | None = None
+    max_no_progress_decisions: int | None = None
 
     def to_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {}

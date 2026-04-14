@@ -20,6 +20,10 @@ pub struct BatchOutMinimal<'a> {
     pub engine_status: &'a mut [u8],
     /// Encoding spec hash per env (len = num_envs).
     pub spec_hash: &'a mut [u64],
+    /// Whether the last action was a main-phase move per env (len = num_envs).
+    pub main_move_action: &'a mut [bool],
+    /// Whether the last action was a main-phase pass per env (len = num_envs).
+    pub main_pass_action: &'a mut [bool],
 }
 
 /// Minimal RL batch output with i16 observations, filled in-place.
@@ -44,6 +48,10 @@ pub struct BatchOutMinimalI16<'a> {
     pub engine_status: &'a mut [u8],
     /// Encoding spec hash per env (len = num_envs).
     pub spec_hash: &'a mut [u64],
+    /// Whether the last action was a main-phase move per env (len = num_envs).
+    pub main_move_action: &'a mut [bool],
+    /// Whether the last action was a main-phase pass per env (len = num_envs).
+    pub main_pass_action: &'a mut [bool],
 }
 
 /// Minimal RL batch output with i16 observations and legal id lists, filled in-place.
@@ -70,6 +78,10 @@ pub struct BatchOutMinimalI16LegalIds<'a> {
     pub engine_status: &'a mut [u8],
     /// Encoding spec hash per env (len = num_envs).
     pub spec_hash: &'a mut [u64],
+    /// Whether the last action was a main-phase move per env (len = num_envs).
+    pub main_move_action: &'a mut [bool],
+    /// Whether the last action was a main-phase pass per env (len = num_envs).
+    pub main_pass_action: &'a mut [bool],
 }
 
 /// Minimal RL batch output without masks, filled in-place.
@@ -92,6 +104,10 @@ pub struct BatchOutMinimalNoMask<'a> {
     pub engine_status: &'a mut [u8],
     /// Encoding spec hash per env (len = num_envs).
     pub spec_hash: &'a mut [u64],
+    /// Whether the last action was a main-phase move per env (len = num_envs).
+    pub main_move_action: &'a mut [bool],
+    /// Whether the last action was a main-phase pass per env (len = num_envs).
+    pub main_pass_action: &'a mut [bool],
 }
 
 /// Trajectory output with masks, filled in-place.
@@ -116,6 +132,10 @@ pub struct BatchOutTrajectory<'a> {
     pub engine_status: &'a mut [u8],
     /// Encoding spec hash per step/env (len = steps * num_envs).
     pub spec_hash: &'a mut [u64],
+    /// Whether the last action was a main-phase move per step/env.
+    pub main_move_action: &'a mut [bool],
+    /// Whether the last action was a main-phase pass per step/env.
+    pub main_pass_action: &'a mut [bool],
     /// Actions applied at each step (len = steps * num_envs).
     pub actions: &'a mut [u32],
 }
@@ -142,6 +162,10 @@ pub struct BatchOutTrajectoryI16<'a> {
     pub engine_status: &'a mut [u8],
     /// Encoding spec hash per step/env (len = steps * num_envs).
     pub spec_hash: &'a mut [u64],
+    /// Whether the last action was a main-phase move per step/env.
+    pub main_move_action: &'a mut [bool],
+    /// Whether the last action was a main-phase pass per step/env.
+    pub main_pass_action: &'a mut [bool],
     /// Actions applied at each step (len = steps * num_envs).
     pub actions: &'a mut [u32],
 }
@@ -170,6 +194,10 @@ pub struct BatchOutTrajectoryI16LegalIds<'a> {
     pub engine_status: &'a mut [u8],
     /// Encoding spec hash per step/env (len = steps * num_envs).
     pub spec_hash: &'a mut [u64],
+    /// Whether the last action was a main-phase move per step/env.
+    pub main_move_action: &'a mut [bool],
+    /// Whether the last action was a main-phase pass per step/env.
+    pub main_pass_action: &'a mut [bool],
     /// Actions applied at each step (len = steps * num_envs).
     pub actions: &'a mut [u32],
 }
@@ -194,6 +222,10 @@ pub struct BatchOutTrajectoryNoMask<'a> {
     pub engine_status: &'a mut [u8],
     /// Encoding spec hash per step/env (len = steps * num_envs).
     pub spec_hash: &'a mut [u64],
+    /// Whether the last action was a main-phase move per step/env.
+    pub main_move_action: &'a mut [bool],
+    /// Whether the last action was a main-phase pass per step/env.
+    pub main_pass_action: &'a mut [bool],
     /// Actions applied at each step (len = steps * num_envs).
     pub actions: &'a mut [u32],
 }

@@ -938,6 +938,8 @@ pub struct TurnState {
     pub mulligan_selected: [u64; 2],
     /// Whether the main phase has been passed.
     pub main_passed: bool,
+    /// Whether a main-phase move has already been used this turn.
+    pub main_move_used: bool,
     /// Decision counter for the episode.
     pub decision_count: u32,
     /// Tick counter for the episode.
@@ -1091,6 +1093,7 @@ impl GameState {
                 mulligan_done: [false; 2],
                 mulligan_selected: [0; 2],
                 main_passed: false,
+                main_move_used: false,
                 decision_count: 0,
                 tick_count: 0,
                 attack: None,

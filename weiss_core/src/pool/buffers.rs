@@ -25,6 +25,10 @@ pub struct BatchOutMinimalBuffers {
     pub engine_status: Vec<u8>,
     /// Encoding spec hash (len = num_envs).
     pub spec_hash: Vec<u64>,
+    /// Whether the last action was a main-phase move (len = num_envs).
+    pub main_move_action: Vec<bool>,
+    /// Whether the last action was a main-phase pass (len = num_envs).
+    pub main_pass_action: Vec<bool>,
 }
 
 /// Owned buffers for minimal output with i16 observations.
@@ -50,6 +54,10 @@ pub struct BatchOutMinimalI16Buffers {
     pub engine_status: Vec<u8>,
     /// Encoding spec hash (len = num_envs).
     pub spec_hash: Vec<u64>,
+    /// Whether the last action was a main-phase move (len = num_envs).
+    pub main_move_action: Vec<bool>,
+    /// Whether the last action was a main-phase pass (len = num_envs).
+    pub main_pass_action: Vec<bool>,
 }
 
 impl BatchOutMinimalI16Buffers {
@@ -66,6 +74,8 @@ impl BatchOutMinimalI16Buffers {
             decision_id: vec![0; num_envs],
             engine_status: vec![0; num_envs],
             spec_hash: vec![SPEC_HASH; num_envs],
+            main_move_action: vec![false; num_envs],
+            main_pass_action: vec![false; num_envs],
         }
     }
 
@@ -82,6 +92,8 @@ impl BatchOutMinimalI16Buffers {
             decision_id: &mut self.decision_id,
             engine_status: &mut self.engine_status,
             spec_hash: &mut self.spec_hash,
+            main_move_action: &mut self.main_move_action,
+            main_pass_action: &mut self.main_pass_action,
         }
     }
 }
@@ -100,6 +112,8 @@ impl BatchOutMinimalBuffers {
             decision_id: vec![0; num_envs],
             engine_status: vec![0; num_envs],
             spec_hash: vec![SPEC_HASH; num_envs],
+            main_move_action: vec![false; num_envs],
+            main_pass_action: vec![false; num_envs],
         }
     }
 
@@ -116,6 +130,8 @@ impl BatchOutMinimalBuffers {
             decision_id: &mut self.decision_id,
             engine_status: &mut self.engine_status,
             spec_hash: &mut self.spec_hash,
+            main_move_action: &mut self.main_move_action,
+            main_pass_action: &mut self.main_pass_action,
         }
     }
 }
@@ -141,6 +157,10 @@ pub struct BatchOutMinimalNoMaskBuffers {
     pub engine_status: Vec<u8>,
     /// Encoding spec hash (len = num_envs).
     pub spec_hash: Vec<u64>,
+    /// Whether the last action was a main-phase move (len = num_envs).
+    pub main_move_action: Vec<bool>,
+    /// Whether the last action was a main-phase pass (len = num_envs).
+    pub main_pass_action: Vec<bool>,
 }
 
 impl BatchOutMinimalNoMaskBuffers {
@@ -156,6 +176,8 @@ impl BatchOutMinimalNoMaskBuffers {
             decision_id: vec![0; num_envs],
             engine_status: vec![0; num_envs],
             spec_hash: vec![SPEC_HASH; num_envs],
+            main_move_action: vec![false; num_envs],
+            main_pass_action: vec![false; num_envs],
         }
     }
 
@@ -171,6 +193,8 @@ impl BatchOutMinimalNoMaskBuffers {
             decision_id: &mut self.decision_id,
             engine_status: &mut self.engine_status,
             spec_hash: &mut self.spec_hash,
+            main_move_action: &mut self.main_move_action,
+            main_pass_action: &mut self.main_pass_action,
         }
     }
 }

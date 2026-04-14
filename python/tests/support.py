@@ -79,6 +79,8 @@ def assert_reset_batches_equal(lhs: Any, rhs: Any) -> None:
     assert np.array_equal(lhs.decision_id, rhs.decision_id)
     assert np.array_equal(lhs.engine_status, rhs.engine_status)
     assert np.array_equal(lhs.spec_hash, rhs.spec_hash)
+    assert np.array_equal(lhs.main_move_action, rhs.main_move_action)
+    assert np.array_equal(lhs.main_pass_action, rhs.main_pass_action)
     assert_same_optional_array(lhs.legal_mask, rhs.legal_mask)
     assert_same_optional_array(lhs.legal_ids, rhs.legal_ids)
     assert_same_optional_array(lhs.legal_offsets, rhs.legal_offsets)

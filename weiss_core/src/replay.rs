@@ -12,7 +12,7 @@ const MAGIC: &[u8; 4] = b"WSR1";
 const FLAG_COMPRESSED: u8 = 1 << 0;
 const FLAG_PAYLOAD_LEN_U64: u8 = 1 << 1;
 /// Current replay schema version.
-pub const REPLAY_SCHEMA_VERSION: u32 = 2;
+pub const REPLAY_SCHEMA_VERSION: u32 = 3;
 /// Sentinel id for unknown or unmappable actions in replays.
 pub const REPLAY_ACTION_ID_UNKNOWN: u16 = u16::MAX;
 
@@ -75,6 +75,12 @@ pub struct StepMeta {
     pub illegal_action: bool,
     /// Whether an engine error occurred.
     pub engine_error: bool,
+    /// Whether the applied action was a main-phase move.
+    #[serde(default)]
+    pub main_move_action: bool,
+    /// Whether the applied action was a main-phase pass.
+    #[serde(default)]
+    pub main_pass_action: bool,
 }
 
 /// Replay event type alias.
@@ -361,6 +367,8 @@ mod tests {
                     decision_kind: crate::legal::DecisionKind::Main,
                     illegal_action: false,
                     engine_error: false,
+                    main_move_action: false,
+                    main_pass_action: true,
                 }],
                 final_state: Some(ReplayFinal {
                     terminal: None,

@@ -27,17 +27,26 @@ pub enum ObservationVisibility {
 
 /// Reward shaping configuration for RL training.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RewardConfig {
     /// Reward for winning the episode.
     pub terminal_win: f32,
     /// Reward for losing the episode.
     pub terminal_loss: f32,
-    /// Reward for a draw or timeout.
+    /// Reward for a draw.
     pub terminal_draw: f32,
+    /// Reward for a timeout/truncation.
+    pub terminal_timeout: f32,
     /// Whether to include shaping rewards during the episode.
     pub enable_shaping: bool,
     /// Per-damage shaping reward (scaled by damage dealt).
     pub damage_reward: f32,
+    /// Per-level-race shaping reward.
+    pub level_reward: f32,
+    /// Per-live-board-advantage shaping reward.
+    pub board_reward: f32,
+    /// Penalty applied when an acting player makes no measurable progress.
+    pub no_progress_penalty: f32,
 }
 
 impl Default for RewardConfig {
@@ -46,8 +55,12 @@ impl Default for RewardConfig {
             terminal_win: 1.0,
             terminal_loss: -1.0,
             terminal_draw: 0.0,
+            terminal_timeout: 0.0,
             enable_shaping: false,
             damage_reward: 0.1,
+            level_reward: 0.0,
+            board_reward: 0.0,
+            no_progress_penalty: 0.0,
         }
     }
 }
@@ -59,10 +72,15 @@ impl RewardConfig {
         if !self.terminal_win.is_finite()
             || !self.terminal_loss.is_finite()
             || !self.terminal_draw.is_finite()
+            || !self.terminal_timeout.is_finite()
+            || !self.damage_reward.is_finite()
+            || !self.level_reward.is_finite()
+            || !self.board_reward.is_finite()
+            || !self.no_progress_penalty.is_finite()
         {
             return Err(format!(
-                "terminal rewards must be finite (terminal_win={}, terminal_loss={}, terminal_draw={})",
-                self.terminal_win, self.terminal_loss, self.terminal_draw
+                "reward values must be finite (terminal_win={}, terminal_loss={}, terminal_draw={}, terminal_timeout={}, damage_reward={}, level_reward={}, board_reward={}, no_progress_penalty={})",
+                self.terminal_win, self.terminal_loss, self.terminal_draw, self.terminal_timeout, self.damage_reward, self.level_reward, self.board_reward, self.no_progress_penalty
             ));
         }
         let terminal_sum = self.terminal_win + self.terminal_loss;
@@ -325,6 +343,9 @@ pub struct CurriculumConfig {
     #[serde(default = "default_true")]
     /// Treat memory zone as public information.
     pub memory_is_public: bool,
+    #[serde(default)]
+    /// Truncate early after this many consecutive no-progress decisions. `0` disables the check.
+    pub max_no_progress_decisions: u32,
     #[serde(skip)]
     /// Cached set whitelist derived from `allowed_card_sets`.
     pub allowed_card_sets_cache: Option<HashSet<String>>,
@@ -372,6 +393,7 @@ impl Default for CurriculumConfig {
             allow_concede: false,
             reveal_opponent_hand_stock_counts: false,
             memory_is_public: true,
+            max_no_progress_decisions: 0,
             allowed_card_sets_cache: None,
         }
     }
@@ -414,6 +436,22 @@ mod tests {
             },
             RewardConfig {
                 terminal_draw: f32::NEG_INFINITY,
+                ..RewardConfig::default()
+            },
+            RewardConfig {
+                terminal_timeout: f32::NEG_INFINITY,
+                ..RewardConfig::default()
+            },
+            RewardConfig {
+                damage_reward: f32::NAN,
+                ..RewardConfig::default()
+            },
+            RewardConfig {
+                level_reward: f32::INFINITY,
+                ..RewardConfig::default()
+            },
+            RewardConfig {
+                board_reward: f32::NEG_INFINITY,
                 ..RewardConfig::default()
             },
         ];

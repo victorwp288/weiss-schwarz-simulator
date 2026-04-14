@@ -39,6 +39,8 @@ fn fallback_panic_outcome(
             illegal_action: false,
             engine_error: true,
             engine_error_code: engine_code as u8,
+            main_move_action: false,
+            main_pass_action: false,
         },
     }
 }
@@ -485,6 +487,8 @@ impl EnvPool {
                 decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
                 engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
                 spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
+                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
+                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
             };
             self.step_into(action_slice, &mut out_min)?;
         }
@@ -515,6 +519,8 @@ impl EnvPool {
                 decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
                 engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
                 spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
+                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
+                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
             };
             self.step_into_i16(action_slice, &mut out_min)?;
         }
@@ -549,6 +555,8 @@ impl EnvPool {
                 decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
                 engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
                 spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
+                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
+                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
             };
             self.step_into_i16(action_slice, &mut out_min)?;
             let ids_offset = t * num_envs * ACTION_SPACE_SIZE;
@@ -584,6 +592,8 @@ impl EnvPool {
                 decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
                 engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
                 spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
+                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
+                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
             };
             self.step_into_nomask(action_slice, &mut out_min)?;
         }
@@ -619,6 +629,8 @@ impl EnvPool {
                 decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
                 engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
                 spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
+                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
+                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
             };
             self.step_into(action_slice, &mut out_min)?;
         }
@@ -654,6 +666,8 @@ impl EnvPool {
                 decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
                 engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
                 spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
+                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
+                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
             };
             self.step_into_i16(action_slice, &mut out_min)?;
         }
@@ -693,6 +707,8 @@ impl EnvPool {
                 decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
                 engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
                 spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
+                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
+                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
             };
             self.step_into_i16(action_slice, &mut out_min)?;
             let ids_offset = t * num_envs * ACTION_SPACE_SIZE;
@@ -733,6 +749,8 @@ impl EnvPool {
                 decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
                 engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
                 spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
+                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
+                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
             };
             self.step_into_nomask(action_slice, &mut out_min)?;
         }

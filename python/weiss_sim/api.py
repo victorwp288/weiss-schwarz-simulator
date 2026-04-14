@@ -52,6 +52,17 @@ from .weiss_sim import (
 
 _KNOWN_CURRICULUM_KEYS = set(CurriculumOverrides.__annotations__.keys())
 _KNOWN_END_CONDITION_KEYS = {"simultaneous_loss", "allow_draw_on_simultaneous_loss"}
+_DEFAULT_REWARD_CONFIG: dict[str, object] = {
+    "terminal_win": 1.0,
+    "terminal_loss": -1.0,
+    "terminal_draw": 0.0,
+    "terminal_timeout": 0.0,
+    "enable_shaping": False,
+    "damage_reward": 0.1,
+    "level_reward": 0.0,
+    "board_reward": 0.0,
+    "no_progress_penalty": 0.0,
+}
 
 
 def _coerce_optional_object_payload(
@@ -107,7 +118,9 @@ def _normalize_reward_json(value: str | Mapping[str, object] | None) -> str | No
             raise ConfigConflictError("reward_json must be non-empty when provided as a string")
         return value
     if isinstance(value, Mapping):
-        return json.dumps(value)
+        payload = dict(_DEFAULT_REWARD_CONFIG)
+        payload.update(dict(value))
+        return json.dumps(payload)
     raise ConfigConflictError("reward_json must be a JSON string, mapping, or None")
 
 
@@ -513,9 +526,15 @@ def _make_stage_build_effective_config(
         "curriculum": resolved.normalized.curriculum_payload,
         "db": db_hash_info,
         "reward_timeout_policy": {
-            "timeout_uses_terminal_draw_reward": True,
+            "timeout_uses_terminal_draw_reward": False,
+            "timeout_uses_terminal_timeout_reward": True,
             "terminal_draw_expected_zero_sum": True,
             "terminal_draw_expected_value": 0.0,
+            "terminal_timeout_effective_value": (
+                0.0
+                if not isinstance(reward_effective, dict)
+                else float(reward_effective.get("terminal_timeout", 0.0))
+            ),
         },
         "resolved_decks": resolved.resolved_decks,
         "spec_hash": int(SPEC_HASH),

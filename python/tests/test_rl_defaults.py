@@ -17,10 +17,14 @@ def test_make_pool_and_rl_helpers_mask_layout():
     out = weiss_sim.reset_rl(pool, layout="mask")
     assert out.obs.shape == (1, pool.obs_len)
     assert out.masks.shape == (1, pool.action_space)
+    assert out.main_move_action.shape == (1,)
+    assert out.main_pass_action.shape == (1,)
     actions = [int(np.flatnonzero(out.masks[0])[0])]
     step = weiss_sim.step_rl(pool, np.array(actions, dtype=np.uint32), layout="mask")
     assert step.obs.shape == (1, pool.obs_len)
     assert step.rewards.shape == (1,)
+    assert step.main_move_action.shape == (1,)
+    assert step.main_pass_action.shape == (1,)
 
 
 def test_make_pool_defaults_to_bundled_db():

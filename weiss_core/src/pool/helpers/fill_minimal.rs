@@ -23,6 +23,8 @@ fn empty_info() -> crate::env::EnvInfo {
         illegal_action: false,
         engine_error: false,
         engine_error_code: 0,
+        main_move_action: false,
+        main_pass_action: false,
     }
 }
 
@@ -93,6 +95,9 @@ impl EnvPool {
             out.decision_kind[i] = outcome.info.decision_kind;
             out.decision_id[i] = env.decision_id();
             out.spec_hash[i] = SPEC_HASH;
+            let (main_move_action, main_pass_action) = env.last_action_main_flags();
+            out.main_move_action[i] = main_move_action;
+            out.main_pass_action[i] = main_pass_action;
             debug_assert!(
                 out.terminated[i] || out.truncated[i] || (out.actor[i] == 0 || out.actor[i] == 1)
             );
@@ -172,6 +177,9 @@ impl EnvPool {
             out.decision_kind[i] = outcome.info.decision_kind;
             out.decision_id[i] = env.decision_id();
             out.spec_hash[i] = SPEC_HASH;
+            let (main_move_action, main_pass_action) = env.last_action_main_flags();
+            out.main_move_action[i] = main_move_action;
+            out.main_pass_action[i] = main_pass_action;
             debug_assert!(
                 out.terminated[i] || out.truncated[i] || (out.actor[i] == 0 || out.actor[i] == 1)
             );
@@ -252,6 +260,9 @@ impl EnvPool {
             out.decision_kind[i] = outcome.info.decision_kind;
             out.decision_id[i] = env.decision_id();
             out.spec_hash[i] = SPEC_HASH;
+            let (main_move_action, main_pass_action) = env.last_action_main_flags();
+            out.main_move_action[i] = main_move_action;
+            out.main_pass_action[i] = main_pass_action;
             let legal_ids = env.action_ids_cache();
             let next = legal_cursor.saturating_add(legal_ids.len());
             if next > out.legal_ids.len() {
@@ -315,6 +326,9 @@ impl EnvPool {
             out.decision_kind[i] = outcome.info.decision_kind;
             out.decision_id[i] = env.decision_id();
             out.spec_hash[i] = SPEC_HASH;
+            let (main_move_action, main_pass_action) = env.last_action_main_flags();
+            out.main_move_action[i] = main_move_action;
+            out.main_pass_action[i] = main_pass_action;
             debug_assert!(
                 out.terminated[i] || out.truncated[i] || (out.actor[i] == 0 || out.actor[i] == 1)
             );

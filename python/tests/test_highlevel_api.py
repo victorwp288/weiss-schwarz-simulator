@@ -53,6 +53,10 @@ def _assert_common_reset_contract(batch, *, num_envs: int, obs_dtype: np.dtype) 
     assert batch.spec_hash.shape == (num_envs,)
     assert batch.spec_hash.dtype == np.uint64
     assert np.all(batch.spec_hash == np.uint64(weiss_sim.SPEC_HASH))
+    assert batch.main_move_action.shape == (num_envs,)
+    assert batch.main_move_action.dtype == np.bool_
+    assert batch.main_pass_action.shape == (num_envs,)
+    assert batch.main_pass_action.dtype == np.bool_
 
 
 def _assert_common_step_contract(step, *, num_envs: int, obs_dtype: np.dtype) -> None:
@@ -70,6 +74,12 @@ def _assert_common_step_contract(step, *, num_envs: int, obs_dtype: np.dtype) ->
     assert step.decision_count.dtype == np.uint32
     assert step.tick_count.shape == (num_envs,)
     assert step.tick_count.dtype == np.uint32
+    assert step.no_progress_count.shape == (num_envs,)
+    assert step.no_progress_count.dtype == np.uint32
+    assert step.main_move_action.shape == (num_envs,)
+    assert step.main_move_action.dtype == np.bool_
+    assert step.main_pass_action.shape == (num_envs,)
+    assert step.main_pass_action.dtype == np.bool_
 
 
 @pytest.mark.parametrize(
@@ -503,6 +513,9 @@ def test_step_batch_needs_reset_property():
         terminal_during_internal_opponent=np.array([False, False], dtype=np.bool_),
         decision_count=np.array([1, 1], dtype=np.uint32),
         tick_count=np.array([2, 2], dtype=np.uint32),
+        no_progress_count=np.array([0, 0], dtype=np.uint32),
+        main_move_action=np.array([False, True], dtype=np.bool_),
+        main_pass_action=np.array([True, False], dtype=np.bool_),
     )
     assert np.array_equal(step.done, np.array([True, False], dtype=np.bool_))
     assert np.array_equal(step.needs_reset, np.array([True, True], dtype=np.bool_))
@@ -973,7 +986,9 @@ def test_effective_config_and_spec_export_contract():
         assert cfg["curriculum"]["enable_approx_effects"] is False
         assert isinstance(cfg["db"], dict)
         assert {"db_sha256", "catalog_db_sha256", "matches_catalog"} <= set(cfg["db"].keys())
-        assert cfg["reward_timeout_policy"]["timeout_uses_terminal_draw_reward"] is True
+        assert cfg["reward_timeout_policy"]["timeout_uses_terminal_draw_reward"] is False
+        assert cfg["reward_timeout_policy"]["timeout_uses_terminal_timeout_reward"] is True
+        assert cfg["reward_timeout_policy"]["terminal_timeout_effective_value"] == 0.0
         assert set(cfg["resolved_decks"].keys()) == {"player", "opponent"}
         for seat in ("player", "opponent"):
             deck_info = cfg["resolved_decks"][seat]
@@ -1035,7 +1050,17 @@ def test_reward_json_dict_supported_in_high_level_api():
     }
     with weiss_sim.inspect(num_envs=2, seed=17, card_pool="all", reward_json=reward_cfg) as sim:
         cfg = sim.effective_config()
-        assert cfg["reward"] == reward_cfg
+        assert cfg["reward"] == {
+            "terminal_win": 2.0,
+            "terminal_loss": -2.0,
+            "terminal_draw": 0.0,
+            "terminal_timeout": 0.0,
+            "enable_shaping": True,
+            "damage_reward": 0.05,
+            "level_reward": 0.0,
+            "board_reward": 0.0,
+            "no_progress_penalty": 0.0,
+        }
 
 
 def test_reward_json_empty_string_rejected():

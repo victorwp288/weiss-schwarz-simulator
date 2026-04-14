@@ -28,6 +28,8 @@ def _dummy_step_batch(
         decision_id=np.zeros((num_envs,), dtype=np.uint32),
         engine_status=np.zeros((num_envs,), dtype=np.uint8),
         spec_hash=np.full((num_envs,), np.uint64(weiss_sim.SPEC_HASH), dtype=np.uint64),
+        main_move_action=np.zeros((num_envs,), dtype=np.bool_),
+        main_pass_action=np.zeros((num_envs,), dtype=np.bool_),
         reward=np.asarray(rewards, dtype=np.float32),
         terminated=np.asarray(terminated, dtype=np.bool_),
         truncated=np.asarray(truncated, dtype=np.bool_),

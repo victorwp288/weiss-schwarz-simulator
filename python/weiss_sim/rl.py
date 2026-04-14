@@ -36,6 +36,11 @@ class RlStep:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    decision_count: np.ndarray
+    tick_count: np.ndarray
+    no_progress_count: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
     masks: np.ndarray | None = None
     legal_ids: np.ndarray | None = None
     legal_offsets: np.ndarray | None = None
@@ -76,7 +81,7 @@ def _prepare_actions(actions, num_envs: int) -> np.ndarray:
     return coerce_actions_u32(actions, num_envs=num_envs, allow_none=True)
 
 
-def _pack_step(out, spec: LayoutSpec) -> RlStep:
+def _pack_step(pool: EnvPool, out, spec: LayoutSpec) -> RlStep:
     return RlStep(
         obs=out.obs,
         masks=out.masks if spec.has_masks else None,
@@ -90,6 +95,11 @@ def _pack_step(out, spec: LayoutSpec) -> RlStep:
         decision_id=out.decision_id,
         engine_status=out.engine_status,
         spec_hash=out.spec_hash,
+        decision_count=pool.decision_count_batch().astype(np.uint32, copy=False),
+        tick_count=pool.tick_count_batch().astype(np.uint32, copy=False),
+        no_progress_count=pool.no_progress_count_batch().astype(np.uint32, copy=False),
+        main_move_action=out.main_move_action,
+        main_pass_action=out.main_pass_action,
     )
 
 
@@ -106,7 +116,7 @@ def reset_rl(pool: EnvPool, *, layout: Layout = "mask", out: object | None = Non
     _, spec = _resolve_layout(layout)
     out_buf = _prepare_out(pool, out, spec)
     getattr(pool, pool_method_name("reset_into", spec))(out_buf)
-    return _pack_step(out_buf, spec)
+    return _pack_step(pool, out_buf, spec)
 
 
 def step_rl(
@@ -120,7 +130,7 @@ def step_rl(
     _, spec = _resolve_layout(layout)
     out_buf = _prepare_out(pool, out, spec)
     getattr(pool, pool_method_name("step_into", spec))(actions, out_buf)
-    return _pack_step(out_buf, spec)
+    return _pack_step(pool, out_buf, spec)
 
 
 def step_rl_select_from_logits(
@@ -141,7 +151,7 @@ def step_rl_select_from_logits(
         actions_buf,
         out_buf,
     )
-    return _pack_step(out_buf, spec), actions_buf
+    return _pack_step(pool, out_buf, spec), actions_buf
 
 
 def step_rl_sample_from_logits(
@@ -165,4 +175,42 @@ def step_rl_sample_from_logits(
         actions_buf,
         out_buf,
     )
-    return _pack_step(out_buf, spec), actions_buf
+    return _pack_step(pool, out_buf, spec), actions_buf
+
+
+def step_rl_sample_from_logits_with_logp(
+    pool: EnvPool,
+    logits: object,
+    seeds: int | Sequence[int] | np.ndarray,
+    *,
+    layout: Layout = "i16_legal_ids",
+    actions: Sequence[int] | np.ndarray | None = None,
+    action_logp: np.ndarray | None = None,
+    out: object | None = None,
+):
+    """Sample actions from `logits`, return sampled-action log-probs, and step the pool.
+
+    This fast path is currently only available for the packed-id layout.
+    """
+    layout_name, spec = _resolve_layout(layout)
+    if layout_name != "i16_legal_ids":
+        raise ValueError("step_rl_sample_from_logits_with_logp currently requires layout='i16_legal_ids'")
+    out_buf = _prepare_out(pool, out, spec)
+    logits_buf = coerce_logits(logits, num_envs=pool.envs_len, action_space=pool.action_space)
+    seeds_buf = coerce_seeds(seeds, num_envs=pool.envs_len)
+    actions_buf = _prepare_actions(actions, pool.envs_len)
+    if action_logp is None:
+        action_logp_buf = np.empty((pool.envs_len,), dtype=np.float32)
+    else:
+        action_logp_buf = np.asarray(action_logp, dtype=np.float32)
+        if action_logp_buf.shape != (pool.envs_len,):
+            raise ValueError(f"action_logp must have shape ({pool.envs_len},), got {action_logp_buf.shape}")
+        action_logp_buf = np.ascontiguousarray(action_logp_buf, dtype=np.float32)
+    pool.step_sample_from_logits_with_logp_into_i16_legal_ids(
+        logits_buf,
+        seeds_buf,
+        actions_buf,
+        action_logp_buf,
+        out_buf,
+    )
+    return _pack_step(pool, out_buf, spec), actions_buf, action_logp_buf

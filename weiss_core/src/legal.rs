@@ -506,22 +506,24 @@ fn append_main_action_ids(
             PlayableHandCard::Climax { .. } => {}
         },
     );
-    for from in 0..max_slot {
-        for to in 0..max_slot {
-            if from == to {
-                continue;
-            }
-            let from_slot = &p.stage[from];
-            let to_slot = &p.stage[to];
-            if from_slot.card.is_some()
-                && is_character_slot(from_slot, db)
-                && (to_slot.card.is_none() || is_character_slot(to_slot, db))
-                && !modifier_cache.cannot_move_stage_position[from]
-                && (to_slot.card.is_none() || !modifier_cache.cannot_move_stage_position[to])
-            {
-                let to_index = if to < from { to } else { to - 1 };
-                let id = MAIN_MOVE_BASE + from * (MAX_STAGE - 1) + to_index;
-                push_id(out, id);
+    if !state.turn.main_move_used {
+        for from in 0..max_slot {
+            for to in 0..max_slot {
+                if from == to {
+                    continue;
+                }
+                let from_slot = &p.stage[from];
+                let to_slot = &p.stage[to];
+                if from_slot.card.is_some()
+                    && is_character_slot(from_slot, db)
+                    && (to_slot.card.is_none() || is_character_slot(to_slot, db))
+                    && !modifier_cache.cannot_move_stage_position[from]
+                    && (to_slot.card.is_none() || !modifier_cache.cannot_move_stage_position[to])
+                {
+                    let to_index = if to < from { to } else { to - 1 };
+                    let id = MAIN_MOVE_BASE + from * (MAX_STAGE - 1) + to_index;
+                    push_id(out, id);
+                }
             }
         }
     }
@@ -725,23 +727,25 @@ fn append_main_actions(
             PlayableHandCard::Climax { .. } => {}
         },
     );
-    for from in 0..max_slot {
-        for to in 0..max_slot {
-            if from == to {
-                continue;
-            }
-            let from_slot = &p.stage[from];
-            let to_slot = &p.stage[to];
-            if from_slot.card.is_some()
-                && is_character_slot(from_slot, db)
-                && (to_slot.card.is_none() || is_character_slot(to_slot, db))
-                && !modifier_cache.cannot_move_stage_position[from]
-                && (to_slot.card.is_none() || !modifier_cache.cannot_move_stage_position[to])
-            {
-                actions.push(ActionDesc::MainMove {
-                    from_slot: from as u8,
-                    to_slot: to as u8,
-                });
+    if !state.turn.main_move_used {
+        for from in 0..max_slot {
+            for to in 0..max_slot {
+                if from == to {
+                    continue;
+                }
+                let from_slot = &p.stage[from];
+                let to_slot = &p.stage[to];
+                if from_slot.card.is_some()
+                    && is_character_slot(from_slot, db)
+                    && (to_slot.card.is_none() || is_character_slot(to_slot, db))
+                    && !modifier_cache.cannot_move_stage_position[from]
+                    && (to_slot.card.is_none() || !modifier_cache.cannot_move_stage_position[to])
+                {
+                    actions.push(ActionDesc::MainMove {
+                        from_slot: from as u8,
+                        to_slot: to as u8,
+                    });
+                }
             }
         }
     }

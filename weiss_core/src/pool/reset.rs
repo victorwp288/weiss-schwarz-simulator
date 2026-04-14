@@ -45,6 +45,8 @@ fn fallback_reset_panic_outcome(reward: f32) -> StepOutcome {
             illegal_action: false,
             engine_error: true,
             engine_error_code: EngineErrorCode::ResetPanic as u8,
+            main_move_action: false,
+            main_pass_action: false,
         },
     }
 }

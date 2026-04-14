@@ -52,7 +52,7 @@ impl EnvPool {
         Ok(())
     }
 
-    pub(super) fn validate_scalar_lens(expected: usize, scalar_lens: [usize; 8]) -> Result<()> {
+    pub(super) fn validate_scalar_lens(expected: usize, scalar_lens: [usize; 10]) -> Result<()> {
         if scalar_lens.into_iter().any(|len| len != expected) {
             anyhow::bail!("scalar buffer size mismatch");
         }
@@ -74,6 +74,8 @@ impl EnvPool {
                 out.decision_id.len(),
                 out.engine_status.len(),
                 out.spec_hash.len(),
+                out.main_move_action.len(),
+                out.main_pass_action.len(),
             ],
         )?;
         Ok(())
@@ -94,6 +96,8 @@ impl EnvPool {
                 out.decision_id.len(),
                 out.engine_status.len(),
                 out.spec_hash.len(),
+                out.main_move_action.len(),
+                out.main_pass_action.len(),
             ],
         )?;
         Ok(())
@@ -118,6 +122,8 @@ impl EnvPool {
                 out.decision_id.len(),
                 out.engine_status.len(),
                 out.spec_hash.len(),
+                out.main_move_action.len(),
+                out.main_pass_action.len(),
             ],
         )?;
         Ok(())
@@ -140,6 +146,8 @@ impl EnvPool {
                 out.decision_id.len(),
                 out.engine_status.len(),
                 out.spec_hash.len(),
+                out.main_move_action.len(),
+                out.main_pass_action.len(),
             ],
         )?;
         Ok(())

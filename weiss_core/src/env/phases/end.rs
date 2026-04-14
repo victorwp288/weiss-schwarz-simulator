@@ -146,6 +146,7 @@ impl GameEnv {
         self.state.turn.encore_step_player = None;
         self.state.turn.pending_level_up = None;
         self.state.turn.main_passed = false;
+        self.state.turn.main_move_used = false;
         self.state.turn.active_window = None;
         self.state.turn.end_phase_window_done = false;
         self.state.turn.end_phase_discard_done = false;

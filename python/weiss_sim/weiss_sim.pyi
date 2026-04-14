@@ -31,6 +31,8 @@ class BatchOutMinimal:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
 
     def __init__(self, num_envs: int) -> None: ...
 
@@ -45,6 +47,8 @@ class BatchOutMinimalI16:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
 
     def __init__(self, num_envs: int) -> None: ...
 
@@ -60,6 +64,8 @@ class BatchOutMinimalI16LegalIds:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
 
     def __init__(self, num_envs: int) -> None: ...
 
@@ -73,6 +79,8 @@ class BatchOutMinimalNoMask:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
 
     def __init__(self, num_envs: int) -> None: ...
 
@@ -88,6 +96,8 @@ class BatchOutTrajectory:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
     actions: np.ndarray
 
     def __init__(self, steps: int, num_envs: int) -> None: ...
@@ -104,6 +114,8 @@ class BatchOutTrajectoryI16:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
     actions: np.ndarray
 
     def __init__(self, steps: int, num_envs: int) -> None: ...
@@ -121,6 +133,8 @@ class BatchOutTrajectoryI16LegalIds:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
     actions: np.ndarray
 
     def __init__(self, steps: int, num_envs: int) -> None: ...
@@ -136,6 +150,8 @@ class BatchOutTrajectoryNoMask:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
     actions: np.ndarray
 
     def __init__(self, steps: int, num_envs: int) -> None: ...
@@ -362,6 +378,14 @@ class EnvPool:
         actions: np.ndarray,
         out: BatchOutMinimalI16LegalIds,
     ) -> None: ...
+    def step_sample_from_logits_with_logp_into_i16_legal_ids(
+        self,
+        logits: np.ndarray,
+        seeds: np.ndarray,
+        actions: np.ndarray,
+        action_logp: np.ndarray,
+        out: BatchOutMinimalI16LegalIds,
+    ) -> None: ...
     def rollout_first_legal_into(self, steps: int, out: BatchOutTrajectory) -> None: ...
     def rollout_first_legal_into_i16(self, steps: int, out: BatchOutTrajectoryI16) -> None: ...
     def rollout_first_legal_into_i16_legal_ids(
@@ -392,6 +416,7 @@ class EnvPool:
     def starting_player_batch(self) -> np.ndarray: ...
     def decision_count_batch(self) -> np.ndarray: ...
     def tick_count_batch(self) -> np.ndarray: ...
+    def no_progress_count_batch(self) -> np.ndarray: ...
     def obs_fingerprint_batch(self) -> np.ndarray: ...
     def state_fingerprint_batch(self) -> np.ndarray: ...
     def events_fingerprint_batch(self) -> np.ndarray: ...

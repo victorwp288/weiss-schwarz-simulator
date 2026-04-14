@@ -357,6 +357,8 @@ class EnvPoolBuffers(_EngineStatusMixin):
         self.decision_id: np.ndarray = self.out.decision_id
         self.engine_status: np.ndarray = self.out.engine_status
         self.spec_hash: np.ndarray = self.out.spec_hash
+        self.main_move_action: np.ndarray = self.out.main_move_action
+        self.main_pass_action: np.ndarray = self.out.main_pass_action
         if spec.has_legal_ids:
             self.legal_ids: np.ndarray = self.out.legal_ids
             self.legal_offsets: np.ndarray = self.out.legal_offsets
@@ -548,6 +550,8 @@ class EnvPoolTrajectoryBuffers(_EngineStatusMixin):
         self.decision_id: np.ndarray = self.out.decision_id
         self.engine_status: np.ndarray = self.out.engine_status
         self.spec_hash: np.ndarray = self.out.spec_hash
+        self.main_move_action: np.ndarray = self.out.main_move_action
+        self.main_pass_action: np.ndarray = self.out.main_pass_action
         self.actions: np.ndarray = self.out.actions
 
         self._rollout_first_legal_into = _bind_pool_method(pool, "rollout_first_legal_into", spec)

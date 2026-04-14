@@ -79,11 +79,13 @@ impl GameEnv {
             decision_id: 0,
             last_action_desc: None,
             last_action_player: None,
+            last_action_decision_kind: None,
             last_illegal_action: false,
             last_engine_error: false,
             last_engine_error_code: EngineErrorCode::None,
             last_perspective: 0,
             pending_damage_delta: [0, 0],
+            no_progress_decisions: 0,
             obs_buf: vec![0; OBS_LEN],
             obs_dirty: true,
             obs_perspective: starting_player,
@@ -260,12 +262,14 @@ impl GameEnv {
         self.decision_id = u32::MAX;
         self.last_action_desc = None;
         self.last_action_player = None;
+        self.last_action_decision_kind = None;
         self.last_illegal_action = false;
         self.last_engine_error = false;
         self.last_engine_error_code = EngineErrorCode::None;
         self.fault_latched = None;
         self.last_perspective = self.state.turn.starting_player;
         self.pending_damage_delta = [0, 0];
+        self.no_progress_decisions = 0;
         self.obs_dirty = true;
         self.player_obs_version = [0; 2];
         self.player_block_cache_version = [u32::MAX; 2];

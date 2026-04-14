@@ -116,6 +116,8 @@ class _MaterializedBatchPayload:
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
     legal_mask: np.ndarray | None
     legal_ids: np.ndarray | None
     legal_offsets: np.ndarray | None
@@ -464,6 +466,8 @@ class WeissEnv:
             decision_id=common.decision_id,
             engine_status=common.engine_status,
             spec_hash=common.spec_hash,
+            main_move_action=self._out.main_move_action,
+            main_pass_action=self._out.main_pass_action,
             legal_mask=legal.mask,
             legal_ids=legal.ids,
             legal_offsets=legal.offsets,
@@ -482,6 +486,8 @@ class WeissEnv:
             decision_id=payload.decision_id,
             engine_status=payload.engine_status,
             spec_hash=payload.spec_hash,
+            main_move_action=payload.main_move_action,
+            main_pass_action=payload.main_pass_action,
             legal_mask=payload.legal_mask,
             legal_ids=payload.legal_ids,
             legal_offsets=payload.legal_offsets,
@@ -530,6 +536,9 @@ class WeissEnv:
             terminal_during_internal_opponent=terminal_internal,
             decision_count=self.pool.decision_count_batch().astype(np.uint32, copy=False),
             tick_count=self.pool.tick_count_batch().astype(np.uint32, copy=False),
+            no_progress_count=self.pool.no_progress_count_batch().astype(np.uint32, copy=False),
+            main_move_action=payload.main_move_action,
+            main_pass_action=payload.main_pass_action,
             legal_mask=payload.legal_mask,
             legal_ids=payload.legal_ids,
             legal_offsets=payload.legal_offsets,
@@ -576,6 +585,9 @@ class WeissEnv:
             terminal_during_internal_opponent=step.terminal_during_internal_opponent.copy(),
             decision_count=step.decision_count.copy(),
             tick_count=step.tick_count.copy(),
+            no_progress_count=step.no_progress_count.copy(),
+            main_move_action=step.main_move_action.copy(),
+            main_pass_action=step.main_pass_action.copy(),
             legal_mask=self._copy_optional_array(step.legal_mask),
             legal_ids=self._copy_optional_array(step.legal_ids),
             legal_offsets=self._copy_optional_array(step.legal_offsets),
@@ -592,6 +604,8 @@ class WeissEnv:
         np.copyto(self._out.decision_id, src.decision_id)
         np.copyto(self._out.engine_status, src.engine_status)
         np.copyto(self._out.spec_hash, src.spec_hash)
+        np.copyto(self._out.main_move_action, src.main_move_action)
+        np.copyto(self._out.main_pass_action, src.main_pass_action)
 
     def _copy_i16_out_from_minimal(self, src: BatchOutMinimal) -> None:
         np.clip(src.obs, _I16_MIN, _I16_MAX, out=self._out.obs)

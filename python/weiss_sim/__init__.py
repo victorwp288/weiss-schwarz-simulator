@@ -30,6 +30,7 @@ from .rl import (
     pass_action_id_for_decision_kind,
     reset_rl,
     step_rl,
+    step_rl_sample_from_logits_with_logp,
     step_rl_sample_from_logits,
     step_rl_select_from_logits,
 )
@@ -98,6 +99,7 @@ __all__ = [
     "step_rl",
     "step_rl_select_from_logits",
     "step_rl_sample_from_logits",
+    "step_rl_sample_from_logits_with_logp",
     "pass_action_id_for_decision_kind",
     "PASS_ACTION_ID",
     "observation_spec_json",

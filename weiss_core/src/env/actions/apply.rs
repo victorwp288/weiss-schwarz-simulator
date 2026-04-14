@@ -3,9 +3,10 @@ use anyhow::{anyhow, Result};
 use crate::config::RewardConfig;
 use crate::events::Event;
 use crate::legal::{ActionDesc, DecisionKind};
-use crate::state::{Phase, TerminalResult, TimingWindow};
+use crate::state::{Phase, StageStatus, TerminalResult, TimingWindow};
 
 use super::super::{GameEnv, MAX_CHOICE_OPTIONS};
+use crate::env::core::ProgressSignature;
 
 impl GameEnv {
     /// Apply an action by id and return the resulting outcome.
@@ -71,6 +72,7 @@ impl GameEnv {
             .as_ref()
             .map(|d| d.kind)
             .ok_or_else(|| anyhow!("No decision to apply"))?;
+        self.last_action_decision_kind = Some(decision_kind);
         let action_clone = action.clone();
         if self.should_validate_state() {
             if let Some(decision) = &self.decision {
@@ -116,12 +118,18 @@ impl GameEnv {
             },
         }?;
         if self.recording || self.should_validate_state() {
+            let main_move_action = matches!(decision_kind, DecisionKind::Main)
+                && matches!(action_clone, ActionDesc::MainMove { .. });
+            let main_pass_action = matches!(decision_kind, DecisionKind::Main)
+                && matches!(action_clone, ActionDesc::Pass);
             self.log_action(acting_player, action_clone);
             self.replay_steps.push(crate::replay::StepMeta {
                 actor: acting_player,
                 decision_kind,
                 illegal_action: self.last_illegal_action,
                 engine_error: self.last_engine_error,
+                main_move_action,
+                main_pass_action,
             });
         }
         Ok(outcome)
@@ -139,6 +147,7 @@ impl GameEnv {
         self.last_perspective = decision.player;
         self.last_action_desc = Some(action.clone());
         self.last_action_player = Some(decision.player);
+        let progress_before = self.progress_signature();
 
         let mut reward = 0.0f32;
 
@@ -155,7 +164,11 @@ impl GameEnv {
             if self.maybe_validate_state("post_concede") || self.is_fault_latched() {
                 return Ok(self.build_fault_step_outcome(copy_obs));
             }
-            reward += self.compute_reward(decision.player, &self.pending_damage_delta);
+            reward += self.compute_reward(
+                decision.player,
+                &self.pending_damage_delta,
+                &progress_before,
+            );
             return Ok(self.build_outcome_with_obs(reward, copy_obs));
         }
 
@@ -355,7 +368,15 @@ impl GameEnv {
                             copy_obs,
                         );
                     }
+                    if self.state.turn.main_move_used {
+                        return self.handle_illegal_action(
+                            decision.player,
+                            "Main move already used this turn",
+                            copy_obs,
+                        );
+                    }
                     self.state.players[p].stage.swap(fs, ts);
+                    self.state.turn.main_move_used = true;
                     self.remove_modifiers_for_slot(decision.player, from_slot);
                     self.remove_modifiers_for_slot(decision.player, to_slot);
                     self.mark_slot_power_dirty(decision.player, from_slot);
@@ -687,17 +708,102 @@ impl GameEnv {
             return Ok(self.build_fault_step_outcome(copy_obs));
         }
 
-        reward += self.compute_reward(decision.player, &self.pending_damage_delta);
+        self.update_no_progress_counter(progress_before);
+        reward += self.compute_reward(
+            decision.player,
+            &self.pending_damage_delta,
+            &progress_before,
+        );
         Ok(self.build_outcome_with_obs(reward, copy_obs))
     }
 
-    pub(in crate::env) fn compute_reward(&self, perspective: u8, damage_delta: &[i32; 2]) -> f32 {
+    pub(in crate::env) fn progress_signature(&self) -> ProgressSignature {
+        let mut signature = ProgressSignature {
+            active_player: self.state.turn.active_player,
+            turn_number: self.state.turn.turn_number,
+            phase: self.state.turn.phase,
+            ..ProgressSignature::default()
+        };
+        for player in 0..2usize {
+            let state = &self.state.players[player];
+            signature.deck_counts[player] = state.deck.len() as u16;
+            signature.hand_counts[player] = state.hand.len() as u16;
+            signature.waiting_room_counts[player] = state.waiting_room.len() as u16;
+            signature.clock_counts[player] = state.clock.len() as u16;
+            signature.level_counts[player] = state.level.len() as u16;
+            signature.stock_counts[player] = state.stock.len() as u16;
+            signature.memory_counts[player] = state.memory.len() as u16;
+            signature.climax_counts[player] = state.climax.len() as u16;
+            signature.resolution_counts[player] = state.resolution.len() as u16;
+            signature.occupied_stage_counts[player] = state
+                .stage
+                .iter()
+                .filter(|slot| slot.card.is_some())
+                .count() as u16;
+            signature.reversed_stage_counts[player] = state
+                .stage
+                .iter()
+                .filter(|slot| slot.card.is_some() && slot.status == StageStatus::Reverse)
+                .count() as u16;
+            signature.live_stage_counts[player] = state
+                .stage
+                .iter()
+                .filter(|slot| slot.card.is_some() && slot.status != StageStatus::Reverse)
+                .count() as u16;
+        }
+        signature
+    }
+
+    pub(crate) fn last_action_main_flags(&self) -> (bool, bool) {
+        match (
+            self.last_action_decision_kind,
+            self.last_action_desc.as_ref(),
+        ) {
+            (Some(DecisionKind::Main), Some(ActionDesc::MainMove { .. })) => (true, false),
+            (Some(DecisionKind::Main), Some(ActionDesc::Pass)) => (false, true),
+            _ => (false, false),
+        }
+    }
+
+    pub(in crate::env) fn update_no_progress_counter(&mut self, before: ProgressSignature) {
+        if self.state.terminal.is_some() {
+            self.no_progress_decisions = 0;
+            return;
+        }
+        let limit = self.curriculum.max_no_progress_decisions;
+        if limit == 0 {
+            self.no_progress_decisions = 0;
+            return;
+        }
+        let after = self.progress_signature();
+        if after != before {
+            self.no_progress_decisions = 0;
+            return;
+        }
+        self.no_progress_decisions = self.no_progress_decisions.saturating_add(1);
+        if self.no_progress_decisions >= limit {
+            self.state.terminal = Some(TerminalResult::Timeout);
+            self.decision = None;
+            self.update_action_cache();
+        }
+    }
+
+    pub(in crate::env) fn compute_reward(
+        &self,
+        perspective: u8,
+        damage_delta: &[i32; 2],
+        progress_before: &ProgressSignature,
+    ) -> f32 {
         let RewardConfig {
             terminal_win,
             terminal_loss,
             terminal_draw,
+            terminal_timeout,
             enable_shaping,
             damage_reward,
+            level_reward,
+            board_reward,
+            no_progress_penalty,
         } = &self.config.reward;
         if let Some(term) = self.state.terminal {
             return match term {
@@ -708,7 +814,8 @@ impl GameEnv {
                         *terminal_loss
                     }
                 }
-                TerminalResult::Draw | TerminalResult::Timeout => *terminal_draw,
+                TerminalResult::Draw => *terminal_draw,
+                TerminalResult::Timeout => *terminal_timeout,
             };
         }
         if *enable_shaping {
@@ -717,6 +824,19 @@ impl GameEnv {
             let opp = 1 - p;
             reward += *damage_reward * damage_delta[opp] as f32;
             reward -= *damage_reward * damage_delta[p] as f32;
+            let progress_after = self.progress_signature();
+            let level_delta = (progress_after.level_counts[opp] as i32
+                - progress_before.level_counts[opp] as i32)
+                - (progress_after.level_counts[p] as i32 - progress_before.level_counts[p] as i32);
+            reward += *level_reward * level_delta as f32;
+            let board_delta = (progress_after.live_stage_counts[p] as i32
+                - progress_before.live_stage_counts[p] as i32)
+                - (progress_after.live_stage_counts[opp] as i32
+                    - progress_before.live_stage_counts[opp] as i32);
+            reward += *board_reward * board_delta as f32;
+            if progress_after == *progress_before {
+                reward -= *no_progress_penalty;
+            }
             return reward;
         }
         0.0

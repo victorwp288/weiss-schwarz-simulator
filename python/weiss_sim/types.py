@@ -404,6 +404,8 @@ class ResetBatch(_LegalBatchMixin):
     decision_id: np.ndarray
     engine_status: np.ndarray
     spec_hash: np.ndarray
+    main_move_action: np.ndarray
+    main_pass_action: np.ndarray
     legal_mask: np.ndarray | None = None
     legal_ids: np.ndarray | None = None
     legal_offsets: np.ndarray | None = None
@@ -428,6 +430,9 @@ class StepBatch(_LegalBatchMixin):
     terminal_during_internal_opponent: np.ndarray
     decision_count: np.ndarray
     tick_count: np.ndarray
+    no_progress_count: np.ndarray = field(default_factory=lambda: np.zeros((0,), dtype=np.uint32))
+    main_move_action: np.ndarray = field(default_factory=lambda: np.zeros((0,), dtype=np.bool_))
+    main_pass_action: np.ndarray = field(default_factory=lambda: np.zeros((0,), dtype=np.bool_))
     legal_mask: np.ndarray | None = None
     legal_ids: np.ndarray | None = None
     legal_offsets: np.ndarray | None = None

@@ -52,7 +52,8 @@ Non-terminal behavior:
 Terminal behavior:
 
 - win/loss rewards use the configured `terminal_win` / `terminal_loss`
-- draw/timeout rewards use `terminal_draw`
+- draws use `terminal_draw`
+- timeouts/truncations use `terminal_timeout`
 
 Fault behavior (engine errors):
 
@@ -64,6 +65,7 @@ Reward configuration defaults (`RewardConfig`):
 - `terminal_win = 1.0`
 - `terminal_loss = -1.0`
 - `terminal_draw = 0.0`
+- `terminal_timeout = 0.0`
 - `enable_shaping = false`
 - `damage_reward = 0.1`
 

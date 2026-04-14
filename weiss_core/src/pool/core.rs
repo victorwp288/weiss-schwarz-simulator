@@ -319,6 +319,14 @@ impl EnvPool {
             .collect()
     }
 
+    /// Consecutive no-progress decision counts for each env in the pool.
+    pub fn no_progress_count_batch(&self) -> Vec<u32> {
+        self.envs
+            .iter()
+            .map(|env| env.no_progress_decisions)
+            .collect()
+    }
+
     /// Enable replay sampling for all envs in the pool.
     pub fn enable_replay_sampling(&mut self, config: ReplayConfig) -> Result<()> {
         let mut config = config;

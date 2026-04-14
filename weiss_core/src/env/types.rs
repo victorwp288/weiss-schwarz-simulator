@@ -27,6 +27,10 @@ pub struct EnvInfo {
     pub engine_error: bool,
     /// Error code for the last engine error.
     pub engine_error_code: u8,
+    /// Whether the last action was a main-phase move.
+    pub main_move_action: bool,
+    /// Whether the last action was a main-phase pass.
+    pub main_pass_action: bool,
 }
 
 /// Outcome from applying a single decision action.

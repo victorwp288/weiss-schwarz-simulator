@@ -38,6 +38,8 @@ impl EnvPool {
                 out.decision_id.len(),
                 out.engine_status.len(),
                 out.spec_hash.len(),
+                out.main_move_action.len(),
+                out.main_pass_action.len(),
             ],
         )?;
         Ok(())
@@ -72,6 +74,8 @@ impl EnvPool {
                 out.decision_id.len(),
                 out.engine_status.len(),
                 out.spec_hash.len(),
+                out.main_move_action.len(),
+                out.main_pass_action.len(),
             ],
         )?;
         Ok(())
@@ -113,6 +117,8 @@ impl EnvPool {
                 out.decision_id.len(),
                 out.engine_status.len(),
                 out.spec_hash.len(),
+                out.main_move_action.len(),
+                out.main_pass_action.len(),
             ],
         )?;
         Ok(())
@@ -143,6 +149,8 @@ impl EnvPool {
                 out.decision_id.len(),
                 out.engine_status.len(),
                 out.spec_hash.len(),
+                out.main_move_action.len(),
+                out.main_pass_action.len(),
             ],
         )?;
         Ok(())

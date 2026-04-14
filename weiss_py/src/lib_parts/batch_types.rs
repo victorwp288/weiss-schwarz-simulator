@@ -10,6 +10,8 @@ struct PyBatchOutMinimal {
     decision_id: Py<PyArray1<u32>>,
     engine_status: Py<PyArray1<u8>>,
     spec_hash: Py<PyArray1<u64>>,
+    main_move_action: Py<PyArray1<bool>>,
+    main_pass_action: Py<PyArray1<bool>>,
 }
 
 #[pyclass(name = "BatchOutMinimalI16")]
@@ -24,6 +26,8 @@ struct PyBatchOutMinimalI16 {
     decision_id: Py<PyArray1<u32>>,
     engine_status: Py<PyArray1<u8>>,
     spec_hash: Py<PyArray1<u64>>,
+    main_move_action: Py<PyArray1<bool>>,
+    main_pass_action: Py<PyArray1<bool>>,
 }
 
 #[pymethods]
@@ -45,6 +49,8 @@ impl PyBatchOutMinimalI16 {
         let decision_id = Array1::<u32>::zeros(num_envs);
         let engine_status = Array1::<u8>::zeros(num_envs);
         let spec_hash = Array1::<u64>::from_elem(num_envs, SPEC_HASH);
+        let main_move_action = Array1::<bool>::from_elem(num_envs, false);
+        let main_pass_action = Array1::<bool>::from_elem(num_envs, false);
         Ok(Self {
             obs: PyArray2::from_owned_array(py, obs).unbind(),
             masks: PyArray2::from_owned_array(py, masks).unbind(),
@@ -56,6 +62,8 @@ impl PyBatchOutMinimalI16 {
             decision_id: PyArray1::from_owned_array(py, decision_id).unbind(),
             engine_status: PyArray1::from_owned_array(py, engine_status).unbind(),
             spec_hash: PyArray1::from_owned_array(py, spec_hash).unbind(),
+            main_move_action: PyArray1::from_owned_array(py, main_move_action).unbind(),
+            main_pass_action: PyArray1::from_owned_array(py, main_pass_action).unbind(),
         })
     }
 
@@ -99,6 +107,14 @@ impl PyBatchOutMinimalI16 {
     fn spec_hash(&self, py: Python<'_>) -> Py<PyArray1<u64>> {
         self.spec_hash.clone_ref(py)
     }
+    #[getter]
+    fn main_move_action(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.main_move_action.clone_ref(py)
+    }
+    #[getter]
+    fn main_pass_action(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.main_pass_action.clone_ref(py)
+    }
 }
 
 #[pyclass(name = "BatchOutMinimalI16LegalIds")]
@@ -114,6 +130,8 @@ struct PyBatchOutMinimalI16LegalIds {
     decision_id: Py<PyArray1<u32>>,
     engine_status: Py<PyArray1<u8>>,
     spec_hash: Py<PyArray1<u64>>,
+    main_move_action: Py<PyArray1<bool>>,
+    main_pass_action: Py<PyArray1<bool>>,
 }
 
 #[pymethods]
@@ -147,6 +165,8 @@ impl PyBatchOutMinimalI16LegalIds {
         let decision_id = Array1::<u32>::zeros(num_envs);
         let engine_status = Array1::<u8>::zeros(num_envs);
         let spec_hash = Array1::<u64>::from_elem(num_envs, SPEC_HASH);
+        let main_move_action = Array1::<bool>::from_elem(num_envs, false);
+        let main_pass_action = Array1::<bool>::from_elem(num_envs, false);
         Ok(Self {
             obs: PyArray2::from_owned_array(py, obs).unbind(),
             legal_ids: PyArray1::from_owned_array(py, legal_ids).unbind(),
@@ -159,6 +179,8 @@ impl PyBatchOutMinimalI16LegalIds {
             decision_id: PyArray1::from_owned_array(py, decision_id).unbind(),
             engine_status: PyArray1::from_owned_array(py, engine_status).unbind(),
             spec_hash: PyArray1::from_owned_array(py, spec_hash).unbind(),
+            main_move_action: PyArray1::from_owned_array(py, main_move_action).unbind(),
+            main_pass_action: PyArray1::from_owned_array(py, main_pass_action).unbind(),
         })
     }
 
@@ -206,6 +228,14 @@ impl PyBatchOutMinimalI16LegalIds {
     fn spec_hash(&self, py: Python<'_>) -> Py<PyArray1<u64>> {
         self.spec_hash.clone_ref(py)
     }
+    #[getter]
+    fn main_move_action(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.main_move_action.clone_ref(py)
+    }
+    #[getter]
+    fn main_pass_action(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.main_pass_action.clone_ref(py)
+    }
 }
 
 #[pymethods]
@@ -227,6 +257,8 @@ impl PyBatchOutMinimal {
         let decision_id = Array1::<u32>::zeros(num_envs);
         let engine_status = Array1::<u8>::zeros(num_envs);
         let spec_hash = Array1::<u64>::from_elem(num_envs, SPEC_HASH);
+        let main_move_action = Array1::<bool>::from_elem(num_envs, false);
+        let main_pass_action = Array1::<bool>::from_elem(num_envs, false);
         Ok(Self {
             obs: PyArray2::from_owned_array(py, obs).unbind(),
             masks: PyArray2::from_owned_array(py, masks).unbind(),
@@ -238,6 +270,8 @@ impl PyBatchOutMinimal {
             decision_id: PyArray1::from_owned_array(py, decision_id).unbind(),
             engine_status: PyArray1::from_owned_array(py, engine_status).unbind(),
             spec_hash: PyArray1::from_owned_array(py, spec_hash).unbind(),
+            main_move_action: PyArray1::from_owned_array(py, main_move_action).unbind(),
+            main_pass_action: PyArray1::from_owned_array(py, main_pass_action).unbind(),
         })
     }
 
@@ -281,6 +315,14 @@ impl PyBatchOutMinimal {
     fn spec_hash(&self, py: Python<'_>) -> Py<PyArray1<u64>> {
         self.spec_hash.clone_ref(py)
     }
+    #[getter]
+    fn main_move_action(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.main_move_action.clone_ref(py)
+    }
+    #[getter]
+    fn main_pass_action(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.main_pass_action.clone_ref(py)
+    }
 }
 
 #[pyclass(name = "BatchOutMinimalNoMask")]
@@ -294,6 +336,8 @@ struct PyBatchOutMinimalNoMask {
     decision_id: Py<PyArray1<u32>>,
     engine_status: Py<PyArray1<u8>>,
     spec_hash: Py<PyArray1<u64>>,
+    main_move_action: Py<PyArray1<bool>>,
+    main_pass_action: Py<PyArray1<bool>>,
 }
 
 #[pymethods]
@@ -314,6 +358,8 @@ impl PyBatchOutMinimalNoMask {
         let decision_id = Array1::<u32>::zeros(num_envs);
         let engine_status = Array1::<u8>::zeros(num_envs);
         let spec_hash = Array1::<u64>::from_elem(num_envs, SPEC_HASH);
+        let main_move_action = Array1::<bool>::from_elem(num_envs, false);
+        let main_pass_action = Array1::<bool>::from_elem(num_envs, false);
         Ok(Self {
             obs: PyArray2::from_owned_array(py, obs).unbind(),
             rewards: PyArray1::from_owned_array(py, rewards).unbind(),
@@ -324,6 +370,8 @@ impl PyBatchOutMinimalNoMask {
             decision_id: PyArray1::from_owned_array(py, decision_id).unbind(),
             engine_status: PyArray1::from_owned_array(py, engine_status).unbind(),
             spec_hash: PyArray1::from_owned_array(py, spec_hash).unbind(),
+            main_move_action: PyArray1::from_owned_array(py, main_move_action).unbind(),
+            main_pass_action: PyArray1::from_owned_array(py, main_pass_action).unbind(),
         })
     }
 
@@ -363,6 +411,14 @@ impl PyBatchOutMinimalNoMask {
     fn spec_hash(&self, py: Python<'_>) -> Py<PyArray1<u64>> {
         self.spec_hash.clone_ref(py)
     }
+    #[getter]
+    fn main_move_action(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.main_move_action.clone_ref(py)
+    }
+    #[getter]
+    fn main_pass_action(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.main_pass_action.clone_ref(py)
+    }
 }
 
 #[pyclass(name = "BatchOutTrajectory")]
@@ -378,6 +434,8 @@ struct PyBatchOutTrajectory {
     decision_id: Py<PyArray2<u32>>,
     engine_status: Py<PyArray2<u8>>,
     spec_hash: Py<PyArray2<u64>>,
+    main_move_action: Py<PyArray2<bool>>,
+    main_pass_action: Py<PyArray2<bool>>,
     actions: Py<PyArray2<u32>>,
 }
 
@@ -415,6 +473,8 @@ impl PyBatchOutTrajectory {
         let decision_id = Array2::<u32>::zeros((steps, num_envs));
         let engine_status = Array2::<u8>::zeros((steps, num_envs));
         let spec_hash = Array2::<u64>::from_elem((steps, num_envs), SPEC_HASH);
+        let main_move_action = Array2::<bool>::from_elem((steps, num_envs), false);
+        let main_pass_action = Array2::<bool>::from_elem((steps, num_envs), false);
         let actions = Array2::<u32>::zeros((steps, num_envs));
         Ok(Self {
             steps,
@@ -428,6 +488,8 @@ impl PyBatchOutTrajectory {
             decision_id: PyArray2::from_owned_array(py, decision_id).unbind(),
             engine_status: PyArray2::from_owned_array(py, engine_status).unbind(),
             spec_hash: PyArray2::from_owned_array(py, spec_hash).unbind(),
+            main_move_action: PyArray2::from_owned_array(py, main_move_action).unbind(),
+            main_pass_action: PyArray2::from_owned_array(py, main_pass_action).unbind(),
             actions: PyArray2::from_owned_array(py, actions).unbind(),
         })
     }
@@ -477,6 +539,14 @@ impl PyBatchOutTrajectory {
         self.spec_hash.clone_ref(py)
     }
     #[getter]
+    fn main_move_action(&self, py: Python<'_>) -> Py<PyArray2<bool>> {
+        self.main_move_action.clone_ref(py)
+    }
+    #[getter]
+    fn main_pass_action(&self, py: Python<'_>) -> Py<PyArray2<bool>> {
+        self.main_pass_action.clone_ref(py)
+    }
+    #[getter]
     fn actions(&self, py: Python<'_>) -> Py<PyArray2<u32>> {
         self.actions.clone_ref(py)
     }
@@ -495,6 +565,8 @@ struct PyBatchOutTrajectoryI16 {
     decision_id: Py<PyArray2<u32>>,
     engine_status: Py<PyArray2<u8>>,
     spec_hash: Py<PyArray2<u64>>,
+    main_move_action: Py<PyArray2<bool>>,
+    main_pass_action: Py<PyArray2<bool>>,
     actions: Py<PyArray2<u32>>,
 }
 
@@ -532,6 +604,8 @@ impl PyBatchOutTrajectoryI16 {
         let decision_id = Array2::<u32>::zeros((steps, num_envs));
         let engine_status = Array2::<u8>::zeros((steps, num_envs));
         let spec_hash = Array2::<u64>::from_elem((steps, num_envs), SPEC_HASH);
+        let main_move_action = Array2::<bool>::from_elem((steps, num_envs), false);
+        let main_pass_action = Array2::<bool>::from_elem((steps, num_envs), false);
         let actions = Array2::<u32>::zeros((steps, num_envs));
         Ok(Self {
             steps,
@@ -545,6 +619,8 @@ impl PyBatchOutTrajectoryI16 {
             decision_id: PyArray2::from_owned_array(py, decision_id).unbind(),
             engine_status: PyArray2::from_owned_array(py, engine_status).unbind(),
             spec_hash: PyArray2::from_owned_array(py, spec_hash).unbind(),
+            main_move_action: PyArray2::from_owned_array(py, main_move_action).unbind(),
+            main_pass_action: PyArray2::from_owned_array(py, main_pass_action).unbind(),
             actions: PyArray2::from_owned_array(py, actions).unbind(),
         })
     }
@@ -594,6 +670,14 @@ impl PyBatchOutTrajectoryI16 {
         self.spec_hash.clone_ref(py)
     }
     #[getter]
+    fn main_move_action(&self, py: Python<'_>) -> Py<PyArray2<bool>> {
+        self.main_move_action.clone_ref(py)
+    }
+    #[getter]
+    fn main_pass_action(&self, py: Python<'_>) -> Py<PyArray2<bool>> {
+        self.main_pass_action.clone_ref(py)
+    }
+    #[getter]
     fn actions(&self, py: Python<'_>) -> Py<PyArray2<u32>> {
         self.actions.clone_ref(py)
     }
@@ -613,6 +697,8 @@ struct PyBatchOutTrajectoryI16LegalIds {
     decision_id: Py<PyArray2<u32>>,
     engine_status: Py<PyArray2<u8>>,
     spec_hash: Py<PyArray2<u64>>,
+    main_move_action: Py<PyArray2<bool>>,
+    main_pass_action: Py<PyArray2<bool>>,
     actions: Py<PyArray2<u32>>,
 }
 
@@ -667,6 +753,8 @@ impl PyBatchOutTrajectoryI16LegalIds {
         let decision_id = Array2::<u32>::zeros((steps, num_envs));
         let engine_status = Array2::<u8>::zeros((steps, num_envs));
         let spec_hash = Array2::<u64>::from_elem((steps, num_envs), SPEC_HASH);
+        let main_move_action = Array2::<bool>::from_elem((steps, num_envs), false);
+        let main_pass_action = Array2::<bool>::from_elem((steps, num_envs), false);
         let actions = Array2::<u32>::zeros((steps, num_envs));
         Ok(Self {
             steps,
@@ -681,6 +769,8 @@ impl PyBatchOutTrajectoryI16LegalIds {
             decision_id: PyArray2::from_owned_array(py, decision_id).unbind(),
             engine_status: PyArray2::from_owned_array(py, engine_status).unbind(),
             spec_hash: PyArray2::from_owned_array(py, spec_hash).unbind(),
+            main_move_action: PyArray2::from_owned_array(py, main_move_action).unbind(),
+            main_pass_action: PyArray2::from_owned_array(py, main_pass_action).unbind(),
             actions: PyArray2::from_owned_array(py, actions).unbind(),
         })
     }
@@ -734,6 +824,14 @@ impl PyBatchOutTrajectoryI16LegalIds {
         self.spec_hash.clone_ref(py)
     }
     #[getter]
+    fn main_move_action(&self, py: Python<'_>) -> Py<PyArray2<bool>> {
+        self.main_move_action.clone_ref(py)
+    }
+    #[getter]
+    fn main_pass_action(&self, py: Python<'_>) -> Py<PyArray2<bool>> {
+        self.main_pass_action.clone_ref(py)
+    }
+    #[getter]
     fn actions(&self, py: Python<'_>) -> Py<PyArray2<u32>> {
         self.actions.clone_ref(py)
     }
@@ -751,6 +849,8 @@ struct PyBatchOutTrajectoryNoMask {
     decision_id: Py<PyArray2<u32>>,
     engine_status: Py<PyArray2<u8>>,
     spec_hash: Py<PyArray2<u64>>,
+    main_move_action: Py<PyArray2<bool>>,
+    main_pass_action: Py<PyArray2<bool>>,
     actions: Py<PyArray2<u32>>,
 }
 
@@ -782,6 +882,8 @@ impl PyBatchOutTrajectoryNoMask {
         let decision_id = Array2::<u32>::zeros((steps, num_envs));
         let engine_status = Array2::<u8>::zeros((steps, num_envs));
         let spec_hash = Array2::<u64>::from_elem((steps, num_envs), SPEC_HASH);
+        let main_move_action = Array2::<bool>::from_elem((steps, num_envs), false);
+        let main_pass_action = Array2::<bool>::from_elem((steps, num_envs), false);
         let actions = Array2::<u32>::zeros((steps, num_envs));
         Ok(Self {
             steps,
@@ -794,6 +896,8 @@ impl PyBatchOutTrajectoryNoMask {
             decision_id: PyArray2::from_owned_array(py, decision_id).unbind(),
             engine_status: PyArray2::from_owned_array(py, engine_status).unbind(),
             spec_hash: PyArray2::from_owned_array(py, spec_hash).unbind(),
+            main_move_action: PyArray2::from_owned_array(py, main_move_action).unbind(),
+            main_pass_action: PyArray2::from_owned_array(py, main_pass_action).unbind(),
             actions: PyArray2::from_owned_array(py, actions).unbind(),
         })
     }
@@ -839,6 +943,14 @@ impl PyBatchOutTrajectoryNoMask {
         self.spec_hash.clone_ref(py)
     }
     #[getter]
+    fn main_move_action(&self, py: Python<'_>) -> Py<PyArray2<bool>> {
+        self.main_move_action.clone_ref(py)
+    }
+    #[getter]
+    fn main_pass_action(&self, py: Python<'_>) -> Py<PyArray2<bool>> {
+        self.main_pass_action.clone_ref(py)
+    }
+    #[getter]
     fn actions(&self, py: Python<'_>) -> Py<PyArray2<u32>> {
         self.actions.clone_ref(py)
     }
@@ -856,6 +968,8 @@ struct PyBatchOutDebug {
     engine_status: Py<PyArray1<u8>>,
     spec_hash: Py<PyArray1<u64>>,
     decision_kind: Py<PyArray1<i8>>,
+    main_move_action: Py<PyArray1<bool>>,
+    main_pass_action: Py<PyArray1<bool>>,
     state_fingerprint: Py<PyArray1<u64>>,
     events_fingerprint: Py<PyArray1<u64>>,
     mask_fingerprint: Py<PyArray1<u64>>,
@@ -882,6 +996,8 @@ impl PyBatchOutDebug {
         let engine_status = Array1::<u8>::zeros(num_envs);
         let spec_hash = Array1::<u64>::from_elem(num_envs, SPEC_HASH);
         let decision_kind = Array1::<i8>::zeros(num_envs);
+        let main_move_action = Array1::<bool>::from_elem(num_envs, false);
+        let main_pass_action = Array1::<bool>::from_elem(num_envs, false);
         let state_fingerprint = Array1::<u64>::zeros(num_envs);
         let events_fingerprint = Array1::<u64>::zeros(num_envs);
         let mask_fingerprint = Array1::<u64>::zeros(num_envs);
@@ -898,6 +1014,8 @@ impl PyBatchOutDebug {
             engine_status: PyArray1::from_owned_array(py, engine_status).unbind(),
             spec_hash: PyArray1::from_owned_array(py, spec_hash).unbind(),
             decision_kind: PyArray1::from_owned_array(py, decision_kind).unbind(),
+            main_move_action: PyArray1::from_owned_array(py, main_move_action).unbind(),
+            main_pass_action: PyArray1::from_owned_array(py, main_pass_action).unbind(),
             state_fingerprint: PyArray1::from_owned_array(py, state_fingerprint).unbind(),
             events_fingerprint: PyArray1::from_owned_array(py, events_fingerprint).unbind(),
             mask_fingerprint: PyArray1::from_owned_array(py, mask_fingerprint).unbind(),
@@ -947,6 +1065,14 @@ impl PyBatchOutDebug {
         self.decision_kind.clone_ref(py)
     }
     #[getter]
+    fn main_move_action(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.main_move_action.clone_ref(py)
+    }
+    #[getter]
+    fn main_pass_action(&self, py: Python<'_>) -> Py<PyArray1<bool>> {
+        self.main_pass_action.clone_ref(py)
+    }
+    #[getter]
     fn state_fingerprint(&self, py: Python<'_>) -> Py<PyArray1<u64>> {
         self.state_fingerprint.clone_ref(py)
     }
@@ -983,6 +1109,8 @@ fn ensure_batch_out_minimal_dims(
     ensure_first_dim(py, "decision_id", &out.decision_id, num_envs, None)?;
     ensure_first_dim(py, "engine_status", &out.engine_status, num_envs, None)?;
     ensure_first_dim(py, "spec_hash", &out.spec_hash, num_envs, None)?;
+    ensure_first_dim(py, "main_move_action", &out.main_move_action, num_envs, None)?;
+    ensure_first_dim(py, "main_pass_action", &out.main_pass_action, num_envs, None)?;
     Ok(())
 }
 
@@ -1001,6 +1129,8 @@ fn ensure_batch_out_minimal_i16_dims(
     ensure_first_dim(py, "decision_id", &out.decision_id, num_envs, None)?;
     ensure_first_dim(py, "engine_status", &out.engine_status, num_envs, None)?;
     ensure_first_dim(py, "spec_hash", &out.spec_hash, num_envs, None)?;
+    ensure_first_dim(py, "main_move_action", &out.main_move_action, num_envs, None)?;
+    ensure_first_dim(py, "main_pass_action", &out.main_pass_action, num_envs, None)?;
     Ok(())
 }
 
@@ -1037,6 +1167,8 @@ fn ensure_batch_out_minimal_i16_legal_ids_dims(
     ensure_first_dim(py, "decision_id", &out.decision_id, num_envs, None)?;
     ensure_first_dim(py, "engine_status", &out.engine_status, num_envs, None)?;
     ensure_first_dim(py, "spec_hash", &out.spec_hash, num_envs, None)?;
+    ensure_first_dim(py, "main_move_action", &out.main_move_action, num_envs, None)?;
+    ensure_first_dim(py, "main_pass_action", &out.main_pass_action, num_envs, None)?;
     Ok(())
 }
 
@@ -1054,6 +1186,8 @@ fn ensure_batch_out_minimal_nomask_dims(
     ensure_first_dim(py, "decision_id", &out.decision_id, num_envs, None)?;
     ensure_first_dim(py, "engine_status", &out.engine_status, num_envs, None)?;
     ensure_first_dim(py, "spec_hash", &out.spec_hash, num_envs, None)?;
+    ensure_first_dim(py, "main_move_action", &out.main_move_action, num_envs, None)?;
+    ensure_first_dim(py, "main_pass_action", &out.main_pass_action, num_envs, None)?;
     Ok(())
 }
 
@@ -1075,6 +1209,8 @@ fn ensure_batch_out_trajectory_dims(
     ensure_first_two_dims(py, "decision_id", &out.decision_id, steps, num_envs)?;
     ensure_first_two_dims(py, "engine_status", &out.engine_status, steps, num_envs)?;
     ensure_first_two_dims(py, "spec_hash", &out.spec_hash, steps, num_envs)?;
+    ensure_first_two_dims(py, "main_move_action", &out.main_move_action, steps, num_envs)?;
+    ensure_first_two_dims(py, "main_pass_action", &out.main_pass_action, steps, num_envs)?;
     ensure_first_two_dims(py, "actions", &out.actions, steps, num_envs)?;
     Ok(())
 }
@@ -1097,6 +1233,8 @@ fn ensure_batch_out_trajectory_i16_dims(
     ensure_first_two_dims(py, "decision_id", &out.decision_id, steps, num_envs)?;
     ensure_first_two_dims(py, "engine_status", &out.engine_status, steps, num_envs)?;
     ensure_first_two_dims(py, "spec_hash", &out.spec_hash, steps, num_envs)?;
+    ensure_first_two_dims(py, "main_move_action", &out.main_move_action, steps, num_envs)?;
+    ensure_first_two_dims(py, "main_pass_action", &out.main_pass_action, steps, num_envs)?;
     ensure_first_two_dims(py, "actions", &out.actions, steps, num_envs)?;
     Ok(())
 }
@@ -1136,6 +1274,8 @@ fn ensure_batch_out_trajectory_i16_legal_ids_dims(
     ensure_first_two_dims(py, "decision_id", &out.decision_id, steps, num_envs)?;
     ensure_first_two_dims(py, "engine_status", &out.engine_status, steps, num_envs)?;
     ensure_first_two_dims(py, "spec_hash", &out.spec_hash, steps, num_envs)?;
+    ensure_first_two_dims(py, "main_move_action", &out.main_move_action, steps, num_envs)?;
+    ensure_first_two_dims(py, "main_pass_action", &out.main_pass_action, steps, num_envs)?;
     ensure_first_two_dims(py, "actions", &out.actions, steps, num_envs)?;
     Ok(())
 }
@@ -1156,6 +1296,8 @@ fn ensure_batch_out_trajectory_nomask_dims(
     ensure_first_two_dims(py, "decision_id", &out.decision_id, steps, num_envs)?;
     ensure_first_two_dims(py, "engine_status", &out.engine_status, steps, num_envs)?;
     ensure_first_two_dims(py, "spec_hash", &out.spec_hash, steps, num_envs)?;
+    ensure_first_two_dims(py, "main_move_action", &out.main_move_action, steps, num_envs)?;
+    ensure_first_two_dims(py, "main_pass_action", &out.main_pass_action, steps, num_envs)?;
     ensure_first_two_dims(py, "actions", &out.actions, steps, num_envs)?;
     Ok(())
 }
@@ -1176,6 +1318,8 @@ fn ensure_batch_out_debug_dims(
     ensure_first_dim(py, "engine_status", &out.engine_status, num_envs, None)?;
     ensure_first_dim(py, "spec_hash", &out.spec_hash, num_envs, None)?;
     ensure_first_dim(py, "decision_kind", &out.decision_kind, num_envs, None)?;
+    ensure_first_dim(py, "main_move_action", &out.main_move_action, num_envs, None)?;
+    ensure_first_dim(py, "main_pass_action", &out.main_pass_action, num_envs, None)?;
     ensure_first_dim(
         py,
         "state_fingerprint",

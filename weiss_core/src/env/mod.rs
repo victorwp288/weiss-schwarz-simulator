@@ -220,13 +220,14 @@ impl GameEnv {
 
     /// Compute terminal reward from `perspective` using the configured reward table.
     ///
-    /// Non-terminal states always produce `0.0`; faults/timeouts are treated as
-    /// draw-equivalent rewards.
+    /// Non-terminal states always produce `0.0`; timeouts use the dedicated
+    /// timeout reward while faults remain draw-equivalent.
     pub(crate) fn terminal_reward_for(&self, perspective: u8) -> f32 {
         let RewardConfig {
             terminal_win,
             terminal_loss,
             terminal_draw,
+            terminal_timeout,
             ..
         } = &self.config.reward;
         match self.state.terminal {
@@ -237,7 +238,8 @@ impl GameEnv {
                     *terminal_loss
                 }
             }
-            Some(TerminalResult::Draw | TerminalResult::Timeout) => *terminal_draw,
+            Some(TerminalResult::Draw) => *terminal_draw,
+            Some(TerminalResult::Timeout) => *terminal_timeout,
             None => 0.0,
         }
     }

@@ -23,6 +23,8 @@ def _make_base_arrays(num_envs: int, *, obs_dtype=np.int32) -> dict[str, np.ndar
         "decision_id": np.full((num_envs,), 7, dtype=np.uint32),
         "engine_status": np.zeros((num_envs,), dtype=np.uint8),
         "spec_hash": np.full((num_envs,), np.uint64(123), dtype=np.uint64),
+        "main_move_action": np.zeros((num_envs,), dtype=np.bool_),
+        "main_pass_action": np.zeros((num_envs,), dtype=np.bool_),
     }
 
 

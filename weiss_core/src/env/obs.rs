@@ -152,6 +152,7 @@ impl GameEnv {
         } else {
             Vec::new()
         };
+        let (main_move_action, main_pass_action) = self.last_action_main_flags();
         let info = super::EnvInfo {
             obs_version: crate::encode::OBS_ENCODING_VERSION,
             action_version: crate::encode::ACTION_ENCODING_VERSION,
@@ -178,6 +179,8 @@ impl GameEnv {
             illegal_action: self.last_illegal_action,
             engine_error: self.last_engine_error,
             engine_error_code: self.last_engine_error_code as u8,
+            main_move_action,
+            main_pass_action,
         };
         let truncated = matches!(
             self.state.terminal,

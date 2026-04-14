@@ -4,13 +4,54 @@ use std::sync::Arc;
 use crate::config::{CurriculumConfig, EnvConfig};
 use crate::db::{CardDb, CardId};
 use crate::events::Event;
-use crate::legal::{ActionDesc, Decision};
+use crate::legal::{ActionDesc, Decision, DecisionKind};
 use crate::replay::{ReplayConfig, ReplayEvent, ReplayWriter, StepMeta};
 use crate::state::{CardInstanceId, GameState, Phase};
 use crate::util::Rng64;
 
 use super::cache::{ActionCache, EnvScratch};
 use super::types::{DebugConfig, EngineErrorCode, FaultRecord};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ProgressSignature {
+    pub active_player: u8,
+    pub turn_number: u32,
+    pub phase: Phase,
+    pub deck_counts: [u16; 2],
+    pub hand_counts: [u16; 2],
+    pub waiting_room_counts: [u16; 2],
+    pub clock_counts: [u16; 2],
+    pub level_counts: [u16; 2],
+    pub stock_counts: [u16; 2],
+    pub memory_counts: [u16; 2],
+    pub climax_counts: [u16; 2],
+    pub resolution_counts: [u16; 2],
+    pub occupied_stage_counts: [u16; 2],
+    pub reversed_stage_counts: [u16; 2],
+    pub live_stage_counts: [u16; 2],
+}
+
+impl Default for ProgressSignature {
+    fn default() -> Self {
+        Self {
+            active_player: 0,
+            turn_number: 0,
+            phase: Phase::Mulligan,
+            deck_counts: [0; 2],
+            hand_counts: [0; 2],
+            waiting_room_counts: [0; 2],
+            clock_counts: [0; 2],
+            level_counts: [0; 2],
+            stock_counts: [0; 2],
+            memory_counts: [0; 2],
+            climax_counts: [0; 2],
+            resolution_counts: [0; 2],
+            occupied_stage_counts: [0; 2],
+            reversed_stage_counts: [0; 2],
+            live_stage_counts: [0; 2],
+        }
+    }
+}
 
 /// A single Weiss Schwarz environment instance with deterministic RNG state.
 pub struct GameEnv {
@@ -38,6 +79,8 @@ pub struct GameEnv {
     pub last_action_desc: Option<ActionDesc>,
     /// Player index that performed the last action.
     pub last_action_player: Option<u8>,
+    /// Decision kind associated with the last applied action.
+    pub(crate) last_action_decision_kind: Option<DecisionKind>,
     /// Whether the last action was illegal.
     pub last_illegal_action: bool,
     /// Whether the last step hit an engine error.
@@ -48,6 +91,8 @@ pub struct GameEnv {
     pub last_perspective: u8,
     /// Pending damage deltas awaiting resolution per player.
     pub pending_damage_delta: [i32; 2],
+    /// Consecutive decisions without a meaningful progress signature change.
+    pub no_progress_decisions: u32,
     /// Scratch buffer holding the most recent observation.
     pub obs_buf: Vec<i32>,
     pub(crate) obs_dirty: bool,
