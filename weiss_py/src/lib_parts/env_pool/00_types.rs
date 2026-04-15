@@ -18,3 +18,5 @@ struct ParsedPoolInit {
     debug: DebugConfig,
 }
 
+impl PyEnvPool {}
+

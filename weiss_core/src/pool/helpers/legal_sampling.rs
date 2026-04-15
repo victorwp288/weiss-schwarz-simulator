@@ -4,7 +4,9 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
-use crate::encode::ACTION_SPACE_SIZE;
+use crate::encode::{
+    action_meta_for_id, ACTION_META_UNUSED, ACTION_META_WIDTH, ACTION_SPACE_SIZE,
+};
 use crate::legal::ActionDesc;
 
 use super::super::core::EnvPool;
@@ -265,6 +267,29 @@ impl EnvPool {
             debug_assert_eq!(cursor, offsets[i + 1] as usize);
         }
         Ok(total)
+    }
+
+    /// Fill packed legal-action metadata for all envs.
+    pub fn legal_action_meta_batch_into(&self, meta: &mut [u16]) -> Result<usize> {
+        let num_envs = self.envs.len();
+        if meta.len() != num_envs * ACTION_SPACE_SIZE * ACTION_META_WIDTH {
+            anyhow::bail!("legal action meta buffer size mismatch");
+        }
+        let mut cursor = 0usize;
+        for env in &self.envs {
+            for &action_id in env.action_ids_cache() {
+                let Some(row) = action_meta_for_id(action_id as usize) else {
+                    meta[cursor * ACTION_META_WIDTH..cursor * ACTION_META_WIDTH + ACTION_META_WIDTH]
+                        .copy_from_slice(&[ACTION_META_UNUSED; ACTION_META_WIDTH]);
+                    cursor += 1;
+                    continue;
+                };
+                meta[cursor * ACTION_META_WIDTH..cursor * ACTION_META_WIDTH + ACTION_META_WIDTH]
+                    .copy_from_slice(&row);
+                cursor += 1;
+            }
+        }
+        Ok(cursor)
     }
 
     /// Compute legal action descriptors for all envs.

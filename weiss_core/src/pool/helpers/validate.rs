@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::encode::{ACTION_SPACE_SIZE, OBS_LEN};
+use crate::encode::{ACTION_META_WIDTH, ACTION_SPACE_SIZE, OBS_LEN};
 
 use super::super::core::EnvPool;
 use super::super::outputs::{
@@ -41,6 +41,13 @@ impl EnvPool {
     pub(super) fn validate_legal_offsets_len(actual: usize, expected: usize) -> Result<()> {
         if actual != expected {
             anyhow::bail!("legal offsets buffer size mismatch");
+        }
+        Ok(())
+    }
+
+    pub(super) fn validate_legal_action_meta_len(actual: usize, expected: usize) -> Result<()> {
+        if actual != expected {
+            anyhow::bail!("legal action meta buffer size mismatch");
         }
         Ok(())
     }
@@ -110,6 +117,10 @@ impl EnvPool {
         let num_envs = self.envs.len();
         Self::validate_obs_len(out.obs.len(), num_envs * OBS_LEN)?;
         Self::validate_legal_ids_len(out.legal_ids.len(), num_envs * ACTION_SPACE_SIZE)?;
+        Self::validate_legal_action_meta_len(
+            out.legal_action_meta.len(),
+            num_envs * ACTION_SPACE_SIZE * ACTION_META_WIDTH,
+        )?;
         Self::validate_legal_offsets_len(out.legal_offsets.len(), num_envs + 1)?;
         Self::validate_scalar_lens(
             num_envs,

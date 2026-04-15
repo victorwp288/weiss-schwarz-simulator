@@ -44,6 +44,7 @@ class RlStep:
     masks: np.ndarray | None = None
     legal_ids: np.ndarray | None = None
     legal_offsets: np.ndarray | None = None
+    legal_action_meta: np.ndarray | None = None
 
     @property
     def engine_error(self) -> np.ndarray:
@@ -87,6 +88,7 @@ def _pack_step(pool: EnvPool, out, spec: LayoutSpec) -> RlStep:
         masks=out.masks if spec.has_masks else None,
         legal_ids=out.legal_ids if spec.has_legal_ids else None,
         legal_offsets=out.legal_offsets if spec.has_legal_ids else None,
+        legal_action_meta=(getattr(out, "legal_action_meta", None) if spec.has_legal_ids else None),
         rewards=out.rewards,
         terminated=out.terminated,
         truncated=out.truncated,

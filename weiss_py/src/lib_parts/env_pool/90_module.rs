@@ -3,6 +3,8 @@ fn weiss_sim(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add("OBS_LEN", OBS_LEN)?;
     m.add("ACTION_SPACE_SIZE", ACTION_SPACE_SIZE)?;
+    m.add("ACTION_META_WIDTH", ACTION_META_WIDTH)?;
+    m.add("ACTION_META_UNUSED", ACTION_META_UNUSED)?;
     m.add("OBS_ENCODING_VERSION", OBS_ENCODING_VERSION)?;
     m.add("ACTION_ENCODING_VERSION", ACTION_ENCODING_VERSION)?;
     m.add("POLICY_VERSION", POLICY_VERSION)?;
@@ -24,5 +26,6 @@ fn weiss_sim(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(action_spec_json_py, m)?)?;
     m.add_function(wrap_pyfunction!(decode_action_id_py, m)?)?;
     m.add_function(wrap_pyfunction!(build_info_py, m)?)?;
+    m.add_function(wrap_pyfunction!(export_card_table_json_py, m)?)?;
     Ok(())
 }

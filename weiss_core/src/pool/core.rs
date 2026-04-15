@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use rayon::ThreadPool;
@@ -11,6 +12,36 @@ use crate::env::{DebugConfig, GameEnv, StepOutcome};
 use crate::replay::{ReplayConfig, ReplayWriter};
 
 use super::threading;
+
+struct AtomicTimingCounters {
+    select_actions_from_logits_count: AtomicU64,
+    select_actions_from_logits_ns: AtomicU64,
+    sample_actions_from_logits_count: AtomicU64,
+    sample_actions_from_logits_ns: AtomicU64,
+    step_select_from_logits_into_i16_legal_ids_count: AtomicU64,
+    step_select_from_logits_into_i16_legal_ids_ns: AtomicU64,
+    step_sample_from_logits_into_i16_legal_ids_count: AtomicU64,
+    step_sample_from_logits_into_i16_legal_ids_ns: AtomicU64,
+    step_sample_from_logits_with_logp_into_i16_legal_ids_count: AtomicU64,
+    step_sample_from_logits_with_logp_into_i16_legal_ids_ns: AtomicU64,
+}
+
+impl Default for AtomicTimingCounters {
+    fn default() -> Self {
+        Self {
+            select_actions_from_logits_count: AtomicU64::new(0),
+            select_actions_from_logits_ns: AtomicU64::new(0),
+            sample_actions_from_logits_count: AtomicU64::new(0),
+            sample_actions_from_logits_ns: AtomicU64::new(0),
+            step_select_from_logits_into_i16_legal_ids_count: AtomicU64::new(0),
+            step_select_from_logits_into_i16_legal_ids_ns: AtomicU64::new(0),
+            step_sample_from_logits_into_i16_legal_ids_count: AtomicU64::new(0),
+            step_sample_from_logits_into_i16_legal_ids_ns: AtomicU64::new(0),
+            step_sample_from_logits_with_logp_into_i16_legal_ids_count: AtomicU64::new(0),
+            step_sample_from_logits_with_logp_into_i16_legal_ids_ns: AtomicU64::new(0),
+        }
+    }
+}
 
 /// Pool of independent environments stepped in parallel.
 ///
@@ -68,6 +99,8 @@ pub struct EnvPool {
     pub(super) template_replay_writer: Option<ReplayWriter>,
     /// Base seed from which per-env episode streams are derived.
     pub(super) pool_seed: u64,
+    pub(super) timing_enabled: AtomicBool,
+    timing: AtomicTimingCounters,
 }
 
 impl EnvPool {
@@ -130,6 +163,8 @@ impl EnvPool {
             template_replay_config: replay_config,
             template_replay_writer: None,
             pool_seed: seed,
+            timing_enabled: AtomicBool::new(false),
+            timing: AtomicTimingCounters::default(),
         };
         let (thread_pool, thread_pool_size) = threading::build_thread_pool(num_threads, num_envs)?;
         pool.thread_pool = thread_pool;
@@ -189,6 +224,159 @@ impl EnvPool {
         for env in &mut self.envs {
             env.set_debug_config(debug);
         }
+    }
+
+    #[inline]
+    /// Returns whether timing collection is enabled for this pool.
+    pub fn timing_enabled(&self) -> bool {
+        self.timing_enabled.load(Ordering::Relaxed)
+    }
+
+    #[inline]
+    /// Returns a start timestamp when timing is enabled.
+    pub fn timing_start(&self) -> Option<Instant> {
+        self.timing_enabled().then(Instant::now)
+    }
+
+    #[inline]
+    /// Enables or disables timing collection.
+    pub fn set_timing_enabled(&self, enabled: bool) {
+        self.timing_enabled.store(enabled, Ordering::Relaxed);
+    }
+
+    #[inline]
+    /// Clears all timing counters.
+    pub fn reset_timing_counters(&self) {
+        self.timing
+            .select_actions_from_logits_count
+            .store(0, Ordering::Relaxed);
+        self.timing
+            .select_actions_from_logits_ns
+            .store(0, Ordering::Relaxed);
+        self.timing
+            .sample_actions_from_logits_count
+            .store(0, Ordering::Relaxed);
+        self.timing
+            .sample_actions_from_logits_ns
+            .store(0, Ordering::Relaxed);
+        self.timing
+            .step_select_from_logits_into_i16_legal_ids_count
+            .store(0, Ordering::Relaxed);
+        self.timing
+            .step_select_from_logits_into_i16_legal_ids_ns
+            .store(0, Ordering::Relaxed);
+        self.timing
+            .step_sample_from_logits_into_i16_legal_ids_count
+            .store(0, Ordering::Relaxed);
+        self.timing
+            .step_sample_from_logits_into_i16_legal_ids_ns
+            .store(0, Ordering::Relaxed);
+        self.timing
+            .step_sample_from_logits_with_logp_into_i16_legal_ids_count
+            .store(0, Ordering::Relaxed);
+        self.timing
+            .step_sample_from_logits_with_logp_into_i16_legal_ids_ns
+            .store(0, Ordering::Relaxed);
+    }
+
+    #[inline]
+    fn record_timing_with_slot(&self, count: &AtomicU64, ns: &AtomicU64, elapsed: Duration) {
+        if !self.timing_enabled() {
+            return;
+        }
+        let nanos = elapsed.as_nanos().min(u128::from(u64::MAX)) as u64;
+        count.fetch_add(1, Ordering::Relaxed);
+        ns.fetch_add(nanos, Ordering::Relaxed);
+    }
+
+    #[inline]
+    /// Records elapsed time for `select_actions_from_logits_into`.
+    pub fn record_select_actions_from_logits(&self, elapsed: Duration) {
+        self.record_timing_with_slot(
+            &self.timing.select_actions_from_logits_count,
+            &self.timing.select_actions_from_logits_ns,
+            elapsed,
+        );
+    }
+
+    #[inline]
+    /// Records elapsed time for `sample_actions_from_logits_into`.
+    pub fn record_sample_actions_from_logits(&self, elapsed: Duration) {
+        self.record_timing_with_slot(
+            &self.timing.sample_actions_from_logits_count,
+            &self.timing.sample_actions_from_logits_ns,
+            elapsed,
+        );
+    }
+
+    #[inline]
+    /// Records elapsed time for `step_select_from_logits_into_i16_legal_ids`.
+    pub fn record_step_select_from_logits_into_i16_legal_ids(&self, elapsed: Duration) {
+        self.record_timing_with_slot(
+            &self.timing.step_select_from_logits_into_i16_legal_ids_count,
+            &self.timing.step_select_from_logits_into_i16_legal_ids_ns,
+            elapsed,
+        );
+    }
+
+    #[inline]
+    /// Records elapsed time for `step_sample_from_logits_into_i16_legal_ids`.
+    pub fn record_step_sample_from_logits_into_i16_legal_ids(&self, elapsed: Duration) {
+        self.record_timing_with_slot(
+            &self.timing.step_sample_from_logits_into_i16_legal_ids_count,
+            &self.timing.step_sample_from_logits_into_i16_legal_ids_ns,
+            elapsed,
+        );
+    }
+
+    #[inline]
+    /// Records elapsed time for `step_sample_from_logits_with_logp_into_i16_legal_ids`.
+    pub fn record_step_sample_from_logits_with_logp_into_i16_legal_ids(
+        &self,
+        elapsed: Duration,
+    ) {
+        self.record_timing_with_slot(
+            &self.timing.step_sample_from_logits_with_logp_into_i16_legal_ids_count,
+            &self.timing.step_sample_from_logits_with_logp_into_i16_legal_ids_ns,
+            elapsed,
+        );
+    }
+
+    #[inline]
+    /// Returns the current timing counters in a fixed field order.
+    pub fn timing_counters(&self) -> [u64; 10] {
+        [
+            self.timing
+                .select_actions_from_logits_count
+                .load(Ordering::Relaxed),
+            self.timing
+                .select_actions_from_logits_ns
+                .load(Ordering::Relaxed),
+            self.timing
+                .sample_actions_from_logits_count
+                .load(Ordering::Relaxed),
+            self.timing
+                .sample_actions_from_logits_ns
+                .load(Ordering::Relaxed),
+            self.timing
+                .step_select_from_logits_into_i16_legal_ids_count
+                .load(Ordering::Relaxed),
+            self.timing
+                .step_select_from_logits_into_i16_legal_ids_ns
+                .load(Ordering::Relaxed),
+            self.timing
+                .step_sample_from_logits_into_i16_legal_ids_count
+                .load(Ordering::Relaxed),
+            self.timing
+                .step_sample_from_logits_into_i16_legal_ids_ns
+                .load(Ordering::Relaxed),
+            self.timing
+                .step_sample_from_logits_with_logp_into_i16_legal_ids_count
+                .load(Ordering::Relaxed),
+            self.timing
+                .step_sample_from_logits_with_logp_into_i16_legal_ids_ns
+                .load(Ordering::Relaxed),
+        ]
     }
 
     /// Count of auto-resets triggered by engine errors.

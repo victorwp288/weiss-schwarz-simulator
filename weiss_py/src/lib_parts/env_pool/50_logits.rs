@@ -300,6 +300,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -347,6 +351,7 @@
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -359,6 +364,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
+        let timing_start = self.pool.timing_start();
         py.allow_threads(|| {
             self.pool.step_select_from_logits_into_i16_legal_ids(
                 logits,
@@ -366,7 +372,12 @@
                 &mut out_min,
             )
         })
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))?;
+        if let Some(timing_start) = timing_start {
+            self.pool
+                .record_step_select_from_logits_into_i16_legal_ids(timing_start.elapsed());
+        }
+        Ok(())
     }
 
     fn step_sample_from_logits_into<'py>(
@@ -695,6 +706,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -742,6 +757,7 @@
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -754,6 +770,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
+        let timing_start = self.pool.timing_start();
         py.allow_threads(|| {
             self.pool.step_sample_from_logits_into_i16_legal_ids(
                 logits,
@@ -762,7 +779,12 @@
                 &mut out_min,
             )
         })
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))?;
+        if let Some(timing_start) = timing_start {
+            self.pool
+                .record_step_sample_from_logits_into_i16_legal_ids(timing_start.elapsed());
+        }
+        Ok(())
     }
 
     fn step_sample_from_logits_with_logp_into_i16_legal_ids<'py>(
@@ -807,6 +829,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -854,6 +880,7 @@
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -866,6 +893,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
+        let timing_start = self.pool.timing_start();
         py.allow_threads(|| {
             self.pool.step_sample_from_logits_with_logp_into_i16_legal_ids(
                 logits,
@@ -875,6 +903,13 @@
                 &mut out_min,
             )
         })
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))?;
+        if let Some(timing_start) = timing_start {
+            self.pool
+                .record_step_sample_from_logits_with_logp_into_i16_legal_ids(
+                    timing_start.elapsed(),
+                );
+        }
+        Ok(())
     }
 

@@ -27,6 +27,7 @@ class _LegalBatchProtocol(Protocol):
     legal_mask: np.ndarray | None
     legal_ids: np.ndarray | None
     legal_offsets: np.ndarray | None
+    legal_action_meta: np.ndarray | None
     _legal_cache: LegalActions | None
 
 
@@ -41,6 +42,7 @@ class _LegalBatchMixin:
                 legal_ids=self.legal_ids,
                 legal_offsets=self.legal_offsets,
                 legal_mask_raw=self.legal_mask,
+                legal_action_meta=self.legal_action_meta,
             )
             self._legal_cache = legal
         return legal
@@ -96,6 +98,7 @@ class LegalActions:
     legal_ids: np.ndarray | None
     legal_offsets: np.ndarray | None
     legal_mask_raw: np.ndarray | None
+    legal_action_meta: np.ndarray | None = None
 
     @property
     def num_envs(self) -> int:
@@ -170,6 +173,14 @@ class LegalActions:
             return self.legal_ids[start:end]
         mask_row = self._dense_mask()[env_i]
         return np.flatnonzero(mask_row).astype(np.uint32, copy=False)
+
+    def meta(self, i: int) -> np.ndarray:
+        env_i = self._coerce_env_index(i)
+        if self.legal_action_meta is None or self.legal_offsets is None:
+            raise ValueError("legal action metadata is only available for ids/offsets batches")
+        start = int(self.legal_offsets[env_i])
+        end = int(self.legal_offsets[env_i + 1])
+        return self.legal_action_meta[start:end]
 
     def __getitem__(self, i: int) -> np.ndarray:
         return self.ids(i)
@@ -409,6 +420,7 @@ class ResetBatch(_LegalBatchMixin):
     legal_mask: np.ndarray | None = None
     legal_ids: np.ndarray | None = None
     legal_offsets: np.ndarray | None = None
+    legal_action_meta: np.ndarray | None = None
     _legal_cache: LegalActions | None = field(default=None, init=False, repr=False, compare=False)
 
 
@@ -436,6 +448,7 @@ class StepBatch(_LegalBatchMixin):
     legal_mask: np.ndarray | None = None
     legal_ids: np.ndarray | None = None
     legal_offsets: np.ndarray | None = None
+    legal_action_meta: np.ndarray | None = None
     _legal_cache: LegalActions | None = field(default=None, init=False, repr=False, compare=False)
 
     @property

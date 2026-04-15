@@ -11,9 +11,17 @@ import numpy as np
 from ._coerce import coerce_actions_u32, coerce_logits, expand_sample_seeds
 from .config_types import IdsSafety, LegalRepr, RuntimeMode
 from .errors import ConfigConflictError, WeissSimError
-from ._legal_payloads import cast_legal_ids, cast_legal_offsets, materialize_legal_ids_u16
+from ._legal_payloads import (
+    cast_legal_action_meta,
+    cast_legal_ids,
+    cast_legal_offsets,
+    materialize_legal_action_meta_u16,
+    materialize_legal_ids_u16,
+)
 from .types import LegalActions, ResetBatch, StepBatch
 from .weiss_sim import (
+    ACTION_META_UNUSED,
+    ACTION_META_WIDTH,
     BatchOutMinimal,
     BatchOutMinimalNoMask,
     EnvPool,
@@ -101,6 +109,7 @@ class _CommonBatchPayload:
 class _LegalPayload:
     mask: np.ndarray | None
     ids: np.ndarray | None
+    meta: np.ndarray | None
     offsets: np.ndarray | None
 
 
@@ -121,6 +130,7 @@ class _MaterializedBatchPayload:
     legal_mask: np.ndarray | None
     legal_ids: np.ndarray | None
     legal_offsets: np.ndarray | None
+    legal_action_meta: np.ndarray | None
 
 
 class WeissEnv:
@@ -176,6 +186,11 @@ class WeissEnv:
         self._last_to_play_seat = np.full((self._num_envs,), -1, dtype=np.int8)
         self._last_done = np.zeros((self._num_envs,), dtype=np.bool_)
         self._legal_ids_buf = np.empty(self._num_envs * self._action_space, dtype=np.uint16)
+        self._legal_action_meta_buf = np.full(
+            (self._num_envs * self._action_space, ACTION_META_WIDTH),
+            ACTION_META_UNUSED,
+            dtype=np.uint16,
+        )
         self._legal_offsets_buf = np.zeros(self._num_envs + 1, dtype=np.uint32)
         self._u16_max = np.iinfo(np.uint16).max
 
@@ -390,9 +405,11 @@ class WeissEnv:
             )
         return mask
 
-    def _materialize_legal_ids_payload(self) -> tuple[np.ndarray | None, np.ndarray | None]:
+    def _materialize_legal_ids_payload(
+        self,
+    ) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
         if self._legal_repr not in {"ids_u16", "ids_u32", "both"}:
-            return None, None
+            return None, None, None
         ids_u16, offsets_u32 = materialize_legal_ids_u16(
             embedded_legal_ids=self._embedded_legal_ids,
             out=self._out,
@@ -400,9 +417,17 @@ class WeissEnv:
             legal_offsets_buffer=self._legal_offsets_buf,
             legal_action_ids_into=self.pool.legal_action_ids_into,
         )
+        used_rows = int(offsets_u32[-1]) if offsets_u32.size else 0
+        meta_u16 = materialize_legal_action_meta_u16(
+            embedded_legal_ids=self._embedded_legal_ids,
+            out=self._out,
+            legal_action_meta_buffer=self._legal_action_meta_buf,
+            used_rows=used_rows,
+            legal_action_meta_into=getattr(self.pool, "legal_action_meta_into", None),
+        )
         ids_payload = cast_legal_ids(ids_u16, as_uint32=self._legal_repr in {"ids_u32", "both"})
         offsets_payload = cast_legal_offsets(offsets_u32)
-        return ids_payload, offsets_payload
+        return ids_payload, cast_legal_action_meta(meta_u16), offsets_payload
 
     def _materialize_legal_mask_payload(self) -> np.ndarray | None:
         if not self._has_mask:
@@ -410,16 +435,16 @@ class WeissEnv:
         return self._out.masks.astype(np.uint8, copy=False)
 
     def _extract_legal_payload(self) -> _LegalPayload:
-        ids, offsets = self._materialize_legal_ids_payload()
+        ids, meta, offsets = self._materialize_legal_ids_payload()
         mask = self._materialize_legal_mask_payload()
         if ids is None:
-            return _LegalPayload(mask=mask, ids=None, offsets=None)
+            return _LegalPayload(mask=mask, ids=None, meta=None, offsets=None)
         self._validate_ids_safety(ids)
         if self._should_strict_check_legal_ids():
             if offsets is None:
                 raise WeissSimError("legal offsets are required when legal ids are materialized")
             _validate_legal_ids_contract(ids, offsets, self._num_envs, self._action_space)
-        return _LegalPayload(mask=mask, ids=ids, offsets=offsets)
+        return _LegalPayload(mask=mask, ids=ids, meta=meta, offsets=offsets)
 
     def _collect_common_batch_payload(self) -> _CommonBatchPayload:
         to_play = self._out.actor.astype(np.int8, copy=False)
@@ -470,6 +495,7 @@ class WeissEnv:
             main_pass_action=self._out.main_pass_action,
             legal_mask=legal.mask,
             legal_ids=legal.ids,
+            legal_action_meta=legal.meta,
             legal_offsets=legal.offsets,
         )
 
@@ -491,6 +517,7 @@ class WeissEnv:
             legal_mask=payload.legal_mask,
             legal_ids=payload.legal_ids,
             legal_offsets=payload.legal_offsets,
+            legal_action_meta=payload.legal_action_meta,
         )
 
     def _finalize_reset(self, *, reset_indices: np.ndarray | None) -> ResetBatch:
@@ -542,6 +569,7 @@ class WeissEnv:
             legal_mask=payload.legal_mask,
             legal_ids=payload.legal_ids,
             legal_offsets=payload.legal_offsets,
+            legal_action_meta=payload.legal_action_meta,
         )
         self._last_to_play_seat = step_batch.to_play_seat.copy()
         self._last_done = done.copy()
@@ -591,6 +619,7 @@ class WeissEnv:
             legal_mask=self._copy_optional_array(step.legal_mask),
             legal_ids=self._copy_optional_array(step.legal_ids),
             legal_offsets=self._copy_optional_array(step.legal_offsets),
+            legal_action_meta=self._copy_optional_array(step.legal_action_meta),
         )
 
     def _copy_common_out_fields_from_nomask(
@@ -616,6 +645,9 @@ class WeissEnv:
         np.clip(src.obs, _I16_MIN, _I16_MAX, out=self._out.obs)
         self._copy_common_out_fields_from_nomask(src)
         self.pool.legal_action_ids_into(self._out.legal_ids, self._out.legal_offsets)
+        legal_action_meta_into = getattr(self.pool, "legal_action_meta_into", None)
+        if callable(legal_action_meta_into) and hasattr(self._out, "legal_action_meta"):
+            legal_action_meta_into(self._out.legal_action_meta)
 
     def _auto_reset_method_for_suffix(self) -> str:
         suffix = self._reset_suffix()

@@ -563,9 +563,14 @@ impl EnvPool {
             let offsets_offset = t * (num_envs + 1);
             let ids_slice =
                 &mut out.legal_ids[ids_offset..ids_offset + num_envs * ACTION_SPACE_SIZE];
+            let meta_slice = &mut out.legal_action_meta
+                [ids_offset * crate::encode::ACTION_META_WIDTH
+                    ..(ids_offset + num_envs * ACTION_SPACE_SIZE)
+                        * crate::encode::ACTION_META_WIDTH];
             let offsets_slice =
                 &mut out.legal_offsets[offsets_offset..offsets_offset + num_envs + 1];
             self.legal_action_ids_batch_into(ids_slice, offsets_slice)?;
+            self.legal_action_meta_batch_into(meta_slice)?;
         }
         Ok(())
     }
@@ -715,9 +720,14 @@ impl EnvPool {
             let offsets_offset = t * (num_envs + 1);
             let ids_slice =
                 &mut out.legal_ids[ids_offset..ids_offset + num_envs * ACTION_SPACE_SIZE];
+            let meta_slice = &mut out.legal_action_meta
+                [ids_offset * crate::encode::ACTION_META_WIDTH
+                    ..(ids_offset + num_envs * ACTION_SPACE_SIZE)
+                        * crate::encode::ACTION_META_WIDTH];
             let offsets_slice =
                 &mut out.legal_offsets[offsets_offset..offsets_offset + num_envs + 1];
             self.legal_action_ids_batch_into(ids_slice, offsets_slice)?;
+            self.legal_action_meta_batch_into(meta_slice)?;
         }
         Ok(())
     }

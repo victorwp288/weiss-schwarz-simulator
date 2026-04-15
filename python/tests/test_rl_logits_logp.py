@@ -39,6 +39,7 @@ def test_step_rl_sample_from_logits_with_logp_matches_manual_softmax() -> None:
         seed=909,
         layout="i16_legal_ids",
     )
+    pool.set_timing_enabled(True)
     reset = weiss_sim.reset_rl(pool, layout="i16_legal_ids")
     assert reset.legal_ids is not None
     assert reset.legal_offsets is not None
@@ -56,3 +57,6 @@ def test_step_rl_sample_from_logits_with_logp_matches_manual_softmax() -> None:
     assert step.obs.shape == (pool.envs_len, pool.obs_len)
     expected = _manual_sampled_logp(logits, legal_ids_before, legal_offsets_before, actions)
     np.testing.assert_allclose(action_logp, expected, rtol=1e-6, atol=1e-6)
+    timing = pool.timing_counters()
+    assert timing["step_sample_from_logits_with_logp_into_i16_legal_ids_count"] == 1
+    assert timing["step_sample_from_logits_with_logp_into_i16_legal_ids_ns"] >= 0

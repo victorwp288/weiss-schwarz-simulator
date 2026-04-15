@@ -19,8 +19,8 @@ use weiss_core::config::{ErrorPolicy, ObservationVisibility};
 use weiss_core::encode::{
     action_spec_json as action_spec_json_core, decode_action_id as decode_action_id_core,
     observation_spec_json as observation_spec_json_core, ActionParamValue, ACTION_ENCODING_VERSION,
-    ACTION_SPACE_SIZE, ACTOR_NONE, DECISION_KIND_NONE, OBS_ENCODING_VERSION, OBS_LEN,
-    PASS_ACTION_ID, POLICY_VERSION, SPEC_HASH,
+    ACTION_META_UNUSED, ACTION_META_WIDTH, ACTION_SPACE_SIZE, ACTOR_NONE, DECISION_KIND_NONE,
+    OBS_ENCODING_VERSION, OBS_LEN, PASS_ACTION_ID, POLICY_VERSION, SPEC_HASH,
 };
 use weiss_core::legal::ActionDesc;
 use weiss_core::pool::{
@@ -543,4 +543,31 @@ fn build_info_py(py: Python<'_>) -> PyResult<PyObject> {
     let validate_default = cfg!(debug_assertions) || validate_env;
     dict.set_item("validate_state_default", validate_default)?;
     Ok(dict.into())
+}
+
+#[pyfunction(name = "export_card_table_json")]
+#[pyo3(signature = (db_path=None))]
+fn export_card_table_json_py(db_path: Option<String>) -> PyResult<String> {
+    let db = load_card_db(db_path)?;
+    let rows: Vec<serde_json::Value> = db
+        .cards
+        .iter()
+        .map(|card| {
+            serde_json::json!({
+                "card_id": card.id,
+                "level": card.level,
+                "cost": card.cost,
+                "power": card.power,
+                "soul": card.soul,
+                "color": format!("{:?}", card.color),
+                "card_type": format!("{:?}", card.card_type),
+                "traits": card.traits,
+            })
+        })
+        .collect();
+    serde_json::to_string(&rows).map_err(|err| {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+            "failed to serialize card table: {err}"
+        ))
+    })
 }

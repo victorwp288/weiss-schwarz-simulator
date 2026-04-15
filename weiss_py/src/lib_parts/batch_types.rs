@@ -121,6 +121,7 @@ impl PyBatchOutMinimalI16 {
 struct PyBatchOutMinimalI16LegalIds {
     obs: Py<PyArray2<i16>>,
     legal_ids: Py<PyArray1<u16>>,
+    legal_action_meta: Py<PyArray2<u16>>,
     legal_offsets: Py<PyArray1<u32>>,
     rewards: Py<PyArray1<f32>>,
     terminated: Py<PyArray1<bool>>,
@@ -151,6 +152,8 @@ impl PyBatchOutMinimalI16LegalIds {
             )
         })?;
         let legal_ids = Array1::<u16>::zeros(legal_ids_len);
+        let legal_action_meta =
+            Array2::<u16>::from_elem((legal_ids_len, ACTION_META_WIDTH), ACTION_META_UNUSED);
         let legal_offsets_len = num_envs.checked_add(1).ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "legal_offsets size overflow (num_envs + 1)",
@@ -170,6 +173,7 @@ impl PyBatchOutMinimalI16LegalIds {
         Ok(Self {
             obs: PyArray2::from_owned_array(py, obs).unbind(),
             legal_ids: PyArray1::from_owned_array(py, legal_ids).unbind(),
+            legal_action_meta: PyArray2::from_owned_array(py, legal_action_meta).unbind(),
             legal_offsets: PyArray1::from_owned_array(py, legal_offsets).unbind(),
             rewards: PyArray1::from_owned_array(py, rewards).unbind(),
             terminated: PyArray1::from_owned_array(py, terminated).unbind(),
@@ -191,6 +195,10 @@ impl PyBatchOutMinimalI16LegalIds {
     #[getter]
     fn legal_ids(&self, py: Python<'_>) -> Py<PyArray1<u16>> {
         self.legal_ids.clone_ref(py)
+    }
+    #[getter]
+    fn legal_action_meta(&self, py: Python<'_>) -> Py<PyArray2<u16>> {
+        self.legal_action_meta.clone_ref(py)
     }
     #[getter]
     fn legal_offsets(&self, py: Python<'_>) -> Py<PyArray1<u32>> {
@@ -688,6 +696,7 @@ struct PyBatchOutTrajectoryI16LegalIds {
     steps: usize,
     obs: Py<PyArray3<i16>>,
     legal_ids: Py<PyArray2<u16>>,
+    legal_action_meta: Py<PyArray3<u16>>,
     legal_offsets: Py<PyArray2<u32>>,
     rewards: Py<PyArray2<f32>>,
     terminated: Py<PyArray2<bool>>,
@@ -734,6 +743,10 @@ impl PyBatchOutTrajectoryI16LegalIds {
             )
         })?;
         let legal_ids = Array2::<u16>::zeros((steps, legal_ids_len));
+        let legal_action_meta = Array3::<u16>::from_elem(
+            (steps, legal_ids_len, ACTION_META_WIDTH),
+            ACTION_META_UNUSED,
+        );
         let legal_offsets_len = num_envs.checked_add(1).ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "legal_offsets size overflow (num_envs + 1)",
@@ -760,6 +773,7 @@ impl PyBatchOutTrajectoryI16LegalIds {
             steps,
             obs: PyArray3::from_owned_array(py, obs).unbind(),
             legal_ids: PyArray2::from_owned_array(py, legal_ids).unbind(),
+            legal_action_meta: PyArray3::from_owned_array(py, legal_action_meta).unbind(),
             legal_offsets: PyArray2::from_owned_array(py, legal_offsets).unbind(),
             rewards: PyArray2::from_owned_array(py, rewards).unbind(),
             terminated: PyArray2::from_owned_array(py, terminated).unbind(),
@@ -786,6 +800,10 @@ impl PyBatchOutTrajectoryI16LegalIds {
     #[getter]
     fn legal_ids(&self, py: Python<'_>) -> Py<PyArray2<u16>> {
         self.legal_ids.clone_ref(py)
+    }
+    #[getter]
+    fn legal_action_meta(&self, py: Python<'_>) -> Py<PyArray3<u16>> {
+        self.legal_action_meta.clone_ref(py)
     }
     #[getter]
     fn legal_offsets(&self, py: Python<'_>) -> Py<PyArray2<u32>> {
@@ -1147,6 +1165,13 @@ fn ensure_batch_out_minimal_i16_legal_ids_dims(
         )
     })?;
     ensure_first_dim(py, "legal_ids", &out.legal_ids, expected_legal_ids, None)?;
+    ensure_first_dim(
+        py,
+        "legal_action_meta",
+        &out.legal_action_meta,
+        expected_legal_ids,
+        Some(ACTION_META_WIDTH),
+    )?;
     let expected_offsets = num_envs.checked_add(1).ok_or_else(|| {
         PyErr::new::<pyo3::exceptions::PyValueError, _>(
             "legal_offsets size overflow (num_envs + 1)",
@@ -1254,6 +1279,14 @@ fn ensure_batch_out_trajectory_i16_legal_ids_dims(
         )
     })?;
     ensure_first_two_dims(py, "legal_ids", &out.legal_ids, steps, expected_legal_ids)?;
+    ensure_first_two_dims(
+        py,
+        "legal_action_meta",
+        &out.legal_action_meta,
+        steps,
+        expected_legal_ids,
+    )?;
+    ensure_third_dim(py, "legal_action_meta", &out.legal_action_meta, ACTION_META_WIDTH)?;
     let expected_offsets = num_envs.checked_add(1).ok_or_else(|| {
         PyErr::new::<pyo3::exceptions::PyValueError, _>(
             "legal_offsets size overflow (num_envs + 1)",

@@ -39,6 +39,8 @@ from .errors import ConfigConflictError
 from .runner import WeissEnv
 from .weiss_sim import (
     ACTION_SPACE_SIZE,
+    ACTION_META_UNUSED,
+    ACTION_META_WIDTH,
     POLICY_VERSION,
     SPEC_HASH,
     BatchOutMinimal,
@@ -47,6 +49,7 @@ from .weiss_sim import (
     BatchOutMinimalNoMask,
     EnvPool,
     action_spec_json,
+    export_card_table_json,
     observation_spec_json,
 )
 
@@ -262,6 +265,38 @@ def export_spec_bundle() -> dict[str, object]:
         "spec_hash": SPEC_HASH,
         "observation": json.loads(observation_spec_json()),
         "action": json.loads(action_spec_json()),
+        "action_meta_v1": {
+            "version": "action_meta_v1",
+            "width": ACTION_META_WIDTH,
+            "unused": ACTION_META_UNUSED,
+            "fields": ["family_id", "arg0", "arg1", "arg2"],
+        },
+    }
+
+
+def export_card_table(db_path: str | Path | None = None) -> dict[str, object]:
+    """Export static per-card features for structured policy encoders."""
+    rows_payload = json.loads(export_card_table_json(None if db_path is None else str(db_path)))
+    if not isinstance(rows_payload, list):
+        raise RuntimeError("export_card_table_json() must decode to a list")
+    rows = [dict(row) for row in rows_payload if isinstance(row, Mapping)]
+    max_card_id = max((int(row.get("card_id", 0)) for row in rows), default=0)
+    max_traits_per_card = max((len(list(row.get("traits", []))) for row in rows), default=0)
+    trait_vocab_size = max(
+        (
+            max((int(trait) for trait in list(row.get("traits", []))), default=0)
+            for row in rows
+        ),
+        default=0,
+    )
+    return {
+        "version": "card_table_v1",
+        "db_info": db_info(db_path=db_path),
+        "num_cards": len(rows),
+        "max_card_id": max_card_id,
+        "max_traits_per_card": max_traits_per_card,
+        "trait_vocab_size": trait_vocab_size,
+        "rows": rows,
     }
 
 

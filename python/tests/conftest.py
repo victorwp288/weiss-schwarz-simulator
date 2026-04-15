@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.machinery
+import os
 import sys
 from pathlib import Path
 
@@ -20,7 +21,10 @@ def _has_in_tree_extension() -> bool:
 if _PYTHON_ROOT_STR in sys.path:
     sys.path.remove(_PYTHON_ROOT_STR)
 
-if _has_in_tree_extension():
+if os.environ.get("WEISS_SIM_USE_WHEEL") == "1":
+    # Test-only escape hatch for rebuilt wheels when the in-tree extension is locked.
+    sys.path.append(_PYTHON_ROOT_STR)
+elif _has_in_tree_extension():
     # Prefer source tree when the compiled extension is available in-place.
     sys.path.insert(0, _PYTHON_ROOT_STR)
 else:

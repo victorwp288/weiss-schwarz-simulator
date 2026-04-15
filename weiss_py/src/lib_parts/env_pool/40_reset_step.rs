@@ -159,6 +159,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -206,6 +210,7 @@
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -454,6 +459,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -501,6 +510,7 @@
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -765,6 +775,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -812,6 +826,7 @@
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -1077,6 +1092,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -1124,6 +1143,7 @@
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -1395,6 +1415,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -1442,6 +1466,7 @@
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -1741,6 +1766,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -1788,6 +1817,7 @@
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -2085,6 +2115,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -2136,6 +2170,7 @@
         let mut out_traj = BatchOutTrajectoryI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -2448,6 +2483,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -2499,6 +2538,7 @@
         let mut out_traj = BatchOutTrajectoryI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,

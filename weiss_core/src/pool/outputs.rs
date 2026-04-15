@@ -60,6 +60,8 @@ pub struct BatchOutMinimalI16LegalIds<'a> {
     pub obs: &'a mut [i16],
     /// Flattened legal action ids (len = num_envs * ACTION_SPACE_SIZE).
     pub legal_ids: &'a mut [u16],
+    /// Packed legal-action metadata aligned 1:1 with `legal_ids` (len = rows * 4).
+    pub legal_action_meta: &'a mut [u16],
     /// Offsets into `legal_ids` (len = num_envs + 1).
     pub legal_offsets: &'a mut [u32],
     /// Reward per env (len = num_envs).
@@ -176,6 +178,8 @@ pub struct BatchOutTrajectoryI16LegalIds<'a> {
     pub obs: &'a mut [i16],
     /// Flattened legal action ids (len = steps * num_envs * ACTION_SPACE_SIZE).
     pub legal_ids: &'a mut [u16],
+    /// Packed legal-action metadata aligned 1:1 with `legal_ids` (len = rows * 4).
+    pub legal_action_meta: &'a mut [u16],
     /// Offsets into `legal_ids` (len = steps * num_envs + 1).
     pub legal_offsets: &'a mut [u32],
     /// Reward per step/env (len = steps * num_envs).

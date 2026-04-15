@@ -5,6 +5,7 @@ from typing import Any, Callable
 import numpy as np
 
 LegalIdsIntoFn = Callable[[np.ndarray, np.ndarray], int]
+LegalActionMetaIntoFn = Callable[[np.ndarray], int]
 
 
 def materialize_legal_ids_u16(
@@ -26,6 +27,29 @@ def materialize_legal_ids_u16(
     return legal_ids_buffer[:count], legal_offsets_buffer
 
 
+def materialize_legal_action_meta_u16(
+    *,
+    embedded_legal_ids: bool,
+    out: Any,
+    legal_action_meta_buffer: np.ndarray,
+    used_rows: int,
+    legal_action_meta_into: LegalActionMetaIntoFn | None,
+) -> np.ndarray | None:
+    """Return packed legal-action metadata aligned 1:1 with the used legal-id prefix."""
+    if used_rows < 0:
+        raise ValueError("used_rows must be >= 0")
+    if embedded_legal_ids:
+        raw = getattr(out, "legal_action_meta", None)
+        if raw is None:
+            return None
+        return np.asarray(raw, dtype=np.uint16)[:used_rows]
+
+    if legal_action_meta_into is None:
+        return None
+    count = int(legal_action_meta_into(legal_action_meta_buffer))
+    return legal_action_meta_buffer[:count]
+
+
 def cast_legal_ids(ids: np.ndarray, *, as_uint32: bool) -> np.ndarray:
     dtype = np.uint32 if as_uint32 else np.uint16
     return ids.astype(dtype, copy=False)
@@ -33,3 +57,9 @@ def cast_legal_ids(ids: np.ndarray, *, as_uint32: bool) -> np.ndarray:
 
 def cast_legal_offsets(offsets: np.ndarray) -> np.ndarray:
     return offsets.astype(np.uint32, copy=False)
+
+
+def cast_legal_action_meta(meta: np.ndarray | None) -> np.ndarray | None:
+    if meta is None:
+        return None
+    return meta.astype(np.uint16, copy=False)

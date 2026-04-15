@@ -33,6 +33,11 @@ pub struct ActionIdDesc {
     pub params: Vec<ActionParam>,
 }
 
+/// Number of `u16` fields exported for each legal action metadata row.
+pub const ACTION_META_WIDTH: usize = 4;
+/// Sentinel value used for unused action metadata arguments.
+pub const ACTION_META_UNUSED: u16 = u16::MAX;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 enum ActionFamily {
@@ -424,10 +429,105 @@ fn action_id_desc_for_key(action: ActionKey) -> ActionIdDesc {
     }
 }
 
+fn action_meta_for_key(action: ActionKey) -> [u16; ACTION_META_WIDTH] {
+    let unused = ACTION_META_UNUSED;
+    match action {
+        ActionKey::MulliganConfirm => [ActionFamily::MulliganConfirm as u16, unused, unused, unused],
+        ActionKey::MulliganSelect { hand_index } => [
+            ActionFamily::MulliganSelect as u16,
+            hand_index as u16,
+            unused,
+            unused,
+        ],
+        ActionKey::Pass => [ActionFamily::Pass as u16, unused, unused, unused],
+        ActionKey::ClockFromHand { hand_index } => [
+            ActionFamily::ClockFromHand as u16,
+            hand_index as u16,
+            unused,
+            unused,
+        ],
+        ActionKey::MainPlayCharacter {
+            hand_index,
+            stage_slot,
+        } => [
+            ActionFamily::MainPlayCharacter as u16,
+            hand_index as u16,
+            stage_slot as u16,
+            unused,
+        ],
+        ActionKey::MainPlayEvent { hand_index } => [
+            ActionFamily::MainPlayEvent as u16,
+            hand_index as u16,
+            unused,
+            unused,
+        ],
+        ActionKey::MainMove { from_slot, to_slot } => [
+            ActionFamily::MainMove as u16,
+            from_slot as u16,
+            to_slot as u16,
+            unused,
+        ],
+        ActionKey::ClimaxPlay { hand_index } => [
+            ActionFamily::ClimaxPlay as u16,
+            hand_index as u16,
+            unused,
+            unused,
+        ],
+        ActionKey::Attack {
+            slot,
+            attack_type_code,
+        } => [
+            ActionFamily::Attack as u16,
+            slot as u16,
+            attack_type_code as u16,
+            unused,
+        ],
+        ActionKey::LevelUp { index } => [
+            ActionFamily::LevelUp as u16,
+            index as u16,
+            unused,
+            unused,
+        ],
+        ActionKey::EncorePay { slot } => [
+            ActionFamily::EncorePay as u16,
+            slot as u16,
+            unused,
+            unused,
+        ],
+        ActionKey::EncoreDecline { slot } => [
+            ActionFamily::EncoreDecline as u16,
+            slot as u16,
+            unused,
+            unused,
+        ],
+        ActionKey::TriggerOrder { index } => [
+            ActionFamily::TriggerOrder as u16,
+            index as u16,
+            unused,
+            unused,
+        ],
+        ActionKey::ChoiceSelect { index } => [
+            ActionFamily::ChoiceSelect as u16,
+            index as u16,
+            unused,
+            unused,
+        ],
+        ActionKey::ChoicePrevPage => [ActionFamily::ChoicePrevPage as u16, unused, unused, unused],
+        ActionKey::ChoiceNextPage => [ActionFamily::ChoiceNextPage as u16, unused, unused, unused],
+        ActionKey::Concede => [ActionFamily::Concede as u16, unused, unused, unused],
+    }
+}
+
 /// Decode an action id into a human-readable description.
 pub fn decode_action_id(id: usize) -> Option<ActionIdDesc> {
     let action = action_key_for_id(id)?;
     Some(action_id_desc_for_key(action))
+}
+
+/// Decode an action id into packed legal-action metadata.
+pub(crate) fn action_meta_for_id(id: usize) -> Option<[u16; ACTION_META_WIDTH]> {
+    let action = action_key_for_id(id)?;
+    Some(action_meta_for_key(action))
 }
 
 /// Decode an action id into a canonical action descriptor.

@@ -6,6 +6,73 @@
         self.pool.reset_engine_error_reset_count();
     }
 
+    fn set_timing_enabled(&mut self, enabled: bool) {
+        self.pool.set_timing_enabled(enabled);
+    }
+
+    fn reset_timing_counters(&mut self) {
+        self.pool.reset_timing_counters();
+    }
+
+    fn timing_counters<'py>(&self, py: Python<'py>) -> PyResult<Py<PyDict>> {
+        let counters = self.pool.timing_counters();
+        let [
+            select_actions_from_logits_count,
+            select_actions_from_logits_ns,
+            sample_actions_from_logits_count,
+            sample_actions_from_logits_ns,
+            step_select_from_logits_into_i16_legal_ids_count,
+            step_select_from_logits_into_i16_legal_ids_ns,
+            step_sample_from_logits_into_i16_legal_ids_count,
+            step_sample_from_logits_into_i16_legal_ids_ns,
+            step_sample_from_logits_with_logp_into_i16_legal_ids_count,
+            step_sample_from_logits_with_logp_into_i16_legal_ids_ns,
+        ] = counters;
+        let dict = PyDict::new(py);
+        dict.set_item("timing_enabled", self.pool.timing_enabled())?;
+        dict.set_item(
+            "select_actions_from_logits_count",
+            select_actions_from_logits_count,
+        )?;
+        dict.set_item(
+            "select_actions_from_logits_ns",
+            select_actions_from_logits_ns,
+        )?;
+        dict.set_item(
+            "sample_actions_from_logits_count",
+            sample_actions_from_logits_count,
+        )?;
+        dict.set_item(
+            "sample_actions_from_logits_ns",
+            sample_actions_from_logits_ns,
+        )?;
+        dict.set_item(
+            "step_select_from_logits_into_i16_legal_ids_count",
+            step_select_from_logits_into_i16_legal_ids_count,
+        )?;
+        dict.set_item(
+            "step_select_from_logits_into_i16_legal_ids_ns",
+            step_select_from_logits_into_i16_legal_ids_ns,
+        )?;
+        dict.set_item(
+            "step_sample_from_logits_into_i16_legal_ids_count",
+            step_sample_from_logits_into_i16_legal_ids_count,
+        )?;
+        dict.set_item(
+            "step_sample_from_logits_into_i16_legal_ids_ns",
+            step_sample_from_logits_into_i16_legal_ids_ns,
+        )?;
+        dict.set_item(
+            "step_sample_from_logits_with_logp_into_i16_legal_ids_count",
+            step_sample_from_logits_with_logp_into_i16_legal_ids_count,
+        )?;
+        dict.set_item(
+            "step_sample_from_logits_with_logp_into_i16_legal_ids_ns",
+            step_sample_from_logits_with_logp_into_i16_legal_ids_ns,
+        )?;
+        Ok(dict.unbind())
+    }
+
     fn set_error_policy(&mut self, error_policy: String) -> PyResult<()> {
         let policy = parse_error_policy(Some(error_policy))?;
         self.pool.set_error_policy(policy);
@@ -333,6 +400,10 @@
         let legal_ids_slice = legal_ids.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_ids not contiguous")
         })?;
+        let mut legal_action_meta = array_mut(py, &out.legal_action_meta);
+        let legal_action_meta_slice = legal_action_meta.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
         let mut legal_offsets = array_mut(py, &out.legal_offsets);
         let legal_offsets_slice = legal_offsets.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_offsets not contiguous")
@@ -380,6 +451,7 @@
         let mut out_min = BatchOutMinimalI16LegalIds {
             obs: obs_slice,
             legal_ids: legal_ids_slice,
+            legal_action_meta: legal_action_meta_slice,
             legal_offsets: legal_offsets_slice,
             rewards: rewards_slice,
             terminated: terminated_slice,
@@ -639,6 +711,25 @@
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
     }
 
+    fn legal_action_meta_into<'py>(
+        &mut self,
+        py: Python<'py>,
+        meta: Py<PyArray2<u16>>,
+    ) -> PyResult<usize> {
+        let expected_rows = self.pool.envs.len().checked_mul(ACTION_SPACE_SIZE).ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "legal_action_meta size overflow (num_envs * action_space)",
+            )
+        })?;
+        ensure_first_two_dims(py, "legal_action_meta", &meta, expected_rows, ACTION_META_WIDTH)?;
+        let mut meta_arr = array_mut(py, &meta);
+        let meta_slice = meta_arr.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
+        })?;
+        py.allow_threads(|| self.pool.legal_action_meta_batch_into(meta_slice))
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
+    }
+
     fn sample_legal_action_ids_uniform_into<'py>(
         &self,
         py: Python<'py>,
@@ -695,11 +786,17 @@
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
         })?;
         ensure_len("actions", actions_slice.len(), num_envs)?;
+        let timing_start = self.pool.timing_start();
         py.allow_threads(|| {
             self.pool
                 .select_actions_from_logits_into(logits, actions_slice)
         })
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))?;
+        if let Some(timing_start) = timing_start {
+            self.pool
+                .record_select_actions_from_logits(timing_start.elapsed());
+        }
+        Ok(())
     }
 
     fn sample_actions_from_logits_into<'py>(
@@ -728,11 +825,17 @@
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
         })?;
         ensure_len("actions", actions_slice.len(), num_envs)?;
+        let timing_start = self.pool.timing_start();
         py.allow_threads(|| {
             self.pool
                 .sample_actions_from_logits_into(logits, seeds, actions_slice)
         })
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))?;
+        if let Some(timing_start) = timing_start {
+            self.pool
+                .record_sample_actions_from_logits(timing_start.elapsed());
+        }
+        Ok(())
     }
 
     fn legal_action_ids_and_sample_uniform_into<'py>(

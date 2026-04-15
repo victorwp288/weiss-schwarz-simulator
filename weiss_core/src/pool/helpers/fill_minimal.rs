@@ -279,6 +279,7 @@ impl EnvPool {
             self.i16_overflow_count
                 .fetch_add(overflow_count, Ordering::Relaxed);
         }
+        self.legal_action_meta_batch_into(out.legal_action_meta)?;
         Ok(())
     }
 

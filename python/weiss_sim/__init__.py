@@ -3,6 +3,8 @@ from __future__ import annotations
 from ._buffers import EnvPoolBuffers, EnvPoolTrajectoryBuffers, make_batch_out_debug, make_pool
 from .weiss_sim import (
     ACTION_SPACE_SIZE,
+    ACTION_META_UNUSED,
+    ACTION_META_WIDTH,
     ACTOR_NONE,
     DECISION_KIND_NONE,
     POLICY_VERSION,
@@ -34,7 +36,7 @@ from .rl import (
     step_rl_sample_from_logits,
     step_rl_select_from_logits,
 )
-from .api import db_info, export_spec_bundle, fast, inspect, make
+from .api import db_info, export_card_table, export_spec_bundle, fast, inspect, make
 from .catalog import cards
 from .config_types import CurriculumOverrides, DeckInput, EndConditionOverrides
 from .deck_builder import DeckBuilder
@@ -89,6 +91,8 @@ __all__ = [
     "BatchOutTrajectoryNoMask",
     "BatchOutDebug",
     "ACTION_SPACE_SIZE",
+    "ACTION_META_WIDTH",
+    "ACTION_META_UNUSED",
     "ACTOR_NONE",
     "DECISION_KIND_NONE",
     "POLICY_VERSION",
@@ -110,6 +114,7 @@ __all__ = [
     "make_batch_out_debug",
     "spec_bundle",
     "export_spec_bundle",
+    "export_card_table",
     "db_info",
     "make",
     "fast",

@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::encode::{ACTION_SPACE_SIZE, OBS_LEN};
+use crate::encode::{ACTION_META_WIDTH, ACTION_SPACE_SIZE, OBS_LEN};
 
 use super::super::core::EnvPool;
 use super::super::outputs::{
@@ -96,6 +96,9 @@ impl EnvPool {
         let Some(ids_total) = total.checked_mul(ACTION_SPACE_SIZE) else {
             anyhow::bail!("trajectory size overflow (total * ACTION_SPACE_SIZE)");
         };
+        let Some(meta_total) = ids_total.checked_mul(ACTION_META_WIDTH) else {
+            anyhow::bail!("trajectory size overflow (ids_total * ACTION_META_WIDTH)");
+        };
         let Some(offsets_per_step) = num_envs.checked_add(1) else {
             anyhow::bail!("trajectory size overflow (num_envs + 1)");
         };
@@ -104,6 +107,7 @@ impl EnvPool {
         };
         Self::validate_obs_len(out.obs.len(), obs_total)?;
         Self::validate_legal_ids_len(out.legal_ids.len(), ids_total)?;
+        Self::validate_legal_action_meta_len(out.legal_action_meta.len(), meta_total)?;
         Self::validate_legal_offsets_len(out.legal_offsets.len(), offsets_total)?;
         Self::validate_action_len(out.actions.len(), total)?;
         Self::validate_scalar_lens(

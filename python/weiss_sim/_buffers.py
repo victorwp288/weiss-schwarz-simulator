@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from time import perf_counter_ns
 from typing import Literal, overload
 
 import numpy as np
 
 from ._coerce import coerce_logits, coerce_seeds
 from .config_types import ErrorPolicy
-from ._legal_payloads import materialize_legal_ids_u16
+from ._legal_payloads import materialize_legal_action_meta_u16, materialize_legal_ids_u16
 from ._layout_specs import (
     FLAGS_TO_LAYOUT as _FLAGS_TO_LAYOUT,
     LAYOUT_FLAGS as _LAYOUT_FLAGS,
@@ -26,6 +27,8 @@ from ._layout_specs import (
 )
 from .weiss_sim import (
     ACTOR_NONE,
+    ACTION_META_UNUSED,
+    ACTION_META_WIDTH,
     BatchOutDebug,
     EnvPool,
 )
@@ -361,9 +364,23 @@ class EnvPoolBuffers(_EngineStatusMixin):
         self.main_pass_action: np.ndarray = self.out.main_pass_action
         if spec.has_legal_ids:
             self.legal_ids: np.ndarray = self.out.legal_ids
+            self.legal_action_meta: np.ndarray = getattr(
+                self.out,
+                "legal_action_meta",
+                np.full(
+                    (num_envs * pool.action_space, ACTION_META_WIDTH),
+                    ACTION_META_UNUSED,
+                    dtype=np.uint16,
+                ),
+            )
             self.legal_offsets: np.ndarray = self.out.legal_offsets
         else:
             self.legal_ids = np.empty(num_envs * pool.action_space, dtype=np.uint16)
+            self.legal_action_meta = np.full(
+                (num_envs * pool.action_space, ACTION_META_WIDTH),
+                ACTION_META_UNUSED,
+                dtype=np.uint16,
+            )
             self.legal_offsets = np.zeros(num_envs + 1, dtype=np.uint32)
         self.actions: np.ndarray = np.empty(num_envs, dtype=np.uint32)
 
@@ -387,9 +404,17 @@ class EnvPoolBuffers(_EngineStatusMixin):
         self._select_actions_from_logits_into = pool.select_actions_from_logits_into
         self._sample_actions_from_logits_into = pool.sample_actions_from_logits_into
         self._legal_action_ids_into = pool.legal_action_ids_into
+        self._legal_action_meta_into = getattr(pool, "legal_action_meta_into", None)
         self._legal_action_ids_and_sample_uniform_into = (
             pool.legal_action_ids_and_sample_uniform_into
         )
+        self._timing_enabled = False
+        self._timing_counters = {
+            "legal_ids_materialize_count": 0,
+            "legal_ids_materialize_ns": 0,
+            "legal_action_meta_materialize_count": 0,
+            "legal_action_meta_materialize_ns": 0,
+        }
 
     def _coerce_logits(self, logits: object) -> np.ndarray:
         return coerce_logits(logits, num_envs=self._num_envs, action_space=self._action_space)
@@ -496,15 +521,67 @@ class EnvPoolBuffers(_EngineStatusMixin):
     def reset_i16_overflow_count(self) -> None:
         self.pool.reset_i16_overflow_count()
 
-    def legal_action_ids(self) -> tuple[np.ndarray, np.ndarray]:
-        """Materialize packed legal ids/offsets into `self.legal_ids` buffers."""
-        return materialize_legal_ids_u16(
+    def set_timing_enabled(self, enabled: bool) -> None:
+        enabled = bool(enabled)
+        self._timing_enabled = enabled
+        setter = getattr(self.pool, "set_timing_enabled", None)
+        if setter is not None:
+            setter(enabled)
+
+    def reset_timing_counters(self) -> None:
+        self._timing_counters = {
+            "legal_ids_materialize_count": 0,
+            "legal_ids_materialize_ns": 0,
+            "legal_action_meta_materialize_count": 0,
+            "legal_action_meta_materialize_ns": 0,
+        }
+        resetter = getattr(self.pool, "reset_timing_counters", None)
+        if resetter is not None:
+            resetter()
+
+    def timing_counters(self) -> dict[str, int]:
+        snapshot = dict(self._timing_counters)
+        getter = getattr(self.pool, "timing_counters", None)
+        if getter is not None:
+            snapshot.update(getter())
+        return snapshot
+
+    def _timed_legal_ids(self) -> tuple[np.ndarray, np.ndarray]:
+        start_ns = perf_counter_ns() if self._timing_enabled else None
+        ids = materialize_legal_ids_u16(
             embedded_legal_ids=self._embedded_legal_ids,
             out=self.out,
             legal_ids_buffer=self.legal_ids,
             legal_offsets_buffer=self.legal_offsets,
             legal_action_ids_into=self._legal_action_ids_into,
         )
+        if start_ns is not None:
+            elapsed = perf_counter_ns() - start_ns
+            self._timing_counters["legal_ids_materialize_count"] += 1
+            self._timing_counters["legal_ids_materialize_ns"] += elapsed
+        return ids
+
+    def legal_action_ids(self) -> tuple[np.ndarray, np.ndarray]:
+        """Materialize packed legal ids/offsets into `self.legal_ids` buffers."""
+        return self._timed_legal_ids()
+
+    def legal_action_data(self) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
+        """Materialize packed legal ids plus aligned action metadata."""
+        ids, offsets = self._timed_legal_ids()
+        used_rows = int(offsets[-1]) if offsets.size else 0
+        start_ns = perf_counter_ns() if self._timing_enabled else None
+        meta = materialize_legal_action_meta_u16(
+            embedded_legal_ids=self._embedded_legal_ids,
+            out=self.out,
+            legal_action_meta_buffer=self.legal_action_meta,
+            used_rows=used_rows,
+            legal_action_meta_into=self._legal_action_meta_into,
+        )
+        if start_ns is not None:
+            elapsed = perf_counter_ns() - start_ns
+            self._timing_counters["legal_action_meta_materialize_count"] += 1
+            self._timing_counters["legal_action_meta_materialize_ns"] += elapsed
+        return ids, meta, offsets
 
     def legal_action_ids_and_sample_uniform(
         self, seeds: int | Sequence[int] | np.ndarray
@@ -539,6 +616,9 @@ class EnvPoolTrajectoryBuffers(_EngineStatusMixin):
         self.obs: np.ndarray = self.out.obs
         self.masks: np.ndarray | None = self.out.masks if spec.has_masks else None
         self.legal_ids: np.ndarray | None = self.out.legal_ids if spec.has_legal_ids else None
+        self.legal_action_meta: np.ndarray | None = (
+            getattr(self.out, "legal_action_meta", None) if spec.has_legal_ids else None
+        )
         self.legal_offsets: np.ndarray | None = (
             self.out.legal_offsets if spec.has_legal_ids else None
         )
