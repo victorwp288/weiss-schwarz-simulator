@@ -20,6 +20,7 @@ mod debug_events;
 mod debug_fingerprints;
 mod debug_validate;
 mod fault;
+mod heuristic_public;
 mod lifecycle;
 mod live_abilities;
 mod obs;

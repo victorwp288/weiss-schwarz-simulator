@@ -432,7 +432,9 @@ fn action_id_desc_for_key(action: ActionKey) -> ActionIdDesc {
 fn action_meta_for_key(action: ActionKey) -> [u16; ACTION_META_WIDTH] {
     let unused = ACTION_META_UNUSED;
     match action {
-        ActionKey::MulliganConfirm => [ActionFamily::MulliganConfirm as u16, unused, unused, unused],
+        ActionKey::MulliganConfirm => {
+            [ActionFamily::MulliganConfirm as u16, unused, unused, unused]
+        }
         ActionKey::MulliganSelect { hand_index } => [
             ActionFamily::MulliganSelect as u16,
             hand_index as u16,
@@ -482,18 +484,12 @@ fn action_meta_for_key(action: ActionKey) -> [u16; ACTION_META_WIDTH] {
             attack_type_code as u16,
             unused,
         ],
-        ActionKey::LevelUp { index } => [
-            ActionFamily::LevelUp as u16,
-            index as u16,
-            unused,
-            unused,
-        ],
-        ActionKey::EncorePay { slot } => [
-            ActionFamily::EncorePay as u16,
-            slot as u16,
-            unused,
-            unused,
-        ],
+        ActionKey::LevelUp { index } => {
+            [ActionFamily::LevelUp as u16, index as u16, unused, unused]
+        }
+        ActionKey::EncorePay { slot } => {
+            [ActionFamily::EncorePay as u16, slot as u16, unused, unused]
+        }
         ActionKey::EncoreDecline { slot } => [
             ActionFamily::EncoreDecline as u16,
             slot as u16,

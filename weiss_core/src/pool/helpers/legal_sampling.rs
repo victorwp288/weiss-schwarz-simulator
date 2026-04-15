@@ -4,9 +4,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
-use crate::encode::{
-    action_meta_for_id, ACTION_META_UNUSED, ACTION_META_WIDTH, ACTION_SPACE_SIZE,
-};
+use crate::encode::{action_meta_for_id, ACTION_META_UNUSED, ACTION_META_WIDTH, ACTION_SPACE_SIZE};
 use crate::legal::ActionDesc;
 
 use super::super::core::EnvPool;
@@ -279,7 +277,8 @@ impl EnvPool {
         for env in &self.envs {
             for &action_id in env.action_ids_cache() {
                 let Some(row) = action_meta_for_id(action_id as usize) else {
-                    meta[cursor * ACTION_META_WIDTH..cursor * ACTION_META_WIDTH + ACTION_META_WIDTH]
+                    meta[cursor * ACTION_META_WIDTH
+                        ..cursor * ACTION_META_WIDTH + ACTION_META_WIDTH]
                         .copy_from_slice(&[ACTION_META_UNUSED; ACTION_META_WIDTH]);
                     cursor += 1;
                     continue;
@@ -290,6 +289,24 @@ impl EnvPool {
             }
         }
         Ok(cursor)
+    }
+
+    /// Choose deterministic public-only heuristic actions for the selected env rows.
+    pub fn choose_heuristic_public_actions_into(
+        &mut self,
+        env_indices: &[usize],
+        out: &mut [u16],
+    ) -> Result<()> {
+        if env_indices.len() != out.len() {
+            anyhow::bail!("output length must match env_indices length");
+        }
+        for (slot, &env_index) in env_indices.iter().enumerate() {
+            let Some(env) = self.envs.get_mut(env_index) else {
+                anyhow::bail!("env_index {env_index} out of bounds");
+            };
+            out[slot] = env.choose_heuristic_public_action_id();
+        }
+        Ok(())
     }
 
     /// Compute legal action descriptors for all envs.

@@ -331,13 +331,14 @@ impl EnvPool {
 
     #[inline]
     /// Records elapsed time for `step_sample_from_logits_with_logp_into_i16_legal_ids`.
-    pub fn record_step_sample_from_logits_with_logp_into_i16_legal_ids(
-        &self,
-        elapsed: Duration,
-    ) {
+    pub fn record_step_sample_from_logits_with_logp_into_i16_legal_ids(&self, elapsed: Duration) {
         self.record_timing_with_slot(
-            &self.timing.step_sample_from_logits_with_logp_into_i16_legal_ids_count,
-            &self.timing.step_sample_from_logits_with_logp_into_i16_legal_ids_ns,
+            &self
+                .timing
+                .step_sample_from_logits_with_logp_into_i16_legal_ids_count,
+            &self
+                .timing
+                .step_sample_from_logits_with_logp_into_i16_legal_ids_ns,
             elapsed,
         );
     }

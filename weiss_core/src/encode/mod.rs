@@ -11,12 +11,12 @@ mod mask;
 mod observation;
 mod spec;
 
+pub(crate) use action_ids::action_meta_for_id;
 pub use action_ids::{
     action_desc_for_id, action_id_for, decode_action_id, ActionIdDesc, ActionParam,
     ActionParamValue,
 };
 pub use action_ids::{ACTION_META_UNUSED, ACTION_META_WIDTH};
-pub(crate) use action_ids::action_meta_for_id;
 pub use constants::*;
 pub use mask::{build_action_mask, fill_action_mask, fill_action_mask_sparse};
 pub use observation::encode_observation;
