@@ -18,6 +18,8 @@ use pyo3::types::{PyDict, PyList, PyModule, PyType};
 use weiss_core::config::{ErrorPolicy, ObservationVisibility};
 use weiss_core::encode::{
     action_spec_json as action_spec_json_core, decode_action_id as decode_action_id_core,
+    decode_factorized_action_id as decode_factorized_action_id_core,
+    encode_factorized_action as encode_factorized_action_core,
     observation_spec_json as observation_spec_json_core, ActionParamValue, ACTION_ENCODING_VERSION,
     ACTION_META_UNUSED, ACTION_META_WIDTH, ACTION_SPACE_SIZE, ACTOR_NONE, DECISION_KIND_NONE,
     OBS_ENCODING_VERSION, OBS_LEN, PASS_ACTION_ID, POLICY_VERSION, SPEC_HASH,
@@ -499,6 +501,41 @@ fn action_id_desc_to_pydict(
     Ok(dict.into())
 }
 
+fn factorized_action_desc_to_pydict(
+    py: Python<'_>,
+    desc: &weiss_core::encode::FactorizedActionDesc,
+) -> PyResult<PyObject> {
+    let dict = PyDict::new(py);
+    dict.set_item("family", desc.family)?;
+    dict.set_item("arg0", desc.arg0)?;
+    dict.set_item("arg1", desc.arg1)?;
+    dict.set_item("arg2", desc.arg2)?;
+    Ok(dict.into())
+}
+
+fn factorized_family_static(family: &str) -> Option<&'static str> {
+    match family.trim() {
+        "mulligan_confirm" => Some("mulligan_confirm"),
+        "mulligan_select" => Some("mulligan_select"),
+        "pass" => Some("pass"),
+        "clock_from_hand" => Some("clock_from_hand"),
+        "main_play_character" => Some("main_play_character"),
+        "main_play_event" => Some("main_play_event"),
+        "main_move" => Some("main_move"),
+        "climax_play" => Some("climax_play"),
+        "attack" => Some("attack"),
+        "level_up" => Some("level_up"),
+        "encore_pay" => Some("encore_pay"),
+        "encore_decline" => Some("encore_decline"),
+        "trigger_order" => Some("trigger_order"),
+        "choice_select" => Some("choice_select"),
+        "choice_prev_page" => Some("choice_prev_page"),
+        "choice_next_page" => Some("choice_next_page"),
+        "concede" => Some("concede"),
+        _ => None,
+    }
+}
+
 #[pyfunction(name = "observation_spec_json")]
 fn observation_spec_json_py() -> String {
     observation_spec_json_core()
@@ -515,6 +552,36 @@ fn decode_action_id_py(py: Python<'_>, action_id: u32) -> PyResult<PyObject> {
         return Ok(py.None());
     };
     action_id_desc_to_pydict(py, &desc)
+}
+
+#[pyfunction(name = "decode_factorized_action_id")]
+fn decode_factorized_action_id_py(py: Python<'_>, action_id: u32) -> PyResult<PyObject> {
+    let Some(desc) = decode_factorized_action_id_core(action_id as usize) else {
+        return Ok(py.None());
+    };
+    factorized_action_desc_to_pydict(py, &desc)
+}
+
+#[pyfunction(name = "encode_factorized_action")]
+#[pyo3(signature = (family, arg0=None, arg1=None, arg2=None))]
+fn encode_factorized_action_py(
+    family: String,
+    arg0: Option<u16>,
+    arg1: Option<u16>,
+    arg2: Option<u16>,
+) -> PyResult<Option<u32>> {
+    let Some(family) = factorized_family_static(&family) else {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "unknown factorized action family: {family}"
+        )));
+    };
+    let desc = weiss_core::encode::FactorizedActionDesc {
+        family,
+        arg0,
+        arg1,
+        arg2,
+    };
+    Ok(encode_factorized_action_core(&desc).map(|id| id as u32))
 }
 
 #[pyfunction(name = "build_info")]

@@ -59,6 +59,12 @@ spec = json.loads(weiss_sim.action_spec_json())
 print(spec["action_encoding_version"], spec["action_space_size"], spec["pass_action_id"])
 ```
 
+Structured-policy helpers exposed by the action spec bundle:
+
+- `spec["factorization"]` describes the stable family/`arg0`/`arg1`/`arg2` schema.
+- `weiss_sim.decode_factorized_action_id(id)` / `weiss_sim.encode_factorized_action(...)` round-trip that schema.
+- `weiss_sim.export_spec_bundle()["action_meta_v1"]` documents the packed `legal_action_meta` row layout.
+
 ## Spec bundle handshake
 
 ```python

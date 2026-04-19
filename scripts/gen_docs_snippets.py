@@ -477,6 +477,8 @@ def render_api_reference(
     # Section definitions.
     constants = [
         "ACTION_SPACE_SIZE",
+        "ACTION_META_WIDTH",
+        "ACTION_META_UNUSED",
         "OBS_LEN",
         "SPEC_HASH",
         "POLICY_VERSION",
@@ -506,15 +508,19 @@ def render_api_reference(
         "step_rl",
         "step_rl_select_from_logits",
         "step_rl_sample_from_logits",
+        "step_rl_sample_from_logits_with_logp",
         "pass_action_id_for_decision_kind",
     ]
     specs = [
         "observation_spec_json",
         "action_spec_json",
         "decode_action_id",
+        "decode_factorized_action_id",
+        "encode_factorized_action",
         "build_info",
         "spec_bundle",
         "export_spec_bundle",
+        "export_card_table",
         "db_info",
     ]
     cards = [

@@ -56,7 +56,7 @@ impl GameEnv {
         for &action_id in self.action_ids_cache() {
             let score = self.heuristic_public_score_action(action_id as usize, &board);
             let candidate = (score.0, score.1, score.2, score.3, -(action_id as i64));
-            if best_score.map_or(true, |current| candidate > current) {
+            if best_score.is_none_or(|current| candidate > current) {
                 best_score = Some(candidate);
                 best_action_id = action_id;
             }

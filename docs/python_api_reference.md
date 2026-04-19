@@ -19,6 +19,8 @@ python scripts/gen_docs_snippets.py --write
 These values are compatibility boundaries; see [RL Contract](rl_contract.md) for the checksum table.
 
 - `ACTION_SPACE_SIZE: int`
+- `ACTION_META_WIDTH: int`
+- `ACTION_META_UNUSED: int`
 - `OBS_LEN: int`
 - `SPEC_HASH: int`
 - `POLICY_VERSION: int`
@@ -41,7 +43,22 @@ def action_spec_json() -> str: ...
 
 ### `decode_action_id`
 ```python
-def decode_action_id(action_id: int) -> dict[str, object]: ...
+def decode_action_id(action_id: int) -> dict[str, object] | None: ...
+```
+
+### `decode_factorized_action_id`
+```python
+def decode_factorized_action_id(action_id: int) -> dict[str, object] | None: ...
+```
+
+### `encode_factorized_action`
+```python
+def encode_factorized_action(
+    family: str,
+    arg0: int | None = ...,
+    arg1: int | None = ...,
+    arg2: int | None = ...,
+) -> int | None: ...
 ```
 
 ### `build_info`
@@ -61,6 +78,13 @@ Export the current observation/action specs and compatibility hashes.
 
 ```python
 def export_spec_bundle() -> dict[str, object]: ...
+```
+
+### `export_card_table`
+Export static per-card features for structured policy encoders.
+
+```python
+def export_card_table(db_path: str | Path | None = None) -> dict[str, object]: ...
 ```
 
 ### `db_info`
@@ -177,7 +201,7 @@ Methods:
 ) -> tuple[int, ResetBatch | None]: ...`
 - `def close(self) -> None: ...`
 - `def current_to_play_seat(self) -> np.ndarray: ...`
-- `def decode_action(self, action_id: int) -> dict[str, object]: ...`
+- `def decode_action(self, action_id: int) -> dict[str, object] | None: ...`
 - `def effective_config(self) -> dict[str, object]: ...`
 - `def enable_replay_sampling(
     self,
@@ -267,9 +291,12 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 - `legal_mask: np.ndarray | None = None`
 - `legal_ids: np.ndarray | None = None`
 - `legal_offsets: np.ndarray | None = None`
+- `legal_action_meta: np.ndarray | None = None`
 - `_legal_cache: LegalActions | None = field(default=None, init=False, repr=False, compare=False)`
 
 </details>
@@ -295,9 +322,13 @@ Fields:
 - `terminal_during_internal_opponent: np.ndarray`
 - `decision_count: np.ndarray`
 - `tick_count: np.ndarray`
+- `no_progress_count: np.ndarray = field(default_factory=lambda: np.zeros((0,), dtype=np.uint32))`
+- `main_move_action: np.ndarray = field(default_factory=lambda: np.zeros((0,), dtype=np.bool_))`
+- `main_pass_action: np.ndarray = field(default_factory=lambda: np.zeros((0,), dtype=np.bool_))`
 - `legal_mask: np.ndarray | None = None`
 - `legal_ids: np.ndarray | None = None`
 - `legal_offsets: np.ndarray | None = None`
+- `legal_action_meta: np.ndarray | None = None`
 - `_legal_cache: LegalActions | None = field(default=None, init=False, repr=False, compare=False)`
 
 Methods:
@@ -319,6 +350,7 @@ Fields:
 - `legal_ids: np.ndarray | None`
 - `legal_offsets: np.ndarray | None`
 - `legal_mask_raw: np.ndarray | None`
+- `legal_action_meta: np.ndarray | None = None`
 
 Methods:
 - `def action_space(self) -> int: ...`
@@ -340,6 +372,7 @@ Methods:
 - `def mask(self) -> np.ndarray | None: ...`
 - `def mask_for_action_space(self, action_space: int) -> np.ndarray: ...`
 - `def mask_logits(self, logits: np.ndarray, illegal_value: float = -1e9) -> np.ndarray: ...`
+- `def meta(self, i: int) -> np.ndarray: ...`
 - `def num_envs(self) -> int: ...`
 - `def sample_logits(
     self,
@@ -374,6 +407,11 @@ Methods:
     codes: np.ndarray,
     out: BatchOutMinimalNoMask,
 ) -> int: ...`
+- `def choose_heuristic_public_actions_into(
+    self,
+    env_indices: np.ndarray,
+    actions_out: np.ndarray,
+) -> None: ...`
 - `def config_hash(self) -> int: ...`
 - `def debug_event_ring_capacity(self) -> int: ...`
 - `def decision_count_batch(self) -> np.ndarray: ...`
@@ -402,6 +440,7 @@ Methods:
     actions_out: np.ndarray,
 ) -> int: ...`
 - `def legal_action_ids_into(self, legal_ids: np.ndarray, legal_offsets: np.ndarray) -> int: ...`
+- `def legal_action_meta_into(self, legal_action_meta: np.ndarray) -> int: ...`
 - `def max_card_id(self) -> int: ...`
 - `def new_debug(
     cls,
@@ -462,6 +501,7 @@ Methods:
     debug_fingerprint_every_n: int = ...,
     debug_event_ring_capacity: int = ...,
 ) -> EnvPool: ...`
+- `def no_progress_count_batch(self) -> np.ndarray: ...`
 - `def obs_fingerprint_batch(self) -> np.ndarray: ...`
 - `def render_ansi(self, env_index: int, perspective: int) -> str: ...`
 - `def reset_debug_into(self, out: BatchOutDebug) -> None: ...`
@@ -511,6 +551,7 @@ Methods:
 - `def reset_into_i16(self, out: BatchOutMinimalI16) -> None: ...`
 - `def reset_into_i16_legal_ids(self, out: BatchOutMinimalI16LegalIds) -> None: ...`
 - `def reset_into_nomask(self, out: BatchOutMinimalNoMask) -> None: ...`
+- `def reset_timing_counters(self) -> None: ...`
 - `def rollout_first_legal_into(self, steps: int, out: BatchOutTrajectory) -> None: ...`
 - `def rollout_first_legal_into_i16(self, steps: int, out: BatchOutTrajectoryI16) -> None: ...`
 - `def rollout_first_legal_into_i16_legal_ids(
@@ -519,6 +560,11 @@ Methods:
     out: BatchOutTrajectoryI16LegalIds,
 ) -> None: ...`
 - `def rollout_first_legal_into_nomask(self, steps: int, out: BatchOutTrajectoryNoMask) -> None: ...`
+- `def rollout_heuristic_public_into_i16_legal_ids(
+    self,
+    steps: int,
+    out: BatchOutTrajectoryI16LegalIds,
+) -> None: ...`
 - `def rollout_sample_legal_action_ids_uniform_into(
     self,
     steps: int,
@@ -561,6 +607,7 @@ Methods:
 - `def set_i16_overflow_counter_enabled(self, enabled: bool) -> None: ...`
 - `def set_output_mask_bits_enabled(self, enabled: bool) -> None: ...`
 - `def set_output_mask_enabled(self, enabled: bool) -> None: ...`
+- `def set_timing_enabled(self, enabled: bool) -> None: ...`
 - `def starting_player_batch(self) -> np.ndarray: ...`
 - `def state_fingerprint_batch(self) -> np.ndarray: ...`
 - `def step_debug_into(self, actions: np.ndarray, out: BatchOutDebug) -> None: ...`
@@ -607,6 +654,14 @@ Methods:
     seeds: np.ndarray,
     actions: np.ndarray,
     out: BatchOutMinimalNoMask,
+) -> None: ...`
+- `def step_sample_from_logits_with_logp_into_i16_legal_ids(
+    self,
+    logits: np.ndarray,
+    seeds: np.ndarray,
+    actions: np.ndarray,
+    action_logp: np.ndarray,
+    out: BatchOutMinimalI16LegalIds,
 ) -> None: ...`
 - `def step_sample_legal_action_ids_uniform_into(
     self,
@@ -657,6 +712,7 @@ Methods:
     out: BatchOutMinimalNoMask,
 ) -> None: ...`
 - `def tick_count_batch(self) -> np.ndarray: ...`
+- `def timing_counters(self) -> dict[str, int]: ...`
 - `def validate_deck_issues(
     deck_lists: list[list[int]],
     db_path: str | None = ...,
@@ -673,6 +729,7 @@ Preallocated numpy buffers for high-throughput stepping.
 
 Methods:
 - `def i16_overflow_count(self) -> int: ...`
+- `def legal_action_data(self) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]: ...`
 - `def legal_action_ids(self) -> tuple[np.ndarray, np.ndarray]: ...`
 - `def legal_action_ids_and_sample_uniform(
     self,
@@ -687,6 +744,7 @@ Methods:
     indices: Sequence[int] | np.ndarray,
     episode_seeds: Sequence[int] | np.ndarray,
 ) -> MinimalOut: ...`
+- `def reset_timing_counters(self) -> None: ...`
 - `def sample_actions_from_logits(
     self,
     logits: object,
@@ -697,6 +755,7 @@ Methods:
 - `def set_i16_overflow_counter_enabled(self, enabled: bool) -> None: ...`
 - `def set_output_mask_bits_enabled(self, enabled: bool) -> None: ...`
 - `def set_output_mask_enabled(self, enabled: bool) -> None: ...`
+- `def set_timing_enabled(self, enabled: bool) -> None: ...`
 - `def step(self, actions: Sequence[int] | np.ndarray) -> MinimalOut: ...`
 - `def step_first_legal(self) -> tuple[MinimalOut, np.ndarray]: ...`
 - `def step_random_legal(
@@ -709,6 +768,7 @@ Methods:
     seeds: int | Sequence[int] | np.ndarray,
 ) -> tuple[MinimalOut, np.ndarray]: ...`
 - `def step_select_from_logits(self, logits: object) -> tuple[MinimalOut, np.ndarray]: ...`
+- `def timing_counters(self) -> dict[str, int]: ...`
 
 </details>
 
@@ -739,6 +799,8 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 
 </details>
 
@@ -757,6 +819,8 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 
 </details>
 
@@ -767,6 +831,7 @@ Fields:
 Fields:
 - `obs: np.ndarray`
 - `legal_ids: np.ndarray`
+- `legal_action_meta: np.ndarray`
 - `legal_offsets: np.ndarray`
 - `rewards: np.ndarray`
 - `terminated: np.ndarray`
@@ -776,6 +841,8 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 
 </details>
 
@@ -793,6 +860,8 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 
 </details>
 
@@ -812,6 +881,8 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 - `actions: np.ndarray`
 
 </details>
@@ -832,6 +903,8 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 - `actions: np.ndarray`
 
 </details>
@@ -844,6 +917,7 @@ Fields:
 - `steps: int`
 - `obs: np.ndarray`
 - `legal_ids: np.ndarray`
+- `legal_action_meta: np.ndarray`
 - `legal_offsets: np.ndarray`
 - `rewards: np.ndarray`
 - `terminated: np.ndarray`
@@ -853,6 +927,8 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 - `actions: np.ndarray`
 
 </details>
@@ -872,6 +948,8 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 - `actions: np.ndarray`
 
 </details>
@@ -891,6 +969,8 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 - `state_fingerprint: np.ndarray`
 - `events_fingerprint: np.ndarray`
 - `mask_fingerprint: np.ndarray`
@@ -979,9 +1059,15 @@ Fields:
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
 - `spec_hash: np.ndarray`
+- `decision_count: np.ndarray`
+- `tick_count: np.ndarray`
+- `no_progress_count: np.ndarray`
+- `main_move_action: np.ndarray`
+- `main_pass_action: np.ndarray`
 - `masks: np.ndarray | None = None`
 - `legal_ids: np.ndarray | None = None`
 - `legal_offsets: np.ndarray | None = None`
+- `legal_action_meta: np.ndarray | None = None`
 
 Methods:
 - `def actor_known(self) -> np.ndarray: ...`
@@ -1035,6 +1121,22 @@ def step_rl_sample_from_logits(
     *,
     layout: Layout = "i16_legal_ids",
     actions: Sequence[int] | np.ndarray | None = None,
+    out: object | None = None,
+): ...
+```
+
+### `step_rl_sample_from_logits_with_logp`
+Sample actions from `logits`, return sampled-action log-probs, and step the pool.
+
+```python
+def step_rl_sample_from_logits_with_logp(
+    pool: EnvPool,
+    logits: object,
+    seeds: int | Sequence[int] | np.ndarray,
+    *,
+    layout: Layout = "i16_legal_ids",
+    actions: Sequence[int] | np.ndarray | None = None,
+    action_logp: np.ndarray | None = None,
     out: object | None = None,
 ): ...
 ```
@@ -1196,6 +1298,7 @@ Fields:
 - `allow_concede: bool | None = None`
 - `reveal_opponent_hand_stock_counts: bool | None = None`
 - `memory_is_public: bool | None = None`
+- `max_no_progress_decisions: int | None = None`
 
 Methods:
 - `def to_dict(self) -> dict[str, object]: ...`

@@ -9,6 +9,7 @@ If this file and code disagree, code is authoritative.
 - deterministic, RL-first engine with advance-until-decision semantics
 - fixed action space and fixed-length observation contract
 - Rust core (`weiss_core`) + PyO3 extension (`weiss_py`) + Python API (`python/weiss_sim`)
+- runtime spec bundle exports packed action metadata and factorized action schema for structured policies
 - replay + fingerprint surfaces used for reproducibility and drift diagnosis
 
 ## Compatibility boundaries

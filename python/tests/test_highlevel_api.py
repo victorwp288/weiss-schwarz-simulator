@@ -629,7 +629,52 @@ def test_render_smoke():
         rendered = sim.render()
         assert isinstance(rendered, str)
         assert rendered
-        assert "WeissEnv[0]" in rendered
+        assert "Phase:" in rendered
+        assert "P0 Level:" in rendered
+
+
+def test_render_uses_starting_seat_when_actor_unknown():
+    calls: list[tuple[int, int]] = []
+
+    class _DummyPool:
+        envs_len = 1
+        action_space = weiss_sim.ACTION_SPACE_SIZE
+
+        def render_ansi(self, env_index: int, perspective: int) -> str:
+            calls.append((env_index, perspective))
+            return f"render:{env_index}:{perspective}"
+
+    sim = runner_mod.WeissEnv(
+        pool=_DummyPool(),
+        out=object(),
+        reset_method="reset_into",
+        step_method="step_into",
+        has_mask=True,
+        embedded_legal_ids=False,
+        legal_repr="mask_u8",
+        ids_safety=None,
+        runtime_mode="eval_debug",
+        control_seat=None,
+        effective={"mode": "inspect"},
+        spec_fn=lambda: {"spec_hash": int(weiss_sim.SPEC_HASH)},
+    )
+    sim._latest_batch = weiss_sim.ResetBatch(
+        obs=np.zeros((1, 1), dtype=np.int32),
+        to_play_seat=np.array([-1], dtype=np.int8),
+        starting_seat=np.array([1], dtype=np.uint8),
+        episode_seed=np.array([0], dtype=np.uint64),
+        episode_index=np.array([0], dtype=np.uint32),
+        env_index=np.array([0], dtype=np.uint32),
+        episode_key=np.array([0], dtype=np.uint64),
+        decision_id=np.array([0], dtype=np.uint32),
+        engine_status=np.array([0], dtype=np.uint8),
+        spec_hash=np.array([weiss_sim.SPEC_HASH], dtype=np.uint64),
+        main_move_action=np.array([False], dtype=np.bool_),
+        main_pass_action=np.array([False], dtype=np.bool_),
+    )
+
+    assert sim.render() == "render:0:1"
+    assert calls == [(0, 1)]
 
 
 def test_decode_action_smoke():
@@ -642,6 +687,57 @@ def test_decode_action_smoke():
         assert "family" in desc
         assert "params" in desc
         assert isinstance(desc["params"], list)
+        assert sim.decode_action(weiss_sim.ACTION_SPACE_SIZE + 1) is None
+
+
+def test_factorized_action_helpers_roundtrip():
+    decoded = weiss_sim.decode_factorized_action_id(weiss_sim.PASS_ACTION_ID)
+    assert decoded == {"family": "pass", "arg0": None, "arg1": None, "arg2": None}
+    assert weiss_sim.encode_factorized_action("pass") == weiss_sim.PASS_ACTION_ID
+
+    attack_id = weiss_sim.encode_factorized_action("attack", arg0=1, arg1=1)
+    assert attack_id is not None
+    assert weiss_sim.decode_factorized_action_id(int(attack_id)) == {
+        "family": "attack",
+        "arg0": 1,
+        "arg1": 1,
+        "arg2": None,
+    }
+    assert weiss_sim.decode_factorized_action_id(weiss_sim.ACTION_SPACE_SIZE + 1) is None
+    assert weiss_sim.encode_factorized_action("mulligan_select", arg0=258) is None
+    assert weiss_sim.encode_factorized_action("attack", arg0=1, arg1=9) is None
+
+    with pytest.raises(ValueError, match="unknown factorized action family"):
+        weiss_sim.encode_factorized_action("not-a-family")
+
+
+def test_export_card_table_smoke():
+    table = weiss_sim.export_card_table()
+    assert table["version"] == "card_table_v1"
+    assert table["num_cards"] > 0
+    assert table["max_card_id"] >= 1
+    assert table["rows"]
+    first_row = table["rows"][0]
+    assert {"card_id", "card_type", "color", "traits"} <= set(first_row.keys())
+    traits = sorted({int(trait) for row in table["rows"] for trait in row.get("traits", [])})
+    expected_vocab_size = 0 if not traits else traits[-1] + 1
+    assert table["trait_vocab_size"] == expected_vocab_size
+
+
+def test_legal_action_metadata_available_for_ids_batches():
+    with weiss_sim.fast(num_envs=2, seed=19, card_pool="all") as sim:
+        reset = sim.reset()
+        assert reset.legal_action_meta is not None
+        assert reset.legal_action_meta.dtype == np.uint16
+        for env_i in range(sim.num_envs):
+            ids = reset.legal.ids(env_i)
+            meta = reset.legal.meta(env_i)
+            assert meta.shape == (ids.shape[0], weiss_sim.ACTION_META_WIDTH)
+
+    with weiss_sim.inspect(num_envs=1, seed=19, card_pool="all", legal_repr="mask_u8") as sim:
+        reset = sim.reset()
+        with pytest.raises(ValueError, match="legal action metadata"):
+            reset.legal.meta(0)
 
 
 def test_reset_done_and_reset_indices_partial_helpers():
@@ -791,6 +887,10 @@ def test_cards_namespace_search_get_presets_and_resolve_deck(tmp_path: Path):
 
     names = weiss_sim.cards.presets()
     assert "starter_v1" in names
+    assert "quints_balanced_v2" in names
+    assert "quints_ichika_focus_v1" in names
+    assert "quints_yotsuba_focus_v1" in names
+    assert "quints_support_mix_v1" in names
 
     seq_ids = weiss_sim.cards.resolve_deck(
         [1] * 50,
@@ -1005,6 +1105,10 @@ def test_effective_config_and_spec_export_contract():
         exported = weiss_sim.export_spec_bundle()
         assert spec["spec_hash"] == exported["spec_hash"] == weiss_sim.SPEC_HASH
         assert "observation" in spec and "action" in spec
+        assert exported["action_factorization_v1"]["meta_version"] == "action_meta_v1"
+        assert exported["action_factorization_v1"]["factorization_version"] == 1
+        assert exported["action_meta_v1"]["fields"] == ["family_id", "arg0", "arg1", "arg2"]
+        assert exported["action"]["factorization"] == exported["action_factorization_v1"]
 
     info = weiss_sim.db_info()
     assert bool(info["matches_catalog"]) is True

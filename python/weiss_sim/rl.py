@@ -196,7 +196,9 @@ def step_rl_sample_from_logits_with_logp(
     """
     layout_name, spec = _resolve_layout(layout)
     if layout_name != "i16_legal_ids":
-        raise ValueError("step_rl_sample_from_logits_with_logp currently requires layout='i16_legal_ids'")
+        raise ValueError(
+            "step_rl_sample_from_logits_with_logp currently requires layout='i16_legal_ids'"
+        )
     out_buf = _prepare_out(pool, out, spec)
     logits_buf = coerce_logits(logits, num_envs=pool.envs_len, action_space=pool.action_space)
     seeds_buf = coerce_seeds(seeds, num_envs=pool.envs_len)
@@ -206,7 +208,9 @@ def step_rl_sample_from_logits_with_logp(
     else:
         action_logp_buf = np.asarray(action_logp, dtype=np.float32)
         if action_logp_buf.shape != (pool.envs_len,):
-            raise ValueError(f"action_logp must have shape ({pool.envs_len},), got {action_logp_buf.shape}")
+            raise ValueError(
+                f"action_logp must have shape ({pool.envs_len},), got {action_logp_buf.shape}"
+            )
         action_logp_buf = np.ascontiguousarray(action_logp_buf, dtype=np.float32)
     pool.step_sample_from_logits_with_logp_into_i16_legal_ids(
         logits_buf,

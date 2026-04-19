@@ -74,8 +74,12 @@ Reward configuration defaults (`RewardConfig`):
 - `terminal_win` (float)
 - `terminal_loss` (float)
 - `terminal_draw` (float)
+- `terminal_timeout` (float)
 - `enable_shaping` (bool)
 - `damage_reward` (float)
+- `level_reward` (float)
+- `board_reward` (float)
+- `no_progress_penalty` (float)
 
 ## Core output schema
 
@@ -92,11 +96,14 @@ Typical low-level outputs (`BatchOut*` / buffer wrappers):
 | `decision_id` | `(N,)` | per-env monotonic decision index |
 | `engine_status` | `(N,)` | engine fault code (`0` healthy) |
 | `spec_hash` | `(N,)` | compatibility hash |
+| `main_move_action` | `(N,)` | whether the last transition consumed the once-per-turn main move |
+| `main_pass_action` | `(N,)` | whether the last transition passed main |
 
 Low-level legal action surfaces:
 
 - dense mask (`masks`) when enabled
 - packed ids (`legal_ids`, `legal_offsets`) depending on buffer/API mode
+- aligned packed metadata (`legal_action_meta`) when legal ids are present
 
 ## High-level batch schema (`ResetBatch` / `StepBatch`)
 
@@ -105,27 +112,30 @@ Common fields:
 - `obs`, `to_play_seat`, `starting_seat`
 - `episode_seed`, `episode_index`, `env_index`, `episode_key`
 - `decision_id`, `engine_status`, `spec_hash`
-- optional legal surfaces: `legal_mask`, `legal_ids`, `legal_offsets`
+- `main_move_action`, `main_pass_action`
+- optional legal surfaces: `legal_mask`, `legal_ids`, `legal_offsets`, `legal_action_meta`
 
 Preferred high-level legal API:
 
 - use `batch.legal` for ids/mask/logit helpers
-- `legal_ids` and `legal_offsets` remain available as raw properties for advanced integration
+- `legal_ids`, `legal_offsets`, and `legal_action_meta` remain available as raw properties for advanced integration
 
 `StepBatch` adds:
 
 - `reward`, `terminated`, `truncated`
 - `terminal_during_internal_opponent`
-- `decision_count`, `tick_count`
+- `decision_count`, `tick_count`, `no_progress_count`
 
 Invariants enforced in high-level path:
 
 - `terminated` and `truncated` are never both true at one index
 - legal ids (when present) are strictly ascending and unique per env slice
+- legal metadata (when present) is aligned 1:1 with the used `legal_ids` prefix
 
 `batch.legal` behavior:
 
 - `batch.legal.ids(i)` returns legal action ids for env `i`
+- `batch.legal.meta(i)` returns packed action metadata rows for env `i`
 - `batch.legal.mask` returns dense legal mask view
 - `batch.legal.argmax_logits(...)` / `sample_logits(...)` enforce legality
 
@@ -192,6 +202,14 @@ These values are read from `weiss_core/src/encode/constants.rs`.
 | OBS_ENCODING_VERSION | 2 |
 | ACTION_ENCODING_VERSION | 1 |
 | SPEC_HASH | 8590000130 |
+
+## Structured action metadata
+
+Structured-policy integrations can rely on two exported helper blocks from
+`weiss_sim.spec_bundle()` / `weiss_sim.export_spec_bundle()`:
+
+- `action_factorization_v1`: stable action-family schema for `family` + `arg0/arg1/arg2`
+- `action_meta_v1`: packed legal-row layout mirrored by `legal_action_meta`
 
 ## Reference loop patterns
 

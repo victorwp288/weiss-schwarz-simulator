@@ -223,7 +223,7 @@ impl EnvPool {
         }
     }
 
-    fn fill_outcomes_for_flags(&mut self, flags: &[bool]) -> Result<()> {
+    pub(in crate::pool) fn fill_outcomes_for_flags(&mut self, flags: &[bool]) -> Result<()> {
         if flags.len() != self.envs.len() {
             anyhow::bail!("reset flags size mismatch");
         }

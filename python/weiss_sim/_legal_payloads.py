@@ -42,11 +42,22 @@ def materialize_legal_action_meta_u16(
         raw = getattr(out, "legal_action_meta", None)
         if raw is None:
             return None
-        return np.asarray(raw, dtype=np.uint16)[:used_rows]
+        raw_arr = np.asarray(raw, dtype=np.uint16)
+        if raw_arr.shape[0] < used_rows:
+            raise ValueError(
+                "embedded legal_action_meta buffer is smaller than used legal-id rows "
+                f"(got {raw_arr.shape[0]}, need at least {used_rows})"
+            )
+        return raw_arr[:used_rows]
 
     if legal_action_meta_into is None:
         return None
     count = int(legal_action_meta_into(legal_action_meta_buffer))
+    if count != used_rows:
+        raise ValueError(
+            "legal_action_meta rows must match used legal-id rows "
+            f"(got {count}, expected {used_rows})"
+        )
     return legal_action_meta_buffer[:count]
 
 

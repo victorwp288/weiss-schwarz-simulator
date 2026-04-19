@@ -36,11 +36,19 @@ maturin develop --release --manifest-path weiss_py/Cargo.toml
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate
-./scripts/setup_dev_env.sh
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
+python -m maturin develop --release --manifest-path weiss_py/Cargo.toml
 ```
 
 This installs `.[dev]` extras (`ruff`, `pytest`, `maturin`, `pip-audit`) and builds the local extension in-place.
+
+Virtualenv activation examples:
+
+- PowerShell: `.\.venv\Scripts\Activate.ps1`
+- Bash / zsh: `source .venv/bin/activate`
+
+If you prefer the helper script, `scripts/setup_dev_env.sh` runs the same install flow in Bash-compatible shells.
 
 ### Minimal high-level loop
 
@@ -124,6 +132,20 @@ Full local CI parity:
 
 ```bash
 scripts/run_local_ci_parity.sh
+```
+
+On Windows, run the underlying commands directly from PowerShell:
+
+```powershell
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+ruff format --check python scraper scripts
+ruff check python scraper scripts
+python scripts/check_docs_links.py
+python scripts/check_docs_constants.py
+python scripts/gen_docs_snippets.py --check
+pytest -q python/tests
 ```
 
 Skip benchmark gate during iteration:

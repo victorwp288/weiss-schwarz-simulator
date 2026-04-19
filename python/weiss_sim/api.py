@@ -260,11 +260,13 @@ def _select_out_mode(
 
 def export_spec_bundle() -> dict[str, object]:
     """Export the current observation/action specs and compatibility hashes."""
+    action_bundle = json.loads(action_spec_json())
     return {
         "policy_version": POLICY_VERSION,
         "spec_hash": SPEC_HASH,
         "observation": json.loads(observation_spec_json()),
-        "action": json.loads(action_spec_json()),
+        "action": action_bundle,
+        "action_factorization_v1": action_bundle.get("factorization", {}),
         "action_meta_v1": {
             "version": "action_meta_v1",
             "width": ACTION_META_WIDTH,
@@ -282,13 +284,11 @@ def export_card_table(db_path: str | Path | None = None) -> dict[str, object]:
     rows = [dict(row) for row in rows_payload if isinstance(row, Mapping)]
     max_card_id = max((int(row.get("card_id", 0)) for row in rows), default=0)
     max_traits_per_card = max((len(list(row.get("traits", []))) for row in rows), default=0)
-    trait_vocab_size = max(
-        (
-            max((int(trait) for trait in list(row.get("traits", []))), default=0)
-            for row in rows
-        ),
-        default=0,
+    max_trait_id = max(
+        (max((int(trait) for trait in list(row.get("traits", []))), default=-1) for row in rows),
+        default=-1,
     )
+    trait_vocab_size = max_trait_id + 1
     return {
         "version": "card_table_v1",
         "db_info": db_info(db_path=db_path),

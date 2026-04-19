@@ -1004,12 +1004,22 @@ class WeissEnv:
         reset_batch = self._finalize_reset(reset_indices=reset_indices)
         return reset_count, reset_batch
 
-    def decode_action(self, action_id: int) -> dict[str, object]:
-        """Decode a numeric action id into a structured Python dict."""
+    @staticmethod
+    def _render_perspective(batch: ResetBatch | StepBatch, env_i: int) -> int:
+        perspective = int(batch.to_play_seat[env_i])
+        if perspective in (0, 1):
+            return perspective
+        starting_seat = int(batch.starting_seat[env_i])
+        if starting_seat in (0, 1):
+            return starting_seat
+        return 0
+
+    def decode_action(self, action_id: int) -> dict[str, object] | None:
+        """Decode a numeric action id into a structured Python dict, or `None` if unknown."""
         return decode_action_id(int(action_id))
 
     def render(self, env_i: int = 0, mode: Literal["ansi"] = "ansi") -> str:
-        """Render a compact debugging view for a single env."""
+        """Render a human-readable ANSI board view for a single env."""
         self._require_open()
         if mode != "ansi":
             raise WeissSimError(f"unsupported render mode {mode!r}; only 'ansi' is supported")
@@ -1017,6 +1027,10 @@ class WeissEnv:
         idx = int(env_i)
         if idx < 0 or idx >= self._num_envs:
             raise WeissSimError(f"env_i must be in [0, {self._num_envs - 1}], got {idx}")
+        render_ansi = getattr(self.pool, "render_ansi", None)
+        if callable(render_ansi):
+            perspective = self._render_perspective(batch, idx)
+            return str(render_ansi(idx, perspective))
         legal_ids = batch.legal.ids(idx)
         obs_row = np.asarray(batch.obs[idx]).ravel()
         preview_len = min(24, obs_row.shape[0])

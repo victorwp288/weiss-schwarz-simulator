@@ -11,6 +11,22 @@ This page documents the current `weiss_sim` Python API.
 import weiss_sim
 ```
 
+## Specs & metadata
+
+The authoritative compatibility/data-contract surfaces are:
+
+- `weiss_sim.observation_spec_json()` / `weiss_sim.action_spec_json()`
+- `weiss_sim.decode_action_id(action_id)`
+- `weiss_sim.decode_factorized_action_id(action_id)`
+- `weiss_sim.encode_factorized_action(family, arg0=None, arg1=None, arg2=None)`
+- `weiss_sim.export_spec_bundle()`
+- `weiss_sim.export_card_table()`
+
+`export_spec_bundle()` includes two structured-policy helper blocks:
+
+- `action_factorization_v1`: stable family/`arg0`/`arg1`/`arg2` schema for factorized action heads
+- `action_meta_v1`: packed legal-row metadata layout (`family_id`, `arg0`, `arg1`, `arg2`)
+
 ## High-level API (`WeissEnv`)
 
 ### Entry points
@@ -164,8 +180,16 @@ where each issue has a stable `code` (for example `deck_length`, `unknown_card`,
 - `step_sample_logits(logits, seed=None, temperature=1.0, illegal_value=-1e9) -> (StepBatch, np.ndarray actions)`
 - `auto_reset_on_engine_errors(codes=None) -> (int reset_count, ResetBatch | None)`
 - `enable_replay_sampling(sample_rate, out_dir=None, compress=False, include_trigger_card_id=False, visibility_mode=None, store_actions=True) -> None`
+- `decode_action(action_id) -> dict | None`
+- `render(env_i=0, mode="ansi") -> str`
 
 Both logits helpers return `(step, actions)` where `actions` is a `np.ndarray` of shape `(num_envs,)` with `dtype=uint32`.
+
+`ResetBatch` / `StepBatch` also expose:
+
+- `main_move_action`: per-env bool flag showing whether the last transition consumed the once-per-turn main move
+- `main_pass_action`: per-env bool flag showing whether the last transition passed main
+- `legal_action_meta`: optional packed legality metadata aligned 1:1 with `legal_ids`
 
 ### Logits helper semantics
 
@@ -188,6 +212,7 @@ Use `batch.legal` as the main integration surface.
 Common helpers:
 
 - `batch.legal.ids(env_i)`
+- `batch.legal.meta(env_i)`
 - `batch.legal.contains(env_i, action_id)`
 - `batch.legal.first_legal(default_action=...)`
 - `batch.legal.choose(strategy, logits=..., seed=..., default_action=...)`
@@ -201,7 +226,7 @@ Common helpers:
 - `temperature=0.0` is deterministic argmax (equivalent action selection to `batch.legal.argmax_logits(...)`).
 - `temperature<0.0` is invalid (`ValueError`).
 
-`ResetBatch` and `StepBatch` still expose `legal_ids` and `legal_offsets` as properties for interoperability, but most code should consume `batch.legal`.
+`ResetBatch` and `StepBatch` still expose `legal_ids`, `legal_offsets`, and `legal_action_meta` as properties for interoperability, but most code should consume `batch.legal`.
 
 ### Minimal high-level loop (preferred)
 
@@ -233,6 +258,7 @@ If you need zero-overhead packed legality arrays, consume batch properties direc
 
 - `batch.legal_ids`
 - `batch.legal_offsets`
+- `batch.legal_action_meta`
 - optional `batch.legal_mask`
 
 Example packed-id first-legal selection:
@@ -249,8 +275,8 @@ for i in range(num_envs):
 
 ### Debug helpers
 
-- `render(env_i=0) -> str`: compact single-env debug view (mode `"ansi"` only)
-- `decode_action(action_id) -> dict`: decode an action id into a structured dict (family + params)
+- `render(env_i=0) -> str`: human-readable ANSI board view from the current actor/start-seat perspective
+- `decode_action(action_id) -> dict | None`: decode an action id into a structured dict (family + params)
 
 ### Runtime error auto-reset helper
 

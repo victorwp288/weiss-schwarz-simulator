@@ -25,6 +25,8 @@ fn weiss_sim(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(observation_spec_json_py, m)?)?;
     m.add_function(wrap_pyfunction!(action_spec_json_py, m)?)?;
     m.add_function(wrap_pyfunction!(decode_action_id_py, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_factorized_action_id_py, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_factorized_action_py, m)?)?;
     m.add_function(wrap_pyfunction!(build_info_py, m)?)?;
     m.add_function(wrap_pyfunction!(export_card_table_json_py, m)?)?;
     Ok(())

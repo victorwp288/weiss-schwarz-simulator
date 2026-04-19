@@ -33,6 +33,19 @@ pub struct ActionIdDesc {
     pub params: Vec<ActionParam>,
 }
 
+/// Machine-friendly factorized description of an action id.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct FactorizedActionDesc {
+    /// Action family name.
+    pub family: &'static str,
+    /// First factorized argument slot.
+    pub arg0: Option<u16>,
+    /// Second factorized argument slot.
+    pub arg1: Option<u16>,
+    /// Third factorized argument slot.
+    pub arg2: Option<u16>,
+}
+
 /// Number of `u16` fields exported for each legal action metadata row.
 pub const ACTION_META_WIDTH: usize = 4;
 /// Sentinel value used for unused action metadata arguments.
@@ -514,10 +527,227 @@ fn action_meta_for_key(action: ActionKey) -> [u16; ACTION_META_WIDTH] {
     }
 }
 
+#[inline]
+fn factorized_action_desc_for_key(action: ActionKey) -> FactorizedActionDesc {
+    match action {
+        ActionKey::MulliganConfirm => FactorizedActionDesc {
+            family: "mulligan_confirm",
+            arg0: None,
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::MulliganSelect { hand_index } => FactorizedActionDesc {
+            family: "mulligan_select",
+            arg0: Some(hand_index as u16),
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::Pass => FactorizedActionDesc {
+            family: "pass",
+            arg0: None,
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::ClockFromHand { hand_index } => FactorizedActionDesc {
+            family: "clock_from_hand",
+            arg0: Some(hand_index as u16),
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::MainPlayCharacter {
+            hand_index,
+            stage_slot,
+        } => FactorizedActionDesc {
+            family: "main_play_character",
+            arg0: Some(hand_index as u16),
+            arg1: Some(stage_slot as u16),
+            arg2: None,
+        },
+        ActionKey::MainPlayEvent { hand_index } => FactorizedActionDesc {
+            family: "main_play_event",
+            arg0: Some(hand_index as u16),
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::MainMove { from_slot, to_slot } => FactorizedActionDesc {
+            family: "main_move",
+            arg0: Some(from_slot as u16),
+            arg1: Some(to_slot as u16),
+            arg2: None,
+        },
+        ActionKey::ClimaxPlay { hand_index } => FactorizedActionDesc {
+            family: "climax_play",
+            arg0: Some(hand_index as u16),
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::Attack {
+            slot,
+            attack_type_code,
+        } => FactorizedActionDesc {
+            family: "attack",
+            arg0: Some(slot as u16),
+            arg1: Some(attack_type_code as u16),
+            arg2: None,
+        },
+        ActionKey::LevelUp { index } => FactorizedActionDesc {
+            family: "level_up",
+            arg0: Some(index as u16),
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::EncorePay { slot } => FactorizedActionDesc {
+            family: "encore_pay",
+            arg0: Some(slot as u16),
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::EncoreDecline { slot } => FactorizedActionDesc {
+            family: "encore_decline",
+            arg0: Some(slot as u16),
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::TriggerOrder { index } => FactorizedActionDesc {
+            family: "trigger_order",
+            arg0: Some(index as u16),
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::ChoiceSelect { index } => FactorizedActionDesc {
+            family: "choice_select",
+            arg0: Some(index as u16),
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::ChoicePrevPage => FactorizedActionDesc {
+            family: "choice_prev_page",
+            arg0: None,
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::ChoiceNextPage => FactorizedActionDesc {
+            family: "choice_next_page",
+            arg0: None,
+            arg1: None,
+            arg2: None,
+        },
+        ActionKey::Concede => FactorizedActionDesc {
+            family: "concede",
+            arg0: None,
+            arg1: None,
+            arg2: None,
+        },
+    }
+}
+
+#[inline]
+fn action_key_for_factorized_desc(desc: &FactorizedActionDesc) -> Option<ActionKey> {
+    match desc.family {
+        "mulligan_confirm" if desc.arg0.is_none() && desc.arg1.is_none() && desc.arg2.is_none() => {
+            Some(ActionKey::MulliganConfirm)
+        }
+        "mulligan_select" if desc.arg1.is_none() && desc.arg2.is_none() => {
+            let hand_index = usize::from(desc.arg0?);
+            (hand_index < MULLIGAN_SELECT_COUNT).then_some(ActionKey::MulliganSelect { hand_index })
+        }
+        "pass" if desc.arg0.is_none() && desc.arg1.is_none() && desc.arg2.is_none() => {
+            Some(ActionKey::Pass)
+        }
+        "clock_from_hand" if desc.arg1.is_none() && desc.arg2.is_none() => {
+            let hand_index = usize::from(desc.arg0?);
+            (hand_index < CLOCK_HAND_COUNT).then_some(ActionKey::ClockFromHand { hand_index })
+        }
+        "main_play_character" if desc.arg2.is_none() => match (desc.arg0, desc.arg1) {
+            (Some(hand_index), Some(stage_slot)) => {
+                let hand_index = usize::from(hand_index);
+                let stage_slot = usize::from(stage_slot);
+                (hand_index < MAX_HAND && stage_slot < MAX_STAGE).then_some(
+                    ActionKey::MainPlayCharacter {
+                        hand_index,
+                        stage_slot,
+                    },
+                )
+            }
+            _ => None,
+        },
+        "main_play_event" if desc.arg1.is_none() && desc.arg2.is_none() => {
+            let hand_index = usize::from(desc.arg0?);
+            (hand_index < MAIN_PLAY_EVENT_COUNT).then_some(ActionKey::MainPlayEvent { hand_index })
+        }
+        "main_move" if desc.arg2.is_none() => match (desc.arg0, desc.arg1) {
+            (Some(from_slot), Some(to_slot)) => {
+                let from_slot = usize::from(from_slot);
+                let to_slot = usize::from(to_slot);
+                (from_slot < MAX_STAGE && to_slot < MAX_STAGE && from_slot != to_slot)
+                    .then_some(ActionKey::MainMove { from_slot, to_slot })
+            }
+            _ => None,
+        },
+        "climax_play" if desc.arg1.is_none() && desc.arg2.is_none() => {
+            let hand_index = usize::from(desc.arg0?);
+            (hand_index < CLIMAX_PLAY_COUNT).then_some(ActionKey::ClimaxPlay { hand_index })
+        }
+        "attack" if desc.arg2.is_none() => match (desc.arg0, desc.arg1) {
+            (Some(slot), Some(attack_type_code)) => {
+                let slot = usize::from(slot);
+                let attack_type_code = usize::from(attack_type_code);
+                (slot < ATTACK_SLOT_COUNT && attack_type_code < 3).then_some(ActionKey::Attack {
+                    slot,
+                    attack_type_code,
+                })
+            }
+            _ => None,
+        },
+        "level_up" if desc.arg1.is_none() && desc.arg2.is_none() => {
+            let index = usize::from(desc.arg0?);
+            (index < LEVEL_UP_COUNT).then_some(ActionKey::LevelUp { index })
+        }
+        "encore_pay" if desc.arg1.is_none() && desc.arg2.is_none() => {
+            let slot = usize::from(desc.arg0?);
+            (slot < ENCORE_PAY_COUNT).then_some(ActionKey::EncorePay { slot })
+        }
+        "encore_decline" if desc.arg1.is_none() && desc.arg2.is_none() => {
+            let slot = usize::from(desc.arg0?);
+            (slot < ENCORE_DECLINE_COUNT).then_some(ActionKey::EncoreDecline { slot })
+        }
+        "trigger_order" if desc.arg1.is_none() && desc.arg2.is_none() => {
+            let index = usize::from(desc.arg0?);
+            (index < TRIGGER_ORDER_COUNT).then_some(ActionKey::TriggerOrder { index })
+        }
+        "choice_select" if desc.arg1.is_none() && desc.arg2.is_none() => {
+            let index = usize::from(desc.arg0?);
+            (index < CHOICE_COUNT).then_some(ActionKey::ChoiceSelect { index })
+        }
+        "choice_prev_page" if desc.arg0.is_none() && desc.arg1.is_none() && desc.arg2.is_none() => {
+            Some(ActionKey::ChoicePrevPage)
+        }
+        "choice_next_page" if desc.arg0.is_none() && desc.arg1.is_none() && desc.arg2.is_none() => {
+            Some(ActionKey::ChoiceNextPage)
+        }
+        "concede" if desc.arg0.is_none() && desc.arg1.is_none() && desc.arg2.is_none() => {
+            Some(ActionKey::Concede)
+        }
+        _ => None,
+    }
+}
+
 /// Decode an action id into a human-readable description.
 pub fn decode_action_id(id: usize) -> Option<ActionIdDesc> {
     let action = action_key_for_id(id)?;
     Some(action_id_desc_for_key(action))
+}
+
+/// Decode an action id into a factorized family/argument description.
+pub fn decode_factorized_action_id(id: usize) -> Option<FactorizedActionDesc> {
+    let action = action_key_for_id(id)?;
+    Some(factorized_action_desc_for_key(action))
+}
+
+/// Encode a factorized family/argument description into an action id.
+pub fn encode_factorized_action(desc: &FactorizedActionDesc) -> Option<usize> {
+    let action = action_key_for_factorized_desc(desc)?;
+    action_id_for(&action_desc_for_key(action))
 }
 
 /// Decode an action id into packed legal-action metadata.

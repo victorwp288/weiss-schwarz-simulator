@@ -118,9 +118,9 @@ jobs:
       - name: Cargo fmt
         run: cargo fmt --all -- --check
       - name: Cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Cargo test
-        run: cargo test --workspace --features test-harness
+        run: cargo test --workspace --all-features
       - name: Cargo build (release)
         run: cargo build -p weiss_core --release
 

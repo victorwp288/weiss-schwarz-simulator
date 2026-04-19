@@ -23,6 +23,13 @@ REF_DEF_RE = re.compile(r"^\s*\[([^\]]+)\]:\s*(\S+)(?:\s+.*)?$")
 EXTERNAL_PREFIXES = ("http://", "https://", "mailto:", "tel:")
 
 
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise SystemExit(f"{path}: failed to decode as UTF-8: {exc}") from exc
+
+
 def _strip_title(target: str) -> str:
     target = target.strip()
     if target.startswith("<") and target.endswith(">"):
@@ -44,7 +51,7 @@ def _anchors_for(path: Path) -> set[str]:
     anchors: list[str] = []
     counts: dict[str, int] = {}
     in_code = False
-    for line in path.read_text().splitlines():
+    for line in _read_text(path).splitlines():
         stripped = line.strip()
         if stripped.startswith("```") or stripped.startswith("~~~"):
             in_code = not in_code
@@ -113,7 +120,7 @@ def main() -> int:
     anchor_cache: dict[Path, set[str]] = {}
 
     for md_path in TARGETS:
-        lines = md_path.read_text().splitlines()
+        lines = _read_text(md_path).splitlines()
         ref_defs = _collect_ref_defs(lines)
         for kind, text, target in _iter_links(lines):
             resolved = target

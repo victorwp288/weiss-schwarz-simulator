@@ -24,6 +24,8 @@ from .weiss_sim import (
     action_spec_json,
     build_info,
     decode_action_id,
+    decode_factorized_action_id,
+    encode_factorized_action,
     observation_spec_json,
     __version__,
 )
@@ -109,6 +111,8 @@ __all__ = [
     "observation_spec_json",
     "action_spec_json",
     "decode_action_id",
+    "decode_factorized_action_id",
+    "encode_factorized_action",
     "build_info",
     "make_pool",
     "make_batch_out_debug",

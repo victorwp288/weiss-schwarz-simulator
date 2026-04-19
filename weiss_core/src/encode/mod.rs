@@ -13,16 +13,17 @@ mod spec;
 
 pub(crate) use action_ids::action_meta_for_id;
 pub use action_ids::{
-    action_desc_for_id, action_id_for, decode_action_id, ActionIdDesc, ActionParam,
-    ActionParamValue,
+    action_desc_for_id, action_id_for, decode_action_id, decode_factorized_action_id,
+    encode_factorized_action, ActionIdDesc, ActionParam, ActionParamValue, FactorizedActionDesc,
 };
 pub use action_ids::{ACTION_META_UNUSED, ACTION_META_WIDTH};
 pub use constants::*;
 pub use mask::{build_action_mask, fill_action_mask, fill_action_mask_sparse};
 pub use observation::encode_observation;
 pub use spec::{
-    action_spec, action_spec_json, observation_spec, observation_spec_json, ActionFamilySpec,
-    ActionSpec, ObsFieldSpec, ObsSliceSpec, ObservationSpec, PlayerBlockSpec,
+    action_spec, action_spec_json, observation_spec, observation_spec_json,
+    ActionFactorizationSpec, ActionFamilySpec, ActionSpec, ObsFieldSpec, ObsSliceSpec,
+    ObservationSpec, PlayerBlockSpec,
 };
 
 pub(crate) use observation::{
@@ -36,7 +37,7 @@ mod tests {
     use crate::ActionDesc;
 
     const OBS_SPEC_HASH: u64 = 3922564485128559020;
-    const ACTION_SPEC_HASH: u64 = 2958398628847112153;
+    const ACTION_SPEC_HASH: u64 = 11305511342814019290;
 
     #[test]
     fn observation_spec_json_snapshot_hash() {
@@ -52,8 +53,136 @@ mod tests {
         assert_eq!(hash, ACTION_SPEC_HASH, "action spec JSON hash changed");
     }
 
+    #[test]
+    fn action_spec_factorization_schema_smoke_test() {
+        let spec = action_spec();
+        assert_eq!(spec.factorization.meta_version, "action_meta_v1");
+        assert_eq!(
+            spec.factorization.meta_fields,
+            vec!["family_id", "arg0", "arg1", "arg2"]
+        );
+        assert_eq!(spec.factorization.families.len(), spec.families.len());
+        assert_eq!(spec.factorization.families[0].name, "mulligan_confirm");
+    }
+
     fn param(name: &'static str, value: ActionParamValue) -> ActionParam {
         ActionParam { name, value }
+    }
+
+    #[test]
+    fn factorized_action_id_roundtrip_samples() {
+        let samples = vec![
+            (
+                FactorizedActionDesc {
+                    family: "mulligan_confirm",
+                    arg0: None,
+                    arg1: None,
+                    arg2: None,
+                },
+                MULLIGAN_CONFIRM_ID,
+                ActionDesc::MulliganConfirm,
+            ),
+            (
+                FactorizedActionDesc {
+                    family: "mulligan_select",
+                    arg0: Some(2),
+                    arg1: None,
+                    arg2: None,
+                },
+                MULLIGAN_SELECT_BASE + 2,
+                ActionDesc::MulliganSelect { hand_index: 2 },
+            ),
+            (
+                FactorizedActionDesc {
+                    family: "main_play_character",
+                    arg0: Some(1),
+                    arg1: Some(2),
+                    arg2: None,
+                },
+                MAIN_PLAY_CHAR_BASE + MAX_STAGE + 2,
+                ActionDesc::MainPlayCharacter {
+                    hand_index: 1,
+                    stage_slot: 2,
+                },
+            ),
+            (
+                FactorizedActionDesc {
+                    family: "main_move",
+                    arg0: Some(0),
+                    arg1: Some(1),
+                    arg2: None,
+                },
+                MAIN_MOVE_BASE,
+                ActionDesc::MainMove {
+                    from_slot: 0,
+                    to_slot: 1,
+                },
+            ),
+            (
+                FactorizedActionDesc {
+                    family: "attack",
+                    arg0: Some(1),
+                    arg1: Some(1),
+                    arg2: None,
+                },
+                ATTACK_BASE + 4,
+                ActionDesc::Attack {
+                    slot: 1,
+                    attack_type: crate::state::AttackType::Side,
+                },
+            ),
+            (
+                FactorizedActionDesc {
+                    family: "choice_select",
+                    arg0: Some(3),
+                    arg1: None,
+                    arg2: None,
+                },
+                CHOICE_BASE + 3,
+                ActionDesc::ChoiceSelect { index: 3 },
+            ),
+            (
+                FactorizedActionDesc {
+                    family: "concede",
+                    arg0: None,
+                    arg1: None,
+                    arg2: None,
+                },
+                CONCEDE_ID,
+                ActionDesc::Concede,
+            ),
+        ];
+
+        for (factorized, expected_id, action) in samples {
+            let id = encode_factorized_action(&factorized).expect("factorized id");
+            assert_eq!(id, expected_id);
+            let decoded = decode_factorized_action_id(id).expect("factorized decode");
+            assert_eq!(decoded, factorized);
+            assert_eq!(encode_factorized_action(&decoded), Some(id));
+            assert_eq!(action_id_for(&action), Some(id));
+        }
+    }
+
+    #[test]
+    fn factorized_action_rejects_out_of_range_params() {
+        assert_eq!(
+            encode_factorized_action(&FactorizedActionDesc {
+                family: "mulligan_select",
+                arg0: Some(258),
+                arg1: None,
+                arg2: None,
+            }),
+            None
+        );
+        assert_eq!(
+            encode_factorized_action(&FactorizedActionDesc {
+                family: "attack",
+                arg0: Some(1),
+                arg1: Some(9),
+                arg2: None,
+            }),
+            None
+        );
     }
 
     #[test]

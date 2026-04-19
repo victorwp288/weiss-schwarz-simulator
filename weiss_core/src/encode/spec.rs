@@ -98,6 +98,27 @@ pub struct ActionSpec {
     pub constants: Vec<(&'static str, usize)>,
     /// Action families.
     pub families: Vec<ActionFamilySpec>,
+    /// Factorization schema for structured action heads.
+    pub factorization: ActionFactorizationSpec,
+    /// Additional notes.
+    pub notes: Vec<&'static str>,
+}
+
+/// Factorization schema for the action space.
+#[derive(Clone, Debug, Serialize)]
+pub struct ActionFactorizationSpec {
+    /// Factorization schema version.
+    pub factorization_version: u32,
+    /// Action encoding version mirrored by this schema.
+    pub action_encoding_version: u32,
+    /// Total action space size.
+    pub action_space_size: usize,
+    /// Metadata layout version used by packed legal rows.
+    pub meta_version: &'static str,
+    /// Metadata field names in packed legal rows.
+    pub meta_fields: Vec<&'static str>,
+    /// Factorized action families.
+    pub families: Vec<ActionFamilySpec>,
     /// Additional notes.
     pub notes: Vec<&'static str>,
 }
@@ -448,6 +469,128 @@ pub fn observation_spec_json() -> String {
 
 /// Build the action specification.
 pub fn action_spec() -> ActionSpec {
+    let families = vec![
+        ActionFamilySpec {
+            name: "mulligan_confirm",
+            base: MULLIGAN_CONFIRM_ID,
+            count: 1,
+            params: vec![],
+            description: "confirm mulligan selection",
+        },
+        ActionFamilySpec {
+            name: "mulligan_select",
+            base: MULLIGAN_SELECT_BASE,
+            count: MULLIGAN_SELECT_COUNT,
+            params: vec!["hand_index"],
+            description: "select card in hand for mulligan",
+        },
+        ActionFamilySpec {
+            name: "pass",
+            base: PASS_ACTION_ID,
+            count: 1,
+            params: vec![],
+            description: "pass action",
+        },
+        ActionFamilySpec {
+            name: "clock_from_hand",
+            base: CLOCK_HAND_BASE,
+            count: CLOCK_HAND_COUNT,
+            params: vec!["hand_index"],
+            description: "clock card from hand",
+        },
+        ActionFamilySpec {
+            name: "main_play_character",
+            base: MAIN_PLAY_CHAR_BASE,
+            count: MAIN_PLAY_CHAR_COUNT,
+            params: vec!["hand_index", "stage_slot"],
+            description: "play character to stage",
+        },
+        ActionFamilySpec {
+            name: "main_play_event",
+            base: MAIN_PLAY_EVENT_BASE,
+            count: MAIN_PLAY_EVENT_COUNT,
+            params: vec!["hand_index"],
+            description: "play event from hand",
+        },
+        ActionFamilySpec {
+            name: "main_move",
+            base: MAIN_MOVE_BASE,
+            count: MAIN_MOVE_COUNT,
+            params: vec!["from_slot", "to_slot"],
+            description: "move stage slot",
+        },
+        ActionFamilySpec {
+            name: "climax_play",
+            base: CLIMAX_PLAY_BASE,
+            count: CLIMAX_PLAY_COUNT,
+            params: vec!["hand_index"],
+            description: "play climax",
+        },
+        ActionFamilySpec {
+            name: "attack",
+            base: ATTACK_BASE,
+            count: ATTACK_COUNT,
+            params: vec!["slot", "attack_type"],
+            description: "declare attack",
+        },
+        ActionFamilySpec {
+            name: "level_up",
+            base: LEVEL_UP_BASE,
+            count: LEVEL_UP_COUNT,
+            params: vec!["index"],
+            description: "choose card for level up",
+        },
+        ActionFamilySpec {
+            name: "encore_pay",
+            base: ENCORE_PAY_BASE,
+            count: ENCORE_PAY_COUNT,
+            params: vec!["slot"],
+            description: "pay encore for a slot",
+        },
+        ActionFamilySpec {
+            name: "encore_decline",
+            base: ENCORE_DECLINE_BASE,
+            count: ENCORE_DECLINE_COUNT,
+            params: vec!["slot"],
+            description: "decline encore for a slot",
+        },
+        ActionFamilySpec {
+            name: "trigger_order",
+            base: TRIGGER_ORDER_BASE,
+            count: TRIGGER_ORDER_COUNT,
+            params: vec!["index"],
+            description: "choose trigger order",
+        },
+        ActionFamilySpec {
+            name: "choice_select",
+            base: CHOICE_BASE,
+            count: CHOICE_COUNT,
+            params: vec!["index"],
+            description: "select choice option on current page",
+        },
+        ActionFamilySpec {
+            name: "choice_prev_page",
+            base: CHOICE_PREV_ID,
+            count: 1,
+            params: vec![],
+            description: "choice pagination previous",
+        },
+        ActionFamilySpec {
+            name: "choice_next_page",
+            base: CHOICE_NEXT_ID,
+            count: 1,
+            params: vec![],
+            description: "choice pagination next",
+        },
+        ActionFamilySpec {
+            name: "concede",
+            base: CONCEDE_ID,
+            count: 1,
+            params: vec![],
+            description: "concede game (if enabled)",
+        },
+    ];
+
     ActionSpec {
         action_encoding_version: ACTION_ENCODING_VERSION,
         action_space_size: ACTION_SPACE_SIZE,
@@ -460,127 +603,19 @@ pub fn action_spec() -> ActionSpec {
             ("ATTACK_SLOT_COUNT", ATTACK_SLOT_COUNT),
             ("MAX_ABILITIES_PER_CARD", MAX_ABILITIES_PER_CARD),
         ],
-        families: vec![
-            ActionFamilySpec {
-                name: "mulligan_confirm",
-                base: MULLIGAN_CONFIRM_ID,
-                count: 1,
-                params: vec![],
-                description: "confirm mulligan selection",
-            },
-            ActionFamilySpec {
-                name: "mulligan_select",
-                base: MULLIGAN_SELECT_BASE,
-                count: MULLIGAN_SELECT_COUNT,
-                params: vec!["hand_index"],
-                description: "select card in hand for mulligan",
-            },
-            ActionFamilySpec {
-                name: "pass",
-                base: PASS_ACTION_ID,
-                count: 1,
-                params: vec![],
-                description: "pass action",
-            },
-            ActionFamilySpec {
-                name: "clock_from_hand",
-                base: CLOCK_HAND_BASE,
-                count: CLOCK_HAND_COUNT,
-                params: vec!["hand_index"],
-                description: "clock card from hand",
-            },
-            ActionFamilySpec {
-                name: "main_play_character",
-                base: MAIN_PLAY_CHAR_BASE,
-                count: MAIN_PLAY_CHAR_COUNT,
-                params: vec!["hand_index", "stage_slot"],
-                description: "play character to stage",
-            },
-            ActionFamilySpec {
-                name: "main_play_event",
-                base: MAIN_PLAY_EVENT_BASE,
-                count: MAIN_PLAY_EVENT_COUNT,
-                params: vec!["hand_index"],
-                description: "play event from hand",
-            },
-            ActionFamilySpec {
-                name: "main_move",
-                base: MAIN_MOVE_BASE,
-                count: MAIN_MOVE_COUNT,
-                params: vec!["from_slot", "to_slot"],
-                description: "move stage slot",
-            },
-            ActionFamilySpec {
-                name: "climax_play",
-                base: CLIMAX_PLAY_BASE,
-                count: CLIMAX_PLAY_COUNT,
-                params: vec!["hand_index"],
-                description: "play climax",
-            },
-            ActionFamilySpec {
-                name: "attack",
-                base: ATTACK_BASE,
-                count: ATTACK_COUNT,
-                params: vec!["slot", "attack_type"],
-                description: "declare attack",
-            },
-            ActionFamilySpec {
-                name: "level_up",
-                base: LEVEL_UP_BASE,
-                count: LEVEL_UP_COUNT,
-                params: vec!["index"],
-                description: "choose card for level up",
-            },
-            ActionFamilySpec {
-                name: "encore_pay",
-                base: ENCORE_PAY_BASE,
-                count: ENCORE_PAY_COUNT,
-                params: vec!["slot"],
-                description: "pay encore for a slot",
-            },
-            ActionFamilySpec {
-                name: "encore_decline",
-                base: ENCORE_DECLINE_BASE,
-                count: ENCORE_DECLINE_COUNT,
-                params: vec!["slot"],
-                description: "decline encore for a slot",
-            },
-            ActionFamilySpec {
-                name: "trigger_order",
-                base: TRIGGER_ORDER_BASE,
-                count: TRIGGER_ORDER_COUNT,
-                params: vec!["index"],
-                description: "choose trigger order",
-            },
-            ActionFamilySpec {
-                name: "choice_select",
-                base: CHOICE_BASE,
-                count: CHOICE_COUNT,
-                params: vec!["index"],
-                description: "select choice option on current page",
-            },
-            ActionFamilySpec {
-                name: "choice_prev_page",
-                base: CHOICE_PREV_ID,
-                count: 1,
-                params: vec![],
-                description: "choice pagination previous",
-            },
-            ActionFamilySpec {
-                name: "choice_next_page",
-                base: CHOICE_NEXT_ID,
-                count: 1,
-                params: vec![],
-                description: "choice pagination next",
-            },
-            ActionFamilySpec {
-                name: "concede",
-                base: CONCEDE_ID,
-                count: 1,
-                params: vec![],
-                description: "concede game (if enabled)",
-            },
-        ],
+        families: families.clone(),
+        factorization: ActionFactorizationSpec {
+            factorization_version: 1,
+            action_encoding_version: ACTION_ENCODING_VERSION,
+            action_space_size: ACTION_SPACE_SIZE,
+            meta_version: "action_meta_v1",
+            meta_fields: vec!["family_id", "arg0", "arg1", "arg2"],
+            families,
+            notes: vec![
+                "Packed legal metadata remains the audit/compatibility contract.",
+                "Factorized fields mirror the family params for structured heads.",
+            ],
+        },
         notes: vec![
             "Action ids are stable within ACTION_ENCODING_VERSION.",
             "Use legality masks or legal_action_ids for valid choices.",
