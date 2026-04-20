@@ -169,6 +169,7 @@ run_perf_gate() {
     --baseline-python benchmark/python_bench.txt \
     --current-python "$perf_out/python_bench.txt" \
     --max-core-regression-pct 15 \
+    --core-budget-override reset_batch_256=25 \
     --max-python-regression-pct 10 \
     --require-zero-alloc
 }

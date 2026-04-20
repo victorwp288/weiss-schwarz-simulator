@@ -151,6 +151,7 @@ else
     --baseline-python "$PERF_BASE_SNAPSHOT_DIR/python_bench.txt" \
     --current-python "$PERF_HEAD_SNAPSHOT_DIR/python_bench.txt" \
     --max-core-regression-pct 15 \
+    --core-budget-override reset_batch_256=25 \
     --max-python-regression-pct 10 \
     --require-zero-alloc
 

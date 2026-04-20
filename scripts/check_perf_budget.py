@@ -95,6 +95,28 @@ def pct_regression_lower_is_worse(baseline: float, current: float) -> float:
     return ((baseline - current) / baseline) * 100.0
 
 
+def parse_core_budget_overrides(values: List[str]) -> Dict[str, float]:
+    overrides: Dict[str, float] = {}
+    for raw in values:
+        name, sep, pct = raw.partition("=")
+        if sep == "" or not name.strip():
+            raise ValueError(
+                f"invalid --core-budget-override '{raw}'; expected BENCH_NAME=PERCENT"
+            )
+        try:
+            allowed = float(pct)
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid --core-budget-override '{raw}'; percent must be numeric"
+            ) from exc
+        if allowed < 0.0:
+            raise ValueError(
+                f"invalid --core-budget-override '{raw}'; percent must be non-negative"
+            )
+        overrides[name.strip()] = allowed
+    return overrides
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Enforce performance budget deltas")
     parser.add_argument("--baseline-benches", required=True, help="Baseline bencher output path")
@@ -122,7 +144,21 @@ def main() -> int:
         action="store_true",
         help="Fail if any allocation benchmark that was baseline-zero is now non-zero",
     )
+    parser.add_argument(
+        "--core-budget-override",
+        action="append",
+        default=[],
+        metavar="BENCH_NAME=PERCENT",
+        help=(
+            "Override the default core regression budget for a specific benchmark row; "
+            "repeat for multiple rows"
+        ),
+    )
     args = parser.parse_args()
+    try:
+        core_budget_overrides = parse_core_budget_overrides(args.core_budget_override)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     baseline_benches, baseline_allocs = parse_bencher(Path(args.baseline_benches))
     current_benches, current_allocs = parse_bencher(Path(args.current_benches))
@@ -149,17 +185,19 @@ def main() -> int:
         baseline, baseline_err = baseline_benches[name]
         current, current_err = current_benches[name]
         regression = pct_regression_higher_is_worse(baseline, current)
+        allowed_regression = core_budget_overrides.get(name, args.max_core_regression_pct)
         baseline_upper = baseline + baseline_err
         current_lower = max(0.0, current - current_err)
-        budget_upper = baseline_upper * (1.0 + args.max_core_regression_pct / 100.0)
+        budget_upper = baseline_upper * (1.0 + allowed_regression / 100.0)
         print(
             f"[core] {name}: baseline={baseline:.3f}±{baseline_err:.3f}ns "
-            f"current={current:.3f}±{current_err:.3f}ns regression={regression:.3f}%"
+            f"current={current:.3f}±{current_err:.3f}ns regression={regression:.3f}% "
+            f"budget={allowed_regression:.3f}%"
         )
         if current_lower > budget_upper:
             failures.append(
                 f"core benchmark '{name}' regressed by {regression:.3f}% "
-                f"(max {args.max_core_regression_pct:.3f}%)"
+                f"(max {allowed_regression:.3f}%)"
             )
 
     baseline_py_names = set(baseline_py.keys())

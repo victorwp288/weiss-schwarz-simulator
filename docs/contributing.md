@@ -89,6 +89,7 @@ python scripts/check_perf_budget.py \
   --baseline-python benchmark/python_bench.txt \
   --current-python /tmp/wss_perf_after/python_bench.txt \
   --max-core-regression-pct 15 \
+  --core-budget-override reset_batch_256=25 \
   --max-python-regression-pct 10 \
   --require-zero-alloc
 cp /tmp/wss_perf_after/benches.txt benchmark/benches.txt

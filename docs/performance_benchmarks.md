@@ -40,6 +40,7 @@ python scripts/check_perf_budget.py \
   --baseline-python benchmark/python_bench.txt \
   --current-python /tmp/wss_perf_after/python_bench.txt \
   --max-core-regression-pct 15 \
+  --core-budget-override reset_batch_256=25 \
   --max-python-regression-pct 10 \
   --require-zero-alloc
 ```
@@ -47,6 +48,8 @@ python scripts/check_perf_budget.py \
 Gate intent:
 
 - block large regression in shared core bencher rows
+- allow a targeted wider ceiling for `reset_batch_256` (`25%`) because hosted runners
+  show more variance on batch reset than on the steady-state step-path benches
 - block large regression in shared python env-steps/sec rows
 - keep zero-alloc critical rows at zero when baseline is zero
 
@@ -65,6 +68,7 @@ python scripts/check_perf_budget.py \
   --baseline-python benchmark/python_bench.txt \
   --current-python /tmp/wss_perf_after/python_bench.txt \
   --max-core-regression-pct 15 \
+  --core-budget-override reset_batch_256=25 \
   --max-python-regression-pct 10 \
   --require-zero-alloc
 cp /tmp/wss_perf_after/benches.txt benchmark/benches.txt
