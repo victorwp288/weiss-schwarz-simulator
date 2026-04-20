@@ -33,26 +33,18 @@ pub(crate) fn collect_attack_slot_state(
             continue;
         }
         match modifier.kind {
-            ModifierKind::AttackCost => {
-                if modifier.magnitude > 0 {
-                    let cost_delta = (modifier.magnitude as u16).min(u8::MAX as u16) as u8;
-                    attack_cost = attack_cost.saturating_add(cost_delta);
-                }
+            ModifierKind::AttackCost if modifier.magnitude > 0 => {
+                let cost_delta = (modifier.magnitude as u16).min(u8::MAX as u16) as u8;
+                attack_cost = attack_cost.saturating_add(cost_delta);
             }
-            ModifierKind::CannotAttack => {
-                if modifier.magnitude != 0 {
-                    cannot_attack = true;
-                }
+            ModifierKind::CannotAttack if modifier.magnitude != 0 => {
+                cannot_attack = true;
             }
-            ModifierKind::CannotSideAttack => {
-                if modifier.magnitude != 0 {
-                    cannot_side_attack = true;
-                }
+            ModifierKind::CannotSideAttack if modifier.magnitude != 0 => {
+                cannot_side_attack = true;
             }
-            ModifierKind::CannotFrontalAttack => {
-                if modifier.magnitude != 0 {
-                    cannot_frontal_attack = true;
-                }
+            ModifierKind::CannotFrontalAttack if modifier.magnitude != 0 => {
+                cannot_frontal_attack = true;
             }
             _ => {}
         }

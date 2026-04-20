@@ -273,15 +273,11 @@ impl GameEnv {
                 }
             }
             match decision.kind {
-                DecisionKind::AttackDeclaration => {
-                    if self.state.turn.attack.is_some() {
-                        errors.push("Attack declaration while attack context active".to_string());
-                    }
+                DecisionKind::AttackDeclaration if self.state.turn.attack.is_some() => {
+                    errors.push("Attack declaration while attack context active".to_string());
                 }
-                DecisionKind::LevelUp => {
-                    if self.state.turn.pending_level_up.is_none() {
-                        errors.push("Level up decision without pending level".to_string());
-                    }
+                DecisionKind::LevelUp if self.state.turn.pending_level_up.is_none() => {
+                    errors.push("Level up decision without pending level".to_string());
                 }
                 DecisionKind::Encore => {
                     let has = self
@@ -294,10 +290,8 @@ impl GameEnv {
                         errors.push("Encore decision without reversed options".to_string());
                     }
                 }
-                DecisionKind::TriggerOrder => {
-                    if self.state.turn.trigger_order.is_none() {
-                        errors.push("Trigger order decision without pending order".to_string());
-                    }
+                DecisionKind::TriggerOrder if self.state.turn.trigger_order.is_none() => {
+                    errors.push("Trigger order decision without pending order".to_string());
                 }
                 DecisionKind::Choice => {
                     if let Some(choice) = &self.state.turn.choice {
