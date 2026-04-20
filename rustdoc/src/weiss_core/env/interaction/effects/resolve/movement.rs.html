@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `weiss_core/src/env/interaction/effects/resolve/movement.rs`."><title>movement.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../../../../" data-static-root-path="../../../../../../static.files/" data-current-crate="weiss_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.1 (01f6ddf75 2026-02-11)" data-channel="1.93.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../../../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../../../src-files.js"></script><script defer src="../../../../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">weiss_core/env/interaction/effects/resolve/</div>movement.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">super</span>::prelude::<span class="kw-2">*</span>;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `weiss_core/src/env/interaction/effects/resolve/movement.rs`."><title>movement.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../../../../" data-static-root-path="../../../../../../static.files/" data-current-crate="weiss_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../../../src-files.js"></script><script defer src="../../../../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">weiss_core/env/interaction/effects/resolve/</div>movement.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">super</span>::prelude::<span class="kw-2">*</span>;
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="attr">#[inline(always)]
 <a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">fn </span>collect_targets_for_zone(payload: <span class="kw-2">&amp;</span>EffectPayload, zone: TargetZone) -&gt; Vec&lt;TargetRef&gt; {
@@ -31,7 +31,7 @@
 <a href=#31 id=31 data-nosnippet>31</a>        <span class="kw">return </span><span class="prelude-val">None</span>;
 <a href=#32 id=32 data-nosnippet>32</a>    }
 <a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">let </span>card = cards.get(idx).copied()<span class="question-mark">?</span>;
-<a href=#34 id=34 data-nosnippet>34</a>    <span class="kw">if </span>card.<span class="macro">instance_id !</span>= target.instance_id {
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="kw">if </span>card.instance_id != target.instance_id {
 <a href=#35 id=35 data-nosnippet>35</a>        <span class="kw">return </span><span class="prelude-val">None</span>;
 <a href=#36 id=36 data-nosnippet>36</a>    }
 <a href=#37 id=37 data-nosnippet>37</a>    <span class="prelude-val">Some</span>(cards.remove(idx))
@@ -50,7 +50,7 @@
 <a href=#50 id=50 data-nosnippet>50</a>    <span class="kw">if </span>deck_idx &gt;= deck.len() {
 <a href=#51 id=51 data-nosnippet>51</a>        <span class="kw">return </span><span class="prelude-val">None</span>;
 <a href=#52 id=52 data-nosnippet>52</a>    }
-<a href=#53 id=53 data-nosnippet>53</a>    <span class="kw">if </span>deck[deck_idx].<span class="macro">instance_id !</span>= target.instance_id {
+<a href=#53 id=53 data-nosnippet>53</a>    <span class="kw">if </span>deck[deck_idx].instance_id != target.instance_id {
 <a href=#54 id=54 data-nosnippet>54</a>        <span class="kw">return </span><span class="prelude-val">None</span>;
 <a href=#55 id=55 data-nosnippet>55</a>    }
 <a href=#56 id=56 data-nosnippet>56</a>    <span class="prelude-val">Some</span>(deck.remove(deck_idx))
@@ -156,7 +156,7 @@
 <a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[p].stage[slot].card <span class="kw">else </span>{
 <a href=#157 id=157 data-nosnippet>157</a>            <span class="kw">continue</span>;
 <a href=#158 id=158 data-nosnippet>158</a>        };
-<a href=#159 id=159 data-nosnippet>159</a>        <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= target.instance_id {
+<a href=#159 id=159 data-nosnippet>159</a>        <span class="kw">if </span>card_inst.instance_id != target.instance_id {
 <a href=#160 id=160 data-nosnippet>160</a>            <span class="kw">continue</span>;
 <a href=#161 id=161 data-nosnippet>161</a>        }
 <a href=#162 id=162 data-nosnippet>162</a>        env.remove_modifiers_for_slot(target.player, target.index);
@@ -261,7 +261,7 @@
 <a href=#261 id=261 data-nosnippet>261</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[p].stage[slot].card <span class="kw">else </span>{
 <a href=#262 id=262 data-nosnippet>262</a>            <span class="kw">continue</span>;
 <a href=#263 id=263 data-nosnippet>263</a>        };
-<a href=#264 id=264 data-nosnippet>264</a>        <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= target.instance_id {
+<a href=#264 id=264 data-nosnippet>264</a>        <span class="kw">if </span>card_inst.instance_id != target.instance_id {
 <a href=#265 id=265 data-nosnippet>265</a>            <span class="kw">continue</span>;
 <a href=#266 id=266 data-nosnippet>266</a>        }
 <a href=#267 id=267 data-nosnippet>267</a>        env.remove_modifiers_for_slot(target.player, target.index);
@@ -354,7 +354,7 @@
 <a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[p].stage[slot].card <span class="kw">else </span>{
 <a href=#355 id=355 data-nosnippet>355</a>            <span class="kw">continue</span>;
 <a href=#356 id=356 data-nosnippet>356</a>        };
-<a href=#357 id=357 data-nosnippet>357</a>        <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= target.instance_id {
+<a href=#357 id=357 data-nosnippet>357</a>        <span class="kw">if </span>card_inst.instance_id != target.instance_id {
 <a href=#358 id=358 data-nosnippet>358</a>            <span class="kw">continue</span>;
 <a href=#359 id=359 data-nosnippet>359</a>        }
 <a href=#360 id=360 data-nosnippet>360</a>        env.remove_modifiers_for_slot(target.player, target.index);
@@ -430,7 +430,7 @@
 <a href=#430 id=430 data-nosnippet>430</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(source_ref) = payload.source_ref <span class="kw">else </span>{
 <a href=#431 id=431 data-nosnippet>431</a>        <span class="kw">return</span>;
 <a href=#432 id=432 data-nosnippet>432</a>    };
-<a href=#433 id=433 data-nosnippet>433</a>    <span class="kw">if </span>source_ref.<span class="macro">zone !</span>= TargetZone::Stage {
+<a href=#433 id=433 data-nosnippet>433</a>    <span class="kw">if </span>source_ref.zone != TargetZone::Stage {
 <a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">return</span>;
 <a href=#435 id=435 data-nosnippet>435</a>    }
 <a href=#436 id=436 data-nosnippet>436</a>    <span class="kw">let </span>p = source_ref.player <span class="kw">as </span>usize;
@@ -458,7 +458,7 @@
 <a href=#458 id=458 data-nosnippet>458</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[tp].waiting_room.get(idx).copied() <span class="kw">else </span>{
 <a href=#459 id=459 data-nosnippet>459</a>        <span class="kw">return</span>;
 <a href=#460 id=460 data-nosnippet>460</a>    };
-<a href=#461 id=461 data-nosnippet>461</a>    <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= target.instance_id {
+<a href=#461 id=461 data-nosnippet>461</a>    <span class="kw">if </span>card_inst.instance_id != target.instance_id {
 <a href=#462 id=462 data-nosnippet>462</a>        <span class="kw">return</span>;
 <a href=#463 id=463 data-nosnippet>463</a>    }
 <a href=#464 id=464 data-nosnippet>464</a>    <span class="kw">let </span>card = env.state.players[tp].waiting_room.remove(idx);
@@ -508,7 +508,7 @@
 <a href=#508 id=508 data-nosnippet>508</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(source_ref) = payload.source_ref <span class="kw">else </span>{
 <a href=#509 id=509 data-nosnippet>509</a>        <span class="kw">return</span>;
 <a href=#510 id=510 data-nosnippet>510</a>    };
-<a href=#511 id=511 data-nosnippet>511</a>    <span class="kw">if </span>source_ref.<span class="macro">zone !</span>= TargetZone::Stage {
+<a href=#511 id=511 data-nosnippet>511</a>    <span class="kw">if </span>source_ref.zone != TargetZone::Stage {
 <a href=#512 id=512 data-nosnippet>512</a>        <span class="kw">return</span>;
 <a href=#513 id=513 data-nosnippet>513</a>    }
 <a href=#514 id=514 data-nosnippet>514</a>    <span class="kw">let </span>source_player = source_ref.player <span class="kw">as </span>usize;
@@ -545,7 +545,7 @@
 <a href=#545 id=545 data-nosnippet>545</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(source_ref) = payload.source_ref <span class="kw">else </span>{
 <a href=#546 id=546 data-nosnippet>546</a>        <span class="kw">return</span>;
 <a href=#547 id=547 data-nosnippet>547</a>    };
-<a href=#548 id=548 data-nosnippet>548</a>    <span class="kw">if </span>source_ref.<span class="macro">zone !</span>= TargetZone::Stage {
+<a href=#548 id=548 data-nosnippet>548</a>    <span class="kw">if </span>source_ref.zone != TargetZone::Stage {
 <a href=#549 id=549 data-nosnippet>549</a>        <span class="kw">return</span>;
 <a href=#550 id=550 data-nosnippet>550</a>    }
 <a href=#551 id=551 data-nosnippet>551</a>    <span class="kw">let </span>p = source_ref.player <span class="kw">as </span>usize;
@@ -590,7 +590,7 @@
 <a href=#590 id=590 data-nosnippet>590</a>
 <a href=#591 id=591 data-nosnippet>591</a><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>move_stage_slot(env: <span class="kw-2">&amp;mut </span>GameEnv, payload: <span class="kw-2">&amp;</span>EffectPayload, slot: u8) {
 <a href=#592 id=592 data-nosnippet>592</a>    <span class="kw">for </span>target <span class="kw">in </span><span class="kw-2">&amp;</span>payload.targets {
-<a href=#593 id=593 data-nosnippet>593</a>        <span class="kw">if </span>target.<span class="macro">zone !</span>= TargetZone::Stage {
+<a href=#593 id=593 data-nosnippet>593</a>        <span class="kw">if </span>target.zone != TargetZone::Stage {
 <a href=#594 id=594 data-nosnippet>594</a>            <span class="kw">continue</span>;
 <a href=#595 id=595 data-nosnippet>595</a>        }
 <a href=#596 id=596 data-nosnippet>596</a>        <span class="kw">let </span>p = target.player <span class="kw">as </span>usize;
@@ -601,7 +601,7 @@
 <a href=#601 id=601 data-nosnippet>601</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[p].stage[idx].card <span class="kw">else </span>{
 <a href=#602 id=602 data-nosnippet>602</a>            <span class="kw">continue</span>;
 <a href=#603 id=603 data-nosnippet>603</a>        };
-<a href=#604 id=604 data-nosnippet>604</a>        <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= target.instance_id {
+<a href=#604 id=604 data-nosnippet>604</a>        <span class="kw">if </span>card_inst.instance_id != target.instance_id {
 <a href=#605 id=605 data-nosnippet>605</a>            <span class="kw">continue</span>;
 <a href=#606 id=606 data-nosnippet>606</a>        }
 <a href=#607 id=607 data-nosnippet>607</a>        env.swap_stage_slots(target.player, target.index, slot);
@@ -616,7 +616,7 @@
 <a href=#616 id=616 data-nosnippet>616</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(source_ref) = payload.source_ref <span class="kw">else </span>{
 <a href=#617 id=617 data-nosnippet>617</a>        <span class="kw">return</span>;
 <a href=#618 id=618 data-nosnippet>618</a>    };
-<a href=#619 id=619 data-nosnippet>619</a>    <span class="kw">if </span>source_ref.<span class="macro">zone !</span>= TargetZone::Stage {
+<a href=#619 id=619 data-nosnippet>619</a>    <span class="kw">if </span>source_ref.zone != TargetZone::Stage {
 <a href=#620 id=620 data-nosnippet>620</a>        <span class="kw">return</span>;
 <a href=#621 id=621 data-nosnippet>621</a>    }
 <a href=#622 id=622 data-nosnippet>622</a>    <span class="kw">let </span>p = source_ref.player <span class="kw">as </span>usize;
@@ -627,7 +627,7 @@
 <a href=#627 id=627 data-nosnippet>627</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[p].stage[source_slot].card <span class="kw">else </span>{
 <a href=#628 id=628 data-nosnippet>628</a>        <span class="kw">return</span>;
 <a href=#629 id=629 data-nosnippet>629</a>    };
-<a href=#630 id=630 data-nosnippet>630</a>    <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= source_ref.instance_id {
+<a href=#630 id=630 data-nosnippet>630</a>    <span class="kw">if </span>card_inst.instance_id != source_ref.instance_id {
 <a href=#631 id=631 data-nosnippet>631</a>        <span class="kw">return</span>;
 <a href=#632 id=632 data-nosnippet>632</a>    }
 <a href=#633 id=633 data-nosnippet>633</a>    <span class="kw">let </span>center_slots: <span class="kw-2">&amp;</span>[u8] = <span class="kw">if </span>env.curriculum.reduced_stage_mode {
@@ -658,7 +658,7 @@
 <a href=#658 id=658 data-nosnippet>658</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(source_ref) = payload.source_ref <span class="kw">else </span>{
 <a href=#659 id=659 data-nosnippet>659</a>        <span class="kw">return</span>;
 <a href=#660 id=660 data-nosnippet>660</a>    };
-<a href=#661 id=661 data-nosnippet>661</a>    <span class="kw">if </span>source_ref.<span class="macro">zone !</span>= TargetZone::Stage {
+<a href=#661 id=661 data-nosnippet>661</a>    <span class="kw">if </span>source_ref.zone != TargetZone::Stage {
 <a href=#662 id=662 data-nosnippet>662</a>        <span class="kw">return</span>;
 <a href=#663 id=663 data-nosnippet>663</a>    }
 <a href=#664 id=664 data-nosnippet>664</a>    <span class="kw">let </span>p = source_ref.player <span class="kw">as </span>usize;
@@ -669,7 +669,7 @@
 <a href=#669 id=669 data-nosnippet>669</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[p].stage[source_slot].card <span class="kw">else </span>{
 <a href=#670 id=670 data-nosnippet>670</a>        <span class="kw">return</span>;
 <a href=#671 id=671 data-nosnippet>671</a>    };
-<a href=#672 id=672 data-nosnippet>672</a>    <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= source_ref.instance_id {
+<a href=#672 id=672 data-nosnippet>672</a>    <span class="kw">if </span>card_inst.instance_id != source_ref.instance_id {
 <a href=#673 id=673 data-nosnippet>673</a>        <span class="kw">return</span>;
 <a href=#674 id=674 data-nosnippet>674</a>    }
 <a href=#675 id=675 data-nosnippet>675</a>    <span class="kw">let </span>back_slots: <span class="kw-2">&amp;</span>[u8] = <span class="kw">if </span>env.curriculum.reduced_stage_mode {
@@ -699,7 +699,7 @@
 <a href=#699 id=699 data-nosnippet>699</a>    stage_targets.sort_by_key(|t| (t.player, t.index, t.instance_id));
 <a href=#700 id=700 data-nosnippet>700</a>    <span class="kw">let </span>first = stage_targets[<span class="number">0</span>];
 <a href=#701 id=701 data-nosnippet>701</a>    <span class="kw">let </span>second = stage_targets[<span class="number">1</span>];
-<a href=#702 id=702 data-nosnippet>702</a>    <span class="kw">if </span>first.<span class="macro">player !</span>= second.player {
+<a href=#702 id=702 data-nosnippet>702</a>    <span class="kw">if </span>first.player != second.player {
 <a href=#703 id=703 data-nosnippet>703</a>        <span class="kw">return</span>;
 <a href=#704 id=704 data-nosnippet>704</a>    }
 <a href=#705 id=705 data-nosnippet>705</a>    <span class="kw">let </span>p = first.player <span class="kw">as </span>usize;
@@ -714,7 +714,7 @@
 <a href=#714 id=714 data-nosnippet>714</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(s_card) = env.state.players[p].stage[s_idx].card <span class="kw">else </span>{
 <a href=#715 id=715 data-nosnippet>715</a>        <span class="kw">return</span>;
 <a href=#716 id=716 data-nosnippet>716</a>    };
-<a href=#717 id=717 data-nosnippet>717</a>    <span class="kw">if </span>f_card.<span class="macro">instance_id !</span>= first.instance_id || s_card.<span class="macro">instance_id !</span>= second.instance_id {
+<a href=#717 id=717 data-nosnippet>717</a>    <span class="kw">if </span>f_card.instance_id != first.instance_id || s_card.instance_id != second.instance_id {
 <a href=#718 id=718 data-nosnippet>718</a>        <span class="kw">return</span>;
 <a href=#719 id=719 data-nosnippet>719</a>    }
 <a href=#720 id=720 data-nosnippet>720</a>    env.swap_stage_slots(first.player, first.index, second.index);
@@ -731,7 +731,7 @@
 <a href=#731 id=731 data-nosnippet>731</a>        TargetSide::Opponent =&gt; <span class="number">1 </span>- controller,
 <a href=#732 id=732 data-nosnippet>732</a>    };
 <a href=#733 id=733 data-nosnippet>733</a>    <span class="kw">for </span>target <span class="kw">in </span><span class="kw-2">&amp;</span>payload.targets {
-<a href=#734 id=734 data-nosnippet>734</a>        <span class="kw">if </span>target.<span class="macro">zone !</span>= TargetZone::Stage {
+<a href=#734 id=734 data-nosnippet>734</a>        <span class="kw">if </span>target.zone != TargetZone::Stage {
 <a href=#735 id=735 data-nosnippet>735</a>            <span class="kw">continue</span>;
 <a href=#736 id=736 data-nosnippet>736</a>        }
 <a href=#737 id=737 data-nosnippet>737</a>        <span class="kw">let </span>from_player = target.player;
@@ -754,7 +754,7 @@
 <a href=#754 id=754 data-nosnippet>754</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[from_player <span class="kw">as </span>usize].stage[from_slot].card <span class="kw">else </span>{
 <a href=#755 id=755 data-nosnippet>755</a>            <span class="kw">continue</span>;
 <a href=#756 id=756 data-nosnippet>756</a>        };
-<a href=#757 id=757 data-nosnippet>757</a>        <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= target.instance_id {
+<a href=#757 id=757 data-nosnippet>757</a>        <span class="kw">if </span>card_inst.instance_id != target.instance_id {
 <a href=#758 id=758 data-nosnippet>758</a>            <span class="kw">continue</span>;
 <a href=#759 id=759 data-nosnippet>759</a>        }
 <a href=#760 id=760 data-nosnippet>760</a>        env.remove_modifiers_for_slot(from_player, target.index);
@@ -787,7 +787,7 @@
 <a href=#787 id=787 data-nosnippet>787</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(source_ref) = payload.source_ref <span class="kw">else </span>{
 <a href=#788 id=788 data-nosnippet>788</a>        <span class="kw">return</span>;
 <a href=#789 id=789 data-nosnippet>789</a>    };
-<a href=#790 id=790 data-nosnippet>790</a>    <span class="kw">if </span>source_ref.<span class="macro">zone !</span>= TargetZone::Stage {
+<a href=#790 id=790 data-nosnippet>790</a>    <span class="kw">if </span>source_ref.zone != TargetZone::Stage {
 <a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">return</span>;
 <a href=#792 id=792 data-nosnippet>792</a>    }
 <a href=#793 id=793 data-nosnippet>793</a>    <span class="kw">let </span>p = source_ref.player <span class="kw">as </span>usize;
@@ -798,7 +798,7 @@
 <a href=#798 id=798 data-nosnippet>798</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[p].stage[source_slot].card <span class="kw">else </span>{
 <a href=#799 id=799 data-nosnippet>799</a>        <span class="kw">return</span>;
 <a href=#800 id=800 data-nosnippet>800</a>    };
-<a href=#801 id=801 data-nosnippet>801</a>    <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= source_ref.instance_id {
+<a href=#801 id=801 data-nosnippet>801</a>    <span class="kw">if </span>card_inst.instance_id != source_ref.instance_id {
 <a href=#802 id=802 data-nosnippet>802</a>        <span class="kw">return</span>;
 <a href=#803 id=803 data-nosnippet>803</a>    }
 <a href=#804 id=804 data-nosnippet>804</a>    <span class="kw">let </span>center_slots: <span class="kw-2">&amp;</span>[u8] = <span class="kw">if </span>env.curriculum.reduced_stage_mode {
@@ -829,7 +829,7 @@
 <a href=#829 id=829 data-nosnippet>829</a>
 <a href=#830 id=830 data-nosnippet>830</a><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>rest_target(env: <span class="kw-2">&amp;mut </span>GameEnv, payload: <span class="kw-2">&amp;</span>EffectPayload) {
 <a href=#831 id=831 data-nosnippet>831</a>    <span class="kw">for </span>target <span class="kw">in </span><span class="kw-2">&amp;</span>payload.targets {
-<a href=#832 id=832 data-nosnippet>832</a>        <span class="kw">if </span>target.<span class="macro">zone !</span>= TargetZone::Stage {
+<a href=#832 id=832 data-nosnippet>832</a>        <span class="kw">if </span>target.zone != TargetZone::Stage {
 <a href=#833 id=833 data-nosnippet>833</a>            <span class="kw">continue</span>;
 <a href=#834 id=834 data-nosnippet>834</a>        }
 <a href=#835 id=835 data-nosnippet>835</a>        <span class="kw">let </span>p = target.player <span class="kw">as </span>usize;
@@ -840,7 +840,7 @@
 <a href=#840 id=840 data-nosnippet>840</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[p].stage[slot].card <span class="kw">else </span>{
 <a href=#841 id=841 data-nosnippet>841</a>            <span class="kw">continue</span>;
 <a href=#842 id=842 data-nosnippet>842</a>        };
-<a href=#843 id=843 data-nosnippet>843</a>        <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= target.instance_id {
+<a href=#843 id=843 data-nosnippet>843</a>        <span class="kw">if </span>card_inst.instance_id != target.instance_id {
 <a href=#844 id=844 data-nosnippet>844</a>            <span class="kw">continue</span>;
 <a href=#845 id=845 data-nosnippet>845</a>        }
 <a href=#846 id=846 data-nosnippet>846</a>        env.state.players[p].stage[slot].status = StageStatus::Rest;
@@ -852,7 +852,7 @@
 <a href=#852 id=852 data-nosnippet>852</a>
 <a href=#853 id=853 data-nosnippet>853</a><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>stand_target(env: <span class="kw-2">&amp;mut </span>GameEnv, payload: <span class="kw-2">&amp;</span>EffectPayload) {
 <a href=#854 id=854 data-nosnippet>854</a>    <span class="kw">for </span>target <span class="kw">in </span><span class="kw-2">&amp;</span>payload.targets {
-<a href=#855 id=855 data-nosnippet>855</a>        <span class="kw">if </span>target.<span class="macro">zone !</span>= TargetZone::Stage {
+<a href=#855 id=855 data-nosnippet>855</a>        <span class="kw">if </span>target.zone != TargetZone::Stage {
 <a href=#856 id=856 data-nosnippet>856</a>            <span class="kw">continue</span>;
 <a href=#857 id=857 data-nosnippet>857</a>        }
 <a href=#858 id=858 data-nosnippet>858</a>        <span class="kw">let </span>p = target.player <span class="kw">as </span>usize;
@@ -863,7 +863,7 @@
 <a href=#863 id=863 data-nosnippet>863</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(card_inst) = env.state.players[p].stage[slot].card <span class="kw">else </span>{
 <a href=#864 id=864 data-nosnippet>864</a>            <span class="kw">continue</span>;
 <a href=#865 id=865 data-nosnippet>865</a>        };
-<a href=#866 id=866 data-nosnippet>866</a>        <span class="kw">if </span>card_inst.<span class="macro">instance_id !</span>= target.instance_id {
+<a href=#866 id=866 data-nosnippet>866</a>        <span class="kw">if </span>card_inst.instance_id != target.instance_id {
 <a href=#867 id=867 data-nosnippet>867</a>            <span class="kw">continue</span>;
 <a href=#868 id=868 data-nosnippet>868</a>        }
 <a href=#869 id=869 data-nosnippet>869</a>        env.state.players[p].stage[slot].status = StageStatus::Stand;

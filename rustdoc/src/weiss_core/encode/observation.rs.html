@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `weiss_core/src/encode/observation.rs`."><title>observation.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="weiss_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.1 (01f6ddf75 2026-02-11)" data-channel="1.93.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">weiss_core/encode/</div>observation.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">crate</span>::config::{CurriculumConfig, ObservationVisibility};
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `weiss_core/src/encode/observation.rs`."><title>observation.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="weiss_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">weiss_core/encode/</div>observation.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">crate</span>::config::{CurriculumConfig, ObservationVisibility};
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span><span class="kw">crate</span>::db::CardDb;
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span><span class="kw">crate</span>::legal::hand_play_requirements::{
 <a href=#4 id=4 data-nosnippet>4</a>    card_set_allowed, meets_color_requirement, meets_cost_requirement, meets_level_requirement,
@@ -159,12 +159,12 @@
 <a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">for </span>(slot, slot_state) <span class="kw">in </span>player.stage.iter().enumerate() {
 <a href=#160 id=160 data-nosnippet>160</a>        <span class="kw">let </span>card_id = slot_state.card.map(|c| c.id).unwrap_or(<span class="number">0</span>);
 <a href=#161 id=161 data-nosnippet>161</a>        slot_card_ids[slot] = card_id;
-<a href=#162 id=162 data-nosnippet>162</a>        slot_side_attack_allowed[slot] = i32::from(<span class="macro">card_id !</span>= <span class="number">0</span>);
+<a href=#162 id=162 data-nosnippet>162</a>        slot_side_attack_allowed[slot] = i32::from(card_id != <span class="number">0</span>);
 <a href=#163 id=163 data-nosnippet>163</a>    }
 <a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">let </span>use_derived_attack = state.turn.derived_attack.is_some();
 <a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">if </span>!state.modifiers.is_empty() {
 <a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">for </span>modifier <span class="kw">in </span><span class="kw-2">&amp;</span>state.modifiers {
-<a href=#167 id=167 data-nosnippet>167</a>            <span class="kw">if </span>modifier.target_player <span class="kw">as </span><span class="macro">usize !</span>= p {
+<a href=#167 id=167 data-nosnippet>167</a>            <span class="kw">if </span>modifier.target_player <span class="kw">as </span>usize != p {
 <a href=#168 id=168 data-nosnippet>168</a>                <span class="kw">continue</span>;
 <a href=#169 id=169 data-nosnippet>169</a>            }
 <a href=#170 id=170 data-nosnippet>170</a>            <span class="kw">let </span>slot = modifier.target_slot <span class="kw">as </span>usize;
@@ -172,7 +172,7 @@
 <a href=#172 id=172 data-nosnippet>172</a>                <span class="kw">continue</span>;
 <a href=#173 id=173 data-nosnippet>173</a>            }
 <a href=#174 id=174 data-nosnippet>174</a>            <span class="kw">let </span>card_id = slot_card_ids[slot];
-<a href=#175 id=175 data-nosnippet>175</a>            <span class="kw">if </span>card_id == <span class="number">0 </span>|| modifier.<span class="macro">target_card !</span>= card_id {
+<a href=#175 id=175 data-nosnippet>175</a>            <span class="kw">if </span>card_id == <span class="number">0 </span>|| modifier.target_card != card_id {
 <a href=#176 id=176 data-nosnippet>176</a>                <span class="kw">continue</span>;
 <a href=#177 id=177 data-nosnippet>177</a>            }
 <a href=#178 id=178 data-nosnippet>178</a>            <span class="kw">match </span>modifier.kind {
@@ -180,7 +180,7 @@
 <a href=#180 id=180 data-nosnippet>180</a>                    slot_soul_mods[slot] = slot_soul_mods[slot].saturating_add(modifier.magnitude);
 <a href=#181 id=181 data-nosnippet>181</a>                }
 <a href=#182 id=182 data-nosnippet>182</a>                ModifierKind::CannotSideAttack
-<a href=#183 id=183 data-nosnippet>183</a>                    <span class="kw">if </span>!use_derived_attack &amp;&amp; modifier.<span class="macro">magnitude !</span>= <span class="number">0 </span>=&gt;
+<a href=#183 id=183 data-nosnippet>183</a>                    <span class="kw">if </span>!use_derived_attack &amp;&amp; modifier.magnitude != <span class="number">0 </span>=&gt;
 <a href=#184 id=184 data-nosnippet>184</a>                {
 <a href=#185 id=185 data-nosnippet>185</a>                    slot_side_attack_allowed[slot] = <span class="number">0</span>;
 <a href=#186 id=186 data-nosnippet>186</a>                }
@@ -455,7 +455,7 @@
 <a href=#455 id=455 data-nosnippet>455</a>    }
 <a href=#456 id=456 data-nosnippet>456</a>    <span class="kw">let </span><span class="kw-2">mut </span>slot_power_mods = [[<span class="number">0i32</span>; MAX_STAGE]; <span class="number">2</span>];
 <a href=#457 id=457 data-nosnippet>457</a>    <span class="kw">for </span>modifier <span class="kw">in </span><span class="kw-2">&amp;</span>state.modifiers {
-<a href=#458 id=458 data-nosnippet>458</a>        <span class="kw">if </span>modifier.<span class="macro">kind !</span>= ModifierKind::Power {
+<a href=#458 id=458 data-nosnippet>458</a>        <span class="kw">if </span>modifier.kind != ModifierKind::Power {
 <a href=#459 id=459 data-nosnippet>459</a>            <span class="kw">continue</span>;
 <a href=#460 id=460 data-nosnippet>460</a>        }
 <a href=#461 id=461 data-nosnippet>461</a>        <span class="kw">let </span>p = modifier.target_player <span class="kw">as </span>usize;
@@ -536,7 +536,7 @@
 <a href=#536 id=536 data-nosnippet>536</a>                    <span class="kw">_ </span>=&gt; <span class="kw">continue</span>,
 <a href=#537 id=537 data-nosnippet>537</a>                }
 <a href=#538 id=538 data-nosnippet>538</a>            } <span class="kw">else if </span>in_climax {
-<a href=#539 id=539 data-nosnippet>539</a>                <span class="kw">if </span>card.<span class="macro">card_type !</span>= <span class="kw">crate</span>::db::CardType::Climax || !curriculum.allow_climax {
+<a href=#539 id=539 data-nosnippet>539</a>                <span class="kw">if </span>card.card_type != <span class="kw">crate</span>::db::CardType::Climax || !curriculum.allow_climax {
 <a href=#540 id=540 data-nosnippet>540</a>                    <span class="kw">continue</span>;
 <a href=#541 id=541 data-nosnippet>541</a>                }
 <a href=#542 id=542 data-nosnippet>542</a>                <span class="kw">if </span>!curriculum.enable_climax_phase {
@@ -653,7 +653,7 @@
 <a href=#653 id=653 data-nosnippet>653</a>    visibility: ObservationVisibility,
 <a href=#654 id=654 data-nosnippet>654</a>) -&gt; (i32, i32, i32) {
 <a href=#655 id=655 data-nosnippet>655</a>    <span class="kw">let </span>mask = visibility == ObservationVisibility::Public
-<a href=#656 id=656 data-nosnippet>656</a>        &amp;&amp; actor.map(|p| <span class="macro">p !</span>= perspective).unwrap_or(<span class="bool-val">false</span>);
+<a href=#656 id=656 data-nosnippet>656</a>        &amp;&amp; actor.map(|p| p != perspective).unwrap_or(<span class="bool-val">false</span>);
 <a href=#657 id=657 data-nosnippet>657</a>    <span class="kw">match </span>action {
 <a href=#658 id=658 data-nosnippet>658</a>        <span class="prelude-val">None </span>=&gt; (<span class="number">0</span>, -<span class="number">1</span>, -<span class="number">1</span>),
 <a href=#659 id=659 data-nosnippet>659</a>        <span class="prelude-val">Some</span>(ActionDesc::MulliganConfirm) =&gt; (<span class="number">1</span>, -<span class="number">1</span>, -<span class="number">1</span>),

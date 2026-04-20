@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `weiss_core/src/env/interaction/targeting.rs`."><title>targeting.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="weiss_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.1 (01f6ddf75 2026-02-11)" data-channel="1.93.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">weiss_core/env/interaction/</div>targeting.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">super</span>::<span class="kw">super</span>::GameEnv;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `weiss_core/src/env/interaction/targeting.rs`."><title>targeting.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="weiss_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../../static.files/src-script-813739b1.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">weiss_core/env/interaction/</div>targeting.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">super</span>::<span class="kw">super</span>::GameEnv;
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span><span class="kw">crate</span>::config::CurriculumConfig;
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span><span class="kw">crate</span>::db::{CardDb, CardId};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::encode::MAX_STAGE;
@@ -30,7 +30,7 @@
 <a href=#30 id=30 data-nosnippet>30</a>        <span class="kw">let </span>candidates = <span class="self">self</span>.scratch.targets.to_vec();
 <a href=#31 id=31 data-nosnippet>31</a>        <span class="kw">if </span>spec.reveal_to_controller {
 <a href=#32 id=32 data-nosnippet>32</a>            <span class="kw">for </span>target <span class="kw">in </span>candidates.iter().copied() {
-<a href=#33 id=33 data-nosnippet>33</a>                <span class="kw">if </span>target.<span class="macro">zone !</span>= TargetZone::DeckTop {
+<a href=#33 id=33 data-nosnippet>33</a>                <span class="kw">if </span>target.zone != TargetZone::DeckTop {
 <a href=#34 id=34 data-nosnippet>34</a>                    <span class="kw">continue</span>;
 <a href=#35 id=35 data-nosnippet>35</a>                }
 <a href=#36 id=36 data-nosnippet>36</a>                <span class="kw">let </span>card = CardInstance {
@@ -91,7 +91,7 @@
 <a href=#91 id=91 data-nosnippet>91</a>                        TargetSlotFilter::FrontRow <span class="kw">if </span>slot &gt;= <span class="number">3 </span>=&gt; <span class="kw">continue</span>,
 <a href=#92 id=92 data-nosnippet>92</a>                        TargetSlotFilter::BackRow <span class="kw">if </span>slot &lt; <span class="number">3 </span>=&gt; <span class="kw">continue</span>,
 <a href=#93 id=93 data-nosnippet>93</a>                        TargetSlotFilter::SpecificSlot(target_slot)
-<a href=#94 id=94 data-nosnippet>94</a>                            <span class="kw">if </span><span class="macro">slot !</span>= target_slot <span class="kw">as </span>usize =&gt;
+<a href=#94 id=94 data-nosnippet>94</a>                            <span class="kw">if </span>slot != target_slot <span class="kw">as </span>usize =&gt;
 <a href=#95 id=95 data-nosnippet>95</a>                        {
 <a href=#96 id=96 data-nosnippet>96</a>                            <span class="kw">continue
 <a href=#97 id=97 data-nosnippet>97</a>                        </span>}
@@ -105,7 +105,7 @@
 <a href=#105 id=105 data-nosnippet>105</a>                        <span class="kw">continue</span>;
 <a href=#106 id=106 data-nosnippet>106</a>                    };
 <a href=#107 id=107 data-nosnippet>107</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(card_type) = spec.card_type {
-<a href=#108 id=108 data-nosnippet>108</a>                        <span class="kw">if </span>card.<span class="macro">card_type !</span>= card_type {
+<a href=#108 id=108 data-nosnippet>108</a>                        <span class="kw">if </span>card.card_type != card_type {
 <a href=#109 id=109 data-nosnippet>109</a>                            <span class="kw">continue</span>;
 <a href=#110 id=110 data-nosnippet>110</a>                        }
 <a href=#111 id=111 data-nosnippet>111</a>                    }
@@ -116,10 +116,10 @@
 <a href=#116 id=116 data-nosnippet>116</a>                    }
 <a href=#117 id=117 data-nosnippet>117</a>                    <span class="kw">let </span><span class="kw-2">mut </span>effective_level = i32::from(card.level);
 <a href=#118 id=118 data-nosnippet>118</a>                    <span class="kw">for </span>modifier <span class="kw">in </span><span class="kw-2">&amp;</span>state.modifiers {
-<a href=#119 id=119 data-nosnippet>119</a>                        <span class="kw">if </span>modifier.<span class="macro">target_player !</span>= target_player
-<a href=#120 id=120 data-nosnippet>120</a>                            || modifier.target_slot <span class="kw">as </span><span class="macro">usize !</span>= slot
-<a href=#121 id=121 data-nosnippet>121</a>                            || modifier.<span class="macro">target_card !</span>= card_inst.id
-<a href=#122 id=122 data-nosnippet>122</a>                            || modifier.<span class="macro">kind !</span>= <span class="kw">crate</span>::state::ModifierKind::Level
+<a href=#119 id=119 data-nosnippet>119</a>                        <span class="kw">if </span>modifier.target_player != target_player
+<a href=#120 id=120 data-nosnippet>120</a>                            || modifier.target_slot <span class="kw">as </span>usize != slot
+<a href=#121 id=121 data-nosnippet>121</a>                            || modifier.target_card != card_inst.id
+<a href=#122 id=122 data-nosnippet>122</a>                            || modifier.kind != <span class="kw">crate</span>::state::ModifierKind::Level
 <a href=#123 id=123 data-nosnippet>123</a>                        {
 <a href=#124 id=124 data-nosnippet>124</a>                            <span class="kw">continue</span>;
 <a href=#125 id=125 data-nosnippet>125</a>                        }
@@ -139,14 +139,14 @@
 <a href=#139 id=139 data-nosnippet>139</a>                    <span class="kw">if </span>!spec.card_ids.is_empty() &amp;&amp; !spec.card_ids.contains(<span class="kw-2">&amp;</span>card_inst.id) {
 <a href=#140 id=140 data-nosnippet>140</a>                        <span class="kw">continue</span>;
 <a href=#141 id=141 data-nosnippet>141</a>                    }
-<a href=#142 id=142 data-nosnippet>142</a>                    <span class="kw">if </span><span class="macro">target_player !</span>= controller
+<a href=#142 id=142 data-nosnippet>142</a>                    <span class="kw">if </span>target_player != controller
 <a href=#143 id=143 data-nosnippet>143</a>                        &amp;&amp; state.modifiers.iter().any(|modifier| {
 <a href=#144 id=144 data-nosnippet>144</a>                            modifier.target_player == target_player
 <a href=#145 id=145 data-nosnippet>145</a>                                &amp;&amp; modifier.target_slot <span class="kw">as </span>usize == slot
 <a href=#146 id=146 data-nosnippet>146</a>                                &amp;&amp; modifier.target_card == card_inst.id
 <a href=#147 id=147 data-nosnippet>147</a>                                &amp;&amp; modifier.kind
 <a href=#148 id=148 data-nosnippet>148</a>                                    == <span class="kw">crate</span>::state::ModifierKind::CannotBeChosenByOpponentEffects
-<a href=#149 id=149 data-nosnippet>149</a>                                &amp;&amp; modifier.<span class="macro">magnitude !</span>= <span class="number">0
+<a href=#149 id=149 data-nosnippet>149</a>                                &amp;&amp; modifier.magnitude != <span class="number">0
 <a href=#150 id=150 data-nosnippet>150</a>                        </span>})
 <a href=#151 id=151 data-nosnippet>151</a>                    {
 <a href=#152 id=152 data-nosnippet>152</a>                        <span class="kw">continue</span>;
@@ -183,7 +183,7 @@
 <a href=#183 id=183 data-nosnippet>183</a>                        <span class="kw">continue</span>;
 <a href=#184 id=184 data-nosnippet>184</a>                    };
 <a href=#185 id=185 data-nosnippet>185</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(card_type) = spec.card_type {
-<a href=#186 id=186 data-nosnippet>186</a>                        <span class="kw">if </span>card.<span class="macro">card_type !</span>= card_type {
+<a href=#186 id=186 data-nosnippet>186</a>                        <span class="kw">if </span>card.card_type != card_type {
 <a href=#187 id=187 data-nosnippet>187</a>                            <span class="kw">continue</span>;
 <a href=#188 id=188 data-nosnippet>188</a>                        }
 <a href=#189 id=189 data-nosnippet>189</a>                    }
@@ -235,7 +235,7 @@
 <a href=#235 id=235 data-nosnippet>235</a>                        <span class="kw">continue</span>;
 <a href=#236 id=236 data-nosnippet>236</a>                    };
 <a href=#237 id=237 data-nosnippet>237</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(card_type) = spec.card_type {
-<a href=#238 id=238 data-nosnippet>238</a>                        <span class="kw">if </span>card.<span class="macro">card_type !</span>= card_type {
+<a href=#238 id=238 data-nosnippet>238</a>                        <span class="kw">if </span>card.card_type != card_type {
 <a href=#239 id=239 data-nosnippet>239</a>                            <span class="kw">continue</span>;
 <a href=#240 id=240 data-nosnippet>240</a>                        }
 <a href=#241 id=241 data-nosnippet>241</a>                    }
@@ -292,7 +292,7 @@
 <a href=#292 id=292 data-nosnippet>292</a>                        <span class="kw">continue</span>;
 <a href=#293 id=293 data-nosnippet>293</a>                    };
 <a href=#294 id=294 data-nosnippet>294</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(card_type) = spec.card_type {
-<a href=#295 id=295 data-nosnippet>295</a>                        <span class="kw">if </span>card.<span class="macro">card_type !</span>= card_type {
+<a href=#295 id=295 data-nosnippet>295</a>                        <span class="kw">if </span>card.card_type != card_type {
 <a href=#296 id=296 data-nosnippet>296</a>                            <span class="kw">continue</span>;
 <a href=#297 id=297 data-nosnippet>297</a>                        }
 <a href=#298 id=298 data-nosnippet>298</a>                    }
@@ -349,7 +349,7 @@
 <a href=#349 id=349 data-nosnippet>349</a>                        <span class="kw">continue</span>;
 <a href=#350 id=350 data-nosnippet>350</a>                    };
 <a href=#351 id=351 data-nosnippet>351</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(card_type) = spec.card_type {
-<a href=#352 id=352 data-nosnippet>352</a>                        <span class="kw">if </span>card.<span class="macro">card_type !</span>= card_type {
+<a href=#352 id=352 data-nosnippet>352</a>                        <span class="kw">if </span>card.card_type != card_type {
 <a href=#353 id=353 data-nosnippet>353</a>                            <span class="kw">continue</span>;
 <a href=#354 id=354 data-nosnippet>354</a>                        }
 <a href=#355 id=355 data-nosnippet>355</a>                    }
@@ -401,7 +401,7 @@
 <a href=#401 id=401 data-nosnippet>401</a>                        <span class="kw">continue</span>;
 <a href=#402 id=402 data-nosnippet>402</a>                    };
 <a href=#403 id=403 data-nosnippet>403</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(card_type) = spec.card_type {
-<a href=#404 id=404 data-nosnippet>404</a>                        <span class="kw">if </span>card.<span class="macro">card_type !</span>= card_type {
+<a href=#404 id=404 data-nosnippet>404</a>                        <span class="kw">if </span>card.card_type != card_type {
 <a href=#405 id=405 data-nosnippet>405</a>                            <span class="kw">continue</span>;
 <a href=#406 id=406 data-nosnippet>406</a>                        }
 <a href=#407 id=407 data-nosnippet>407</a>                    }
@@ -453,7 +453,7 @@
 <a href=#453 id=453 data-nosnippet>453</a>                        <span class="kw">continue</span>;
 <a href=#454 id=454 data-nosnippet>454</a>                    };
 <a href=#455 id=455 data-nosnippet>455</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(card_type) = spec.card_type {
-<a href=#456 id=456 data-nosnippet>456</a>                        <span class="kw">if </span>card.<span class="macro">card_type !</span>= card_type {
+<a href=#456 id=456 data-nosnippet>456</a>                        <span class="kw">if </span>card.card_type != card_type {
 <a href=#457 id=457 data-nosnippet>457</a>                            <span class="kw">continue</span>;
 <a href=#458 id=458 data-nosnippet>458</a>                        }
 <a href=#459 id=459 data-nosnippet>459</a>                    }
@@ -505,7 +505,7 @@
 <a href=#505 id=505 data-nosnippet>505</a>                        <span class="kw">continue</span>;
 <a href=#506 id=506 data-nosnippet>506</a>                    };
 <a href=#507 id=507 data-nosnippet>507</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(card_type) = spec.card_type {
-<a href=#508 id=508 data-nosnippet>508</a>                        <span class="kw">if </span>card.<span class="macro">card_type !</span>= card_type {
+<a href=#508 id=508 data-nosnippet>508</a>                        <span class="kw">if </span>card.card_type != card_type {
 <a href=#509 id=509 data-nosnippet>509</a>                            <span class="kw">continue</span>;
 <a href=#510 id=510 data-nosnippet>510</a>                        }
 <a href=#511 id=511 data-nosnippet>511</a>                    }
@@ -557,7 +557,7 @@
 <a href=#557 id=557 data-nosnippet>557</a>                        <span class="kw">continue</span>;
 <a href=#558 id=558 data-nosnippet>558</a>                    };
 <a href=#559 id=559 data-nosnippet>559</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(card_type) = spec.card_type {
-<a href=#560 id=560 data-nosnippet>560</a>                        <span class="kw">if </span>card.<span class="macro">card_type !</span>= card_type {
+<a href=#560 id=560 data-nosnippet>560</a>                        <span class="kw">if </span>card.card_type != card_type {
 <a href=#561 id=561 data-nosnippet>561</a>                            <span class="kw">continue</span>;
 <a href=#562 id=562 data-nosnippet>562</a>                        }
 <a href=#563 id=563 data-nosnippet>563</a>                    }
@@ -609,7 +609,7 @@
 <a href=#609 id=609 data-nosnippet>609</a>                        <span class="kw">continue</span>;
 <a href=#610 id=610 data-nosnippet>610</a>                    };
 <a href=#611 id=611 data-nosnippet>611</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(card_type) = spec.card_type {
-<a href=#612 id=612 data-nosnippet>612</a>                        <span class="kw">if </span>card.<span class="macro">card_type !</span>= card_type {
+<a href=#612 id=612 data-nosnippet>612</a>                        <span class="kw">if </span>card.card_type != card_type {
 <a href=#613 id=613 data-nosnippet>613</a>                            <span class="kw">continue</span>;
 <a href=#614 id=614 data-nosnippet>614</a>                        }
 <a href=#615 id=615 data-nosnippet>615</a>                    }
@@ -716,7 +716,7 @@
 <a href=#716 id=716 data-nosnippet>716</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>selection) = <span class="self">self</span>.state.turn.target_selection.take() <span class="kw">else </span>{
 <a href=#717 id=717 data-nosnippet>717</a>            <span class="kw">return</span>;
 <a href=#718 id=718 data-nosnippet>718</a>        };
-<a href=#719 id=719 data-nosnippet>719</a>        <span class="kw">if </span>selection.<span class="macro">controller !</span>= player {
+<a href=#719 id=719 data-nosnippet>719</a>        <span class="kw">if </span>selection.controller != player {
 <a href=#720 id=720 data-nosnippet>720</a>            <span class="self">self</span>.state.turn.target_selection = <span class="prelude-val">Some</span>(selection);
 <a href=#721 id=721 data-nosnippet>721</a>            <span class="kw">return</span>;
 <a href=#722 id=722 data-nosnippet>722</a>        }
@@ -747,7 +747,7 @@
 <a href=#747 id=747 data-nosnippet>747</a>                <span class="kw">return</span>;
 <a href=#748 id=748 data-nosnippet>748</a>            }
 <a href=#749 id=749 data-nosnippet>749</a>        };
-<a href=#750 id=750 data-nosnippet>750</a>        <span class="kw">if </span><span class="macro">zone !</span>= selection.spec.zone {
+<a href=#750 id=750 data-nosnippet>750</a>        <span class="kw">if </span>zone != selection.spec.zone {
 <a href=#751 id=751 data-nosnippet>751</a>            <span class="self">self</span>.state.turn.target_selection = <span class="prelude-val">Some</span>(selection);
 <a href=#752 id=752 data-nosnippet>752</a>            <span class="kw">return</span>;
 <a href=#753 id=753 data-nosnippet>753</a>        }
