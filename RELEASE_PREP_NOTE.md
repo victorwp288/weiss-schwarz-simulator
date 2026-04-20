@@ -118,3 +118,35 @@ Date: 2026-04-19
 - Confirm `Release Please` opens or updates the `0.8.0` release PR after the trigger commit lands.
 - Confirm the repo still has a working `RELEASE_PLEASE_TOKEN`; otherwise the eventual release tag may need a manual wheels rerun because default `GITHUB_TOKEN` tags do not trigger downstream workflows.
 - Re-run `CI` with a per-benchmark perf override for `reset_batch_256` (`25%`) while keeping the shared core budget at `15%` for the rest of the engine rows.
+
+## Benchmark workflow recovery addendum (2026-04-20)
+
+### Additional fixes
+
+- Regenerated `Cargo.lock` so the workspace package entries now match the released `0.8.0` manifests instead of being rewritten from `0.7.0` during benchmark runs.
+- Hardened `.github/workflows/benchmarks.yml` so the piped `cargo bench` and Python benchmark commands run with `pipefail`, which prevents `tee` from masking real benchmark failures.
+- Added a cleanup step before benchmark history publishing to restore tracked build outputs (`Cargo.lock`) before the job switches to `gh-pages`.
+- Updated `python/examples/bench_python_boundary.py` to prefer an installed wheel when the selected `--repo-root` does not contain an in-tree compiled extension module, while still preserving the repo-local import path for local in-place benchmark runs.
+
+### Additional checks passed
+
+- `cargo generate-lockfile`
+- `.\.venv\Scripts\python.exe -m py_compile python\examples\bench_python_boundary.py`
+- `.\.venv\Scripts\python.exe -m maturin build --release --manifest-path weiss_py/Cargo.toml --out dist\ci-benchmark-fix --interpreter .\.venv\Scripts\python.exe`
+- Installed-wheel benchmark smoke with a fixture-only temp repo root:
+  - `reset_into`: `98.3 us/reset`
+  - `step(mask)`: `320,770 env-steps/sec`
+  - `step(ids)`: `1,034,929 env-steps/sec`
+- Local Rust benchmark smoke after the lock refresh:
+  - `cargo bench -p weiss_core --bench core_benches -- --output-format bencher`
+  - `cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher`
+
+### Failed ideas and outcomes
+
+- Initial diagnosis was that fixing the stale `Cargo.lock` entries alone would clear the red benchmark run.
+- The follow-up local smoke showed that the workflow also needed explicit cleanup and `pipefail`, because the benchmark job both switches branches mid-run and currently hides piped command failures behind `tee`.
+
+### Next hypotheses / remote watch items
+
+- Watch the next `Benchmarks` push run on `main` and confirm `Publish benchmark history` no longer fails on a dirty worktree.
+- Confirm the Python benchmark step now records real output on GitHub instead of a masked `ModuleNotFoundError`.

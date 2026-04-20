@@ -65,6 +65,7 @@ jobs:
           python -m pip install maturin numpy
       - name: Run Criterion benches
         run: |
+          set -o pipefail
           mkdir -p /tmp/benchmark-run
           cargo bench -p weiss_core --bench core_benches -- --output-format bencher | tee /tmp/benchmark-run/benches.txt
           cargo bench -p weiss_core --bench alloc_benches -- --output-format bencher | tee -a /tmp/benchmark-run/benches.txt
@@ -74,7 +75,11 @@ jobs:
           python -m pip install dist/*.whl
       - name: Run Python benchmarks
         run: |
+          set -o pipefail
           python python/examples/bench_python_boundary.py --num-envs 128 --steps 2000 --warmup 200 --reset-reps 200 --mode both | tee /tmp/benchmark-run/python_bench.txt
+      - name: Restore tracked build outputs
+        run: |
+          git restore Cargo.lock
       - name: Publish benchmark history
         uses: benchmark-action/github-action-benchmark@v1
         with:

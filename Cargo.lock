@@ -1457,7 +1457,7 @@ dependencies = [
 
 [[package]]
 name = "weiss_core"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bitvec",
@@ -1479,7 +1479,7 @@ dependencies = [
 
 [[package]]
 name = "weiss_py"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "numpy",

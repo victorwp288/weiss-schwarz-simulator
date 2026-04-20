@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+from importlib.machinery import EXTENSION_SUFFIXES
 import sys
 import types
 from pathlib import Path
@@ -21,11 +22,11 @@ def _clear_weiss_sim_modules() -> None:
             sys.modules.pop(name, None)
 
 
-def _load_weiss_sim(repo_root: Path) -> Any:
-    repo_python = repo_root / "python"
-    repo_pkg = repo_python / "weiss_sim"
+def _repo_has_extension_module(repo_pkg: Path) -> bool:
+    return any((repo_pkg / f"weiss_sim{suffix}").exists() for suffix in EXTENSION_SUFFIXES)
 
-    # Ensure imports resolve against the requested repo root.
+
+def _load_repo_weiss_sim(repo_python: Path, repo_pkg: Path) -> Any:
     sys.path.insert(0, str(repo_python))
     _clear_weiss_sim_modules()
     try:
@@ -51,6 +52,26 @@ def _load_weiss_sim(repo_root: Path) -> Any:
             EnvPoolBuffers=buffers.EnvPoolBuffers,
             make_pool=buffers.make_pool,
         )
+    finally:
+        try:
+            sys.path.remove(str(repo_python))
+        except ValueError:
+            pass
+
+
+def _load_installed_weiss_sim() -> Any:
+    _clear_weiss_sim_modules()
+    import weiss_sim as module
+
+    return module
+
+
+def _load_weiss_sim(repo_root: Path) -> Any:
+    repo_python = repo_root / "python"
+    repo_pkg = repo_python / "weiss_sim"
+    if _repo_has_extension_module(repo_pkg):
+        return _load_repo_weiss_sim(repo_python, repo_pkg)
+    return _load_installed_weiss_sim()
 
 
 def pick_first_legal_from_mask(
