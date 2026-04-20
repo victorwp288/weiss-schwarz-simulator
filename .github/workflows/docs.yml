@@ -33,7 +33,10 @@ jobs:
         run: cargo doc -p weiss_core --no-deps
       - name: Build Rust docs (publish)
         if: github.event_name != 'pull_request'
-        run: cargo doc --workspace --no-deps
+        run: |
+          # rustdoc currently ICEs in numpy's docs on stable 1.95, so publish the
+          # primary Rust API surface (weiss_core) until upstream rustdoc is fixed.
+          cargo doc -p weiss_core --no-deps
       - name: Ensure rustdoc index.html
         if: github.event_name != 'pull_request'
         run: |
