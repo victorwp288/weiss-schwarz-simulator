@@ -100,9 +100,7 @@ def parse_core_budget_overrides(values: List[str]) -> Dict[str, float]:
     for raw in values:
         name, sep, pct = raw.partition("=")
         if sep == "" or not name.strip():
-            raise ValueError(
-                f"invalid --core-budget-override '{raw}'; expected BENCH_NAME=PERCENT"
-            )
+            raise ValueError(f"invalid --core-budget-override '{raw}'; expected BENCH_NAME=PERCENT")
         try:
             allowed = float(pct)
         except ValueError as exc:
