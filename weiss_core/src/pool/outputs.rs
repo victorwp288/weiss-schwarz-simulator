@@ -196,6 +196,8 @@ pub struct BatchOutTrajectoryI16LegalIds<'a> {
     pub decision_id: &'a mut [u32],
     /// Engine error code per step/env (len = steps * num_envs).
     pub engine_status: &'a mut [u8],
+    /// Episode seed per step/env (len = steps * num_envs).
+    pub episode_seed: &'a mut [u64],
     /// Encoding spec hash per step/env (len = steps * num_envs).
     pub spec_hash: &'a mut [u64],
     /// Whether the last action was a main-phase move per step/env.

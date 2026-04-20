@@ -25,10 +25,24 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   exit 0
 fi
 
+is_windows_bash_shell() {
+  case "${OSTYPE:-}" in
+    msys*|cygwin*) return 0 ;;
+  esac
+  case "$(uname -s 2>/dev/null || echo)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+  esac
+  [[ -n "${MSYSTEM:-}" ]]
+}
+
 if [[ -n "${VENV_PYTHON:-}" ]]; then
   PYTHON_BIN="$VENV_PYTHON"
 elif [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
   PYTHON_BIN="$ROOT_DIR/.venv/bin/python"
+elif is_windows_bash_shell && [[ -x "$ROOT_DIR/.venv/Scripts/python.exe" ]]; then
+  PYTHON_BIN="$ROOT_DIR/.venv/Scripts/python.exe"
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
 else
   PYTHON_BIN="python"
 fi
@@ -38,7 +52,7 @@ if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   exit 127
 fi
 
-for cmd in cargo git maturin; do
+for cmd in cargo git; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "ERROR: required command not found: $cmd" >&2
     exit 127
@@ -47,6 +61,11 @@ done
 
 if ! "$PYTHON_BIN" -c "import pip" >/dev/null 2>&1; then
   echo "ERROR: pip is required for environment snapshot." >&2
+  exit 127
+fi
+
+if ! "$PYTHON_BIN" -m maturin --version >/dev/null 2>&1; then
+  echo "ERROR: maturin is required for freeze preflight." >&2
   exit 127
 fi
 
@@ -86,7 +105,7 @@ capture_environment_snapshot() {
     echo "python_bin=$PYTHON_BIN"
     echo "python_version=$("$PYTHON_BIN" --version 2>&1)"
     echo "pip_version=$("$PYTHON_BIN" -m pip --version 2>&1)"
-    echo "maturin_version=$(maturin --version 2>&1)"
+    echo "maturin_version=$("$PYTHON_BIN" -m maturin --version 2>&1)"
     echo "rustc_version=$(rustc --version 2>&1)"
     echo "cargo_version=$(cargo --version 2>&1)"
     if command -v rustup >/dev/null 2>&1; then

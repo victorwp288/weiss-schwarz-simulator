@@ -100,7 +100,7 @@ When encoding semantics/layout change:
 python scripts/check_docs_constants.py
 python scripts/check_docs_links.py
 cargo test --workspace --features test-harness
-pytest -q python/tests
+python -m pytest -q python/tests
 ```
 
 ## Related

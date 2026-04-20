@@ -4,31 +4,30 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+is_windows_bash_shell() {
+  case "${OSTYPE:-}" in
+    msys*|cygwin*) return 0 ;;
+  esac
+  case "$(uname -s 2>/dev/null || echo)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+  esac
+  [[ -n "${MSYSTEM:-}" ]]
+}
+
 if [[ -n "${VENV_PYTHON:-}" ]]; then
   PYTHON_BIN="$VENV_PYTHON"
 elif [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
   PYTHON_BIN="$ROOT_DIR/.venv/bin/python"
+elif is_windows_bash_shell && [[ -x "$ROOT_DIR/.venv/Scripts/python.exe" ]]; then
+  PYTHON_BIN="$ROOT_DIR/.venv/Scripts/python.exe"
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
 else
   PYTHON_BIN="python"
 fi
 
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   echo "ERROR: python interpreter not found: $PYTHON_BIN" >&2
-  exit 127
-fi
-
-if ! command -v maturin >/dev/null 2>&1; then
-  echo "ERROR: maturin is required for local parity checks." >&2
-  exit 127
-fi
-
-if ! command -v ruff >/dev/null 2>&1; then
-  echo "ERROR: ruff is required for local parity checks." >&2
-  exit 127
-fi
-
-if ! command -v pytest >/dev/null 2>&1; then
-  echo "ERROR: pytest is required for local parity checks." >&2
   exit 127
 fi
 
@@ -46,6 +45,13 @@ if ! "$PYTHON_BIN" -c "import pip_audit" >/dev/null 2>&1; then
   echo "ERROR: pip-audit is required for local parity checks." >&2
   exit 127
 fi
+
+for module in maturin ruff pytest; do
+  if ! "$PYTHON_BIN" -m "$module" --version >/dev/null 2>&1; then
+    echo "ERROR: $module is required for local parity checks." >&2
+    exit 127
+  fi
+done
 
 log_step() {
   echo
@@ -87,12 +93,12 @@ run "Docs constants check" "$PYTHON_BIN" scripts/check_docs_constants.py
 run "Generated docs check" "$PYTHON_BIN" scripts/gen_docs_snippets.py --check
 
 run "Cargo fmt" cargo fmt --all -- --check
-run "Cargo clippy" cargo clippy --workspace --all-targets -- -D warnings
-run "Cargo test" cargo test --workspace --features test-harness
-run "Cargo doc (missing docs denied)" env RUSTDOCFLAGS="-D missing-docs" cargo doc --workspace --no-deps
+run "Cargo clippy" cargo clippy --workspace --all-targets --all-features -- -D warnings
+run "Cargo test" cargo test --workspace --all-features
+run "Cargo doc (missing docs denied)" env RUSTDOCFLAGS="-D missing-docs" cargo doc --workspace --all-features --no-deps
 
-run "Ruff format" ruff format --check python scraper scripts
-run "Ruff check" ruff check python scraper scripts
+run "Ruff format" "$PYTHON_BIN" -m ruff format --check python scraper scripts
+run "Ruff check" "$PYTHON_BIN" -m ruff check python scraper scripts
 
 run "Ability coverage report" "$PYTHON_BIN" scripts/ability_coverage_report.py --output /tmp/ability_coverage_report.json
 run "Ability coverage targets" "$PYTHON_BIN" scripts/ability_coverage_targets.py --report /tmp/ability_coverage_report.json --output /tmp/ability_coverage_targets.json
@@ -105,7 +111,7 @@ run "Coverage budget gate" \
   --min-card-coverage-approx "$MIN_CARD_COVERAGE_APPROX"
 
 run "Clean wheel output dir" rm -rf /tmp/wss_dist
-run "Build wheel" maturin build --release --manifest-path weiss_py/Cargo.toml --out /tmp/wss_dist --interpreter "$PYTHON_BIN"
+run "Build wheel" "$PYTHON_BIN" -m maturin build --release --manifest-path weiss_py/Cargo.toml --out /tmp/wss_dist --interpreter "$PYTHON_BIN"
 run "Install wheel" "$PYTHON_BIN" -m pip install --force-reinstall --no-deps /tmp/wss_dist/*.whl
 run "Pytest" "$PYTHON_BIN" -m pytest -q python/tests
 

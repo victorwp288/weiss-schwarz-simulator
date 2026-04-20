@@ -177,6 +177,35 @@ fn no_progress_counter_resets_when_turn_phase_advances() {
 }
 
 #[test]
+fn choice_page_navigation_counts_as_progress() {
+    let mut env = make_env();
+    env.curriculum.max_no_progress_decisions = 3;
+    env.no_progress_decisions = 2;
+    env.config.reward.enable_shaping = true;
+    env.config.reward.damage_reward = 0.0;
+    env.config.reward.level_reward = 0.0;
+    env.config.reward.board_reward = 0.0;
+    env.config.reward.no_progress_penalty = 0.05;
+    crate::env::harness::install_choice_paging(&mut env, 20);
+    let progress = env.progress_signature();
+
+    let choice = env
+        .state
+        .turn
+        .choice
+        .as_mut()
+        .expect("choice paging should be installed");
+    choice.page_start = 16;
+
+    env.update_no_progress_counter(progress);
+    assert_eq!(env.no_progress_decisions, 0);
+    assert!(env.state.terminal.is_none());
+
+    let reward = env.compute_reward(0, &[0, 0], &progress);
+    assert_eq!(reward, 0.0);
+}
+
+#[test]
 fn main_move_is_single_use_and_does_not_reset_no_progress() {
     let mut env = make_env();
     env.state.turn.active_player = 0;

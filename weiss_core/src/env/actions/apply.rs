@@ -722,6 +722,19 @@ impl GameEnv {
             active_player: self.state.turn.active_player,
             turn_number: self.state.turn.turn_number,
             phase: self.state.turn.phase,
+            choice_id: self.state.turn.choice.as_ref().map(|choice| choice.id),
+            choice_page_start: self
+                .state
+                .turn
+                .choice
+                .as_ref()
+                .map_or(0, |choice| choice.page_start),
+            choice_total_candidates: self
+                .state
+                .turn
+                .choice
+                .as_ref()
+                .map_or(0, |choice| choice.total_candidates),
             ..ProgressSignature::default()
         };
         for player in 0..2usize {

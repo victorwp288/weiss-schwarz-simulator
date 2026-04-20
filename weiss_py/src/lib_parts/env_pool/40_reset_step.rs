@@ -2151,6 +2151,10 @@
         let engine_status_slice = engine_status.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("engine_status not contiguous")
         })?;
+        let mut episode_seed = array_mut(py, &out.episode_seed);
+        let episode_seed_slice = episode_seed.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("episode_seed not contiguous")
+        })?;
         let mut spec_hash = array_mut(py, &out.spec_hash);
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
@@ -2179,6 +2183,7 @@
             decision_kind: decision_kind_slice,
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
+            episode_seed: episode_seed_slice,
             spec_hash: spec_hash_slice,
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
@@ -2248,6 +2253,10 @@
         let engine_status_slice = engine_status.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("engine_status not contiguous")
         })?;
+        let mut episode_seed = array_mut(py, &out.episode_seed);
+        let episode_seed_slice = episode_seed.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("episode_seed not contiguous")
+        })?;
         let mut spec_hash = array_mut(py, &out.spec_hash);
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
@@ -2276,6 +2285,7 @@
             decision_kind: decision_kind_slice,
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
+            episode_seed: episode_seed_slice,
             spec_hash: spec_hash_slice,
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
@@ -2616,6 +2626,10 @@
         let engine_status_slice = engine_status.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("engine_status not contiguous")
         })?;
+        let mut episode_seed = array_mut(py, &out.episode_seed);
+        let episode_seed_slice = episode_seed.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("episode_seed not contiguous")
+        })?;
         let mut spec_hash = array_mut(py, &out.spec_hash);
         let spec_hash_slice = spec_hash.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("spec_hash not contiguous")
@@ -2644,6 +2658,7 @@
             decision_kind: decision_kind_slice,
             decision_id: decision_id_slice,
             engine_status: engine_status_slice,
+            episode_seed: episode_seed_slice,
             spec_hash: spec_hash_slice,
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,

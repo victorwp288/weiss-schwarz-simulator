@@ -14,7 +14,7 @@ def _first_legal_actions(masks):
     return actions
 
 
-def _make_pool(seed=123, num_envs=1, num_threads=None):
+def _make_pool(seed=123, num_envs=1, num_threads=None, output_masks=True):
     fixture_dir = Path(__file__).parent / "fixtures"
     db_path = fixture_dir / "cards.wsdb"
     legal_deck = (list(range(1, 14)) * 4)[:50]
@@ -27,6 +27,7 @@ def _make_pool(seed=123, num_envs=1, num_threads=None):
         max_ticks=10_000,
         seed=seed,
         num_threads=num_threads,
+        output_masks=output_masks,
     )
 
 
@@ -117,3 +118,20 @@ def test_envpool_num_threads_default_and_overrides():
 
     pool_capped = _make_pool(seed=2026, num_envs=3, num_threads=4)
     assert pool_capped.num_threads == 3
+
+
+def test_heuristic_public_rollout_keeps_spec_hash_and_records_episode_seed():
+    pool = _make_pool(seed=31415, num_envs=2, output_masks=False)
+    reset = weiss_sim.BatchOutMinimalI16LegalIds(2)
+    pool.reset_into_i16_legal_ids(reset)
+    initial_episode_seed = np.asarray(pool.episode_seed_batch(), dtype=np.uint64)
+
+    trajectory = weiss_sim.BatchOutTrajectoryI16LegalIds(2, 2)
+    pool.rollout_heuristic_public_into_i16_legal_ids(2, trajectory)
+
+    assert trajectory.episode_seed.shape == (2, 2)
+    assert trajectory.episode_seed.dtype == np.uint64
+    assert np.array_equal(trajectory.episode_seed[0], initial_episode_seed)
+    assert trajectory.spec_hash.shape == (2, 2)
+    assert trajectory.spec_hash.dtype == np.uint64
+    assert np.all(trajectory.spec_hash == np.uint64(weiss_sim.SPEC_HASH))

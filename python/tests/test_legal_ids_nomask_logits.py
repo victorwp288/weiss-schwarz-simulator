@@ -52,6 +52,10 @@ def test_legal_id_trajectory_buffers_auto_disable_output_masks():
     buffers = weiss_sim.EnvPoolTrajectoryBuffers(pool, steps=2, layout="i16_legal_ids")
 
     out = buffers.rollout_first_legal()
+    assert buffers.episode_seed is not None
+    assert buffers.episode_seed is out.episode_seed
+    assert buffers.episode_seed.shape == (2, 1)
+    assert buffers.episode_seed.dtype == np.uint64
     assert out.engine_status.shape == (2, 1)
     assert np.all(out.engine_status == 0)
     assert int(out.legal_offsets[0, -1]) > 0

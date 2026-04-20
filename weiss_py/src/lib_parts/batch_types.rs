@@ -705,6 +705,7 @@ struct PyBatchOutTrajectoryI16LegalIds {
     decision_kind: Py<PyArray2<i8>>,
     decision_id: Py<PyArray2<u32>>,
     engine_status: Py<PyArray2<u8>>,
+    episode_seed: Py<PyArray2<u64>>,
     spec_hash: Py<PyArray2<u64>>,
     main_move_action: Py<PyArray2<bool>>,
     main_pass_action: Py<PyArray2<bool>>,
@@ -765,6 +766,7 @@ impl PyBatchOutTrajectoryI16LegalIds {
         let decision_kind = Array2::<i8>::zeros((steps, num_envs));
         let decision_id = Array2::<u32>::zeros((steps, num_envs));
         let engine_status = Array2::<u8>::zeros((steps, num_envs));
+        let episode_seed = Array2::<u64>::zeros((steps, num_envs));
         let spec_hash = Array2::<u64>::from_elem((steps, num_envs), SPEC_HASH);
         let main_move_action = Array2::<bool>::from_elem((steps, num_envs), false);
         let main_pass_action = Array2::<bool>::from_elem((steps, num_envs), false);
@@ -782,6 +784,7 @@ impl PyBatchOutTrajectoryI16LegalIds {
             decision_kind: PyArray2::from_owned_array(py, decision_kind).unbind(),
             decision_id: PyArray2::from_owned_array(py, decision_id).unbind(),
             engine_status: PyArray2::from_owned_array(py, engine_status).unbind(),
+            episode_seed: PyArray2::from_owned_array(py, episode_seed).unbind(),
             spec_hash: PyArray2::from_owned_array(py, spec_hash).unbind(),
             main_move_action: PyArray2::from_owned_array(py, main_move_action).unbind(),
             main_pass_action: PyArray2::from_owned_array(py, main_pass_action).unbind(),
@@ -836,6 +839,10 @@ impl PyBatchOutTrajectoryI16LegalIds {
     #[getter]
     fn engine_status(&self, py: Python<'_>) -> Py<PyArray2<u8>> {
         self.engine_status.clone_ref(py)
+    }
+    #[getter]
+    fn episode_seed(&self, py: Python<'_>) -> Py<PyArray2<u64>> {
+        self.episode_seed.clone_ref(py)
     }
     #[getter]
     fn spec_hash(&self, py: Python<'_>) -> Py<PyArray2<u64>> {
@@ -1306,6 +1313,7 @@ fn ensure_batch_out_trajectory_i16_legal_ids_dims(
     ensure_first_two_dims(py, "decision_kind", &out.decision_kind, steps, num_envs)?;
     ensure_first_two_dims(py, "decision_id", &out.decision_id, steps, num_envs)?;
     ensure_first_two_dims(py, "engine_status", &out.engine_status, steps, num_envs)?;
+    ensure_first_two_dims(py, "episode_seed", &out.episode_seed, steps, num_envs)?;
     ensure_first_two_dims(py, "spec_hash", &out.spec_hash, steps, num_envs)?;
     ensure_first_two_dims(py, "main_move_action", &out.main_move_action, steps, num_envs)?;
     ensure_first_two_dims(py, "main_pass_action", &out.main_pass_action, steps, num_envs)?;

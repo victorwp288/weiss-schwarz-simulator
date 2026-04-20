@@ -13,6 +13,13 @@ If this page and code disagree, the code is authoritative. Regenerate this file 
 python scripts/gen_docs_snippets.py --write
 ```
 
+Behavior notes:
+
+- `decode_action_id(...)` and `decode_factorized_action_id(...)` return `None`
+  for out-of-range or otherwise unknown action ids.
+- `BatchOutTrajectoryI16LegalIds` is the only public trajectory type that exposes
+  per-step `episode_seed`.
+
 <!-- GENERATED:PYTHON_API_REFERENCE:START -->
 ## Constants & versions
 
@@ -926,6 +933,7 @@ Fields:
 - `decision_kind: np.ndarray`
 - `decision_id: np.ndarray`
 - `engine_status: np.ndarray`
+- `episode_seed: np.ndarray`
 - `spec_hash: np.ndarray`
 - `main_move_action: np.ndarray`
 - `main_pass_action: np.ndarray`

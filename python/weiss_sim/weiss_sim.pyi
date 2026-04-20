@@ -141,6 +141,7 @@ class BatchOutTrajectoryI16LegalIds:
     decision_kind: np.ndarray
     decision_id: np.ndarray
     engine_status: np.ndarray
+    episode_seed: np.ndarray
     spec_hash: np.ndarray
     main_move_action: np.ndarray
     main_pass_action: np.ndarray

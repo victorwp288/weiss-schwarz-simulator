@@ -77,9 +77,9 @@ Reward configuration defaults (`RewardConfig`):
 - `terminal_timeout` (float)
 - `enable_shaping` (bool)
 - `damage_reward` (float)
-- `level_reward` (float)
-- `board_reward` (float)
-- `no_progress_penalty` (float)
+- `level_reward` (float, default `0.0`)
+- `board_reward` (float, default `0.0`)
+- `no_progress_penalty` (float, default `0.0`)
 
 ## Core output schema
 
@@ -114,6 +114,11 @@ Common fields:
 - `decision_id`, `engine_status`, `spec_hash`
 - `main_move_action`, `main_pass_action`
 - optional legal surfaces: `legal_mask`, `legal_ids`, `legal_offsets`, `legal_action_meta`
+
+Flag semantics:
+
+- on `ResetBatch`, `main_move_action` and `main_pass_action` are always `False`
+- on `StepBatch`, they describe the action that produced the current boundary row
 
 Preferred high-level legal API:
 

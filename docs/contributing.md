@@ -26,13 +26,19 @@ A change is not complete until code, tests, and docs agree.
 ### Full parity (recommended)
 
 ```bash
-scripts/run_local_ci_parity.sh
+bash scripts/run_local_ci_parity.sh
 ```
 
 During iteration:
 
 ```bash
-SKIP_BENCHMARKS=1 scripts/run_local_ci_parity.sh
+SKIP_BENCHMARKS=1 bash scripts/run_local_ci_parity.sh
+```
+
+Make sure your local Rust toolchain includes the required formatter/linter components:
+
+```bash
+rustup component add rustfmt clippy
 ```
 
 ### Docs checks
@@ -46,9 +52,9 @@ python scripts/gen_docs_snippets.py --check
 ### Wheel-install pytest path
 
 ```bash
-maturin build --release --manifest-path weiss_py/Cargo.toml --out /tmp/wss_dist --interpreter python
+python -m maturin build --release --manifest-path weiss_py/Cargo.toml --out /tmp/wss_dist --interpreter python
 python -m pip install --force-reinstall --no-deps /tmp/wss_dist/*.whl
-pytest -q python/tests
+python -m pytest -q python/tests
 ```
 
 ## Contract-sensitive changes
@@ -76,7 +82,7 @@ cp /tmp/ability_coverage_targets.json scripts/ability_coverage_baseline.json
 
 ```bash
 mkdir -p /tmp/wss_perf_after
-scripts/run_perf_snapshot.sh /tmp/wss_perf_after
+bash scripts/run_perf_snapshot.sh /tmp/wss_perf_after
 python scripts/check_perf_budget.py \
   --baseline-benches benchmark/benches.txt \
   --current-benches /tmp/wss_perf_after/benches.txt \

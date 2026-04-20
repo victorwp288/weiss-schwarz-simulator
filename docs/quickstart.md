@@ -1,6 +1,6 @@
 # Quickstart
 
-Use this page to go from install to a verified reset/step loop with the current high-level API (`weiss-sim 0.7.x`).
+Use this page to go from install to a verified reset/step loop with the current high-level API.
 
 Next read: [RL Contract](rl_contract.md)
 
@@ -15,6 +15,9 @@ Recommended:
 - virtual environment (`python -m venv .venv`)
 - `maturin` for local wheel/module builds
 
+If you create `.venv`, activate it before running the `python -m pip ...` and
+`python -m maturin ...` commands below.
+
 ## Install
 
 ### Fastest: PyPI
@@ -27,7 +30,7 @@ python -m pip install -U weiss-sim numpy
 
 ```bash
 python -m pip install -U maturin numpy
-maturin develop --release --manifest-path weiss_py/Cargo.toml
+python -m maturin develop --release --manifest-path weiss_py/Cargo.toml
 ```
 
 ## First successful reset + step (recommended path)
@@ -166,7 +169,7 @@ Logit helpers are canonical and layout-aware:
 ```bash
 python scripts/check_docs_constants.py
 python scripts/check_docs_links.py
-pytest -q python/tests
+python -m pytest -q python/tests
 cargo test --workspace --features test-harness
 ```
 

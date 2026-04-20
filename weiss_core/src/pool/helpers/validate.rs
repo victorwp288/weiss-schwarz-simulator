@@ -59,7 +59,10 @@ impl EnvPool {
         Ok(())
     }
 
-    pub(super) fn validate_scalar_lens(expected: usize, scalar_lens: [usize; 10]) -> Result<()> {
+    pub(super) fn validate_scalar_lens<const N: usize>(
+        expected: usize,
+        scalar_lens: [usize; N],
+    ) -> Result<()> {
         if scalar_lens.into_iter().any(|len| len != expected) {
             anyhow::bail!("scalar buffer size mismatch");
         }

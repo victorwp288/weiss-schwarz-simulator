@@ -1,0 +1,2 @@
+*.sh text eol=lf
+scripts/strip_rust_layering.py text eol=lf

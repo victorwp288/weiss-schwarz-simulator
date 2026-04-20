@@ -11,21 +11,21 @@ Targets:
 ## One-command run
 
 ```bash
-scripts/freeze_preflight_235.sh
+bash scripts/freeze_preflight_235.sh
 ```
 
 Optional output directory:
 
 ```bash
-scripts/freeze_preflight_235.sh /tmp/wss_freeze_candidate
+bash scripts/freeze_preflight_235.sh /tmp/wss_freeze_candidate
 ```
 
 ## Optional toggles
 
 ```bash
-SKIP_COVERAGE=1 scripts/freeze_preflight_235.sh
-SKIP_PERF=1 scripts/freeze_preflight_235.sh
-VENV_PYTHON=/path/to/python scripts/freeze_preflight_235.sh
+SKIP_COVERAGE=1 bash scripts/freeze_preflight_235.sh
+SKIP_PERF=1 bash scripts/freeze_preflight_235.sh
+VENV_PYTHON=/path/to/python bash scripts/freeze_preflight_235.sh
 ```
 
 ## What the script runs

@@ -4,8 +4,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+is_windows_bash_shell() {
+  case "${OSTYPE:-}" in
+    msys*|cygwin*) return 0 ;;
+  esac
+  case "$(uname -s 2>/dev/null || echo)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+  esac
+  [[ -n "${MSYSTEM:-}" ]]
+}
+
 if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
   PYTHON_BIN="$ROOT_DIR/.venv/bin/python"
+elif is_windows_bash_shell && [[ -x "$ROOT_DIR/.venv/Scripts/python.exe" ]]; then
+  PYTHON_BIN="$ROOT_DIR/.venv/Scripts/python.exe"
 elif command -v python3 >/dev/null 2>&1; then
   PYTHON_BIN="python3"
 elif command -v python >/dev/null 2>&1; then

@@ -26,28 +26,39 @@ jobs:
         with:
           filters: |
             rust:
+              - '.gitattributes'
+              - '.github/workflows/ci.yml'
               - 'weiss_core/**'
               - 'weiss_py/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
+              - 'scripts/check_env_layering.sh'
+              - 'scripts/strip_rust_layering.py'
             python:
+              - '.gitattributes'
+              - '.github/workflows/ci.yml'
               - 'python/**'
               - 'scraper/**'
               - 'scripts/**'
               - 'pyproject.toml'
               - 'weiss_py/**'
             docs:
+              - '.gitattributes'
+              - '.github/workflows/ci.yml'
               - 'README.md'
               - 'PROJECT_STATE.md'
               - 'docs/**'
               - 'scripts/check_docs_links.py'
               - 'scripts/check_docs_constants.py'
+              - 'scripts/gen_docs_snippets.py'
             perf:
+              - '.gitattributes'
               - 'weiss_core/**'
               - 'weiss_py/**'
               - 'python/examples/bench_python_boundary.py'
               - 'benchmark/**'
               - 'scripts/check_perf_budget.py'
+              - 'scripts/run_perf_snapshot.sh'
               - '.github/workflows/ci.yml'
 
   ci:

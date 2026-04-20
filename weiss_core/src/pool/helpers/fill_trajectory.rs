@@ -120,6 +120,7 @@ impl EnvPool {
                 out.decision_kind.len(),
                 out.decision_id.len(),
                 out.engine_status.len(),
+                out.episode_seed.len(),
                 out.spec_hash.len(),
                 out.main_move_action.len(),
                 out.main_pass_action.len(),

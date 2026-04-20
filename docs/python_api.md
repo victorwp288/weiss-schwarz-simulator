@@ -22,6 +22,9 @@ The authoritative compatibility/data-contract surfaces are:
 - `weiss_sim.export_spec_bundle()`
 - `weiss_sim.export_card_table()`
 
+`decode_action_id(...)` and `decode_factorized_action_id(...)` return `None` for
+out-of-range or otherwise unknown action ids.
+
 `export_spec_bundle()` includes two structured-policy helper blocks:
 
 - `action_factorization_v1`: stable family/`arg0`/`arg1`/`arg2` schema for factorized action heads
@@ -187,8 +190,11 @@ Both logits helpers return `(step, actions)` where `actions` is a `np.ndarray` o
 
 `ResetBatch` / `StepBatch` also expose:
 
-- `main_move_action`: per-env bool flag showing whether the last transition consumed the once-per-turn main move
-- `main_pass_action`: per-env bool flag showing whether the last transition passed main
+- `main_move_action`: per-env bool flag; always `False` on `ResetBatch`, and on
+  `StepBatch` it reports whether the immediately preceding transition consumed the
+  once-per-turn main move
+- `main_pass_action`: per-env bool flag; always `False` on `ResetBatch`, and on
+  `StepBatch` it reports whether the immediately preceding transition passed main
 - `legal_action_meta`: optional packed legality metadata aligned 1:1 with `legal_ids`
 
 ### Logits helper semantics
@@ -275,8 +281,10 @@ for i in range(num_envs):
 
 ### Debug helpers
 
-- `render(env_i=0) -> str`: human-readable ANSI board view from the current actor/start-seat perspective
-- `decode_action(action_id) -> dict | None`: decode an action id into a structured dict (family + params)
+- `render(env_i=0, mode="ansi") -> str`: human-readable ANSI board view from the
+  current actor/start-seat perspective
+- `decode_action(action_id) -> dict | None`: decode an action id into a structured
+  dict (family + params), or return `None` for invalid / unknown ids
 
 ### Runtime error auto-reset helper
 

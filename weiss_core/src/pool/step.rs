@@ -559,6 +559,12 @@ impl EnvPool {
                 main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
             };
             self.step_into_i16(action_slice, &mut out_min)?;
+            for (dst, env) in out.episode_seed[t * num_envs..(t + 1) * num_envs]
+                .iter_mut()
+                .zip(self.envs.iter())
+            {
+                *dst = env.episode_seed;
+            }
             let ids_offset = t * num_envs * ACTION_SPACE_SIZE;
             let offsets_offset = t * (num_envs + 1);
             let ids_slice =
@@ -580,8 +586,9 @@ impl EnvPool {
     /// `legal_ids`, `legal_action_meta`, `legal_offsets`, `actor`,
     /// `decision_kind`, and `decision_id` describe the pre-action state at each
     /// step, while rewards/terminal flags/engine status/main-action flags come
-    /// from the post-action transition. The `spec_hash` field is repurposed to
-    /// carry the per-step episode seed for this specialized transport.
+    /// from the post-action transition. `episode_seed` carries the per-step
+    /// episode seed for this specialized transport, while `spec_hash` remains
+    /// the simulator compatibility hash.
     ///
     /// Requires output masks to be disabled.
     pub fn rollout_heuristic_public_into_i16_legal_ids(
@@ -634,7 +641,7 @@ impl EnvPool {
             };
             let outcomes = &self.outcomes_scratch;
             self.fill_minimal_out_i16_legal_ids(outcomes, &mut pre_step)?;
-            for (dst, env) in out.spec_hash[step_offset..step_offset + num_envs]
+            for (dst, env) in out.episode_seed[step_offset..step_offset + num_envs]
                 .iter_mut()
                 .zip(self.envs.iter())
             {
@@ -818,6 +825,12 @@ impl EnvPool {
                 main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
             };
             self.step_into_i16(action_slice, &mut out_min)?;
+            for (dst, env) in out.episode_seed[t * num_envs..(t + 1) * num_envs]
+                .iter_mut()
+                .zip(self.envs.iter())
+            {
+                *dst = env.episode_seed;
+            }
             let ids_offset = t * num_envs * ACTION_SPACE_SIZE;
             let offsets_offset = t * (num_envs + 1);
             let ids_slice =

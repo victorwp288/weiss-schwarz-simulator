@@ -26,8 +26,11 @@ Local source build (optional):
 
 ```bash
 python -m pip install -U maturin numpy
-maturin develop --release --manifest-path weiss_py/Cargo.toml
+python -m maturin develop --release --manifest-path weiss_py/Cargo.toml
 ```
+
+Run the local-build commands in the Python environment where you want to import
+`weiss_sim`. If you created a virtualenv, activate it first.
 
 ## 2) Build a legal deck (minimal path)
 

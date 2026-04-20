@@ -29,13 +29,20 @@ python -m pip install -U weiss-sim numpy
 
 ```bash
 python -m pip install -U maturin numpy
-maturin develop --release --manifest-path weiss_py/Cargo.toml
+python -m maturin develop --release --manifest-path weiss_py/Cargo.toml
 ```
+
+Run the commands in the Python environment where you want `weiss_sim` installed. If you
+are using a virtualenv, activate it first.
 
 ### Option C: contributor setup (dev extras + local extension)
 
 ```bash
+rustup component add rustfmt clippy
 python -m venv .venv
+# activate the virtualenv before the next commands
+# PowerShell: .\.venv\Scripts\Activate.ps1
+# Bash / zsh: source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -e ".[dev]"
 python -m maturin develop --release --manifest-path weiss_py/Cargo.toml
@@ -131,7 +138,7 @@ Recommended paths:
 Full local CI parity:
 
 ```bash
-scripts/run_local_ci_parity.sh
+bash scripts/run_local_ci_parity.sh
 ```
 
 On Windows, run the underlying commands directly from PowerShell:
@@ -140,18 +147,18 @@ On Windows, run the underlying commands directly from PowerShell:
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
-ruff format --check python scraper scripts
-ruff check python scraper scripts
+python -m ruff format --check python scraper scripts
+python -m ruff check python scraper scripts
 python scripts/check_docs_links.py
 python scripts/check_docs_constants.py
 python scripts/gen_docs_snippets.py --check
-pytest -q python/tests
+python -m pytest -q python/tests
 ```
 
 Skip benchmark gate during iteration:
 
 ```bash
-SKIP_BENCHMARKS=1 scripts/run_local_ci_parity.sh
+SKIP_BENCHMARKS=1 bash scripts/run_local_ci_parity.sh
 ```
 
 Docs-only checks:

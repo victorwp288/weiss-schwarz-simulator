@@ -629,6 +629,7 @@ class EnvPoolTrajectoryBuffers(_EngineStatusMixin):
         self.decision_kind: np.ndarray = self.out.decision_kind
         self.decision_id: np.ndarray = self.out.decision_id
         self.engine_status: np.ndarray = self.out.engine_status
+        self.episode_seed: np.ndarray | None = getattr(self.out, "episode_seed", None)
         self.spec_hash: np.ndarray = self.out.spec_hash
         self.main_move_action: np.ndarray = self.out.main_move_action
         self.main_pass_action: np.ndarray = self.out.main_pass_action

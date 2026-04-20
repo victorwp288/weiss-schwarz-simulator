@@ -16,15 +16,16 @@ or local build:
 
 ```bash
 python -m pip install -U maturin
-maturin develop --release --manifest-path weiss_py/Cargo.toml
+python -m maturin develop --release --manifest-path weiss_py/Cargo.toml
 ```
 
 ### `maturin`/Rust toolchain failures
 
 ```bash
 rustup default stable
+rustup component add rustfmt clippy
 python -m pip install -U maturin
-maturin build --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python
+python -m maturin build --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python
 ```
 
 ## Test failures
@@ -34,9 +35,9 @@ maturin build --release --manifest-path weiss_py/Cargo.toml --out dist --interpr
 Rebuild and reinstall wheel before running tests:
 
 ```bash
-maturin build --release --manifest-path weiss_py/Cargo.toml --out /tmp/wss_dist --interpreter python
+python -m maturin build --release --manifest-path weiss_py/Cargo.toml --out /tmp/wss_dist --interpreter python
 python -m pip install --force-reinstall --no-deps /tmp/wss_dist/*.whl
-pytest -q python/tests
+python -m pytest -q python/tests
 ```
 
 ### Docs checks fail
@@ -99,7 +100,7 @@ Checklist:
 Run canonical snapshot commands:
 
 ```bash
-scripts/run_perf_snapshot.sh /tmp/wss_perf_after
+bash scripts/run_perf_snapshot.sh /tmp/wss_perf_after
 python scripts/check_perf_budget.py \
   --baseline-benches benchmark/benches.txt \
   --current-benches /tmp/wss_perf_after/benches.txt \
@@ -113,7 +114,7 @@ python scripts/check_perf_budget.py \
 ## Full local parity
 
 ```bash
-scripts/run_local_ci_parity.sh
+bash scripts/run_local_ci_parity.sh
 ```
 
 ## Related
