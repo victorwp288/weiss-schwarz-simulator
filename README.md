@@ -172,22 +172,22 @@ python scripts/gen_docs_snippets.py --check
 ## Benchmark snapshot (main)
 
 <!-- BENCHMARKS:START -->
-_Last updated: 2026-02-23 01:46 UTC_
+_Last updated: 2026-04-20 09:50 UTC_
 
 | Benchmark | Time |
 | --- | --- |
-| rust/advance_until_decision | 49587 ns/iter |
-| rust/step_batch_64 | 15233 ns/iter |
-| rust/reset_batch_256 | 819434 ns/iter |
-| rust/step_batch_fast_256_priority_off | 74805 ns/iter |
-| rust/step_batch_fast_256_priority_on | 74072 ns/iter |
-| rust/legal_actions | 13 ns/iter |
+| rust/advance_until_decision | 46132 ns/iter |
+| rust/step_batch_64 | 15603 ns/iter |
+| rust/reset_batch_256 | 860159 ns/iter |
+| rust/step_batch_fast_256_priority_off | 87326 ns/iter |
+| rust/step_batch_fast_256_priority_on | 87674 ns/iter |
+| rust/legal_actions | 11 ns/iter |
 | rust/legal_actions_forced | 11 ns/iter |
-| rust/on_reverse_decision_frequency_on | 1269 ns/iter |
-| rust/on_reverse_decision_frequency_off | 1281 ns/iter |
-| rust/observation_encode | 186 ns/iter |
-| rust/observation_encode_forced | 184 ns/iter |
-| rust/mask_construction | 318 ns/iter |
+| rust/on_reverse_decision_frequency_on | 1458 ns/iter |
+| rust/on_reverse_decision_frequency_off | 1425 ns/iter |
+| rust/observation_encode | 182 ns/iter |
+| rust/observation_encode_forced | 181 ns/iter |
+| rust/mask_construction | 297 ns/iter |
 <!-- BENCHMARKS:END -->
 
 Long-form benchmark docs: [`docs/performance_benchmarks.md`](docs/performance_benchmarks.md)
