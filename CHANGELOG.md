@@ -2,6 +2,13 @@
 
 This file is maintained by Release Please.
 
+## [0.8.1](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.8.0...v0.8.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **ci:** recover benchmark publishing after release merge ([f5ccb77](https://github.com/victorwp288/weiss-schwarz-simulator/commit/f5ccb77418b5f8942a36146a6ec37b345fae00e4))
+
 ## [0.8.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.7.0...v0.8.0) (2026-04-20)
 
 
