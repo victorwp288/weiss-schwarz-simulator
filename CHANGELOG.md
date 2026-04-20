@@ -2,6 +2,26 @@
 
 This file is maintained by Release Please.
 
+## [0.8.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.7.0...v0.8.0) (2026-04-20)
+
+
+### Features
+
+* finalize simulator release prep ([3653635](https://github.com/victorwp288/weiss-schwarz-simulator/commit/36536358934dfba0348d77574a512eacab2a7da5))
+
+
+### Bug Fixes
+
+* **ci:** avoid rustdoc ICE in docs publish ([bf96294](https://github.com/victorwp288/weiss-schwarz-simulator/commit/bf962942f348861337ec3d428d520bc3958348f7))
+* **ci:** format perf budget checker ([de21404](https://github.com/victorwp288/weiss-schwarz-simulator/commit/de21404c1f300133be01ba8111cf662a310a8b96))
+* **ci:** satisfy rust 1.95 clippy ([3febfa4](https://github.com/victorwp288/weiss-schwarz-simulator/commit/3febfa4c06494d8c7f63ad8207fa36ad896d0008))
+* **ci:** stabilize reset perf budget gate ([286fca2](https://github.com/victorwp288/weiss-schwarz-simulator/commit/286fca2a8fd990cc675dc798a8c2e4e5e9f3f660))
+
+
+### Miscellaneous Chores
+
+* **release:** trigger release-please for 0.8.0 ([7b2cc2e](https://github.com/victorwp288/weiss-schwarz-simulator/commit/7b2cc2e2504ae7efab855e5acf54de877cf0bbd4))
+
 ## [0.7.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.6.0...v0.7.0) (2026-02-23)
 
 
