@@ -2,6 +2,13 @@
 
 This file is maintained by Release Please.
 
+## [0.8.2](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.8.1...v0.8.2) (2026-04-28)
+
+
+### Bug Fixes
+
+* add heuristic public profiles ([2cacacb](https://github.com/victorwp288/weiss-schwarz-simulator/commit/2cacacb2b480377c95b826cc593fb6f987c06d0e))
+
 ## [0.8.1](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.8.0...v0.8.1) (2026-04-20)
 
 
