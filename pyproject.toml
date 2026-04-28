@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "weiss-sim"
-version = "0.8.2"
+version = "0.8.0"
 description = "Deterministic Weiss Schwarz simulator with a Rust core and Python bindings."
 readme = "README.md"
 requires-python = ">=3.10"
