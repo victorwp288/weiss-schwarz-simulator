@@ -2,6 +2,15 @@
 
 Date: 2026-04-19
 
+## 2026-04-28 hotfix release readiness
+
+- Hotfix payload: added named public heuristic profiles (`base`, `aggressive`, `control`) while preserving the default `base` behavior for existing heuristic rollout/action APIs.
+- API/docs/test follow-through: refreshed `python/weiss_sim/weiss_sim.pyi`, regenerated `docs/python_api_reference.md`, and added smoke coverage for default/base equivalence, named profile validity, rollout usage, and invalid profile errors.
+- Current local check status: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `cargo test --workspace --all-features`, `cargo build -p weiss_core --release`, Ruff format/lint, docs checks, ability coverage budget, wheel build/install, pytest, docs build, `cargo audit`, and both `pip-audit` checks passed.
+- Perf budget result: PASS vs `HEAD`; largest core regression was `step_batch_64` at `0.212%` against a `15%` budget, Python throughput improved for `step(ids)` and was effectively flat for `step(mask)`, and allocation benches remained zero.
+- Failed/adjusted idea: `bash scripts/run_local_ci_parity.sh` could not run directly because the Windows Bash environment did not inherit a usable Cargo/Python toolchain setup; the same gates were run with direct PowerShell equivalents, and perf used `maturin build` + wheel install instead of `maturin develop` because no venv is active.
+- Next release hypothesis: push a conventional `fix:` commit to `main`, let Release Please prepare the version/changelog release PR, then merge/trigger the `v*` release so the Wheels workflow publishes to PyPI.
+
 ## Fixed bugs and inconsistencies
 
 - Hardened Python legal-action metadata loading so mismatched row counts now fail fast instead of silently returning misaligned metadata.

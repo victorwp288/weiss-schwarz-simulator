@@ -2196,11 +2196,13 @@
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
+    #[pyo3(signature = (steps, out, profile_name = "base"))]
     fn rollout_heuristic_public_into_i16_legal_ids<'py>(
         &mut self,
         py: Python<'py>,
         steps: usize,
         out: PyRef<'py, PyBatchOutTrajectoryI16LegalIds>,
+        profile_name: &str,
     ) -> PyResult<()> {
         let num_envs = self.pool.envs.len();
         ensure_batch_out_trajectory_i16_legal_ids_dims(py, &out, steps, num_envs)?;
@@ -2292,8 +2294,11 @@
             actions: actions_slice,
         };
         py.allow_threads(|| {
-            self.pool
-                .rollout_heuristic_public_into_i16_legal_ids(steps, &mut out_traj)
+            self.pool.rollout_heuristic_public_profile_into_i16_legal_ids(
+                steps,
+                &mut out_traj,
+                profile_name,
+            )
         })
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }

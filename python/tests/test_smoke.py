@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 import weiss_sim
 
 
@@ -135,3 +136,37 @@ def test_heuristic_public_rollout_keeps_spec_hash_and_records_episode_seed():
     assert trajectory.spec_hash.shape == (2, 2)
     assert trajectory.spec_hash.dtype == np.uint64
     assert np.all(trajectory.spec_hash == np.uint64(weiss_sim.SPEC_HASH))
+
+
+def test_heuristic_public_profiles_validate_and_preserve_base_default():
+    env_indices = np.array([0, 1], dtype=np.uint32)
+
+    pool_default = _make_pool(seed=9261, num_envs=2, output_masks=False)
+    pool_default.reset_into_i16_legal_ids(weiss_sim.BatchOutMinimalI16LegalIds(2))
+    default_actions = np.zeros(2, dtype=np.uint16)
+    pool_default.choose_heuristic_public_actions_into(env_indices, default_actions)
+
+    pool_base = _make_pool(seed=9261, num_envs=2, output_masks=False)
+    pool_base.reset_into_i16_legal_ids(weiss_sim.BatchOutMinimalI16LegalIds(2))
+    base_actions = np.zeros(2, dtype=np.uint16)
+    pool_base.choose_heuristic_public_profile_actions_into(env_indices, base_actions, "base")
+
+    assert np.array_equal(default_actions, base_actions)
+
+    for profile_name in ("aggressive", "control"):
+        profile_pool = _make_pool(seed=9261, num_envs=2, output_masks=False)
+        profile_pool.reset_into_i16_legal_ids(weiss_sim.BatchOutMinimalI16LegalIds(2))
+        profile_actions = np.zeros(2, dtype=np.uint16)
+        profile_pool.choose_heuristic_public_profile_actions_into(
+            env_indices, profile_actions, profile_name
+        )
+        assert np.all(profile_actions < profile_pool.action_space)
+
+        trajectory = weiss_sim.BatchOutTrajectoryI16LegalIds(1, 2)
+        profile_pool.rollout_heuristic_public_into_i16_legal_ids(1, trajectory, profile_name)
+        assert np.all(trajectory.actions < profile_pool.action_space)
+
+    with pytest.raises(ValueError, match="unsupported heuristic public profile"):
+        pool_base.choose_heuristic_public_profile_actions_into(
+            env_indices, np.zeros(2, dtype=np.uint16), "reckless"
+        )

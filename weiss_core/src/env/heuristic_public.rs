@@ -6,6 +6,65 @@ use super::GameEnv;
 
 const FRONT_ROW_SLOTS: [usize; 3] = [0, 1, 2];
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum HeuristicPublicProfile {
+    Base,
+    Aggressive,
+    Control,
+}
+
+impl HeuristicPublicProfile {
+    pub(crate) fn from_name(name: &str) -> anyhow::Result<Self> {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "" | "base" => Ok(Self::Base),
+            "aggressive" => Ok(Self::Aggressive),
+            "control" => Ok(Self::Control),
+            other => anyhow::bail!(
+                "unsupported heuristic public profile {other:?}; expected one of: base, aggressive, control"
+            ),
+        }
+    }
+
+    fn attack_priority(self) -> i64 {
+        match self {
+            Self::Base => 900,
+            Self::Aggressive => 940,
+            Self::Control => 870,
+        }
+    }
+
+    fn play_priority(self) -> i64 {
+        match self {
+            Self::Control => 680,
+            _ => 650,
+        }
+    }
+
+    fn climax_priority(self) -> i64 {
+        match self {
+            Self::Base => 550,
+            Self::Aggressive => 610,
+            Self::Control => 505,
+        }
+    }
+
+    fn move_priority(self) -> i64 {
+        match self {
+            Self::Base => 120,
+            Self::Aggressive => 210,
+            Self::Control => 195,
+        }
+    }
+
+    fn pass_priority(self) -> i64 {
+        match self {
+            Self::Base => 160,
+            Self::Aggressive => 115,
+            Self::Control => 185,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 struct StageSlotPublicScore {
     occupied: bool,
@@ -41,7 +100,10 @@ fn prefer_lower(value: u8) -> i64 {
 }
 
 impl GameEnv {
-    pub(crate) fn choose_heuristic_public_action_id(&mut self) -> u16 {
+    pub(crate) fn choose_heuristic_public_action_id_for_profile(
+        &mut self,
+        profile: HeuristicPublicProfile,
+    ) -> u16 {
         let Some(decision) = self.decision.as_ref() else {
             return PASS_ACTION_ID as u16;
         };
@@ -54,7 +116,7 @@ impl GameEnv {
         let mut best_action_id = PASS_ACTION_ID as u16;
         let mut best_score: Option<(i64, i64, i64, i64, i64)> = None;
         for &action_id in self.action_ids_cache() {
-            let score = self.heuristic_public_score_action(action_id as usize, &board);
+            let score = self.heuristic_public_score_action(action_id as usize, &board, profile);
             let candidate = (score.0, score.1, score.2, score.3, -(action_id as i64));
             if best_score.is_none_or(|current| candidate > current) {
                 best_score = Some(candidate);
@@ -156,14 +218,15 @@ impl GameEnv {
         &self,
         action_id: usize,
         board: &PublicBoardScore,
+        profile: HeuristicPublicProfile,
     ) -> (i64, i64, i64, i64) {
         let Some(action) = self.action_for_id(action_id) else {
             return (-1000, 0, 0, 0);
         };
         match action {
             ActionDesc::Attack { slot, attack_type } => (
-                900,
-                self.heuristic_public_score_attack(slot as usize, attack_type, board),
+                profile.attack_priority(),
+                self.heuristic_public_score_attack(slot as usize, attack_type, board, profile),
                 0,
                 0,
             ),
@@ -177,20 +240,20 @@ impl GameEnv {
                 hand_index,
                 stage_slot,
             } => (
-                650,
-                self.heuristic_public_score_play_character(stage_slot as usize, board),
+                profile.play_priority(),
+                self.heuristic_public_score_play_character(stage_slot as usize, board, profile),
                 prefer_lower(hand_index),
                 0,
             ),
             ActionDesc::ClimaxPlay { hand_index } => (
-                550,
-                self.heuristic_public_score_climax(board),
+                profile.climax_priority(),
+                self.heuristic_public_score_climax(board, profile),
                 prefer_lower(hand_index),
                 0,
             ),
             ActionDesc::Clock { hand_index } => (
                 500,
-                self.heuristic_public_score_clock(board),
+                self.heuristic_public_score_clock(board, profile),
                 prefer_lower(hand_index),
                 0,
             ),
@@ -200,8 +263,13 @@ impl GameEnv {
             ActionDesc::TriggerOrder { index } => (280, prefer_lower(index), 0, 0),
             ActionDesc::MulliganConfirm => (260, 0, 0, 0),
             ActionDesc::MainMove { from_slot, to_slot } => (
-                120,
-                self.heuristic_public_score_move(from_slot as usize, to_slot as usize, board),
+                profile.move_priority(),
+                self.heuristic_public_score_move(
+                    from_slot as usize,
+                    to_slot as usize,
+                    board,
+                    profile,
+                ),
                 0,
                 0,
             ),
@@ -210,7 +278,7 @@ impl GameEnv {
                 (170, remaining, 0, 0)
             }
             ActionDesc::ChoicePrevPage => (170, board.choice_page_start.max(0) as i64, 0, 0),
-            ActionDesc::Pass => (160, 0, 0, 0),
+            ActionDesc::Pass => (profile.pass_priority(), 0, 0, 0),
             ActionDesc::MulliganSelect { hand_index } => (120, prefer_lower(hand_index), 0, 0),
             ActionDesc::EncoreDecline { slot } => (
                 110,
@@ -228,6 +296,7 @@ impl GameEnv {
         slot: usize,
         attack_type: AttackType,
         board: &PublicBoardScore,
+        profile: HeuristicPublicProfile,
     ) -> i64 {
         let attacker = board.self_stage.get(slot).copied().unwrap_or_default();
         let defender = board.opponent_stage.get(slot).copied().unwrap_or_default();
@@ -237,43 +306,87 @@ impl GameEnv {
         let type_score = match attack_type {
             AttackType::Direct => {
                 if defender.occupied {
-                    15
+                    match profile {
+                        HeuristicPublicProfile::Base => 15,
+                        HeuristicPublicProfile::Aggressive => 42,
+                        HeuristicPublicProfile::Control => 0,
+                    }
                 } else {
-                    60
+                    match profile {
+                        HeuristicPublicProfile::Base => 60,
+                        HeuristicPublicProfile::Aggressive => 85,
+                        HeuristicPublicProfile::Control => 38,
+                    }
                 }
             }
             AttackType::Frontal => {
                 if attacker.power >= defender.power {
-                    45
+                    match profile {
+                        HeuristicPublicProfile::Base => 45,
+                        HeuristicPublicProfile::Aggressive => 40,
+                        HeuristicPublicProfile::Control => 58,
+                    }
                 } else {
-                    25
+                    match profile {
+                        HeuristicPublicProfile::Base => 25,
+                        HeuristicPublicProfile::Aggressive => 12,
+                        HeuristicPublicProfile::Control => 35,
+                    }
                 }
             }
             AttackType::Side => {
                 if attacker.side_attack_allowed {
-                    40
+                    match profile {
+                        HeuristicPublicProfile::Base => 40,
+                        HeuristicPublicProfile::Aggressive => 18,
+                        HeuristicPublicProfile::Control => 52,
+                    }
                 } else {
-                    5
+                    match profile {
+                        HeuristicPublicProfile::Base => 5,
+                        HeuristicPublicProfile::Aggressive => -10,
+                        HeuristicPublicProfile::Control => 0,
+                    }
                 }
             }
         };
+        let soul_scale = match profile {
+            HeuristicPublicProfile::Base => 4,
+            HeuristicPublicProfile::Aggressive => 7,
+            HeuristicPublicProfile::Control => 2,
+        };
         type_score
             + slot_preference(slot)
-            + (attacker.effective_soul.max(0) as i64) * 4
+            + (attacker.effective_soul.max(0) as i64) * soul_scale
             + (attacker.power.max(0) as i64) / 1000
     }
 
-    fn heuristic_public_score_play_character(&self, slot: usize, board: &PublicBoardScore) -> i64 {
+    fn heuristic_public_score_play_character(
+        &self,
+        slot: usize,
+        board: &PublicBoardScore,
+        profile: HeuristicPublicProfile,
+    ) -> i64 {
         let stage = board.self_stage.get(slot).copied().unwrap_or_default();
         if stage.occupied {
             return -1000;
         }
         let bonus = slot_preference(slot);
         if FRONT_ROW_SLOTS.contains(&slot) {
-            return 40 + bonus;
+            let front_bonus = match profile {
+                HeuristicPublicProfile::Base => 40,
+                HeuristicPublicProfile::Aggressive => 60,
+                HeuristicPublicProfile::Control => 22,
+            };
+            return front_bonus + bonus;
         }
         if slot < MAX_STAGE {
-            return 20 + bonus;
+            let back_bonus = match profile {
+                HeuristicPublicProfile::Base => 20,
+                HeuristicPublicProfile::Aggressive => 6,
+                HeuristicPublicProfile::Control => 38,
+            };
+            return back_bonus + bonus;
         }
         bonus
     }
@@ -283,6 +396,7 @@ impl GameEnv {
         from_slot: usize,
         to_slot: usize,
         board: &PublicBoardScore,
+        profile: HeuristicPublicProfile,
     ) -> i64 {
         let origin = board.self_stage.get(from_slot).copied().unwrap_or_default();
         let target = board.self_stage.get(to_slot).copied().unwrap_or_default();
@@ -291,15 +405,27 @@ impl GameEnv {
         }
         let mut bonus = 0;
         if from_slot >= 3 && FRONT_ROW_SLOTS.contains(&to_slot) {
-            bonus += 30;
+            bonus += match profile {
+                HeuristicPublicProfile::Base => 30,
+                HeuristicPublicProfile::Aggressive => 48,
+                HeuristicPublicProfile::Control => 18,
+            };
         }
         if to_slot == 1 && from_slot != 1 {
-            bonus += 15;
+            bonus += match profile {
+                HeuristicPublicProfile::Base => 15,
+                HeuristicPublicProfile::Aggressive => 28,
+                HeuristicPublicProfile::Control => 6,
+            };
         }
         (slot_preference(to_slot) - slot_preference(from_slot)) + bonus
     }
 
-    fn heuristic_public_score_climax(&self, board: &PublicBoardScore) -> i64 {
+    fn heuristic_public_score_climax(
+        &self,
+        board: &PublicBoardScore,
+        profile: HeuristicPublicProfile,
+    ) -> i64 {
         let attackers = FRONT_ROW_SLOTS
             .iter()
             .filter(|&&slot| {
@@ -311,14 +437,53 @@ impl GameEnv {
             .iter()
             .filter(|&&slot| board.opponent_stage[slot].occupied)
             .count() as i64;
-        attackers * 10 + defenders * 4 + if attackers > 0 { 10 } else { -20 }
+        let attacker_scale = match profile {
+            HeuristicPublicProfile::Base => 10,
+            HeuristicPublicProfile::Aggressive => 16,
+            HeuristicPublicProfile::Control => 6,
+        };
+        let defender_scale = match profile {
+            HeuristicPublicProfile::Base => 4,
+            HeuristicPublicProfile::Aggressive => 8,
+            HeuristicPublicProfile::Control => 2,
+        };
+        let active_bonus = match profile {
+            HeuristicPublicProfile::Base => 10,
+            HeuristicPublicProfile::Aggressive => 18,
+            HeuristicPublicProfile::Control => 6,
+        };
+        let inactive_bonus = match profile {
+            HeuristicPublicProfile::Base => -20,
+            HeuristicPublicProfile::Aggressive => -32,
+            HeuristicPublicProfile::Control => -8,
+        };
+        attackers * attacker_scale
+            + defenders * defender_scale
+            + if attackers > 0 {
+                active_bonus
+            } else {
+                inactive_bonus
+            }
     }
 
-    fn heuristic_public_score_clock(&self, board: &PublicBoardScore) -> i64 {
+    fn heuristic_public_score_clock(
+        &self,
+        board: &PublicBoardScore,
+        profile: HeuristicPublicProfile,
+    ) -> i64 {
         if board.self_level_count <= 0 && board.self_clock_count < 6 {
-            return (40 - board.self_clock_count) as i64;
+            let early_clock = match profile {
+                HeuristicPublicProfile::Base => 40,
+                HeuristicPublicProfile::Aggressive => 18,
+                HeuristicPublicProfile::Control => 48,
+            };
+            return (early_clock - board.self_clock_count) as i64;
         }
-        10
+        match profile {
+            HeuristicPublicProfile::Base => 10,
+            HeuristicPublicProfile::Aggressive => 4,
+            HeuristicPublicProfile::Control => 14,
+        }
     }
 
     fn heuristic_public_score_slot(

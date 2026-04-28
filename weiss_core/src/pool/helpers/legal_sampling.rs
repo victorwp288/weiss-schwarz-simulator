@@ -5,6 +5,7 @@ use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
 use crate::encode::{action_meta_for_id, ACTION_META_UNUSED, ACTION_META_WIDTH, ACTION_SPACE_SIZE};
+use crate::env::heuristic_public::HeuristicPublicProfile;
 use crate::legal::ActionDesc;
 
 use super::super::core::EnvPool;
@@ -297,14 +298,25 @@ impl EnvPool {
         env_indices: &[usize],
         out: &mut [u16],
     ) -> Result<()> {
+        self.choose_heuristic_public_profile_actions_into(env_indices, out, "base")
+    }
+
+    /// Choose deterministic public-only heuristic actions for the selected env rows using a named profile.
+    pub fn choose_heuristic_public_profile_actions_into(
+        &mut self,
+        env_indices: &[usize],
+        out: &mut [u16],
+        profile_name: &str,
+    ) -> Result<()> {
         if env_indices.len() != out.len() {
             anyhow::bail!("output length must match env_indices length");
         }
+        let profile = HeuristicPublicProfile::from_name(profile_name)?;
         for (slot, &env_index) in env_indices.iter().enumerate() {
             let Some(env) = self.envs.get_mut(env_index) else {
                 anyhow::bail!("env_index {env_index} out of bounds");
             };
-            out[slot] = env.choose_heuristic_public_action_id();
+            out[slot] = env.choose_heuristic_public_action_id_for_profile(profile);
         }
         Ok(())
     }

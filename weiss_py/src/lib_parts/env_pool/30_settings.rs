@@ -766,6 +766,49 @@
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
     }
 
+    fn choose_heuristic_public_profile_actions_into<'py>(
+        &mut self,
+        py: Python<'py>,
+        env_indices: PyReadonlyArray1<u32>,
+        actions: Py<PyArray1<u16>>,
+        profile_name: &str,
+    ) -> PyResult<()> {
+        let indices_u32 = env_indices
+            .as_slice()
+            .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("env_indices not contiguous"))?;
+        let num_envs = self.pool.envs.len();
+        let mut indices = Vec::with_capacity(indices_u32.len());
+        for (position, &env_index) in indices_u32.iter().enumerate() {
+            let env_index_usize = env_index as usize;
+            if env_index_usize >= num_envs {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "env_indices[{position}] out of bounds (got {env_index_usize}, max {})",
+                    num_envs.saturating_sub(1)
+                )));
+            }
+            indices.push(env_index_usize);
+        }
+        let mut actions_arr = array_mut(py, &actions);
+        let actions_slice = actions_arr.as_slice_mut().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
+        })?;
+        if actions_slice.len() != indices.len() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "actions length must match env_indices length (got {}, expected {})",
+                actions_slice.len(),
+                indices.len()
+            )));
+        }
+        py.allow_threads(|| {
+            self.pool.choose_heuristic_public_profile_actions_into(
+                &indices,
+                actions_slice,
+                profile_name,
+            )
+        })
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
+    }
+
     fn sample_legal_action_ids_uniform_into<'py>(
         &self,
         py: Python<'py>,

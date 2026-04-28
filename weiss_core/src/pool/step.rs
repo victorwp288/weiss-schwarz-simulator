@@ -596,6 +596,19 @@ impl EnvPool {
         steps: usize,
         out: &mut BatchOutTrajectoryI16LegalIds<'_>,
     ) -> Result<()> {
+        self.rollout_heuristic_public_profile_into_i16_legal_ids(steps, out, "base")
+    }
+
+    /// Roll out a trajectory using a named heuristic-public profile with internal auto-reset.
+    ///
+    /// Profile names match the Python heuristic surface: `base`, `aggressive`, or `control`.
+    /// Requires output masks to be disabled.
+    pub fn rollout_heuristic_public_profile_into_i16_legal_ids(
+        &mut self,
+        steps: usize,
+        out: &mut BatchOutTrajectoryI16LegalIds<'_>,
+        profile_name: &str,
+    ) -> Result<()> {
         if self.output_mask_enabled {
             anyhow::bail!("legal ids trajectory requires output masks disabled");
         }
@@ -648,7 +661,11 @@ impl EnvPool {
                 *dst = env.episode_seed;
             }
 
-            self.choose_heuristic_public_actions_into(&env_indices, &mut chosen_actions)?;
+            self.choose_heuristic_public_profile_actions_into(
+                &env_indices,
+                &mut chosen_actions,
+                profile_name,
+            )?;
             let action_slice = &mut out.actions[step_offset..step_offset + num_envs];
             for (dst, &action_id) in action_slice.iter_mut().zip(chosen_actions.iter()) {
                 *dst = u32::from(action_id);

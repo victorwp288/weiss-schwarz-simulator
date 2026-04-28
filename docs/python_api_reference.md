@@ -419,6 +419,12 @@ Methods:
     env_indices: np.ndarray,
     actions_out: np.ndarray,
 ) -> None: ...`
+- `def choose_heuristic_public_profile_actions_into(
+    self,
+    env_indices: np.ndarray,
+    actions_out: np.ndarray,
+    profile_name: str,
+) -> None: ...`
 - `def config_hash(self) -> int: ...`
 - `def debug_event_ring_capacity(self) -> int: ...`
 - `def decision_count_batch(self) -> np.ndarray: ...`
@@ -571,6 +577,7 @@ Methods:
     self,
     steps: int,
     out: BatchOutTrajectoryI16LegalIds,
+    profile_name: str = ...,
 ) -> None: ...`
 - `def rollout_sample_legal_action_ids_uniform_into(
     self,
