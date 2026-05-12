@@ -11,6 +11,7 @@ use std::thread;
 const MAGIC: &[u8; 4] = b"WSR1";
 const FLAG_COMPRESSED: u8 = 1 << 0;
 const FLAG_PAYLOAD_LEN_U64: u8 = 1 << 1;
+const MAX_REPLAY_PAYLOAD_BYTES: usize = 64 * 1024 * 1024;
 /// Current replay schema version.
 pub const REPLAY_SCHEMA_VERSION: u32 = 3;
 /// Sentinel id for unknown or unmappable actions in replays.
@@ -240,6 +241,12 @@ fn write_replay_to_writer<W: Write>(
     // wrapped in a stable framing header (magic, flags, explicit len). This
     // preserves deterministic binary output for the same `ReplayData`.
     let base = postcard::to_stdvec(data)?;
+    if base.len() > MAX_REPLAY_PAYLOAD_BYTES {
+        anyhow::bail!(
+            "Replay payload length {} exceeds maximum {MAX_REPLAY_PAYLOAD_BYTES} bytes",
+            base.len()
+        );
+    }
     let payload = if compress {
         #[cfg(feature = "replay-zstd")]
         {
@@ -252,6 +259,12 @@ fn write_replay_to_writer<W: Write>(
     } else {
         base
     };
+    if payload.len() > MAX_REPLAY_PAYLOAD_BYTES {
+        anyhow::bail!(
+            "Replay encoded payload length {} exceeds maximum {MAX_REPLAY_PAYLOAD_BYTES} bytes",
+            payload.len()
+        );
+    }
     let mut len_bytes = Vec::with_capacity(8);
     let len_flag = write_payload_len(&mut len_bytes, payload.len())?;
     let mut flags = if compress { FLAG_COMPRESSED } else { 0 };
@@ -284,7 +297,13 @@ fn read_payload_len<R: Read>(reader: &mut R, flags: u8) -> Result<usize> {
         reader.read_exact(&mut len_bytes)?;
         u64::from(u32::from_le_bytes(len_bytes))
     };
-    usize::try_from(len).context("Replay payload length exceeds platform limits")
+    let len = usize::try_from(len).context("Replay payload length exceeds platform limits")?;
+    if len > MAX_REPLAY_PAYLOAD_BYTES {
+        anyhow::bail!(
+            "Replay payload length {len} exceeds maximum {MAX_REPLAY_PAYLOAD_BYTES} bytes"
+        );
+    }
+    Ok(len)
 }
 
 /// Read and decode a replay file from disk.
@@ -309,7 +328,16 @@ fn read_replay_from_reader<R: Read>(reader: &mut R) -> Result<ReplayData> {
     if compressed {
         #[cfg(feature = "replay-zstd")]
         {
-            payload = zstd::stream::decode_all(&payload[..])?;
+            let decoder = zstd::stream::read::Decoder::new(&payload[..])?;
+            let mut limited = decoder.take((MAX_REPLAY_PAYLOAD_BYTES as u64) + 1);
+            let mut decoded = Vec::new();
+            limited.read_to_end(&mut decoded)?;
+            if decoded.len() > MAX_REPLAY_PAYLOAD_BYTES {
+                anyhow::bail!(
+                    "Replay decompressed payload exceeds maximum {MAX_REPLAY_PAYLOAD_BYTES} bytes"
+                );
+            }
+            payload = decoded;
         }
         #[cfg(not(feature = "replay-zstd"))]
         {
@@ -414,18 +442,35 @@ mod tests {
     }
 
     #[test]
-    fn payload_len_codec_uses_u64_without_truncation() {
-        if usize::BITS <= 32 {
-            return;
-        }
-        let len = (u32::MAX as usize) + 9;
+    fn replay_reader_rejects_oversized_u64_payload_len_before_allocating() {
+        let len = (MAX_REPLAY_PAYLOAD_BYTES as u64) + 1;
         let mut bytes = Vec::new();
-        let len_flag = write_payload_len(&mut bytes, len).expect("encode length");
-        assert_eq!(len_flag, FLAG_PAYLOAD_LEN_U64);
-        assert_eq!(bytes.len(), 8);
-        let decoded =
-            read_payload_len(&mut Cursor::new(bytes), len_flag).expect("decode encoded length");
-        assert_eq!(decoded, len);
+        bytes.extend_from_slice(MAGIC);
+        bytes.push(FLAG_PAYLOAD_LEN_U64);
+        bytes.extend_from_slice(&len.to_le_bytes());
+
+        let err = read_replay_from_reader(&mut Cursor::new(bytes)).expect_err("oversize replay");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("exceeds maximum"),
+            "unexpected oversize replay error: {msg}"
+        );
+    }
+
+    #[test]
+    fn replay_reader_rejects_oversized_legacy_payload_len_before_allocating() {
+        let len = (MAX_REPLAY_PAYLOAD_BYTES as u32) + 1;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(MAGIC);
+        bytes.push(0);
+        bytes.extend_from_slice(&len.to_le_bytes());
+
+        let err = read_replay_from_reader(&mut Cursor::new(bytes)).expect_err("oversize replay");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("exceeds maximum"),
+            "unexpected oversize replay error: {msg}"
+        );
     }
 
     #[test]

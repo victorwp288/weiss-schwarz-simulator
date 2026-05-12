@@ -6,19 +6,34 @@ use anyhow::{Context, Result};
 use super::store::CardDb;
 
 const WSDB_MAGIC: &[u8; 4] = b"WSDB";
+const MAX_WSDB_BYTES: u64 = 128 * 1024 * 1024;
 /// Current wsdb schema version.
 pub const WSDB_SCHEMA_VERSION: u32 = 2;
 
 impl CardDb {
     /// Load a WSDB v2 file from disk.
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let bytes = fs::read(&path)
-            .with_context(|| format!("Failed to read card db {:?}", path.as_ref()))?;
+        let path = path.as_ref();
+        let metadata =
+            fs::metadata(path).with_context(|| format!("Failed to stat card db {path:?}"))?;
+        if metadata.len() > MAX_WSDB_BYTES {
+            anyhow::bail!(
+                "Card db file {path:?} is {} bytes, exceeding maximum {MAX_WSDB_BYTES} bytes",
+                metadata.len()
+            );
+        }
+        let bytes = fs::read(path).with_context(|| format!("Failed to read card db {path:?}"))?;
         Self::from_wsdb_bytes(&bytes)
     }
 
     /// Parse a WSDB v2 file from bytes.
     pub fn from_wsdb_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() as u64 > MAX_WSDB_BYTES {
+            anyhow::bail!(
+                "Card db byte buffer is {} bytes, exceeding maximum {MAX_WSDB_BYTES} bytes",
+                bytes.len()
+            );
+        }
         if bytes.len() < 8 {
             anyhow::bail!("Card db file too small");
         }

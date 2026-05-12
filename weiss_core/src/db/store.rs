@@ -7,6 +7,14 @@ use super::ability::{
 use super::card::CardStatic;
 use super::types::{CardColor, CardId, CardType};
 
+/// Upper bound for dense per-id lookup caches.
+///
+/// The simulator stores several lookup vectors indexed directly by `CardId`.
+/// Rejecting sparse, very large ids keeps attacker-supplied WSDB files from
+/// forcing unbounded allocations while leaving substantial headroom for real
+/// card catalogs.
+pub const MAX_CARD_ID_INDEX: CardId = 1_000_000;
+
 /// Loaded card database with cached per-id lookups and compiled abilities.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(try_from = "CardDbRaw", into = "CardDbRaw")]
@@ -147,6 +155,13 @@ impl CardDb {
         for card in &mut self.cards {
             if card.id == 0 {
                 anyhow::bail!("CardId 0 is reserved for empty and cannot appear in the db");
+            }
+            if card.id > MAX_CARD_ID_INDEX {
+                anyhow::bail!(
+                    "CardId {} exceeds maximum supported id {}",
+                    card.id,
+                    MAX_CARD_ID_INDEX
+                );
             }
             if card.counter_timing
                 && !matches!(card.card_type, CardType::Event | CardType::Character)

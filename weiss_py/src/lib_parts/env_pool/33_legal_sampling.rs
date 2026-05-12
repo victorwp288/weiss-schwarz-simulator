@@ -5,11 +5,11 @@
         offsets: Py<PyArray1<u32>>,
     ) -> PyResult<usize> {
         let num_envs = self.pool.envs.len();
-        let mut ids_arr = array_mut(py, &ids);
+        let mut ids_arr = array_mut(py, &ids)?;
         let ids_slice = ids_arr
             .as_slice_mut()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("ids not contiguous"))?;
-        let mut offsets_arr = array_mut(py, &offsets);
+        let mut offsets_arr = array_mut(py, &offsets)?;
         let offsets_slice = offsets_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("offsets not contiguous")
         })?;
@@ -53,7 +53,7 @@
             )
         })?;
         ensure_first_two_dims(py, "legal_action_meta", &meta, expected_rows, ACTION_META_WIDTH)?;
-        let mut meta_arr = array_mut(py, &meta);
+        let mut meta_arr = array_mut(py, &meta)?;
         let meta_slice = meta_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
         })?;
@@ -78,7 +78,7 @@
             expected_rows,
             LEGAL_ACTION_CONTEXT_V1_WIDTH,
         )?;
-        let mut context_arr = array_mut(py, &context);
+        let mut context_arr = array_mut(py, &context)?;
         let context_slice = context_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "legal_action_context not contiguous",
@@ -109,7 +109,7 @@
             }
             indices.push(env_index_usize);
         }
-        let mut actions_arr = array_mut(py, &actions);
+        let mut actions_arr = array_mut(py, &actions)?;
         let actions_slice = actions_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
         })?;
@@ -146,7 +146,7 @@
             }
             indices.push(env_index_usize);
         }
-        let mut actions_arr = array_mut(py, &actions);
+        let mut actions_arr = array_mut(py, &actions)?;
         let actions_slice = actions_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
         })?;
@@ -177,7 +177,7 @@
         let seeds = seeds
             .as_slice()
             .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("seeds not contiguous"))?;
-        let mut actions_arr = array_mut(py, &actions);
+        let mut actions_arr = array_mut(py, &actions)?;
         let actions_slice = actions_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
         })?;
@@ -218,7 +218,7 @@
         let logits = logits.as_slice().map_err(|_| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("logits not contiguous")
         })?;
-        let mut actions_arr = array_mut(py, &actions);
+        let mut actions_arr = array_mut(py, &actions)?;
         let actions_slice = actions_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
         })?;
@@ -257,7 +257,7 @@
             .as_slice()
             .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("seeds not contiguous"))?;
         ensure_len("seeds", seeds.len(), num_envs)?;
-        let mut actions_arr = array_mut(py, &actions);
+        let mut actions_arr = array_mut(py, &actions)?;
         let actions_slice = actions_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
         })?;
@@ -287,15 +287,15 @@
         let seeds = seeds
             .as_slice()
             .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("seeds not contiguous"))?;
-        let mut ids_arr = array_mut(py, &ids);
+        let mut ids_arr = array_mut(py, &ids)?;
         let ids_slice = ids_arr
             .as_slice_mut()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("ids not contiguous"))?;
-        let mut offsets_arr = array_mut(py, &offsets);
+        let mut offsets_arr = array_mut(py, &offsets)?;
         let offsets_slice = offsets_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("offsets not contiguous")
         })?;
-        let mut actions_arr = array_mut(py, &actions);
+        let mut actions_arr = array_mut(py, &actions)?;
         let actions_slice = actions_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("actions not contiguous")
         })?;
