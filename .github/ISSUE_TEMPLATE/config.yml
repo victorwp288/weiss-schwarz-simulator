@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/victorwp288/weiss-schwarz-simulator/security/advisories/new
+    about: Report suspected vulnerabilities privately.
+  - name: Documentation hub
+    url: https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/README.md
+    about: Start here for install, API, RL, architecture, and release docs.

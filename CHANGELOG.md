@@ -2,6 +2,20 @@
 
 This file is maintained by Release Please.
 
+## [1.0.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.8.2...v1.0.0) (2026-05-11)
+
+
+### Features
+
+* stabilize the simulator as the 1.0 research release line
+* expose packed no-metadata RL layouts and fused sampled-logp stepping for throughput-sensitive Python training loops
+* document legal-action context tensors for learner-side feature construction
+
+
+### Documentation
+
+* refresh the README, CONTRIBUTING release flow, Python API guide, benchmark docs, and GitHub community files for release readiness
+
 ## [0.8.2](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.8.1...v0.8.2) (2026-04-28)
 
 
@@ -44,7 +58,7 @@ This file is maintained by Release Please.
 * add beginner guide and finalize remaining updates ([d40bf44](https://github.com/victorwp288/weiss-schwarz-simulator/commit/d40bf44b237cee74a13e4fc385d7e6ea1d32499c))
 * improve Python API ergonomics and prepare v0.7.0 ([db073a0](https://github.com/victorwp288/weiss-schwarz-simulator/commit/db073a0eae0e43121dc416439c1a7285409ec225))
 
-## [0.6.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.6.0...v0.6.0) (2026-02-22)
+## [0.6.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.4.0...v0.6.0) (2026-02-22)
 
 
 ### Features
@@ -138,5 +152,3 @@ This file is maintained by Release Please.
 
 * repair wheels and benchmark workflows ([210de47](https://github.com/victorwp288/weiss-schwarz-simulator/commit/210de47ff0562e2767d4086cb5aec05aac177dcd))
 * stabilize CI filters and wheel/bench workflows ([1532f31](https://github.com/victorwp288/weiss-schwarz-simulator/commit/1532f3142f0a8e8d7cb4862efc7cb7d8765174d3))
-
-## [Unreleased]

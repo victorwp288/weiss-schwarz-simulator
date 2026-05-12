@@ -1,15 +1,22 @@
 [package]
 name = "weiss_py"
-version = "0.8.2"
+version = "1.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+publish = false
+description = "PyO3 bindings for the deterministic Weiss Schwarz simulator."
+repository = "https://github.com/victorwp288/weiss-schwarz-simulator"
+homepage = "https://github.com/victorwp288/weiss-schwarz-simulator"
+documentation = "https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/"
+readme = "../README.md"
 
 [lib]
 name = "weiss_py"
 crate-type = ["cdylib"]
+doc = false
 
 [dependencies]
-weiss_core = { path = "../weiss_core" }
+weiss_core = { path = "../weiss_core", version = "1.0.0" }
 pyo3 = { version = "0.24", features = ["extension-module"] }
 numpy = "0.24"
 anyhow = "1"

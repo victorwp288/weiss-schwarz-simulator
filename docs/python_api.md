@@ -25,10 +25,11 @@ The authoritative compatibility/data-contract surfaces are:
 `decode_action_id(...)` and `decode_factorized_action_id(...)` return `None` for
 out-of-range or otherwise unknown action ids.
 
-`export_spec_bundle()` includes two structured-policy helper blocks:
+`export_spec_bundle()` includes structured-policy helper blocks:
 
 - `action_factorization_v1`: stable family/`arg0`/`arg1`/`arg2` schema for factorized action heads
 - `action_meta_v1`: packed legal-row metadata layout (`family_id`, `arg0`, `arg1`, `arg2`)
+- `legal_action_context_v1`: optional per-legal-action context tensor schema for learning features that need more than static action metadata
 
 ## High-level API (`WeissEnv`)
 
@@ -39,11 +40,6 @@ out-of-range or otherwise unknown action ids.
 - `weiss_sim.inspect(...)` (`mode="inspect"` fixed)
 
 Legacy entry points `create()`, `train()`, and `evaluate()` are removed.
-
-### Python API reference (generated)
-
-For an exhaustive, always-in-sync list of exported names and signatures, see
-[Python API Reference (generated)](python_api_reference.md).
 
 ### `make()` signature (generated)
 
@@ -60,9 +56,10 @@ weiss_sim.make(
     deck=None,
     opponent_deck=None,
     db_path=None,
-    rules_profile="strict",
+    rules_profile="approx",
     card_pool="parsed_only",
     curriculum=None,
+    reward=None,
     reward_json=None,
     end_condition_policy=None,
     observation_visibility="public",
@@ -106,6 +103,28 @@ weiss_sim.make(
 
 Legacy policy aliases are removed.
 
+### Reward overrides
+
+Use the typed `RewardOverrides` helper for simulator-side terminal rewards and
+light shaping:
+
+```python
+reward = weiss_sim.RewardOverrides(
+    enable_shaping=True,
+    damage_reward=0.05,
+    level_reward=0.0,
+    board_reward=0.0,
+    no_progress_penalty=0.0,
+)
+
+with weiss_sim.fast(num_envs=32, reward=reward) as sim:
+    batch = sim.reset()
+```
+
+`reward_json` remains available for compatibility and accepts the same schema as
+a JSON object. `reward` and `reward_json` are mutually exclusive. Unknown reward
+fields are rejected so typos do not silently change an experiment.
+
 ## 0.7 migration notes
 
 Breaking API updates in `0.7.0`:
@@ -134,8 +153,14 @@ Accepted for `deck` and `opponent_deck`:
 
 - `Sequence[int]`
 - `Mapping[int|str, int]`
-- preset string (for example `"preset:starter_v1"`)
+- preset string (for example `"preset:starter_deck_ws02_v1"`)
 - path-like string / `Path`
+
+Bundled presets are the four release decklists: `starter_deck_ws02_v1`,
+`control_deck_jj_s66_v1`, `main_deck_5hy_yotsuba_v1`, and
+`aggro_deck_5hy_nino_v1`. Use `weiss_sim.cards.presets()` to list the presets in the
+installed package. These presets require `rules_profile="approx"` because they include
+partially parsed card abilities.
 
 `card_pool="parsed_only"` enforces packaged catalog compatibility and may raise `DbMismatchError`.
 
@@ -155,8 +180,7 @@ Minimal builder flow:
 ```python
 import weiss_sim
 
-b = weiss_sim.cards.builder()
-b.add("CARD-1", 4).add("CARD-2", 4)
+b = weiss_sim.cards.builder(initial="starter_deck_ws02_v1")
 report = b.validate(rules_profile="approx", card_pool="all")
 if report.ok:
     ids = b.build(rules_profile="approx", card_pool="all")
@@ -253,7 +277,7 @@ The returned dict includes:
 - mode/runtime knobs (`mode`, `runtime_mode`, `legal_repr`, `obs_dtype`, `ids_safety`)
 - sizing (`num_envs`, `num_threads`)
 - determinism (`seed`, `seed_source`)
-- policy/config (`rules_profile`, `card_pool`, `curriculum`, `error_policy`, `end_condition_policy`)
+- policy/config (`rules_profile`, `card_pool`, `curriculum`, `reward`, `error_policy`, `end_condition_policy`)
 - resolved deck visibility (`resolved_decks.player` / `resolved_decks.opponent` with `ids`, per-slot `cards`, and aggregated `counts`)
 - db compatibility (`db` object with hashes and match status)
 - compatibility/runtime metadata (`spec_hash`, `action_space`, `reward_timeout_policy`)
@@ -330,7 +354,7 @@ pool, buffers = weiss_sim.make_pool(
     seed=0,
     profile="fast",               # optional: fast / balanced / eval / debug
     rollout_steps=None,           # set int to receive EnvPoolTrajectoryBuffers
-    layout="i16_legal_ids",       # mask / nomask / i16 / i16_legal_ids
+    layout="i16_legal_ids",       # mask / nomask / i16 / i16_legal_ids / i16_legal_ids_nometa
 )
 ```
 
@@ -350,7 +374,9 @@ Common methods on `EnvPoolBuffers`:
 - `step(actions)`
 - `step_select_from_logits(logits) -> (StepBatch, np.ndarray actions)`
 - `step_sample_from_logits(logits, seeds) -> (StepBatch, np.ndarray actions)`
+- `step_sample_from_logits_with_logp(logits, seeds, action_logp=None) -> (StepBatch, np.ndarray actions, np.ndarray action_logp)`
 - `legal_action_ids()` / `legal_action_ids_and_sample_uniform(seeds)`
+- `legal_action_context_v1(out=None) -> tuple[np.ndarray, np.ndarray]`
 
 `EnvPoolTrajectoryBuffers` methods:
 
@@ -363,6 +389,7 @@ Common methods on `EnvPoolBuffers`:
 - `step_rl(pool, actions, layout=..., out=None)`
 - `step_rl_select_from_logits(pool, logits, layout=..., actions=None, out=None)`
 - `step_rl_sample_from_logits(pool, logits, seeds, layout=..., actions=None, out=None)`
+- `step_rl_sample_from_logits_with_logp(pool, logits, seeds, layout=..., actions=None, action_logp=None, out=None)`
 
 ### Advanced low-level debug output (`BatchOutDebug`)
 
@@ -375,6 +402,8 @@ Use it with debug pool entrypoints:
 - `weiss_sim.make_batch_out_debug(pool, event_capacity=None)` allocates `BatchOutDebug` with pool-aware defaults.
 
 `BatchOutDebug` includes full debug-facing fields (`obs`, `masks`, `rewards`, `terminated`, `truncated`, `actor`, `decision_kind`, `decision_id`, `engine_status`, `spec_hash`) and is intended for advanced tooling rather than standard RL loops.
+It also exposes `reward_components` with shape `(num_envs, 5)` in fixed order:
+`terminal`, `damage`, `level`, `board`, `no_progress`.
 
 ### Layouts
 
@@ -384,10 +413,42 @@ Use it with debug pool entrypoints:
 | `nomask` | no | no | i32 |
 | `i16` | yes | no | i16 |
 | `i16_legal_ids` | no | yes | i16 |
+| `i16_legal_ids_nometa` | no | yes | i16 |
 
-### Legacy cleanup status
+`i16_legal_ids_nometa` preserves `legal_ids` and `legal_offsets` but skips
+`legal_action_meta` materialization. It is the preferred layout when the training loop
+chooses actions from logits and does not consume packed action metadata.
 
-The public low-level API is intentionally consolidated around `make_pool`, the two canonical buffer classes, and the four canonical RL helpers.
+### Throughput-sensitive sampled-logp path
+
+For PPO/A2C-style loops that need both sampled actions and behavior log-probabilities,
+use the fused sampled-logp helper on a packed legal-id layout:
+
+```python
+import numpy as np
+import weiss_sim
+
+pool, buffers = weiss_sim.make_pool(
+    mode="train",
+    num_envs=128,
+    deck_lists=[deck_a, deck_b],
+    seed=0,
+    profile="fast",
+    layout="i16_legal_ids_nometa",
+)
+buffers.reset()
+logits = np.zeros((pool.envs_len, weiss_sim.ACTION_SPACE_SIZE), dtype=np.float32)
+seeds = np.arange(pool.envs_len, dtype=np.uint64)
+step, actions, action_logp = buffers.step_sample_from_logits_with_logp(logits, seeds)
+```
+
+If you need the lower-level function form, `step_rl_sample_from_logits_with_logp(...)`
+supports the same packed layouts. Pass a preallocated `out` buffer and `action_logp`
+array when you want to avoid per-step allocation.
+
+### Compatibility surface
+
+The public low-level API is centered on `make_pool`, the two canonical buffer classes, and the four canonical RL helpers.
 
 ## Card/catalog helpers
 
@@ -395,6 +456,8 @@ The public low-level API is intentionally consolidated around `make_pool`, the t
 - `weiss_sim.cards.suggest(query, limit=5)`
 - `weiss_sim.cards.get(identifier)`
 - `weiss_sim.cards.presets()`
+- `weiss_sim.cards.preset_metadata(name=None)`
+- `weiss_sim.cards.preset_min_rules_profile(name)`
 - `weiss_sim.cards.builder(initial=None)`
 - `weiss_sim.cards.resolve_deck(...)`
 - `weiss_sim.cards.validate_deck(...)`
@@ -421,6 +484,9 @@ The public low-level API is intentionally consolidated around `make_pool`, the t
 - `PASS_ACTION_ID`
 - `SPEC_HASH`
 - `POLICY_VERSION`
+- `REWARD_COMPONENT_WIDTH`
+- `LEGAL_ACTION_CONTEXT_V1_WIDTH`
+- `LEGAL_ACTION_CONTEXT_UNUSED`
 - `observation_spec_json()`
 - `action_spec_json()`
 - `spec_bundle()` / `export_spec_bundle()`
@@ -435,3 +501,6 @@ Important exceptions:
 - `DeckValidationError`
 - `CardLookupError`
 - `WeissSimError`
+
+For exhaustive exported names and signatures, inspect `python/weiss_sim/weiss_sim.pyi`
+and the generated snippet checked by `python scripts/gen_docs_snippets.py --check`.

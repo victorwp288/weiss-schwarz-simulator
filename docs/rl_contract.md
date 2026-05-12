@@ -13,7 +13,8 @@ This contract covers:
 - legal action surfaces
 - compatibility constants and `SPEC_HASH`
 
-This contract does not describe full rules coverage. See [Rules Coverage](rules_coverage.md).
+Rules coverage, scraper boundaries, replay schema, and WSDB schema notes live in
+[Architecture](architecture.md).
 
 ## Step semantics
 
@@ -68,8 +69,15 @@ Reward configuration defaults (`RewardConfig`):
 - `terminal_timeout = 0.0`
 - `enable_shaping = false`
 - `damage_reward = 0.1`
+- `level_reward = 0.0`
+- `board_reward = 0.0`
+- `no_progress_penalty = 0.0`
 
-`reward_json` schema keys match `RewardConfig` field names:
+High-level Python code should prefer `reward=weiss_sim.RewardOverrides(...)`.
+The compatibility `reward_json` argument accepts the same keys as JSON.
+Unknown reward fields are rejected.
+
+Reward schema keys match `RewardConfig` field names:
 
 - `terminal_win` (float)
 - `terminal_loss` (float)
@@ -99,11 +107,19 @@ Typical low-level outputs (`BatchOut*` / buffer wrappers):
 | `main_move_action` | `(N,)` | whether the last transition consumed the once-per-turn main move |
 | `main_pass_action` | `(N,)` | whether the last transition passed main |
 
+`BatchOutDebug.reward_components` has shape `(N, 5)` and is debug-only. The
+fixed component order is `terminal`, `damage`, `level`, `board`, `no_progress`;
+each row sums to `rewards[i]` except for floating-point roundoff.
+
 Low-level legal action surfaces:
 
 - dense mask (`masks`) when enabled
 - packed ids (`legal_ids`, `legal_offsets`) depending on buffer/API mode
-- aligned packed metadata (`legal_action_meta`) when legal ids are present
+- aligned packed metadata (`legal_action_meta`) when the selected packed-id layout includes it
+- `i16_legal_ids_nometa` keeps packed ids and omits `legal_action_meta` for hot RL loops that do not consume action metadata
+- opt-in dynamic action context via `EnvPoolBuffers.legal_action_context_v1(...)`;
+  this is not emitted by default and is aligned 1:1 with the used
+  `legal_ids[:legal_offsets[-1]]` prefix
 
 ## High-level batch schema (`ResetBatch` / `StepBatch`)
 
@@ -136,6 +152,11 @@ Invariants enforced in high-level path:
 - `terminated` and `truncated` are never both true at one index
 - legal ids (when present) are strictly ascending and unique per env slice
 - legal metadata (when present) is aligned 1:1 with the used `legal_ids` prefix
+
+Logits sampling seed semantics:
+
+- fused logits samplers deterministically mix each caller-provided `u64` seed before converting it to a unit uniform sample
+- this makes small sequential seed buffers safe to use without collapsing softmax sampling toward the first legal action
 
 `batch.legal` behavior:
 
@@ -210,11 +231,50 @@ These values are read from `weiss_core/src/encode/constants.rs`.
 
 ## Structured action metadata
 
-Structured-policy integrations can rely on two exported helper blocks from
+Structured-policy integrations can rely on exported helper blocks from
 `weiss_sim.spec_bundle()` / `weiss_sim.export_spec_bundle()`:
 
 - `action_factorization_v1`: stable action-family schema for `family` + `arg0/arg1/arg2`
 - `action_meta_v1`: packed legal-row layout mirrored by `legal_action_meta`
+- `legal_action_context_v1`: optional dynamic legal-row context schema
+
+### Legal action context v1
+
+`EnvPoolBuffers.legal_action_context_v1(out=None)` materializes an optional
+dynamic context matrix for the current decision boundary. It returns
+`(context, legal_offsets)`, where:
+
+- `context.dtype == np.int32`
+- `context.shape == (legal_offsets[-1], LEGAL_ACTION_CONTEXT_V1_WIDTH)`
+- each context row corresponds to the same row in the packed legal id prefix
+- unused fields are `LEGAL_ACTION_CONTEXT_UNUSED` (`-1`)
+
+Current field order:
+
+| Column | Meaning |
+| ---: | --- |
+| 0 | action family code |
+| 1 | action arg0 |
+| 2 | action arg1 |
+| 3 | action arg2 |
+| 4 | decision kind |
+| 5 | actor seat |
+| 6 | source zone code |
+| 7 | source index within zone |
+| 8 | source card id |
+| 9 | source card type code |
+| 10 | source card color code |
+| 11 | source card level |
+| 12 | source card cost |
+| 13 | source card power |
+| 14 | source card soul |
+
+The context is computed from the actor's current legal choices and
+actor-visible/action source state. Hidden opponent choice options keep the zone
+code but use the unused sentinel for source index and card-derived fields. Treat
+it as an opt-in learning feature: it can make action semantics easier for a
+policy to consume, but it adds extra per-step work if materialized every
+decision.
 
 ## Reference loop patterns
 
@@ -284,7 +344,6 @@ out = buf.step(actions)
 
 ## Related
 
-- [Encodings](encodings.md)
-- [Encodings Changelog](encodings_changelog.md)
 - [Python API](python_api.md)
-- [Replays & Determinism](replays_determinism.md)
+- [Architecture](architecture.md)
+- [Performance](performance_benchmarks.md)

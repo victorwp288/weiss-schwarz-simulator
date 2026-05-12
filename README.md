@@ -8,14 +8,21 @@
 [![Rustdoc](https://img.shields.io/badge/rustdoc-online-blue)](https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/)
 [![Docs Hub](https://img.shields.io/badge/docs-hub-informational)](docs/README.md)
 
-Deterministic Weiss Schwarz simulation for RL and engine research.
+Deterministic, batched Weiss Schwarz simulation for reinforcement learning and engine research.
 
 ## What you get
 
 - Rust engine (`weiss_core`) with deterministic advance-until-decision stepping
 - PyO3 bindings (`weiss_py`) and Python API (`python/weiss_sim`) for batched training/eval loops
 - Stable observation/action contracts (`OBS_LEN=378`, `ACTION_SPACE_SIZE=527`, `SPEC_HASH=8590000130`)
+- RL-oriented fast paths for packed legal ids, no-metadata layouts, fused sampled log-prob stepping, and optional legal-action context tensors
 - Replay and fingerprint surfaces for drift detection and reproducibility
+
+## Release status
+
+`1.0.0` is the stabilized research release line. Public compatibility boundaries are
+documented explicitly, and any future encoding, replay, WSDB, or action-space changes
+should update the corresponding version constants and docs in the same change.
 
 ## 5-minute start
 
@@ -77,16 +84,26 @@ import weiss_sim
 
 legal_deck = (list(range(1, 14)) * 4)[:50]
 
-pool = weiss_sim.EnvPool.new_rl_train(
-    32,
+pool, buf = weiss_sim.make_pool(
+    mode="train",
+    num_envs=32,
     deck_lists=[legal_deck, legal_deck],
     deck_ids=[1, 2],
     seed=0,
+    layout="i16_legal_ids_nometa",
 )
-buf = weiss_sim.EnvPoolBuffers(pool)
 out = buf.reset()
 actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
 out = buf.step(actions)
+```
+
+Throughput-sensitive policy-gradient loops should prefer the fused sampled-logp helper
+when they need both sampled actions and behavior log-probabilities:
+
+```python
+logits = np.zeros((pool.envs_len, weiss_sim.ACTION_SPACE_SIZE), dtype=np.float32)
+seeds = np.arange(pool.envs_len, dtype=np.uint64)
+step, actions, logp = buf.step_sample_from_logits_with_logp(logits, seeds)
 ```
 
 ### Deck authoring flow (Python)
@@ -94,12 +111,17 @@ out = buf.step(actions)
 ```python
 import weiss_sim
 
-builder = weiss_sim.cards.builder(initial="starter_v1")
-builder.set_count("CARD-1", 4)
+builder = weiss_sim.cards.builder(initial="starter_deck_ws02_v1")
 report = builder.validate(rules_profile="approx", card_pool="all")
 if report.ok:
     deck_ids = builder.build(rules_profile="approx", card_pool="all")
 ```
+
+Bundled presets are the four release decklists: `starter_deck_ws02_v1`,
+`control_deck_jj_s66_v1`, `main_deck_5hy_yotsuba_v1`, and
+`aggro_deck_5hy_nino_v1`. Inspect the installed package with
+`weiss_sim.cards.presets()`. These presets require `rules_profile="approx"` because
+they include partially parsed card abilities.
 
 ## Architecture at a glance
 
@@ -113,16 +135,14 @@ flowchart LR
 
 ## Documentation map
 
-Start in [`docs/README.md`](docs/README.md).
+Start in [`docs/README.md`](docs/README.md). The docs are intentionally compact:
 
-Recommended paths:
-
-- New users: [`docs/beginner_happy_path.md`](docs/beginner_happy_path.md) -> [`docs/quickstart.md`](docs/quickstart.md) -> [`docs/how_it_works.md`](docs/how_it_works.md)
-- RL users: [`docs/quickstart.md`](docs/quickstart.md) -> [`docs/tutorials/ppo.md`](docs/tutorials/ppo.md) -> [`docs/rl_contract.md`](docs/rl_contract.md) -> [`docs/encodings.md`](docs/encodings.md)
-- Off-policy users: [`docs/tutorials/impala_vtrace.md`](docs/tutorials/impala_vtrace.md) -> [`docs/rl_contract.md`](docs/rl_contract.md)
-- Python integrators: [`docs/python_api.md`](docs/python_api.md) -> [`docs/python_api_reference.md`](docs/python_api_reference.md) -> [`docs/troubleshooting.md`](docs/troubleshooting.md)
-- Engine contributors: [`docs/engine_architecture.md`](docs/engine_architecture.md) -> [`docs/rules_coverage.md`](docs/rules_coverage.md) -> [`PROJECT_STATE.md`](PROJECT_STATE.md)
-- Performance work: [`docs/performance_benchmarks.md`](docs/performance_benchmarks.md)
+- [`docs/quickstart.md`](docs/quickstart.md): install, first loop, decks, troubleshooting, and local checks
+- [`docs/python_api.md`](docs/python_api.md): high-level API, low-level buffers, layouts, and RL helpers
+- [`docs/rl_contract.md`](docs/rl_contract.md): step semantics, rewards, output schema, legal payloads, and compatibility constants
+- [`docs/architecture.md`](docs/architecture.md): Rust/Python layers, rules/scraper boundaries, replay determinism, and invariants
+- [`docs/performance_benchmarks.md`](docs/performance_benchmarks.md): benchmark commands, current baselines, perf gates, and RL hot paths
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): validation, release flow, docs rules, and PR checklist
 
 ## Repository layout
 
@@ -132,6 +152,7 @@ Recommended paths:
 - `python/tests/`: Python API/contract tests
 - `scripts/`: CI parity, coverage, perf, and docs checks
 - `docs/`: user + contributor documentation hub
+- `.github/`: CI, release, issue, and pull request templates
 
 ## Local quality checks
 
@@ -172,22 +193,26 @@ python scripts/gen_docs_snippets.py --check
 ## Benchmark snapshot (main)
 
 <!-- BENCHMARKS:START -->
-_Last updated: 2026-04-28 21:07 UTC_
+_Last updated: 2026-05-11_
 
 | Benchmark | Time |
 | --- | --- |
-| rust/advance_until_decision | 48665 ns/iter |
-| rust/step_batch_64 | 15146 ns/iter |
-| rust/reset_batch_256 | 784823 ns/iter |
-| rust/step_batch_fast_256_priority_off | 67304 ns/iter |
-| rust/step_batch_fast_256_priority_on | 73337 ns/iter |
-| rust/legal_actions | 12 ns/iter |
-| rust/legal_actions_forced | 13 ns/iter |
-| rust/on_reverse_decision_frequency_on | 1343 ns/iter |
-| rust/on_reverse_decision_frequency_off | 1349 ns/iter |
-| rust/observation_encode | 172 ns/iter |
-| rust/observation_encode_forced | 175 ns/iter |
-| rust/mask_construction | 310 ns/iter |
+| rust/advance_until_decision | 21272 ns/iter |
+| rust/step_batch_64 | 9581 ns/iter |
+| rust/reset_batch_256 | 512004 ns/iter |
+| rust/step_batch_fast_256_priority_off | 39563 ns/iter |
+| rust/step_batch_fast_256_priority_on | 42891 ns/iter |
+| rust/legal_actions | 4 ns/iter |
+| rust/legal_actions_forced | 4 ns/iter |
+| rust/on_reverse_decision_frequency_on | 990 ns/iter |
+| rust/on_reverse_decision_frequency_off | 1006 ns/iter |
+| rust/observation_encode | 80 ns/iter |
+| rust/observation_encode_forced | 79 ns/iter |
+| rust/mask_construction | 180 ns/iter |
+| rust/mask_construction_forced | 178 ns/iter |
+| python/reset_into | 75.8 us/reset |
+| python/step(mask) | 2602377 env-steps/sec |
+| python/step(ids) | 4929457 env-steps/sec |
 <!-- BENCHMARKS:END -->
 
 Long-form benchmark docs: [`docs/performance_benchmarks.md`](docs/performance_benchmarks.md)
@@ -199,14 +224,14 @@ Contract constants are explicit compatibility boundaries:
 - `OBS_ENCODING_VERSION=2`
 - `ACTION_ENCODING_VERSION=1`
 - `POLICY_VERSION=2`
-- `REPLAY_SCHEMA_VERSION=2`
+- `REPLAY_SCHEMA_VERSION=3`
 - `WSDB_SCHEMA_VERSION=2`
 
 If encoding/layout semantics change, update code + docs in the same PR:
 
 1. constants/encode implementation
 2. [`docs/rl_contract.md`](docs/rl_contract.md) checksum table
-3. [`docs/encodings_changelog.md`](docs/encodings_changelog.md)
+3. [`docs/architecture.md`](docs/architecture.md) compatibility notes when replay/WSDB/runtime boundaries change
 
 ## License
 

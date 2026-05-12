@@ -1,44 +1,40 @@
 # Quickstart
 
-Use this page to go from install to a verified reset/step loop with the current high-level API.
-
-Next read: [RL Contract](rl_contract.md)
-
-## Prerequisites
-
-- Python 3.10+
-- Rust stable (`rustup default stable`) for local source builds
-- `pip`
-
-Recommended:
-
-- virtual environment (`python -m venv .venv`)
-- `maturin` for local wheel/module builds
-
-If you create `.venv`, activate it before running the `python -m pip ...` and
-`python -m maturin ...` commands below.
+This page gets you from install to a working batched simulator loop.
 
 ## Install
 
-### Fastest: PyPI
+From PyPI:
 
 ```bash
 python -m pip install -U weiss-sim numpy
 ```
 
-### Local source build
+From a local checkout:
 
 ```bash
 python -m pip install -U maturin numpy
 python -m maturin develop --release --manifest-path weiss_py/Cargo.toml
 ```
 
-## First successful reset + step (recommended path)
+Contributor setup:
+
+```bash
+rustup component add rustfmt clippy
+python -m venv .venv
+# PowerShell: .\.venv\Scripts\Activate.ps1
+# Bash/zsh: source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
+python -m maturin develop --release --manifest-path weiss_py/Cargo.toml
+```
+
+## First Reset And Step
 
 ```python
 import weiss_sim
 
-with weiss_sim.make(mode="inspect", num_envs=32, seed=0, card_pool="all") as sim:
+with weiss_sim.fast(num_envs=32, seed=0) as sim:
     batch = sim.reset()
     actions = batch.legal.sample_uniform(seed=123)
     step = sim.step(actions)
@@ -48,140 +44,119 @@ with weiss_sim.make(mode="inspect", num_envs=32, seed=0, card_pool="all") as sim
 Expected result:
 
 - no exception
-- stable output shapes
+- `obs.shape[0] == num_envs`
 - `engine_status == 0` for healthy envs
 
-## Which API should you use?
+## Which API To Use
 
-- `weiss_sim.make(...)`, `weiss_sim.fast(...)`, `weiss_sim.inspect(...)`: recommended for most users
-- low-level canonical surface: `make_pool(...)`, `EnvPoolBuffers(..., layout=...)`, `EnvPoolTrajectoryBuffers(..., layout=...)`, `reset_rl(...)`, `step_rl(...)`
+- Use `weiss_sim.fast(...)` or `weiss_sim.make(...)` for normal Python integration.
+- Use `make_pool(...)` and `EnvPoolBuffers(...)` for high-throughput training loops.
+- Use `inspect(...)` when you need dense masks, debug-friendly dtypes, or richer inspection.
 
-## High-level defaults (`make`/`fast`/`inspect`)
+High-level defaults:
 
-Common defaults:
+| mode | runtime | legal repr | obs dtype |
+| --- | --- | --- | --- |
+| `fast` | speed | packed ids | `i16` |
+| `inspect` | eval/debug | masks + ids | `i32` |
 
-- `rules_profile="strict"`
-- `card_pool="parsed_only"`
-- `observation_visibility="public"`
-- `error_policy="replace"`
-- `max_decisions=2000`, `max_ticks=100000`
+`runtime_mode=` is intentionally not accepted in the high-level API; choose `fast` or
+`inspect`.
 
-Mode defaults:
+## Deck Inputs
 
-| mode | internal runtime_mode | legal_repr | obs_dtype | ids_safety |
-| --- | --- | --- | --- | --- |
-| `fast` | `speed` | `ids_u16` | `i16` | `checked` |
-| `inspect` | `eval_debug` | `both` | `i32` | n/a |
+`deck` and `opponent_deck` accept:
 
-`runtime_mode=` is rejected on the high-level API.
+- `Sequence[int]`
+- `Mapping[int | str, int]`
+- preset strings such as `"preset:starter_deck_ws02_v1"`
+- path-like strings
 
-## 0.7 migration notes
+Bundled presets are the four release decklists: `starter_deck_ws02_v1`,
+`control_deck_jj_s66_v1`, `main_deck_5hy_yotsuba_v1`, and
+`aggro_deck_5hy_nino_v1`. Use `weiss_sim.cards.presets()` to list the presets in the
+installed package. These presets require `rules_profile="approx"` because they include
+partially parsed card abilities.
 
-Breaking changes in `0.7.0`:
+For experiments with toy decks or generated card ids, use `card_pool="all"`.
+For packaged catalog compatibility checks, use the default `card_pool="parsed_only"`.
 
-- `error_policy` accepts only `raise | replace | terminate`.
-- legacy `error_policy` aliases are removed.
-- high-level `make(...)` no longer accepts deprecated compatibility kwargs such as `runtime_mode=...`.
-- `batch.legal.select_from_logits(...)` / `batch.legal.sample_from_logits(...)` were renamed to `batch.legal.argmax_logits(...)` / `batch.legal.sample_logits(...)`.
-- coverage tooling accepts only profile names `strict | approx` (legacy `none` / `rl_v1` aliases removed).
-
-## Seed behavior and determinism
-
-- `seed=None` (default) uses entropy.
-- `seed=<int>` uses a deterministic user seed.
-- For reproducible trajectories, hold fixed:
-
-1. seed
-2. deck lists/ids
-3. action sequence
-4. curriculum/reward/end-condition settings
-5. compatibility constants (`OBS_ENCODING_VERSION`, `ACTION_ENCODING_VERSION`, `SPEC_HASH`)
-
-## Legal actions: use `batch.legal`
-
-Preferred:
-
-- `batch.legal.ids(i)`
-- `batch.legal.contains(i, action_id)`
-- `batch.legal.mask`
-- `batch.legal.sample_uniform(seed=...)`
-- `batch.legal.argmax_logits(logits)`
-- `batch.legal.sample_logits(logits, seed=...)`
-
-Raw properties are still available for advanced integrations:
-
-- `batch.legal_ids`
-- `batch.legal_offsets`
-- `batch.legal_mask`
-
-## Fast and inspect shortcuts
+Minimal deck builder:
 
 ```python
 import weiss_sim
 
-with weiss_sim.fast(num_envs=32, seed=0) as sim:
-    batch = sim.reset()
-
-with weiss_sim.inspect(num_envs=32, seed=0) as sim:
-    batch = sim.reset()
+b = weiss_sim.cards.builder(initial="starter_deck_ws02_v1")
+report = b.validate(rules_profile="approx", card_pool="all")
+if report.ok:
+    deck_ids = b.build(rules_profile="approx", card_pool="all")
 ```
 
-## Deck inputs in high-level API
-
-`deck` / `opponent_deck` accept:
-
-- `Sequence[int]`
-- `Mapping[int|str, int]`
-- preset string (`"preset:starter_v1"`)
-- path string (`"file:..."` or path-like string)
-
-`card_pool="parsed_only"` enforces catalog/db hash compatibility and raises `DbMismatchError` on mismatch.
-
-## Low-level canonical API (layout-based)
-
-Use `make_pool` as the single constructor for low-level RL loops:
+## Low-Level Training Loop
 
 ```python
 import numpy as np
 import weiss_sim
 
+deck_a = (list(range(1, 14)) * 4)[:50]
+deck_b = deck_a
+
 pool, buffers = weiss_sim.make_pool(
-    mode="train",                # "train" or "eval"
-    num_envs=8,
+    mode="train",
+    num_envs=128,
     deck_lists=[deck_a, deck_b],
-    seed=7,
-    profile="fast",              # optional: fast / balanced / eval / debug
-    layout="mask",               # mask / nomask / i16 / i16_legal_ids
+    deck_ids=[1, 2],
+    seed=0,
+    profile="fast",
+    layout="i16_legal_ids_nometa",
 )
 
-step = weiss_sim.reset_rl(pool, layout="mask")
-actions = np.array([int(np.flatnonzero(step.masks[i])[0]) for i in range(pool.envs_len)], dtype=np.uint32)
-step = weiss_sim.step_rl(pool, actions, layout="mask")
+out = buffers.reset()
+actions = np.full(pool.envs_len, weiss_sim.PASS_ACTION_ID, dtype=np.uint32)
+out = buffers.step(actions)
 ```
 
-Logit helpers are canonical and layout-aware:
+For policy-gradient loops that need sampled actions and behavior log-probabilities:
 
-- `step_rl_select_from_logits(pool, logits, layout=..., actions=None, out=None)`
-- `step_rl_sample_from_logits(pool, logits, seeds, layout=..., actions=None, out=None)`
+```python
+logits = np.zeros((pool.envs_len, weiss_sim.ACTION_SPACE_SIZE), dtype=np.float32)
+seeds = np.arange(pool.envs_len, dtype=np.uint64)
+step, actions, action_logp = buffers.step_sample_from_logits_with_logp(logits, seeds)
+```
 
-## Sanity checks before long runs
+Use `layout="i16_legal_ids"` instead of `i16_legal_ids_nometa` when the learner consumes
+`legal_action_meta`.
+
+## Determinism
+
+Reproducible trajectories require fixed:
+
+1. seed
+2. deck lists and deck ids
+3. action sequence
+4. curriculum/reward/end-condition settings
+5. compatibility constants from [RL Contract](rl_contract.md)
+
+## Common Issues
+
+- `ModuleNotFoundError: weiss_sim`: install the package in the active environment.
+- maturin build errors: check active Python, Rust toolchain, and virtualenv.
+- deck validation failures: decks must be 50 cards and legal under the selected profile.
+- unexpected reset/terminal rows: inspect `engine_status`, `terminated`, `truncated`, and `StepBatch.needs_reset`.
+
+## Local Checks
 
 ```bash
-python scripts/check_docs_constants.py
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+python -m ruff format --check python scraper scripts
+python -m ruff check python scraper scripts
 python scripts/check_docs_links.py
+python scripts/check_docs_constants.py
+python scripts/gen_docs_snippets.py --check
 python -m pytest -q python/tests
-cargo test --workspace --features test-harness
 ```
 
-## Common setup issues
-
-- `ModuleNotFoundError: weiss_sim`: package/module not installed in active env.
-- maturin build errors: verify active Python + Rust toolchain.
-- deck validation failures: deck must be legal and 50 cards.
-
-## Related
-
-- [Python API](python_api.md)
-- [RL Contract](rl_contract.md)
-- [Encodings](encodings.md)
-- [Troubleshooting](troubleshooting.md)
+Next: [Python API](python_api.md), [RL Contract](rl_contract.md), or
+[Performance](performance_benchmarks.md).

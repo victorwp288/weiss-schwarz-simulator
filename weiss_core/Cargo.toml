@@ -1,8 +1,13 @@
 [package]
 name = "weiss_core"
-version = "0.8.2"
+version = "1.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+description = "Deterministic Weiss Schwarz simulator core for research and RL environments."
+repository = "https://github.com/victorwp288/weiss-schwarz-simulator"
+homepage = "https://github.com/victorwp288/weiss-schwarz-simulator"
+documentation = "https://victorwp288.github.io/weiss-schwarz-simulator/rustdoc/"
+readme = "../README.md"
 
 [lib]
 name = "weiss_core"

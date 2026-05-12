@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose a behavior-preserving enhancement or new simulator capability.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What research, engine, or integration workflow does this support?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the API, behavior, or docs change you want.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility notes
+      description: Any expected impact on game semantics, public APIs, encodings, replay, or performance.
+    validations:
+      required: true

@@ -19,6 +19,11 @@
           "type": "toml",
           "path": "weiss_py/Cargo.toml",
           "jsonpath": "$.package.version"
+        },
+        {
+          "type": "toml",
+          "path": "weiss_py/Cargo.toml",
+          "jsonpath": "$.dependencies.weiss_core.version"
         }
       ]
     }

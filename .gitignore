@@ -262,13 +262,10 @@ $RECYCLE.BIN/
 /.cargo_cache/
 
 
-# Agents
-ARCHITECTURE.md
+# Local scratch outputs
+!docs/architecture.md
+dist_refactor/
+perf_refactor*/
 .serena/
 repomix-output.xml
-rules_checklist.md
-STUBS_TODOS.md
-TRANCHE_REPORT.md
-WSE-Comprehensive-Rules-v2.10.pdf
 tasks/
-weiss_rules_v2_10_llm.md
