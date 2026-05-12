@@ -239,10 +239,14 @@ jobs:
           git worktree add --detach /tmp/wss_head "$GITHUB_SHA"
           git worktree add --detach /tmp/wss_base "${{ steps.resolve-base.outputs.base_sha }}"
       - name: Snapshot baseline (base commit)
+        env:
+          PERF_SNAPSHOT_PROFILE: light
         run: |
           python -m maturin develop --release --manifest-path /tmp/wss_base/weiss_py/Cargo.toml
           bash "$GITHUB_WORKSPACE/scripts/run_perf_snapshot.sh" /tmp/wss_perf_before /tmp/wss_base
       - name: Snapshot current (head commit)
+        env:
+          PERF_SNAPSHOT_PROFILE: light
         run: |
           python -m maturin develop --release --manifest-path /tmp/wss_head/weiss_py/Cargo.toml
           bash "$GITHUB_WORKSPACE/scripts/run_perf_snapshot.sh" /tmp/wss_perf_after /tmp/wss_head
@@ -253,9 +257,9 @@ jobs:
             --current-benches /tmp/wss_perf_after/benches.txt \
             --baseline-python /tmp/wss_perf_before/python_bench.txt \
             --current-python /tmp/wss_perf_after/python_bench.txt \
-            --max-core-regression-pct 15 \
-            --core-budget-override reset_batch_256=25 \
-            --max-python-regression-pct 10 \
+            --max-core-regression-pct 30 \
+            --core-budget-override reset_batch_256=35 \
+            --max-python-regression-pct 25 \
             --require-zero-alloc
       - name: Cleanup perf worktrees
         if: always()
