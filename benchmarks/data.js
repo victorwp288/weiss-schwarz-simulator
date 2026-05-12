@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777410448048,
+  "lastUpdate": 1778582067879,
   "repoUrl": "https://github.com/victorwp288/weiss-schwarz-simulator",
   "entries": {
     "Benchmark": [
@@ -4514,6 +4514,168 @@ window.BENCHMARK_DATA = {
           {
             "name": "alloc_choice_paging_worst_case",
             "value": 186,
+            "range": "± 1",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "victorwpetersen@gmail.com",
+            "name": "Victor Wejergang Petersen",
+            "username": "victorwp288"
+          },
+          "committer": {
+            "email": "victorwpetersen@gmail.com",
+            "name": "Victor Wejergang Petersen",
+            "username": "victorwp288"
+          },
+          "distinct": true,
+          "id": "90f9c307811acc423a57d147ae5c9ef0baa8f48a",
+          "message": "ci: tighten release checks",
+          "timestamp": "2026-05-12T12:21:10+02:00",
+          "tree_id": "68676b2eb3f37cdc4199623cf5e41d9d73cce343",
+          "url": "https://github.com/victorwp288/weiss-schwarz-simulator/commit/90f9c307811acc423a57d147ae5c9ef0baa8f48a"
+        },
+        "date": 1778582067071,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "advance_until_decision",
+            "value": 48821,
+            "range": "± 448",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_64",
+            "value": 15926,
+            "range": "± 777",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reset_batch_256",
+            "value": 790361,
+            "range": "± 9524",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reset_i16_legal_ids_256",
+            "value": 787694,
+            "range": "± 3263",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reset_i16_legal_ids_nometa_256",
+            "value": 783890,
+            "range": "± 3755",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_off",
+            "value": 70652,
+            "range": "± 2112",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_on",
+            "value": 70872,
+            "range": "± 350",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_first_legal_i16_legal_ids_256",
+            "value": 242523,
+            "range": "± 11468",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_first_legal_i16_legal_ids_nometa_256",
+            "value": 223241,
+            "range": "± 9056",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "rollout_heuristic_public_i16_legal_ids_256x16",
+            "value": 5002415,
+            "range": "± 79325",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions",
+            "value": 12,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions_forced",
+            "value": 12,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_on",
+            "value": 1296,
+            "range": "± 8161",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_off",
+            "value": 1338,
+            "range": "± 7673",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode",
+            "value": 189,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode_forced",
+            "value": 186,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction",
+            "value": 301,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction_forced",
+            "value": 311,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "choice_paging_worst_case_mask",
+            "value": 180,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_legal_actions",
+            "value": 48,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_observation_encode",
+            "value": 116,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_action_masks_batch_into",
+            "value": 873,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_choice_paging_worst_case",
+            "value": 175,
             "range": "± 1",
             "unit": "ns/iter"
           }
