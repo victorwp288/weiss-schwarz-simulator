@@ -27,5 +27,6 @@ PYTHONPATH="$REPO_DIR/python" "$PYTHON_BIN" "$ROOT_DIR/python/examples/bench_pyt
   --steps 2000 \
   --warmup 200 \
   --reset-reps 200 \
+  --reset-done \
   --mode both \
   --repo-root "$REPO_DIR" > "$PY_OUT"

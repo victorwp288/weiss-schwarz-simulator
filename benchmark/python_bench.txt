@@ -1,3 +1,5 @@
-reset_into: 200 reps in 0.0152s (75.8 us/reset)
-step(mask): 2000 steps in 0.0984s (2602377 env-steps/sec)
-step(ids): 2000 steps in 0.0519s (4929457 env-steps/sec)
+# weiss_sim_module C:\Users\Bruger\AppData\Local\Programs\Python\Python312\Lib\site-packages\weiss_sim\__init__.py
+# reset_done True
+reset_into: 200 reps in 0.0220s (110.0 us/reset)
+step(mask): 2000 steps in 0.1974s (1296605 env-steps/sec)
+step(ids): 2000 steps in 0.1809s (1414805 env-steps/sec)
