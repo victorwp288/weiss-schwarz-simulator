@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import inspect
 from importlib.machinery import EXTENSION_SUFFIXES
 import sys
 import types
@@ -66,12 +67,16 @@ def _load_installed_weiss_sim() -> Any:
     return module
 
 
-def _load_weiss_sim(repo_root: Path) -> Any:
+def _load_weiss_sim(repo_root: Path, *, prefer_repo_extension: bool = False) -> Any:
     repo_python = repo_root / "python"
     repo_pkg = repo_python / "weiss_sim"
-    if _repo_has_extension_module(repo_pkg):
+    if prefer_repo_extension and _repo_has_extension_module(repo_pkg):
         return _load_repo_weiss_sim(repo_python, repo_pkg)
     return _load_installed_weiss_sim()
+
+
+def _module_origin(module: Any) -> str:
+    return str(getattr(module, "__file__", inspect.getsourcefile(module) or "<unknown>"))
 
 
 def pick_first_legal_from_mask(
@@ -167,11 +172,25 @@ def main() -> None:
     parser.add_argument(
         "--mode", choices=("mask", "ids", "fast_first_legal", "both"), default="both"
     )
-    parser.add_argument("--reset-done", action="store_true")
+    parser.add_argument(
+        "--reset-done",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Reset terminated/truncated envs while timing step throughput.",
+    )
+    parser.add_argument(
+        "--prefer-repo-extension",
+        action="store_true",
+        help="Load a native extension from python/weiss_sim if present. Off by default to avoid stale local binaries.",
+    )
     args = parser.parse_args()
 
     global weiss_sim
-    weiss_sim = _load_weiss_sim(args.repo_root.resolve())
+    weiss_sim = _load_weiss_sim(
+        args.repo_root.resolve(), prefer_repo_extension=args.prefer_repo_extension
+    )
+    print(f"# weiss_sim_module {_module_origin(weiss_sim)}")
+    print(f"# reset_done {args.reset_done}")
 
     fixture_dir = args.repo_root.resolve() / "python" / "tests" / "fixtures"
     db_path = fixture_dir / "cards.wsdb"

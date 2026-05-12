@@ -17,7 +17,7 @@ pub use ability::{
 };
 pub use card::CardStatic;
 pub use serialization::WSDB_SCHEMA_VERSION;
-pub use store::CardDb;
+pub use store::{CardDb, MAX_CARD_ID_INDEX};
 pub use types::{
     BattleOpponentMoveDestination, BattleOpponentMovePreludeAction, BrainstormMode, CardColor,
     CardId, CardType, ConditionTurn, CountCmp, CountZone, EffectTemplate, GrantDuration,

@@ -15,6 +15,7 @@ PYTHONPATH=python python python/examples/bench_python_boundary.py \
   --steps 2000 \
   --warmup 200 \
   --reset-reps 200 \
+  --reset-done \
   --mode both
 ```
 
@@ -58,17 +59,15 @@ Checked-in Python snapshot:
 
 | Benchmark | Baseline |
 | --- | ---: |
-| `reset_into` | 75.8 us/reset |
-| `step(mask)` | 2602377 env-steps/sec |
-| `step(ids)` | 4929457 env-steps/sec |
+| `reset_into` | 110.0 us/reset |
+| `step(mask)` | 1296605 env-steps/sec |
+| `step(ids)` | 1414805 env-steps/sec |
 
-Release-sanity measurements from the installed `1.0.0` local wheel:
-
-| Benchmark | Result |
-| --- | ---: |
-| `reset_into` | 96.5 us/reset |
-| `step(mask)` | 2223365 env-steps/sec |
-| `step(ids)` | 4126663 env-steps/sec |
+The Python snapshot is an installed `1.1.0` release wheel measured with
+`reset_done=True`, so step throughput reflects live gameplay instead of repeated
+stepping of already-terminated environments. The benchmark script prints the loaded
+`weiss_sim` module path at the top of the output to catch stale local extension
+artifacts.
 
 ## RL Hot Path
 
@@ -87,7 +86,7 @@ python python/examples/bench_rl_logits_boundary.py \
   --repo-root .
 ```
 
-Representative local `1.0.0` fused sampled-logp results:
+Representative local `1.1.0` fused sampled-logp results:
 
 | envs | `i16_legal_ids` | `i16_legal_ids_nometa` |
 | ---: | ---: | ---: |

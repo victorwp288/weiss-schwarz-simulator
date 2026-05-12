@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import weiss_sim
 
 from tests.support import (
@@ -93,6 +94,46 @@ def test_env_pool_timing_counters_cover_packed_paths() -> None:
     assert reset_timing["select_actions_from_logits_count"] == 0
     assert reset_timing["sample_actions_from_logits_count"] == 0
     assert reset_timing["step_sample_from_logits_with_logp_into_i16_legal_ids_count"] == 0
+
+
+def test_step_sample_from_logits_with_logp_rejects_readonly_action_logp() -> None:
+    pool, buffers = make_rl_train_pool(
+        seed=2026,
+        num_envs=2,
+        deck_ids=(9, 10),
+        layout="i16_legal_ids",
+        use_make_pool=True,
+    )
+    buffers.reset()
+    logits = np.random.default_rng(19).standard_normal(
+        (pool.envs_len, pool.action_space), dtype=np.float32
+    )
+    action_logp = np.empty(pool.envs_len, dtype=np.float32)
+    action_logp.flags.writeable = False
+
+    with pytest.raises(ValueError, match="writeable"):
+        buffers.step_sample_from_logits_with_logp(
+            logits, np.array([1, 2], dtype=np.uint64), action_logp
+        )
+
+
+def test_legal_action_context_v1_rejects_readonly_out() -> None:
+    pool, buffers = make_rl_train_pool(
+        seed=2027,
+        num_envs=2,
+        deck_ids=(9, 10),
+        layout="i16_legal_ids",
+        use_make_pool=True,
+    )
+    buffers.reset()
+    out = np.empty(
+        (pool.envs_len * pool.action_space, weiss_sim.LEGAL_ACTION_CONTEXT_V1_WIDTH),
+        dtype=np.int32,
+    )
+    out.flags.writeable = False
+
+    with pytest.raises(ValueError, match="writeable"):
+        buffers.legal_action_context_v1(out)
 
 
 def test_i16_legal_ids_nometa_layout_matches_packed_layout() -> None:

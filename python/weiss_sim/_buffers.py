@@ -172,6 +172,11 @@ def _bind_pool_method(pool: EnvPool, base_name: str, spec: _LayoutSpec):
     return getattr(pool, method_name)
 
 
+def _ensure_writeable(arr: np.ndarray, name: str) -> None:
+    if not arr.flags.writeable:
+        raise ValueError(f"{name} must be writeable")
+
+
 def make_batch_out_debug(pool: EnvPool, *, event_capacity: int | None = None) -> BatchOutDebug:
     """Allocate a `BatchOutDebug` buffer with safe defaults for an existing pool."""
     if event_capacity is None:
@@ -432,6 +437,7 @@ class EnvPoolBuffers(_EngineStatusMixin):
             raise ValueError(f"action_logp must have dtype float32, got {arr.dtype}")
         if not arr.flags.c_contiguous:
             raise ValueError("action_logp must be C-contiguous")
+        _ensure_writeable(arr, "action_logp")
         return arr
 
     def reset(self) -> MinimalOut:
@@ -648,6 +654,7 @@ class EnvPoolBuffers(_EngineStatusMixin):
                 )
             if not context.flags.c_contiguous:
                 raise ValueError("legal_action_context_v1 out must be C-contiguous")
+            _ensure_writeable(context, "legal_action_context_v1 out")
         start_ns = perf_counter_ns() if self._timing_enabled else None
         count = self._legal_action_context_v1_into(context)
         if count != used_rows:

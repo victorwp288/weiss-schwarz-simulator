@@ -271,14 +271,26 @@ fn build_env_config(
     Ok((Arc::new(db), config))
 }
 
-fn array_mut<'py, T, D>(py: Python<'py>, arr: &'py Py<PyArray<T, D>>) -> ArrayViewMut<'py, T, D>
+fn array_mut<'py, T, D>(
+    py: Python<'py>,
+    arr: &'py Py<PyArray<T, D>>,
+) -> PyResult<ArrayViewMut<'py, T, D>>
 where
     D: Dimension,
     T: Element,
 {
-    // All callers validate shape and contiguity first; this helper centralizes the only mutable
-    // ndarray view cast used by the Python boundary write-into paths.
-    unsafe { arr.bind(py).as_array_mut() }
+    let bound = arr.bind(py);
+    let writeable = unsafe {
+        ((*bound.as_array_ptr()).flags & numpy::npyffi::NPY_ARRAY_WRITEABLE) != 0
+    };
+    if !writeable {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "output buffer must be writeable: The given array is not writeable",
+        ));
+    }
+    // Shape and contiguity are validated by callers before mutable slicing. The explicit NumPy
+    // WRITEABLE flag check above rejects read-only arrays before this unsafe view cast.
+    Ok(unsafe { bound.as_array_mut() })
 }
 
 fn ensure_first_dim<'py, T, D>(
