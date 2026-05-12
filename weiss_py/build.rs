@@ -26,9 +26,25 @@ fn generate_env_pool_methods() {
     let src_dir = manifest_dir.join("src/lib_parts/env_pool");
     let fragments = [
         "20_constructors.rs",
-        "30_settings.rs",
-        "40_reset_step.rs",
-        "50_logits.rs",
+        "30_status_config.rs",
+        "31_reset_seeded.rs",
+        "32_replay_debug.rs",
+        "33_legal_sampling.rs",
+        "34_properties.rs",
+        "40_reset_all.rs",
+        "41_reset_indices.rs",
+        "42_reset_done.rs",
+        "43_step_direct.rs",
+        "44_step_first_legal.rs",
+        "45_step_sample_legal.rs",
+        "46_rollout_first_legal.rs",
+        "46_rollout_heuristic_public.rs",
+        "46_rollout_first_legal_nomask.rs",
+        "46_rollout_sample_legal.rs",
+        "47_debug_auto_reset.rs",
+        "50_logits_select.rs",
+        "51_logits_sample.rs",
+        "52_logits_sample_logp.rs",
     ];
 
     for fragment in fragments {

@@ -1,3 +1,5 @@
+use super::*;
+
 /// Cost requirements for an activated ability.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AbilityCostStep {
@@ -313,7 +315,7 @@ pub enum AbilityTiming {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[allow(clippy::large_enum_variant)]
 pub enum AbilityTemplate {
-    /// No special behavior (placeholder template).
+    /// No special behavior.
     Vanilla,
     /// Continuous power modifier while on stage.
     ContinuousPower {

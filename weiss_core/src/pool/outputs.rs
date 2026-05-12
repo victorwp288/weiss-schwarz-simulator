@@ -86,6 +86,36 @@ pub struct BatchOutMinimalI16LegalIds<'a> {
     pub main_pass_action: &'a mut [bool],
 }
 
+/// Minimal RL batch output with i16 observations and legal id lists, without legal metadata.
+pub struct BatchOutMinimalI16LegalIdsNoMeta<'a> {
+    /// Observation buffer (len = num_envs * OBS_LEN).
+    pub obs: &'a mut [i16],
+    /// Flattened legal action ids (len = num_envs * ACTION_SPACE_SIZE).
+    pub legal_ids: &'a mut [u16],
+    /// Offsets into `legal_ids` (len = num_envs + 1).
+    pub legal_offsets: &'a mut [u32],
+    /// Reward per env (len = num_envs).
+    pub rewards: &'a mut [f32],
+    /// Terminal flags per env (len = num_envs).
+    pub terminated: &'a mut [bool],
+    /// Truncation flags per env (len = num_envs).
+    pub truncated: &'a mut [bool],
+    /// Actor perspective per env (len = num_envs).
+    pub actor: &'a mut [i8],
+    /// Decision kind per env (len = num_envs).
+    pub decision_kind: &'a mut [i8],
+    /// Decision id per env (len = num_envs).
+    pub decision_id: &'a mut [u32],
+    /// Engine error code per env (len = num_envs).
+    pub engine_status: &'a mut [u8],
+    /// Encoding spec hash per env (len = num_envs).
+    pub spec_hash: &'a mut [u64],
+    /// Whether the last action was a main-phase move per env (len = num_envs).
+    pub main_move_action: &'a mut [bool],
+    /// Whether the last action was a main-phase pass per env (len = num_envs).
+    pub main_pass_action: &'a mut [bool],
+}
+
 /// Minimal RL batch output without masks, filled in-place.
 pub struct BatchOutMinimalNoMask<'a> {
     /// Observation buffer (len = num_envs * OBS_LEN).
@@ -240,6 +270,8 @@ pub struct BatchOutTrajectoryNoMask<'a> {
 pub struct BatchOutDebug<'a> {
     /// Minimal outputs for the batch.
     pub minimal: BatchOutMinimal<'a>,
+    /// Reward components per env in fixed order: terminal, damage, level, board, no_progress.
+    pub reward_components: &'a mut [f32],
     /// State fingerprint per env.
     pub state_fingerprint: &'a mut [u64],
     /// Event fingerprint per env.

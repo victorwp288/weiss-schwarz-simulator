@@ -2,7 +2,7 @@
 //!
 //! Related docs:
 //! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/README.md>
-//! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/engine_architecture.md>
+//! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/architecture.md>
 //! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/rl_contract.md>
 
 use crate::config::RewardConfig;
@@ -39,7 +39,10 @@ pub mod harness;
 
 pub use actions::legal_action_ids_cached_into;
 pub use core::GameEnv;
-pub use types::{DebugConfig, EngineErrorCode, EnvInfo, FaultRecord, FaultSource, StepOutcome};
+pub use types::{
+    DebugConfig, EngineErrorCode, EnvInfo, FaultRecord, FaultSource, RewardBreakdown, StepOutcome,
+    REWARD_COMPONENT_WIDTH,
+};
 
 pub(crate) use cache::{ActionCache, EnvScratch};
 pub use constants::{CHECK_TIMING_QUIESCENCE_CAP, HAND_LIMIT, STACK_AUTO_RESOLVE_CAP};

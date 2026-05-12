@@ -22,18 +22,19 @@ use weiss_core::encode::{
     encode_factorized_action as encode_factorized_action_core,
     observation_spec_json as observation_spec_json_core, ActionParamValue, ACTION_ENCODING_VERSION,
     ACTION_META_UNUSED, ACTION_META_WIDTH, ACTION_SPACE_SIZE, ACTOR_NONE, DECISION_KIND_NONE,
-    OBS_ENCODING_VERSION, OBS_LEN, PASS_ACTION_ID, POLICY_VERSION, SPEC_HASH,
+    LEGAL_ACTION_CONTEXT_UNUSED, LEGAL_ACTION_CONTEXT_V1_WIDTH, OBS_ENCODING_VERSION, OBS_LEN,
+    PASS_ACTION_ID, POLICY_VERSION, SPEC_HASH,
 };
 use weiss_core::legal::ActionDesc;
 use weiss_core::pool::{
     BatchOutDebug, BatchOutMinimal, BatchOutMinimalI16, BatchOutMinimalI16LegalIds,
-    BatchOutMinimalNoMask, BatchOutTrajectory, BatchOutTrajectoryI16,
+    BatchOutMinimalI16LegalIdsNoMeta, BatchOutMinimalNoMask, BatchOutTrajectory, BatchOutTrajectoryI16,
     BatchOutTrajectoryI16LegalIds, BatchOutTrajectoryNoMask,
 };
 use weiss_core::replay::{ReplayConfig, ReplayVisibilityMode};
 use weiss_core::{
     CardDb, ConfigError, CurriculumConfig, DebugConfig, EndConditionPolicy, EnvConfig, EnvError,
-    EnvPool, RewardConfig, StateError,
+    EnvPool, RewardConfig, StateError, REWARD_COMPONENT_WIDTH,
 };
 
 const DEFAULT_WSDB_BYTES: &[u8] = include_bytes!("../default_cards.wsdb");

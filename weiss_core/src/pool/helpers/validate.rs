@@ -4,7 +4,8 @@ use crate::encode::{ACTION_META_WIDTH, ACTION_SPACE_SIZE, OBS_LEN};
 
 use super::super::core::EnvPool;
 use super::super::outputs::{
-    BatchOutMinimal, BatchOutMinimalI16, BatchOutMinimalI16LegalIds, BatchOutMinimalNoMask,
+    BatchOutMinimal, BatchOutMinimalI16, BatchOutMinimalI16LegalIds,
+    BatchOutMinimalI16LegalIdsNoMeta, BatchOutMinimalNoMask,
 };
 
 impl EnvPool {
@@ -124,6 +125,32 @@ impl EnvPool {
             out.legal_action_meta.len(),
             num_envs * ACTION_SPACE_SIZE * ACTION_META_WIDTH,
         )?;
+        Self::validate_legal_offsets_len(out.legal_offsets.len(), num_envs + 1)?;
+        Self::validate_scalar_lens(
+            num_envs,
+            [
+                out.rewards.len(),
+                out.terminated.len(),
+                out.truncated.len(),
+                out.actor.len(),
+                out.decision_kind.len(),
+                out.decision_id.len(),
+                out.engine_status.len(),
+                out.spec_hash.len(),
+                out.main_move_action.len(),
+                out.main_pass_action.len(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub(super) fn validate_minimal_out_i16_legal_ids_nometa(
+        &self,
+        out: &BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        let num_envs = self.envs.len();
+        Self::validate_obs_len(out.obs.len(), num_envs * OBS_LEN)?;
+        Self::validate_legal_ids_len(out.legal_ids.len(), num_envs * ACTION_SPACE_SIZE)?;
         Self::validate_legal_offsets_len(out.legal_offsets.len(), num_envs + 1)?;
         Self::validate_scalar_lens(
             num_envs,

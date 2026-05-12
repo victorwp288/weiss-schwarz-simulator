@@ -2,8 +2,8 @@
 //!
 //! Related docs:
 //! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/README.md>
-//! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/encodings.md>
-//! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/encodings_changelog.md>
+//! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/rl_contract.md>
+//! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/architecture.md>
 
 mod action_ids;
 mod constants;
@@ -16,7 +16,10 @@ pub use action_ids::{
     action_desc_for_id, action_id_for, decode_action_id, decode_factorized_action_id,
     encode_factorized_action, ActionIdDesc, ActionParam, ActionParamValue, FactorizedActionDesc,
 };
-pub use action_ids::{ACTION_META_UNUSED, ACTION_META_WIDTH};
+pub use action_ids::{
+    ACTION_META_UNUSED, ACTION_META_WIDTH, LEGAL_ACTION_CONTEXT_UNUSED,
+    LEGAL_ACTION_CONTEXT_V1_WIDTH,
+};
 pub use constants::*;
 pub use mask::{build_action_mask, fill_action_mask, fill_action_mask_sparse};
 pub use observation::encode_observation;

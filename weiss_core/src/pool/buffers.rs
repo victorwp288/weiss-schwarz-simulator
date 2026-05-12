@@ -1,4 +1,5 @@
 use crate::encode::{ACTION_SPACE_SIZE, OBS_LEN, SPEC_HASH};
+use crate::env::REWARD_COMPONENT_WIDTH;
 
 use super::outputs::{BatchOutDebug, BatchOutMinimal, BatchOutMinimalI16, BatchOutMinimalNoMask};
 
@@ -204,6 +205,8 @@ impl BatchOutMinimalNoMaskBuffers {
 pub struct BatchOutDebugBuffers {
     /// Minimal output buffers.
     pub minimal: BatchOutMinimalBuffers,
+    /// Reward component buffer (len = num_envs * REWARD_COMPONENT_WIDTH).
+    pub reward_components: Vec<f32>,
     /// State fingerprint buffer (len = num_envs).
     pub state_fingerprint: Vec<u64>,
     /// Event fingerprint buffer (len = num_envs).
@@ -221,6 +224,7 @@ impl BatchOutDebugBuffers {
     pub fn new(num_envs: usize, event_capacity: usize) -> Self {
         Self {
             minimal: BatchOutMinimalBuffers::new(num_envs),
+            reward_components: vec![0.0; num_envs * REWARD_COMPONENT_WIDTH],
             state_fingerprint: vec![0; num_envs],
             events_fingerprint: vec![0; num_envs],
             mask_fingerprint: vec![0; num_envs],
@@ -233,6 +237,7 @@ impl BatchOutDebugBuffers {
     pub fn view_mut(&mut self) -> BatchOutDebug<'_> {
         BatchOutDebug {
             minimal: self.minimal.view_mut(),
+            reward_components: &mut self.reward_components,
             state_fingerprint: &mut self.state_fingerprint,
             events_fingerprint: &mut self.events_fingerprint,
             mask_fingerprint: &mut self.mask_fingerprint,

@@ -1,2 +1,2 @@
-// Core rules logic is implemented in env.rs for now.
-// This module remains as an extension point for fuller rule implementations.
+// Core rules logic lives in the environment modules.
+// This module is reserved for cross-cutting rules helpers.

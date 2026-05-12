@@ -4,10 +4,16 @@ use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion
 
 use weiss_core::config::{CurriculumConfig, EnvConfig, RewardConfig};
 use weiss_core::db::{AbilityTemplate, CardColor, CardDb, CardStatic, CardType};
-use weiss_core::encode::{fill_action_mask, CHOICE_COUNT};
+use weiss_core::encode::{
+    fill_action_mask, ACTION_META_UNUSED, ACTION_META_WIDTH, ACTION_SPACE_SIZE, CHOICE_COUNT,
+    OBS_LEN, SPEC_HASH,
+};
 use weiss_core::env::GameEnv;
 use weiss_core::legal::{ActionDesc, Decision, DecisionKind};
-use weiss_core::pool::{BatchOutMinimalBuffers, EnvPool};
+use weiss_core::pool::{
+    BatchOutMinimalBuffers, BatchOutMinimalI16LegalIds, BatchOutMinimalI16LegalIdsNoMeta,
+    BatchOutTrajectoryI16LegalIds, EnvPool,
+};
 use weiss_core::state::{
     AttackType, ChoiceOptionRef, ChoiceReason, ChoiceState, ChoiceZone, Phase, StageSlot,
     StageStatus,
@@ -98,6 +104,187 @@ fn make_curriculum(enable_priority_windows: bool) -> CurriculumConfig {
     CurriculumConfig {
         enable_priority_windows,
         ..Default::default()
+    }
+}
+
+struct BatchOutMinimalI16LegalIdsBuffers {
+    obs: Vec<i16>,
+    legal_ids: Vec<u16>,
+    legal_action_meta: Vec<u16>,
+    legal_offsets: Vec<u32>,
+    rewards: Vec<f32>,
+    terminated: Vec<bool>,
+    truncated: Vec<bool>,
+    actor: Vec<i8>,
+    decision_kind: Vec<i8>,
+    decision_id: Vec<u32>,
+    engine_status: Vec<u8>,
+    spec_hash: Vec<u64>,
+    main_move_action: Vec<bool>,
+    main_pass_action: Vec<bool>,
+}
+
+impl BatchOutMinimalI16LegalIdsBuffers {
+    fn new(num_envs: usize) -> Self {
+        Self {
+            obs: vec![0; num_envs * OBS_LEN],
+            legal_ids: vec![0; num_envs * ACTION_SPACE_SIZE],
+            legal_action_meta: vec![
+                ACTION_META_UNUSED;
+                num_envs * ACTION_SPACE_SIZE * ACTION_META_WIDTH
+            ],
+            legal_offsets: vec![0; num_envs + 1],
+            rewards: vec![0.0; num_envs],
+            terminated: vec![false; num_envs],
+            truncated: vec![false; num_envs],
+            actor: vec![0; num_envs],
+            decision_kind: vec![0; num_envs],
+            decision_id: vec![0; num_envs],
+            engine_status: vec![0; num_envs],
+            spec_hash: vec![SPEC_HASH; num_envs],
+            main_move_action: vec![false; num_envs],
+            main_pass_action: vec![false; num_envs],
+        }
+    }
+
+    fn view_mut(&mut self) -> BatchOutMinimalI16LegalIds<'_> {
+        BatchOutMinimalI16LegalIds {
+            obs: &mut self.obs,
+            legal_ids: &mut self.legal_ids,
+            legal_action_meta: &mut self.legal_action_meta,
+            legal_offsets: &mut self.legal_offsets,
+            rewards: &mut self.rewards,
+            terminated: &mut self.terminated,
+            truncated: &mut self.truncated,
+            actor: &mut self.actor,
+            decision_kind: &mut self.decision_kind,
+            decision_id: &mut self.decision_id,
+            engine_status: &mut self.engine_status,
+            spec_hash: &mut self.spec_hash,
+            main_move_action: &mut self.main_move_action,
+            main_pass_action: &mut self.main_pass_action,
+        }
+    }
+}
+
+struct BatchOutMinimalI16LegalIdsNoMetaBuffers {
+    obs: Vec<i16>,
+    legal_ids: Vec<u16>,
+    legal_offsets: Vec<u32>,
+    rewards: Vec<f32>,
+    terminated: Vec<bool>,
+    truncated: Vec<bool>,
+    actor: Vec<i8>,
+    decision_kind: Vec<i8>,
+    decision_id: Vec<u32>,
+    engine_status: Vec<u8>,
+    spec_hash: Vec<u64>,
+    main_move_action: Vec<bool>,
+    main_pass_action: Vec<bool>,
+}
+
+impl BatchOutMinimalI16LegalIdsNoMetaBuffers {
+    fn new(num_envs: usize) -> Self {
+        Self {
+            obs: vec![0; num_envs * OBS_LEN],
+            legal_ids: vec![0; num_envs * ACTION_SPACE_SIZE],
+            legal_offsets: vec![0; num_envs + 1],
+            rewards: vec![0.0; num_envs],
+            terminated: vec![false; num_envs],
+            truncated: vec![false; num_envs],
+            actor: vec![0; num_envs],
+            decision_kind: vec![0; num_envs],
+            decision_id: vec![0; num_envs],
+            engine_status: vec![0; num_envs],
+            spec_hash: vec![SPEC_HASH; num_envs],
+            main_move_action: vec![false; num_envs],
+            main_pass_action: vec![false; num_envs],
+        }
+    }
+
+    fn view_mut(&mut self) -> BatchOutMinimalI16LegalIdsNoMeta<'_> {
+        BatchOutMinimalI16LegalIdsNoMeta {
+            obs: &mut self.obs,
+            legal_ids: &mut self.legal_ids,
+            legal_offsets: &mut self.legal_offsets,
+            rewards: &mut self.rewards,
+            terminated: &mut self.terminated,
+            truncated: &mut self.truncated,
+            actor: &mut self.actor,
+            decision_kind: &mut self.decision_kind,
+            decision_id: &mut self.decision_id,
+            engine_status: &mut self.engine_status,
+            spec_hash: &mut self.spec_hash,
+            main_move_action: &mut self.main_move_action,
+            main_pass_action: &mut self.main_pass_action,
+        }
+    }
+}
+
+struct BatchOutTrajectoryI16LegalIdsBuffers {
+    obs: Vec<i16>,
+    legal_ids: Vec<u16>,
+    legal_action_meta: Vec<u16>,
+    legal_offsets: Vec<u32>,
+    rewards: Vec<f32>,
+    terminated: Vec<bool>,
+    truncated: Vec<bool>,
+    actor: Vec<i8>,
+    decision_kind: Vec<i8>,
+    decision_id: Vec<u32>,
+    engine_status: Vec<u8>,
+    episode_seed: Vec<u64>,
+    spec_hash: Vec<u64>,
+    main_move_action: Vec<bool>,
+    main_pass_action: Vec<bool>,
+    actions: Vec<u32>,
+}
+
+impl BatchOutTrajectoryI16LegalIdsBuffers {
+    fn new(steps: usize, num_envs: usize) -> Self {
+        let env_steps = steps * num_envs;
+        Self {
+            obs: vec![0; env_steps * OBS_LEN],
+            legal_ids: vec![0; env_steps * ACTION_SPACE_SIZE],
+            legal_action_meta: vec![
+                ACTION_META_UNUSED;
+                env_steps * ACTION_SPACE_SIZE * ACTION_META_WIDTH
+            ],
+            legal_offsets: vec![0; steps * (num_envs + 1)],
+            rewards: vec![0.0; env_steps],
+            terminated: vec![false; env_steps],
+            truncated: vec![false; env_steps],
+            actor: vec![0; env_steps],
+            decision_kind: vec![0; env_steps],
+            decision_id: vec![0; env_steps],
+            engine_status: vec![0; env_steps],
+            episode_seed: vec![0; env_steps],
+            spec_hash: vec![SPEC_HASH; env_steps],
+            main_move_action: vec![false; env_steps],
+            main_pass_action: vec![false; env_steps],
+            actions: vec![0; env_steps],
+        }
+    }
+
+    fn view_mut(&mut self) -> BatchOutTrajectoryI16LegalIds<'_> {
+        BatchOutTrajectoryI16LegalIds {
+            obs: &mut self.obs,
+            legal_ids: &mut self.legal_ids,
+            legal_action_meta: &mut self.legal_action_meta,
+            legal_offsets: &mut self.legal_offsets,
+            rewards: &mut self.rewards,
+            terminated: &mut self.terminated,
+            truncated: &mut self.truncated,
+            actor: &mut self.actor,
+            decision_kind: &mut self.decision_kind,
+            decision_id: &mut self.decision_id,
+            engine_status: &mut self.engine_status,
+            episode_seed: &mut self.episode_seed,
+            spec_hash: &mut self.spec_hash,
+            main_move_action: &mut self.main_move_action,
+            main_pass_action: &mut self.main_pass_action,
+            actions: &mut self.actions,
+        }
     }
 }
 
@@ -277,6 +464,59 @@ fn bench_reset_batch(c: &mut Criterion) {
     });
 }
 
+fn bench_reset_i16_legal_ids_256(c: &mut Criterion) {
+    let db = make_db();
+    let mut config = make_config();
+    config.max_decisions = 100_000;
+    config.max_ticks = 1_000_000;
+    let curriculum = CurriculumConfig::default();
+    let mut pool = EnvPool::new_debug(
+        256,
+        db,
+        config,
+        curriculum,
+        18,
+        None,
+        DebugConfig::default(),
+    )
+    .expect("pool");
+    pool.set_output_mask_enabled(false);
+    let mut out = BatchOutMinimalI16LegalIdsBuffers::new(pool.envs.len());
+    c.bench_function("reset_i16_legal_ids_256", |b| {
+        b.iter(|| {
+            let mut view = out.view_mut();
+            pool.reset_into_i16_legal_ids(black_box(&mut view)).unwrap();
+        })
+    });
+}
+
+fn bench_reset_i16_legal_ids_nometa_256(c: &mut Criterion) {
+    let db = make_db();
+    let mut config = make_config();
+    config.max_decisions = 100_000;
+    config.max_ticks = 1_000_000;
+    let curriculum = CurriculumConfig::default();
+    let mut pool = EnvPool::new_debug(
+        256,
+        db,
+        config,
+        curriculum,
+        19,
+        None,
+        DebugConfig::default(),
+    )
+    .expect("pool");
+    pool.set_output_mask_enabled(false);
+    let mut out = BatchOutMinimalI16LegalIdsNoMetaBuffers::new(pool.envs.len());
+    c.bench_function("reset_i16_legal_ids_nometa_256", |b| {
+        b.iter(|| {
+            let mut view = out.view_mut();
+            pool.reset_into_i16_legal_ids_nometa(black_box(&mut view))
+                .unwrap();
+        })
+    });
+}
+
 fn bench_step_batch_fast_priority_off(c: &mut Criterion) {
     let db = make_db();
     let config = make_config();
@@ -351,6 +591,134 @@ fn bench_step_batch_fast_priority_on(c: &mut Criterion) {
             }
             pool.step_into(black_box(&actions), black_box(&mut out.view_mut()))
                 .unwrap();
+        })
+    });
+}
+
+fn bench_step_first_legal_i16_legal_ids_256(c: &mut Criterion) {
+    let db = make_db();
+    let mut config = make_config();
+    config.max_decisions = 100_000;
+    config.max_ticks = 1_000_000;
+    let curriculum = make_curriculum(false);
+    let mut pool = EnvPool::new_debug(
+        256,
+        db,
+        config,
+        curriculum,
+        23,
+        None,
+        DebugConfig::default(),
+    )
+    .expect("pool");
+    pool.set_output_mask_enabled(false);
+    let mut actions = vec![0u32; pool.envs.len()];
+    let mut done = vec![false; pool.envs.len()];
+    let mut out = BatchOutMinimalI16LegalIdsBuffers::new(pool.envs.len());
+    {
+        let mut view = out.view_mut();
+        pool.reset_into_i16_legal_ids(&mut view).unwrap();
+    }
+    c.bench_function("step_first_legal_i16_legal_ids_256", |b| {
+        b.iter(|| {
+            let mut needs_reset = false;
+            for ((flag, &terminated), &truncated) in done
+                .iter_mut()
+                .zip(out.terminated.iter())
+                .zip(out.truncated.iter())
+            {
+                *flag = terminated || truncated;
+                needs_reset |= *flag;
+            }
+            if needs_reset {
+                let mut view = out.view_mut();
+                pool.reset_done_into_i16_legal_ids(&done, &mut view)
+                    .unwrap();
+            }
+            let mut view = out.view_mut();
+            pool.step_first_legal_into_i16_legal_ids(black_box(&mut actions), black_box(&mut view))
+                .unwrap();
+        })
+    });
+}
+
+fn bench_step_first_legal_i16_legal_ids_nometa_256(c: &mut Criterion) {
+    let db = make_db();
+    let mut config = make_config();
+    config.max_decisions = 100_000;
+    config.max_ticks = 1_000_000;
+    let curriculum = make_curriculum(false);
+    let mut pool = EnvPool::new_debug(
+        256,
+        db,
+        config,
+        curriculum,
+        25,
+        None,
+        DebugConfig::default(),
+    )
+    .expect("pool");
+    pool.set_output_mask_enabled(false);
+    let mut actions = vec![0u32; pool.envs.len()];
+    let mut done = vec![false; pool.envs.len()];
+    let mut out = BatchOutMinimalI16LegalIdsNoMetaBuffers::new(pool.envs.len());
+    {
+        let mut view = out.view_mut();
+        pool.reset_into_i16_legal_ids_nometa(&mut view).unwrap();
+    }
+    c.bench_function("step_first_legal_i16_legal_ids_nometa_256", |b| {
+        b.iter(|| {
+            let mut needs_reset = false;
+            for ((flag, &terminated), &truncated) in done
+                .iter_mut()
+                .zip(out.terminated.iter())
+                .zip(out.truncated.iter())
+            {
+                *flag = terminated || truncated;
+                needs_reset |= *flag;
+            }
+            if needs_reset {
+                let mut view = out.view_mut();
+                pool.reset_done_into_i16_legal_ids_nometa(&done, &mut view)
+                    .unwrap();
+            }
+            let mut view = out.view_mut();
+            pool.step_first_legal_into_i16_legal_ids_nometa(
+                black_box(&mut actions),
+                black_box(&mut view),
+            )
+            .unwrap();
+        })
+    });
+}
+
+fn bench_rollout_heuristic_public_i16_legal_ids_256x16(c: &mut Criterion) {
+    let db = make_db();
+    let mut config = make_config();
+    config.max_decisions = 100_000;
+    config.max_ticks = 1_000_000;
+    let curriculum = make_curriculum(false);
+    let mut pool = EnvPool::new_debug(
+        256,
+        db,
+        config,
+        curriculum,
+        24,
+        None,
+        DebugConfig::default(),
+    )
+    .expect("pool");
+    pool.set_output_mask_enabled(false);
+    let steps = 16;
+    let mut out = BatchOutTrajectoryI16LegalIdsBuffers::new(steps, pool.envs.len());
+    c.bench_function("rollout_heuristic_public_i16_legal_ids_256x16", |b| {
+        b.iter(|| {
+            let mut view = out.view_mut();
+            pool.rollout_heuristic_public_into_i16_legal_ids(
+                black_box(steps),
+                black_box(&mut view),
+            )
+            .unwrap();
         })
     });
 }
@@ -654,8 +1022,13 @@ criterion_group!(
     bench_advance_until_decision,
     bench_step_batch,
     bench_reset_batch,
+    bench_reset_i16_legal_ids_256,
+    bench_reset_i16_legal_ids_nometa_256,
     bench_step_batch_fast_priority_off,
     bench_step_batch_fast_priority_on,
+    bench_step_first_legal_i16_legal_ids_256,
+    bench_step_first_legal_i16_legal_ids_nometa_256,
+    bench_rollout_heuristic_public_i16_legal_ids_256x16,
     bench_legal_actions,
     bench_legal_actions_forced,
     bench_on_reverse_decision_frequency,

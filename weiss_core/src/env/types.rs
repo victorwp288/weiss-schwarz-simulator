@@ -2,6 +2,50 @@ use crate::config::ObservationVisibility;
 use crate::db::CardId;
 use crate::state::{DamageType, TerminalResult};
 
+/// Fixed order for debug reward component arrays.
+pub const REWARD_COMPONENT_WIDTH: usize = 5;
+
+/// Per-step reward decomposition for debug output.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RewardBreakdown {
+    /// Terminal outcome contribution.
+    pub terminal: f32,
+    /// Damage-differential shaping contribution.
+    pub damage: f32,
+    /// Level-race shaping contribution.
+    pub level: f32,
+    /// Live-stage board shaping contribution.
+    pub board: f32,
+    /// No-progress shaping contribution.
+    pub no_progress: f32,
+}
+
+impl RewardBreakdown {
+    /// Build a breakdown containing only terminal/outcome reward.
+    pub fn terminal(value: f32) -> Self {
+        Self {
+            terminal: value,
+            ..Self::default()
+        }
+    }
+
+    /// Return the scalar reward represented by this breakdown.
+    pub fn total(self) -> f32 {
+        self.terminal + self.damage + self.level + self.board + self.no_progress
+    }
+
+    /// Return components in the documented debug-output order.
+    pub fn as_array(self) -> [f32; REWARD_COMPONENT_WIDTH] {
+        [
+            self.terminal,
+            self.damage,
+            self.level,
+            self.board,
+            self.no_progress,
+        ]
+    }
+}
+
 /// Metadata describing the current environment state for info payloads.
 #[derive(Clone, Debug)]
 pub struct EnvInfo {
@@ -40,6 +84,8 @@ pub struct StepOutcome {
     pub obs: Vec<i32>,
     /// Reward for this step.
     pub reward: f32,
+    /// Debug-only decomposition whose sum equals `reward`.
+    pub reward_breakdown: RewardBreakdown,
     /// Episode terminated due to win/loss/draw.
     pub terminated: bool,
     /// Episode truncated due to limits (max decisions/ticks).

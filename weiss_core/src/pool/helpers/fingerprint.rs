@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::encode::ACTION_SPACE_SIZE;
-use crate::env::{EngineErrorCode, StepOutcome};
+use crate::env::{EngineErrorCode, StepOutcome, REWARD_COMPONENT_WIDTH};
 
 use super::super::core::EnvPool;
 use super::super::outputs::BatchOutDebug;
@@ -68,6 +68,7 @@ impl EnvPool {
     ) -> Result<()> {
         let num_envs = self.envs.len();
         if out.state_fingerprint.len() != num_envs
+            || out.reward_components.len() != num_envs * REWARD_COMPONENT_WIDTH
             || out.events_fingerprint.len() != num_envs
             || out.mask_fingerprint.len() != num_envs
             || out.event_counts.len() != num_envs
@@ -85,6 +86,9 @@ impl EnvPool {
             out.event_codes.len() / num_envs
         };
         for (i, (env, outcome)) in self.envs.iter().zip(outcomes.iter()).enumerate() {
+            let component_offset = i * REWARD_COMPONENT_WIDTH;
+            out.reward_components[component_offset..component_offset + REWARD_COMPONENT_WIDTH]
+                .copy_from_slice(&outcome.reward_breakdown.as_array());
             if compute_fingerprints {
                 out.state_fingerprint[i] = crate::fingerprint::state_fingerprint(&env.state);
                 out.events_fingerprint[i] =

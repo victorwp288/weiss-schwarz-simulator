@@ -28,8 +28,18 @@ impl GameEnv {
     /// use weiss_core::{CardDb, CurriculumConfig, EnvConfig, GameEnv};
     /// use weiss_core::replay::ReplayConfig;
     ///
-    /// # let db: CardDb = todo!("load card db");
-    /// # let config: EnvConfig = todo!("build env config");
+    /// # let db = CardDb::new(Vec::new())?;
+    /// # let deck = vec![1; weiss_core::encode::MAX_DECK];
+    /// # let config = EnvConfig {
+    /// #     deck_lists: [deck.clone(), deck],
+    /// #     deck_ids: [1, 2],
+    /// #     max_decisions: 2000,
+    /// #     max_ticks: 100_000,
+    /// #     reward: Default::default(),
+    /// #     error_policy: Default::default(),
+    /// #     observation_visibility: Default::default(),
+    /// #     end_condition_policy: Default::default(),
+    /// # };
     /// let mut env = GameEnv::new(
     ///     Arc::new(db),
     ///     config,

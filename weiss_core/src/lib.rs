@@ -7,8 +7,8 @@
 //! ## Docs
 //! - Docs hub: <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/README.md>
 //! - RL contract: <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/rl_contract.md>
-//! - Encodings: <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/encodings.md>
-//! - Replays & determinism: <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/replays_determinism.md>
+//! - Architecture: <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/architecture.md>
+//! - Performance: <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/performance_benchmarks.md>
 //!
 //! ## Module map
 //! Primary runtime modules:
@@ -69,7 +69,7 @@ pub use config::{
     RewardConfig, SimultaneousLossPolicy,
 };
 pub use db::{CardDb, CardId};
-pub use env::{DebugConfig, GameEnv, StepOutcome};
+pub use env::{DebugConfig, GameEnv, RewardBreakdown, StepOutcome, REWARD_COMPONENT_WIDTH};
 pub use error::{ActionError, ConfigError, EnvError, InvariantError, StateError};
 pub use legal::{ActionDesc, Decision, DecisionKind};
 pub use pool::{

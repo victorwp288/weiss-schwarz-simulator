@@ -2,7 +2,7 @@
 //!
 //! Related docs:
 //! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/README.md>
-//! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/rules_coverage.md>
+//! - <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/architecture.md>
 
 mod ability;
 mod card;

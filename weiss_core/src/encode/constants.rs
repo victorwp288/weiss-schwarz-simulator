@@ -1,14 +1,14 @@
 //! Encoding constants for observations and action ids.
 //!
-//! These values are part of the stable encoding contract. See docs/encodings.md.
+//! These values are part of the stable RL contract. See docs/rl_contract.md.
 
 use crate::state::REVEAL_HISTORY_LEN;
 
 /// Observation encoding version.
-/// Changelog: <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/encodings_changelog.md#obs_encoding_version-2>
+/// Contract: <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/rl_contract.md>
 pub const OBS_ENCODING_VERSION: u32 = 2;
 /// Action encoding version.
-/// Changelog: <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/encodings_changelog.md#action_encoding_version-1>
+/// Contract: <https://github.com/victorwp288/weiss-schwarz-simulator/blob/main/docs/rl_contract.md>
 pub const ACTION_ENCODING_VERSION: u32 = 1;
 /// Policy version used in spec hash composition.
 pub const POLICY_VERSION: u32 = 2;

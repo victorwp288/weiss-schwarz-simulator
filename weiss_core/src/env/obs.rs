@@ -4,7 +4,7 @@ use crate::encode::{
     encode_obs_reveal, encode_observation_with_slot_power,
 };
 
-use super::{GameEnv, StepOutcome};
+use super::{GameEnv, RewardBreakdown, StepOutcome};
 
 impl GameEnv {
     pub(super) fn touch_player_obs(&mut self, player: u8) {
@@ -67,6 +67,36 @@ impl GameEnv {
         self.build_outcome_with_obs(reward, false)
     }
 
+    /// Build a `StepOutcome`, optionally skipping observation encoding entirely.
+    pub(crate) fn build_outcome_maybe_encode_obs(
+        &mut self,
+        reward: f32,
+        copy_obs: bool,
+        encode_obs: bool,
+    ) -> StepOutcome {
+        let reward_breakdown = RewardBreakdown::terminal(reward);
+        self.build_outcome_maybe_encode_obs_with_reward_breakdown(
+            reward,
+            reward_breakdown,
+            copy_obs,
+            encode_obs,
+        )
+    }
+
+    pub(crate) fn build_outcome_maybe_encode_obs_with_reward_breakdown(
+        &mut self,
+        reward: f32,
+        reward_breakdown: RewardBreakdown,
+        copy_obs: bool,
+        encode_obs: bool,
+    ) -> StepOutcome {
+        if encode_obs {
+            self.build_outcome_with_obs_and_reward_breakdown(reward, reward_breakdown, copy_obs)
+        } else {
+            self.build_outcome_from_obs(reward, reward_breakdown, Vec::new())
+        }
+    }
+
     /// Build a `StepOutcome`, encoding observations as needed.
     ///
     /// A full re-encode is used when global observation context changed; else a
@@ -74,6 +104,19 @@ impl GameEnv {
     /// per-player blocks. This keeps output deterministic while avoiding
     /// repeated full-buffer writes.
     pub(crate) fn build_outcome_with_obs(&mut self, reward: f32, copy_obs: bool) -> StepOutcome {
+        self.build_outcome_with_obs_and_reward_breakdown(
+            reward,
+            RewardBreakdown::terminal(reward),
+            copy_obs,
+        )
+    }
+
+    pub(crate) fn build_outcome_with_obs_and_reward_breakdown(
+        &mut self,
+        reward: f32,
+        reward_breakdown: RewardBreakdown,
+        copy_obs: bool,
+    ) -> StepOutcome {
         let perspective = self
             .decision
             .as_ref()
@@ -152,6 +195,15 @@ impl GameEnv {
         } else {
             Vec::new()
         };
+        self.build_outcome_from_obs(reward, reward_breakdown, obs)
+    }
+
+    fn build_outcome_from_obs(
+        &self,
+        reward: f32,
+        reward_breakdown: RewardBreakdown,
+        obs: Vec<i32>,
+    ) -> StepOutcome {
         let (main_move_action, main_pass_action) = self.last_action_main_flags();
         let info = super::EnvInfo {
             obs_version: crate::encode::OBS_ENCODING_VERSION,
@@ -193,6 +245,7 @@ impl GameEnv {
         StepOutcome {
             obs,
             reward,
+            reward_breakdown,
             terminated,
             truncated,
             info,

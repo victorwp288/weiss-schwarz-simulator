@@ -5,6 +5,9 @@ fn weiss_sim(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ACTION_SPACE_SIZE", ACTION_SPACE_SIZE)?;
     m.add("ACTION_META_WIDTH", ACTION_META_WIDTH)?;
     m.add("ACTION_META_UNUSED", ACTION_META_UNUSED)?;
+    m.add("REWARD_COMPONENT_WIDTH", REWARD_COMPONENT_WIDTH)?;
+    m.add("LEGAL_ACTION_CONTEXT_V1_WIDTH", LEGAL_ACTION_CONTEXT_V1_WIDTH)?;
+    m.add("LEGAL_ACTION_CONTEXT_UNUSED", LEGAL_ACTION_CONTEXT_UNUSED)?;
     m.add("OBS_ENCODING_VERSION", OBS_ENCODING_VERSION)?;
     m.add("ACTION_ENCODING_VERSION", ACTION_ENCODING_VERSION)?;
     m.add("POLICY_VERSION", POLICY_VERSION)?;
@@ -16,6 +19,7 @@ fn weiss_sim(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBatchOutMinimal>()?;
     m.add_class::<PyBatchOutMinimalI16>()?;
     m.add_class::<PyBatchOutMinimalI16LegalIds>()?;
+    m.add_class::<PyBatchOutMinimalI16LegalIdsNoMeta>()?;
     m.add_class::<PyBatchOutMinimalNoMask>()?;
     m.add_class::<PyBatchOutTrajectory>()?;
     m.add_class::<PyBatchOutTrajectoryI16>()?;

@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 
 use crate::config::RewardConfig;
+use crate::env::RewardBreakdown;
 use crate::events::Event;
 use crate::legal::{ActionDesc, DecisionKind};
 use crate::state::{Phase, StageStatus, TerminalResult, TimingWindow};
@@ -13,7 +14,7 @@ impl GameEnv {
     ///
     /// This is the primary stepping entry point for RL-style loops.
     pub fn apply_action_id(&mut self, action_id: usize) -> Result<super::super::StepOutcome> {
-        self.apply_action_id_internal(action_id, true)
+        self.apply_action_id_internal(action_id, true, true)
     }
 
     /// Apply an action by id without copying the observation buffer.
@@ -23,13 +24,22 @@ impl GameEnv {
         &mut self,
         action_id: usize,
     ) -> Result<super::super::StepOutcome> {
-        self.apply_action_id_internal(action_id, false)
+        self.apply_action_id_internal(action_id, false, true)
+    }
+
+    /// Apply an action by id without encoding post-step observation bytes.
+    pub(crate) fn apply_action_id_without_obs_encode(
+        &mut self,
+        action_id: usize,
+    ) -> Result<super::super::StepOutcome> {
+        self.apply_action_id_internal(action_id, false, false)
     }
 
     fn apply_action_id_internal(
         &mut self,
         action_id: usize,
         copy_obs: bool,
+        encode_obs: bool,
     ) -> Result<super::super::StepOutcome> {
         if self.is_fault_latched() {
             return Ok(self.build_fault_step_outcome(copy_obs));
@@ -47,18 +57,19 @@ impl GameEnv {
                 return self.handle_illegal_action(decision.player, "Invalid action id", copy_obs);
             }
         };
-        self.apply_action_internal(action, copy_obs)
+        self.apply_action_internal(action, copy_obs, encode_obs)
     }
 
     /// Apply a canonical action descriptor.
     pub fn apply_action(&mut self, action: ActionDesc) -> Result<super::super::StepOutcome> {
-        self.apply_action_internal(action, true)
+        self.apply_action_internal(action, true, true)
     }
 
     fn apply_action_internal(
         &mut self,
         action: ActionDesc,
         copy_obs: bool,
+        encode_obs: bool,
     ) -> Result<super::super::StepOutcome> {
         let acting_player = self
             .decision
@@ -92,7 +103,7 @@ impl GameEnv {
                 }
             }
         }
-        let outcome = match self.apply_action_impl(action, copy_obs) {
+        let outcome = match self.apply_action_impl(action, copy_obs, encode_obs) {
             Ok(outcome) => Ok(outcome),
             Err(err) => match self.config.error_policy {
                 crate::config::ErrorPolicy::Strict => Err(err),
@@ -105,15 +116,18 @@ impl GameEnv {
                     });
                     self.decision = None;
                     self.update_action_cache();
-                    Ok(self
-                        .build_outcome_with_obs(self.terminal_reward_for(acting_player), copy_obs))
+                    Ok(self.build_outcome_maybe_encode_obs(
+                        self.terminal_reward_for(acting_player),
+                        copy_obs,
+                        encode_obs,
+                    ))
                 }
                 crate::config::ErrorPolicy::LenientNoop => {
                     self.last_engine_error = true;
                     self.last_engine_error_code = super::super::EngineErrorCode::ActionError;
                     self.last_perspective = acting_player;
                     self.update_action_cache();
-                    Ok(self.build_outcome_with_obs(0.0, copy_obs))
+                    Ok(self.build_outcome_maybe_encode_obs(0.0, copy_obs, encode_obs))
                 }
             },
         }?;
@@ -139,6 +153,7 @@ impl GameEnv {
         &mut self,
         action: ActionDesc,
         copy_obs: bool,
+        encode_obs: bool,
     ) -> Result<super::super::StepOutcome> {
         let decision = self
             .decision
@@ -148,8 +163,6 @@ impl GameEnv {
         self.last_action_desc = Some(action.clone());
         self.last_action_player = Some(decision.player);
         let progress_before = self.progress_signature();
-
-        let mut reward = 0.0f32;
 
         if action == ActionDesc::Concede {
             self.log_event(Event::Concede {
@@ -164,12 +177,17 @@ impl GameEnv {
             if self.maybe_validate_state("post_concede") || self.is_fault_latched() {
                 return Ok(self.build_fault_step_outcome(copy_obs));
             }
-            reward += self.compute_reward(
+            let reward_breakdown = self.compute_reward_breakdown(
                 decision.player,
                 &self.pending_damage_delta,
                 &progress_before,
             );
-            return Ok(self.build_outcome_with_obs(reward, copy_obs));
+            return Ok(self.build_outcome_maybe_encode_obs_with_reward_breakdown(
+                reward_breakdown.total(),
+                reward_breakdown,
+                copy_obs,
+                encode_obs,
+            ));
         }
 
         match decision.kind {
@@ -709,12 +727,17 @@ impl GameEnv {
         }
 
         self.update_no_progress_counter(progress_before);
-        reward += self.compute_reward(
+        let reward_breakdown = self.compute_reward_breakdown(
             decision.player,
             &self.pending_damage_delta,
             &progress_before,
         );
-        Ok(self.build_outcome_with_obs(reward, copy_obs))
+        Ok(self.build_outcome_maybe_encode_obs_with_reward_breakdown(
+            reward_breakdown.total(),
+            reward_breakdown,
+            copy_obs,
+            encode_obs,
+        ))
     }
 
     pub(in crate::env) fn progress_signature(&self) -> ProgressSignature {
@@ -801,12 +824,23 @@ impl GameEnv {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::env) fn compute_reward(
         &self,
         perspective: u8,
         damage_delta: &[i32; 2],
         progress_before: &ProgressSignature,
     ) -> f32 {
+        self.compute_reward_breakdown(perspective, damage_delta, progress_before)
+            .total()
+    }
+
+    pub(in crate::env) fn compute_reward_breakdown(
+        &self,
+        perspective: u8,
+        damage_delta: &[i32; 2],
+        progress_before: &ProgressSignature,
+    ) -> RewardBreakdown {
         let RewardConfig {
             terminal_win,
             terminal_loss,
@@ -819,7 +853,7 @@ impl GameEnv {
             no_progress_penalty,
         } = &self.config.reward;
         if let Some(term) = self.state.terminal {
-            return match term {
+            let terminal = match term {
                 TerminalResult::Win { winner } => {
                     if winner == perspective {
                         *terminal_win
@@ -830,28 +864,29 @@ impl GameEnv {
                 TerminalResult::Draw => *terminal_draw,
                 TerminalResult::Timeout => *terminal_timeout,
             };
+            return RewardBreakdown::terminal(terminal);
         }
         if *enable_shaping {
-            let mut reward = 0.0;
+            let mut reward = RewardBreakdown::default();
             let p = perspective as usize;
             let opp = 1 - p;
-            reward += *damage_reward * damage_delta[opp] as f32;
-            reward -= *damage_reward * damage_delta[p] as f32;
+            reward.damage += *damage_reward * damage_delta[opp] as f32;
+            reward.damage -= *damage_reward * damage_delta[p] as f32;
             let progress_after = self.progress_signature();
             let level_delta = (progress_after.level_counts[opp] as i32
                 - progress_before.level_counts[opp] as i32)
                 - (progress_after.level_counts[p] as i32 - progress_before.level_counts[p] as i32);
-            reward += *level_reward * level_delta as f32;
+            reward.level += *level_reward * level_delta as f32;
             let board_delta = (progress_after.live_stage_counts[p] as i32
                 - progress_before.live_stage_counts[p] as i32)
                 - (progress_after.live_stage_counts[opp] as i32
                     - progress_before.live_stage_counts[opp] as i32);
-            reward += *board_reward * board_delta as f32;
+            reward.board += *board_reward * board_delta as f32;
             if progress_after == *progress_before {
-                reward -= *no_progress_penalty;
+                reward.no_progress -= *no_progress_penalty;
             }
             return reward;
         }
-        0.0
+        RewardBreakdown::default()
     }
 }

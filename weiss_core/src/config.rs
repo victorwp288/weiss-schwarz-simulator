@@ -27,7 +27,7 @@ pub enum ObservationVisibility {
 
 /// Reward shaping configuration for RL training.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct RewardConfig {
     /// Reward for winning the episode.
     pub terminal_win: f32,
@@ -299,7 +299,7 @@ pub struct CurriculumConfig {
     /// Enable continuous modifiers.
     pub enable_continuous_modifiers: bool,
     #[serde(default)]
-    /// Enable approximated non-combat effects listed in docs/approximation_policy.md.
+    /// Enable approximated non-combat effects described in docs/architecture.md.
     pub enable_approx_effects: bool,
     #[serde(default)]
     /// Enable explicit priority windows.
@@ -491,5 +491,12 @@ mod tests {
             err.contains("terminal_draw must be 0"),
             "unexpected error: {err}"
         );
+    }
+
+    #[test]
+    fn reward_config_serde_rejects_unknown_fields() {
+        let err = serde_json::from_str::<RewardConfig>(r#"{"damage_rewrad":0.1}"#)
+            .expect_err("unknown reward fields must fail");
+        assert!(err.to_string().contains("unknown field"));
     }
 }

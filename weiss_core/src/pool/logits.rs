@@ -6,10 +6,25 @@ use rayon::prelude::*;
 
 use super::core::EnvPool;
 use super::outputs::{
-    BatchOutMinimal, BatchOutMinimalI16, BatchOutMinimalI16LegalIds, BatchOutMinimalNoMask,
+    BatchOutMinimal, BatchOutMinimalI16, BatchOutMinimalI16LegalIds,
+    BatchOutMinimalI16LegalIdsNoMeta, BatchOutMinimalNoMask,
 };
 
 use crate::encode::ACTION_SPACE_SIZE;
+
+#[inline]
+fn splitmix64(seed: u64) -> u64 {
+    let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+#[inline]
+fn seed_to_unit_f64(seed: u64) -> f64 {
+    const SCALE: f64 = 1.0 / ((1u64 << 53) as f64);
+    ((splitmix64(seed) >> 11) as f64) * SCALE
+}
 
 impl EnvPool {
     fn sample_actions_from_logits_internal(
@@ -77,7 +92,7 @@ impl EnvPool {
                                 *logp_slot = 0.0;
                                 return;
                             }
-                            let u = (seed as f64) / (u64::MAX as f64);
+                            let u = seed_to_unit_f64(seed);
                             let mut threshold = u * total;
                             let mut chosen = legal[legal.len() - 1] as u32;
                             let mut chosen_logit = logits[base + chosen as usize] as f64;
@@ -129,7 +144,7 @@ impl EnvPool {
                                 *action_slot = legal[0] as u32;
                                 return;
                             }
-                            let u = (seed as f64) / (u64::MAX as f64);
+                            let u = seed_to_unit_f64(seed);
                             let mut threshold = u * total;
                             let mut chosen = legal[legal.len() - 1] as u32;
                             for &id_u16 in legal.iter() {
@@ -183,7 +198,7 @@ impl EnvPool {
                 }
                 continue;
             }
-            let u = (seeds[i] as f64) / (u64::MAX as f64);
+            let u = seed_to_unit_f64(seeds[i]);
             let mut threshold = u * total;
             let mut chosen = legal[legal.len() - 1] as u32;
             let mut chosen_logit = logits[base + chosen as usize] as f64;
@@ -347,6 +362,19 @@ impl EnvPool {
         self.step_into_i16_legal_ids(actions, out)
     }
 
+    /// Select from logits and step, filling i16 outputs plus legal-id lists without legal metadata.
+    ///
+    /// Requires output masks to be disabled.
+    pub fn step_select_from_logits_into_i16_legal_ids_nometa(
+        &mut self,
+        logits: &[f32],
+        actions: &mut [u32],
+        out: &mut BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        self.select_actions_from_logits_into(logits, actions)?;
+        self.step_into_i16_legal_ids_nometa(actions, out)
+    }
+
     /// Sample from logits and step, filling minimal outputs.
     pub fn step_sample_from_logits_into(
         &mut self,
@@ -397,6 +425,20 @@ impl EnvPool {
         self.step_into_i16_legal_ids(actions, out)
     }
 
+    /// Sample from logits and step, filling i16 outputs plus legal-id lists without legal metadata.
+    ///
+    /// Requires output masks to be disabled.
+    pub fn step_sample_from_logits_into_i16_legal_ids_nometa(
+        &mut self,
+        logits: &[f32],
+        seeds: &[u64],
+        actions: &mut [u32],
+        out: &mut BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        self.sample_actions_from_logits_into(logits, seeds, actions)?;
+        self.step_into_i16_legal_ids_nometa(actions, out)
+    }
+
     /// Sample from logits, write sampled-action log-probs, and step, filling i16 outputs plus legal-id lists.
     pub fn step_sample_from_logits_with_logp_into_i16_legal_ids(
         &mut self,
@@ -408,5 +450,39 @@ impl EnvPool {
     ) -> Result<()> {
         self.sample_actions_from_logits_with_logp_into(logits, seeds, actions, action_logp)?;
         self.step_into_i16_legal_ids(actions, out)
+    }
+
+    /// Sample from logits, write sampled-action log-probs, and step, filling i16 legal ids without metadata.
+    pub fn step_sample_from_logits_with_logp_into_i16_legal_ids_nometa(
+        &mut self,
+        logits: &[f32],
+        seeds: &[u64],
+        actions: &mut [u32],
+        action_logp: &mut [f32],
+        out: &mut BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        self.sample_actions_from_logits_with_logp_into(logits, seeds, actions, action_logp)?;
+        self.step_into_i16_legal_ids_nometa(actions, out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::seed_to_unit_f64;
+
+    #[test]
+    fn seed_to_unit_f64_mixes_small_sequential_seeds() {
+        let uniforms: Vec<f64> = (0u64..16).map(seed_to_unit_f64).collect();
+
+        assert!(uniforms.iter().all(|&value| (0.0..1.0).contains(&value)));
+        assert!(uniforms.iter().any(|&value| value < 0.25));
+        assert!(uniforms.iter().any(|&value| value > 0.75));
+    }
+
+    #[test]
+    fn seed_to_unit_f64_is_deterministic() {
+        for seed in [0, 1, 2, 11, u64::MAX] {
+            assert_eq!(seed_to_unit_f64(seed), seed_to_unit_f64(seed));
+        }
     }
 }

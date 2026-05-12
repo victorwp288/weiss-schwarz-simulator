@@ -50,6 +50,10 @@ pub struct FactorizedActionDesc {
 pub const ACTION_META_WIDTH: usize = 4;
 /// Sentinel value used for unused action metadata arguments.
 pub const ACTION_META_UNUSED: u16 = u16::MAX;
+/// Number of `i32` fields exported for each optional legal-action context row.
+pub const LEGAL_ACTION_CONTEXT_V1_WIDTH: usize = 15;
+/// Sentinel value used for unavailable legal-action context fields.
+pub const LEGAL_ACTION_CONTEXT_UNUSED: i32 = -1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]

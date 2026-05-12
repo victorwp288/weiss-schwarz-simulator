@@ -7,9 +7,9 @@ use rayon::prelude::*;
 use super::core::EnvPool;
 use super::outputs::{
     BatchOutDebug, BatchOutMinimal, BatchOutMinimalI16, BatchOutMinimalI16LegalIds,
-    BatchOutMinimalNoMask,
+    BatchOutMinimalI16LegalIdsNoMeta, BatchOutMinimalNoMask,
 };
-use crate::env::{EngineErrorCode, EnvInfo, FaultSource, GameEnv, StepOutcome};
+use crate::env::{EngineErrorCode, EnvInfo, FaultSource, GameEnv, RewardBreakdown, StepOutcome};
 
 #[derive(Clone)]
 struct ResetSlotTemplate {
@@ -31,6 +31,7 @@ fn fallback_reset_panic_outcome(reward: f32) -> StepOutcome {
     StepOutcome {
         obs: vec![0; crate::encode::OBS_LEN],
         reward,
+        reward_breakdown: RewardBreakdown::terminal(reward),
         terminated: false,
         truncated: true,
         info: EnvInfo {
@@ -336,9 +337,22 @@ impl EnvPool {
         }
         self.fill_outcomes_for_all_reset();
         let outcomes = &self.outcomes_scratch;
-        self.fill_minimal_out_i16_legal_ids(outcomes, out)?;
-        self.legal_action_ids_batch_into(out.legal_ids, out.legal_offsets)?;
-        Ok(())
+        self.fill_minimal_out_i16_legal_ids(outcomes, out)
+    }
+
+    /// Reset all envs and fill i16 outputs plus legal-id lists, without legal metadata.
+    ///
+    /// Requires output masks to be disabled.
+    pub fn reset_into_i16_legal_ids_nometa(
+        &mut self,
+        out: &mut BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        if self.output_mask_enabled {
+            anyhow::bail!("legal ids output requires output masks disabled");
+        }
+        self.fill_outcomes_for_all_reset();
+        let outcomes = &self.outcomes_scratch;
+        self.fill_minimal_out_i16_legal_ids_nometa(outcomes, out)
     }
 
     /// Reset all envs and fill a minimal output batch without masks.
@@ -423,9 +437,36 @@ impl EnvPool {
         let flags = self.reset_flags.clone();
         self.fill_outcomes_for_flags(&flags)?;
         let outcomes = &self.outcomes_scratch;
-        self.fill_minimal_out_i16_legal_ids(outcomes, out)?;
-        self.legal_action_ids_batch_into(out.legal_ids, out.legal_offsets)?;
-        Ok(())
+        self.fill_minimal_out_i16_legal_ids(outcomes, out)
+    }
+
+    /// Returns Err if any index is out of bounds (>= num_envs).
+    /// Reset a subset of envs by index and fill i16 outputs plus legal-id lists, without legal metadata.
+    ///
+    /// Requires output masks to be disabled.
+    pub fn reset_indices_into_i16_legal_ids_nometa(
+        &mut self,
+        indices: &[usize],
+        out: &mut BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        if self.output_mask_enabled {
+            anyhow::bail!("legal ids output requires output masks disabled");
+        }
+        let num_envs = self.envs.len();
+        if self.reset_flags.len() != num_envs {
+            self.reset_flags.resize(num_envs, false);
+        }
+        self.reset_flags.fill(false);
+        for &idx in indices {
+            if idx >= num_envs {
+                anyhow::bail!("reset index out of bounds: {idx} (num_envs={num_envs})");
+            }
+            self.reset_flags[idx] = true;
+        }
+        let flags = self.reset_flags.clone();
+        self.fill_outcomes_for_flags(&flags)?;
+        let outcomes = &self.outcomes_scratch;
+        self.fill_minimal_out_i16_legal_ids_nometa(outcomes, out)
     }
 
     /// Returns Err if any index is out of bounds (>= num_envs).
@@ -502,9 +543,28 @@ impl EnvPool {
         }
         self.fill_outcomes_for_flags(done_mask)?;
         let outcomes = &self.outcomes_scratch;
-        self.fill_minimal_out_i16_legal_ids(outcomes, out)?;
-        self.legal_action_ids_batch_into(out.legal_ids, out.legal_offsets)?;
-        Ok(())
+        self.fill_minimal_out_i16_legal_ids(outcomes, out)
+    }
+
+    /// Reset envs where `done_mask` is true and fill i16 outputs plus legal-id lists, without legal metadata.
+    ///
+    /// Requires output masks to be disabled.
+    pub fn reset_done_into_i16_legal_ids_nometa(
+        &mut self,
+        done_mask: &[bool],
+        out: &mut BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        let num_envs = self.envs.len();
+        let len = done_mask.len();
+        if len != num_envs {
+            anyhow::bail!("done_mask length mismatch: {len} != num_envs={num_envs}");
+        }
+        if self.output_mask_enabled {
+            anyhow::bail!("legal ids output requires output masks disabled");
+        }
+        self.fill_outcomes_for_flags(done_mask)?;
+        let outcomes = &self.outcomes_scratch;
+        self.fill_minimal_out_i16_legal_ids_nometa(outcomes, out)
     }
 
     /// Reset envs where `done_mask` is true and fill outputs without masks.
@@ -736,9 +796,40 @@ impl EnvPool {
         let seed_opts = self.reset_seed_scratch.clone();
         self.fill_outcomes_for_seed_options(&seed_opts)?;
         let outcomes = &self.outcomes_scratch;
-        self.fill_minimal_out_i16_legal_ids(outcomes, out)?;
-        self.legal_action_ids_batch_into(out.legal_ids, out.legal_offsets)?;
-        Ok(())
+        self.fill_minimal_out_i16_legal_ids(outcomes, out)
+    }
+
+    /// Returns Err if any index is out of bounds (>= num_envs).
+    /// Reset a subset of envs with explicit episode seeds and fill i16 outputs plus legal-id lists, without legal metadata.
+    ///
+    /// Requires output masks to be disabled.
+    pub fn reset_indices_with_episode_seeds_into_i16_legal_ids_nometa(
+        &mut self,
+        indices: &[usize],
+        episode_seeds: &[u64],
+        out: &mut BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        if self.output_mask_enabled {
+            anyhow::bail!("legal ids output requires output masks disabled");
+        }
+        if indices.len() != episode_seeds.len() {
+            anyhow::bail!("indices and episode_seeds length mismatch");
+        }
+        let num_envs = self.envs.len();
+        if self.reset_seed_scratch.len() != num_envs {
+            self.reset_seed_scratch.resize(num_envs, None);
+        }
+        self.reset_seed_scratch.fill(None);
+        for (&idx, &seed) in indices.iter().zip(episode_seeds.iter()) {
+            if idx >= num_envs {
+                anyhow::bail!("reset index out of bounds: {idx} (num_envs={num_envs})");
+            }
+            self.reset_seed_scratch[idx] = Some(seed);
+        }
+        let seed_opts = self.reset_seed_scratch.clone();
+        self.fill_outcomes_for_seed_options(&seed_opts)?;
+        let outcomes = &self.outcomes_scratch;
+        self.fill_minimal_out_i16_legal_ids_nometa(outcomes, out)
     }
 
     /// Returns Err if any index is out of bounds (>= num_envs).

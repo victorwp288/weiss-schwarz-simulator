@@ -1,4 +1,5 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::Arc;
 
 use anyhow::Result;
 use rayon::prelude::*;
@@ -6,12 +7,18 @@ use rayon::prelude::*;
 use super::core::EnvPool;
 use super::outputs::{
     BatchOutDebug, BatchOutMinimal, BatchOutMinimalI16, BatchOutMinimalI16LegalIds,
-    BatchOutMinimalNoMask, BatchOutTrajectory, BatchOutTrajectoryI16,
-    BatchOutTrajectoryI16LegalIds, BatchOutTrajectoryNoMask,
+    BatchOutMinimalI16LegalIdsNoMeta, BatchOutMinimalNoMask,
 };
+use crate::config::{CurriculumConfig, EnvConfig, ErrorPolicy};
+use crate::db::CardDb;
 
-use crate::encode::{ACTION_SPACE_SIZE, OBS_LEN};
-use crate::env::{EngineErrorCode, EnvInfo, FaultSource, GameEnv, StepOutcome};
+use crate::encode::OBS_LEN;
+use crate::env::{
+    DebugConfig, EngineErrorCode, EnvInfo, FaultSource, GameEnv, RewardBreakdown, StepOutcome,
+};
+use crate::replay::{ReplayConfig, ReplayWriter};
+
+mod rollout;
 
 #[cold]
 #[inline(never)]
@@ -23,6 +30,7 @@ fn fallback_panic_outcome(
     StepOutcome {
         obs: vec![0; OBS_LEN],
         reward,
+        reward_breakdown: RewardBreakdown::terminal(reward),
         terminated: false,
         truncated: true,
         info: EnvInfo {
@@ -79,10 +87,236 @@ fn latch_fallback_step_fault(
     env.action_cache.clear();
 }
 
+#[derive(Clone)]
+pub(in crate::pool) struct StepBatchContext {
+    template_db: Arc<CardDb>,
+    template_config: EnvConfig,
+    template_curriculum: CurriculumConfig,
+    template_replay_config: ReplayConfig,
+    template_replay_writer: Option<ReplayWriter>,
+    debug_config: DebugConfig,
+    output_mask_enabled: bool,
+    output_mask_bits_enabled: bool,
+    error_policy: ErrorPolicy,
+    pool_seed: u64,
+}
+
 impl EnvPool {
     const STEP_PARALLEL_MIN_ENVS: usize = 256;
 
+    #[inline]
+    pub(in crate::pool) fn step_batch_context(&self) -> StepBatchContext {
+        StepBatchContext {
+            template_db: self.template_db.clone(),
+            template_config: self.template_config.clone(),
+            template_curriculum: self.template_curriculum.clone(),
+            template_replay_config: self.template_replay_config.clone(),
+            template_replay_writer: self.template_replay_writer.clone(),
+            debug_config: self.debug_config,
+            output_mask_enabled: self.output_mask_enabled,
+            output_mask_bits_enabled: self.output_mask_bits_enabled,
+            error_policy: self.error_policy,
+            pool_seed: self.pool_seed,
+        }
+    }
+
+    pub(in crate::pool) fn run_step_outcome_with_context(
+        context: &StepBatchContext,
+        idx: usize,
+        env: &mut GameEnv,
+        action_id: u32,
+        encode_observations: bool,
+    ) -> StepOutcome {
+        let mut meta_actor: Option<u8> = None;
+        let meta_episode_index = env.episode_index;
+        let meta_episode_seed = env.episode_seed;
+        let mut meta_decision_id = env.decision_id();
+
+        let result = catch_unwind(AssertUnwindSafe(|| -> StepOutcome {
+            meta_actor = env
+                .decision
+                .as_ref()
+                .map(|d| d.player)
+                .or_else(|| env.fault_actor());
+            meta_decision_id = env.decision_id();
+            if env.is_fault_latched() {
+                return env.build_fault_step_outcome_no_copy();
+            }
+            if env.state.terminal.is_some() {
+                env.clear_status_flags();
+                return env.build_outcome_maybe_encode_obs(0.0, false, encode_observations);
+            }
+            if env.decision.is_none() {
+                env.advance_until_decision();
+                env.update_action_cache();
+                env.clear_status_flags();
+                return env.build_outcome_maybe_encode_obs(0.0, false, encode_observations);
+            }
+            let step_result = if encode_observations {
+                env.apply_action_id_no_copy(action_id as usize)
+            } else {
+                env.apply_action_id_without_obs_encode(action_id as usize)
+            };
+            match step_result {
+                Ok(outcome) => outcome,
+                Err(_) => env.latch_fault(
+                    EngineErrorCode::ActionError,
+                    meta_actor,
+                    FaultSource::Step,
+                    false,
+                ),
+            }
+        }));
+
+        match result {
+            Ok(outcome) => outcome,
+            Err(_) => {
+                let recover = catch_unwind(AssertUnwindSafe(|| {
+                    let rebuilt = GameEnv::new(
+                        context.template_db.clone(),
+                        context.template_config.clone(),
+                        context.template_curriculum.clone(),
+                        context.pool_seed ^ (idx as u64).wrapping_mul(0x9E3779B97F4A7C15),
+                        context.template_replay_config.clone(),
+                        context.template_replay_writer.clone(),
+                        idx as u32,
+                    );
+                    if let Ok(mut fresh) = rebuilt {
+                        fresh.set_debug_config(context.debug_config);
+                        fresh.set_output_mask_enabled(context.output_mask_enabled);
+                        fresh.set_output_mask_bits_enabled(context.output_mask_bits_enabled);
+                        fresh.config.error_policy = context.error_policy;
+                        *env = fresh;
+                        let mut out = env.latch_fault(
+                            EngineErrorCode::Panic,
+                            meta_actor,
+                            FaultSource::Step,
+                            false,
+                        );
+                        let fingerprint = Self::panic_fingerprint_from_meta(
+                            idx as u32,
+                            meta_episode_index,
+                            meta_episode_seed,
+                            meta_decision_id,
+                            EngineErrorCode::Panic,
+                        );
+                        if let Some(mut record) = env.fault_record() {
+                            record.fingerprint = fingerprint;
+                            env.fault_latched = Some(record);
+                        }
+                        out.info.engine_error = true;
+                        out.info.engine_error_code = EngineErrorCode::Panic as u8;
+                        out
+                    } else {
+                        latch_fallback_step_fault(
+                            env,
+                            idx as u32,
+                            meta_episode_index,
+                            meta_episode_seed,
+                            meta_decision_id,
+                            meta_actor,
+                        );
+                        fallback_panic_outcome(
+                            meta_actor,
+                            meta_actor
+                                .map(|_| context.template_config.reward.terminal_loss)
+                                .unwrap_or(context.template_config.reward.terminal_draw),
+                            EngineErrorCode::Panic,
+                        )
+                    }
+                }));
+                match recover {
+                    Ok(outcome) => outcome,
+                    Err(_) => {
+                        let fallback_reward = meta_actor
+                            .map(|_| context.template_config.reward.terminal_loss)
+                            .unwrap_or(context.template_config.reward.terminal_draw);
+                        let mut rebuilt = false;
+                        let mut double_panic_occurred = false;
+                        match catch_unwind(AssertUnwindSafe(|| {
+                            let rebuilt_env = GameEnv::new(
+                                context.template_db.clone(),
+                                context.template_config.clone(),
+                                context.template_curriculum.clone(),
+                                context.pool_seed ^ (idx as u64).wrapping_mul(0x9E3779B97F4A7C15),
+                                context.template_replay_config.clone(),
+                                context.template_replay_writer.clone(),
+                                idx as u32,
+                            );
+                            if let Ok(mut fresh) = rebuilt_env {
+                                fresh.set_debug_config(context.debug_config);
+                                fresh.set_output_mask_enabled(context.output_mask_enabled);
+                                fresh
+                                    .set_output_mask_bits_enabled(context.output_mask_bits_enabled);
+                                fresh.config.error_policy = context.error_policy;
+                                let fingerprint = Self::panic_fingerprint_from_meta(
+                                    idx as u32,
+                                    meta_episode_index,
+                                    meta_episode_seed,
+                                    meta_decision_id,
+                                    EngineErrorCode::Panic,
+                                );
+                                fresh.fault_latched = Some(crate::env::FaultRecord {
+                                    code: EngineErrorCode::Panic,
+                                    actor: meta_actor,
+                                    fingerprint,
+                                    source: FaultSource::Step,
+                                    reward_emitted: true,
+                                });
+                                fresh.last_engine_error = true;
+                                fresh.last_engine_error_code = EngineErrorCode::Panic;
+                                if let Some(actor) = meta_actor {
+                                    fresh.last_perspective = actor;
+                                }
+                                fresh.state.terminal = Some(crate::state::TerminalResult::Timeout);
+                                fresh.clear_decision();
+                                fresh.update_action_cache();
+                                *env = fresh;
+                                rebuilt = true;
+                            }
+                        })) {
+                            Ok(()) => {}
+                            Err(_) => {
+                                double_panic_occurred = true;
+                            }
+                        }
+                        if rebuilt {
+                        } else if !double_panic_occurred {
+                            latch_fallback_step_fault(
+                                env,
+                                idx as u32,
+                                meta_episode_index,
+                                meta_episode_seed,
+                                meta_decision_id,
+                                meta_actor,
+                            );
+                        }
+                        fallback_panic_outcome(meta_actor, fallback_reward, EngineErrorCode::Panic)
+                    }
+                }
+            }
+        }
+    }
+
+    #[inline]
     fn step_batch_outcomes(&mut self, action_ids: &[u32]) -> Result<()> {
+        self.step_batch_outcomes_with_obs_mode(action_ids, true)
+    }
+
+    #[inline]
+    fn step_batch_transition_outcomes_without_obs_encode(
+        &mut self,
+        action_ids: &[u32],
+    ) -> Result<()> {
+        self.step_batch_outcomes_with_obs_mode(action_ids, false)
+    }
+
+    #[inline]
+    fn step_batch_outcomes_with_obs_mode(
+        &mut self,
+        action_ids: &[u32],
+        encode_observations: bool,
+    ) -> Result<()> {
         if action_ids.len() != self.envs.len() {
             anyhow::bail!("Action batch size mismatch");
         }
@@ -98,189 +332,15 @@ impl EnvPool {
         if self.envs.is_empty() {
             return Ok(());
         }
-        let template_db = self.template_db.clone();
-        let template_config = self.template_config.clone();
-        let template_curriculum = self.template_curriculum.clone();
-        let template_replay_config = self.template_replay_config.clone();
-        let template_replay_writer = self.template_replay_writer.clone();
-        let debug_config = self.debug_config;
-        let output_mask_enabled = self.output_mask_enabled;
-        let output_mask_bits_enabled = self.output_mask_bits_enabled;
-        let error_policy = self.error_policy;
-        let pool_seed = self.pool_seed;
-
+        let step_context = self.step_batch_context();
         let run_step = |idx: usize, env: &mut GameEnv, action_id: u32| -> StepOutcome {
-            let mut meta_actor: Option<u8> = None;
-            let meta_episode_index = env.episode_index;
-            let meta_episode_seed = env.episode_seed;
-            let mut meta_decision_id = env.decision_id();
-
-            let result = catch_unwind(AssertUnwindSafe(|| -> StepOutcome {
-                meta_actor = env
-                    .decision
-                    .as_ref()
-                    .map(|d| d.player)
-                    .or_else(|| env.fault_actor());
-                meta_decision_id = env.decision_id();
-                if env.is_fault_latched() {
-                    return env.build_fault_step_outcome_no_copy();
-                }
-                if env.state.terminal.is_some() {
-                    env.clear_status_flags();
-                    return env.build_outcome_no_copy(0.0);
-                }
-                if env.decision.is_none() {
-                    env.advance_until_decision();
-                    env.update_action_cache();
-                    env.clear_status_flags();
-                    return env.build_outcome_no_copy(0.0);
-                }
-                match env.apply_action_id_no_copy(action_id as usize) {
-                    Ok(outcome) => outcome,
-                    Err(_) => env.latch_fault(
-                        EngineErrorCode::ActionError,
-                        meta_actor,
-                        FaultSource::Step,
-                        false,
-                    ),
-                }
-            }));
-
-            match result {
-                Ok(outcome) => outcome,
-                Err(_) => {
-                    let recover = catch_unwind(AssertUnwindSafe(|| {
-                        let rebuilt = GameEnv::new(
-                            template_db.clone(),
-                            template_config.clone(),
-                            template_curriculum.clone(),
-                            pool_seed ^ (idx as u64).wrapping_mul(0x9E3779B97F4A7C15),
-                            template_replay_config.clone(),
-                            template_replay_writer.clone(),
-                            idx as u32,
-                        );
-                        if let Ok(mut fresh) = rebuilt {
-                            fresh.set_debug_config(debug_config);
-                            fresh.set_output_mask_enabled(output_mask_enabled);
-                            fresh.set_output_mask_bits_enabled(output_mask_bits_enabled);
-                            fresh.config.error_policy = error_policy;
-                            *env = fresh;
-                            let mut out = env.latch_fault(
-                                EngineErrorCode::Panic,
-                                meta_actor,
-                                FaultSource::Step,
-                                false,
-                            );
-                            let fingerprint = Self::panic_fingerprint_from_meta(
-                                idx as u32,
-                                meta_episode_index,
-                                meta_episode_seed,
-                                meta_decision_id,
-                                EngineErrorCode::Panic,
-                            );
-                            if let Some(mut record) = env.fault_record() {
-                                record.fingerprint = fingerprint;
-                                env.fault_latched = Some(record);
-                            }
-                            out.info.engine_error = true;
-                            out.info.engine_error_code = EngineErrorCode::Panic as u8;
-                            out
-                        } else {
-                            latch_fallback_step_fault(
-                                env,
-                                idx as u32,
-                                meta_episode_index,
-                                meta_episode_seed,
-                                meta_decision_id,
-                                meta_actor,
-                            );
-                            fallback_panic_outcome(
-                                meta_actor,
-                                meta_actor
-                                    .map(|_| template_config.reward.terminal_loss)
-                                    .unwrap_or(template_config.reward.terminal_draw),
-                                EngineErrorCode::Panic,
-                            )
-                        }
-                    }));
-                    match recover {
-                        Ok(outcome) => outcome,
-                        Err(_) => {
-                            let fallback_reward = meta_actor
-                                .map(|_| template_config.reward.terminal_loss)
-                                .unwrap_or(template_config.reward.terminal_draw);
-                            let mut rebuilt = false;
-                            let mut double_panic_occurred = false;
-                            match catch_unwind(AssertUnwindSafe(|| {
-                                let rebuilt_env = GameEnv::new(
-                                    template_db.clone(),
-                                    template_config.clone(),
-                                    template_curriculum.clone(),
-                                    pool_seed ^ (idx as u64).wrapping_mul(0x9E3779B97F4A7C15),
-                                    template_replay_config.clone(),
-                                    template_replay_writer.clone(),
-                                    idx as u32,
-                                );
-                                if let Ok(mut fresh) = rebuilt_env {
-                                    fresh.set_debug_config(debug_config);
-                                    fresh.set_output_mask_enabled(output_mask_enabled);
-                                    fresh.set_output_mask_bits_enabled(output_mask_bits_enabled);
-                                    fresh.config.error_policy = error_policy;
-                                    let fingerprint = Self::panic_fingerprint_from_meta(
-                                        idx as u32,
-                                        meta_episode_index,
-                                        meta_episode_seed,
-                                        meta_decision_id,
-                                        EngineErrorCode::Panic,
-                                    );
-                                    fresh.fault_latched = Some(crate::env::FaultRecord {
-                                        code: EngineErrorCode::Panic,
-                                        actor: meta_actor,
-                                        fingerprint,
-                                        source: FaultSource::Step,
-                                        reward_emitted: true,
-                                    });
-                                    fresh.last_engine_error = true;
-                                    fresh.last_engine_error_code = EngineErrorCode::Panic;
-                                    if let Some(actor) = meta_actor {
-                                        fresh.last_perspective = actor;
-                                    }
-                                    fresh.state.terminal =
-                                        Some(crate::state::TerminalResult::Timeout);
-                                    fresh.clear_decision();
-                                    fresh.update_action_cache();
-                                    *env = fresh;
-                                    rebuilt = true;
-                                }
-                            })) {
-                                Ok(()) => {}
-                                Err(_) => {
-                                    double_panic_occurred = true;
-                                    // Double-panic containment failed; do not touch the
-                                    // potentially corrupted env and rely on fallback outcome.
-                                }
-                            }
-                            if rebuilt {
-                                // Rebuilt env already carries latched panic metadata.
-                            } else if !double_panic_occurred {
-                                latch_fallback_step_fault(
-                                    env,
-                                    idx as u32,
-                                    meta_episode_index,
-                                    meta_episode_seed,
-                                    meta_decision_id,
-                                    meta_actor,
-                                );
-                            }
-                            fallback_panic_outcome(
-                                meta_actor,
-                                fallback_reward,
-                                EngineErrorCode::Panic,
-                            )
-                        }
-                    }
-                }
-            }
+            Self::run_step_outcome_with_context(
+                &step_context,
+                idx,
+                env,
+                action_id,
+                encode_observations,
+            )
         };
 
         if let Some(pool) = self.thread_pool.as_ref().filter(|_| {
@@ -320,6 +380,7 @@ impl EnvPool {
     }
 
     /// Step all envs with action ids and fill minimal outputs.
+    #[inline]
     pub fn step_into(&mut self, action_ids: &[u32], out: &mut BatchOutMinimal<'_>) -> Result<()> {
         self.step_batch_outcomes(action_ids)?;
         let outcomes = &self.outcomes_scratch;
@@ -327,6 +388,7 @@ impl EnvPool {
     }
 
     /// Step all envs with action ids and fill i16 outputs.
+    #[inline]
     pub fn step_into_i16(
         &mut self,
         action_ids: &[u32],
@@ -340,6 +402,7 @@ impl EnvPool {
     /// Step all envs and fill i16 outputs plus legal-id lists.
     ///
     /// Requires output masks to be disabled.
+    #[inline]
     pub fn step_into_i16_legal_ids(
         &mut self,
         action_ids: &[u32],
@@ -350,12 +413,28 @@ impl EnvPool {
         }
         self.step_batch_outcomes(action_ids)?;
         let outcomes = &self.outcomes_scratch;
-        self.fill_minimal_out_i16_legal_ids(outcomes, out)?;
-        self.legal_action_ids_batch_into(out.legal_ids, out.legal_offsets)?;
-        Ok(())
+        self.fill_minimal_out_i16_legal_ids(outcomes, out)
+    }
+
+    /// Step all envs and fill i16 outputs plus legal-id lists, without legal metadata.
+    ///
+    /// Requires output masks to be disabled.
+    #[inline]
+    pub fn step_into_i16_legal_ids_nometa(
+        &mut self,
+        action_ids: &[u32],
+        out: &mut BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        if self.output_mask_enabled {
+            anyhow::bail!("legal ids output requires output masks disabled");
+        }
+        self.step_batch_outcomes(action_ids)?;
+        let outcomes = &self.outcomes_scratch;
+        self.fill_minimal_out_i16_legal_ids_nometa(outcomes, out)
     }
 
     /// Step all envs and fill outputs without masks.
+    #[inline]
     pub fn step_into_nomask(
         &mut self,
         action_ids: &[u32],
@@ -376,6 +455,16 @@ impl EnvPool {
         self.step_into_i16_legal_ids(actions, out)
     }
 
+    /// Step using the first legal action per env (i16 + legal ids, no metadata).
+    pub fn step_first_legal_into_i16_legal_ids_nometa(
+        &mut self,
+        actions: &mut [u32],
+        out: &mut BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        self.first_legal_action_ids_into(actions)?;
+        self.step_into_i16_legal_ids_nometa(actions, out)
+    }
+
     /// Step using uniformly sampled legal actions (i16 + legal ids).
     pub fn step_sample_legal_action_ids_uniform_into_i16_legal_ids(
         &mut self,
@@ -385,6 +474,17 @@ impl EnvPool {
     ) -> Result<()> {
         self.sample_legal_action_ids_uniform_into(seeds, actions)?;
         self.step_into_i16_legal_ids(actions, out)
+    }
+
+    /// Step using uniformly sampled legal actions (i16 + legal ids, no metadata).
+    pub fn step_sample_legal_action_ids_uniform_into_i16_legal_ids_nometa(
+        &mut self,
+        seeds: &[u64],
+        actions: &mut [u32],
+        out: &mut BatchOutMinimalI16LegalIdsNoMeta<'_>,
+    ) -> Result<()> {
+        self.sample_legal_action_ids_uniform_into(seeds, actions)?;
+        self.step_into_i16_legal_ids_nometa(actions, out)
     }
 
     /// Step all envs and fill debug outputs.
@@ -461,440 +561,5 @@ impl EnvPool {
     ) -> Result<()> {
         self.sample_legal_action_ids_uniform_into(seeds, actions)?;
         self.step_into_nomask(actions, out)
-    }
-
-    /// Roll out a trajectory using first legal actions.
-    pub fn rollout_first_legal_into(
-        &mut self,
-        steps: usize,
-        out: &mut BatchOutTrajectory<'_>,
-    ) -> Result<()> {
-        self.validate_trajectory(out, steps)?;
-        let num_envs = self.envs.len();
-        for t in 0..steps {
-            let action_slice = &mut out.actions[t * num_envs..(t + 1) * num_envs];
-            self.first_legal_action_ids_into(action_slice)?;
-            let obs_offset = t * num_envs * OBS_LEN;
-            let mask_offset = t * num_envs * ACTION_SPACE_SIZE;
-            let mut out_min = BatchOutMinimal {
-                obs: &mut out.obs[obs_offset..obs_offset + num_envs * OBS_LEN],
-                masks: &mut out.masks[mask_offset..mask_offset + num_envs * ACTION_SPACE_SIZE],
-                rewards: &mut out.rewards[t * num_envs..(t + 1) * num_envs],
-                terminated: &mut out.terminated[t * num_envs..(t + 1) * num_envs],
-                truncated: &mut out.truncated[t * num_envs..(t + 1) * num_envs],
-                actor: &mut out.actor[t * num_envs..(t + 1) * num_envs],
-                decision_kind: &mut out.decision_kind[t * num_envs..(t + 1) * num_envs],
-                decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
-                engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
-                spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
-                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
-                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
-            };
-            self.step_into(action_slice, &mut out_min)?;
-        }
-        Ok(())
-    }
-
-    /// Roll out a trajectory using first legal actions (i16 outputs).
-    pub fn rollout_first_legal_into_i16(
-        &mut self,
-        steps: usize,
-        out: &mut BatchOutTrajectoryI16<'_>,
-    ) -> Result<()> {
-        self.validate_trajectory_i16(out, steps)?;
-        let num_envs = self.envs.len();
-        for t in 0..steps {
-            let action_slice = &mut out.actions[t * num_envs..(t + 1) * num_envs];
-            self.first_legal_action_ids_into(action_slice)?;
-            let obs_offset = t * num_envs * OBS_LEN;
-            let mask_offset = t * num_envs * ACTION_SPACE_SIZE;
-            let mut out_min = BatchOutMinimalI16 {
-                obs: &mut out.obs[obs_offset..obs_offset + num_envs * OBS_LEN],
-                masks: &mut out.masks[mask_offset..mask_offset + num_envs * ACTION_SPACE_SIZE],
-                rewards: &mut out.rewards[t * num_envs..(t + 1) * num_envs],
-                terminated: &mut out.terminated[t * num_envs..(t + 1) * num_envs],
-                truncated: &mut out.truncated[t * num_envs..(t + 1) * num_envs],
-                actor: &mut out.actor[t * num_envs..(t + 1) * num_envs],
-                decision_kind: &mut out.decision_kind[t * num_envs..(t + 1) * num_envs],
-                decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
-                engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
-                spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
-                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
-                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
-            };
-            self.step_into_i16(action_slice, &mut out_min)?;
-        }
-        Ok(())
-    }
-
-    /// Roll out a trajectory using first legal actions (i16 + legal ids).
-    ///
-    /// Requires output masks to be disabled.
-    pub fn rollout_first_legal_into_i16_legal_ids(
-        &mut self,
-        steps: usize,
-        out: &mut BatchOutTrajectoryI16LegalIds<'_>,
-    ) -> Result<()> {
-        if self.output_mask_enabled {
-            anyhow::bail!("legal ids trajectory requires output masks disabled");
-        }
-        self.validate_trajectory_i16_legal_ids(out, steps)?;
-        let num_envs = self.envs.len();
-        for t in 0..steps {
-            let action_slice = &mut out.actions[t * num_envs..(t + 1) * num_envs];
-            self.first_legal_action_ids_into(action_slice)?;
-            let obs_offset = t * num_envs * OBS_LEN;
-            let mut out_min = BatchOutMinimalI16 {
-                obs: &mut out.obs[obs_offset..obs_offset + num_envs * OBS_LEN],
-                masks: &mut [],
-                rewards: &mut out.rewards[t * num_envs..(t + 1) * num_envs],
-                terminated: &mut out.terminated[t * num_envs..(t + 1) * num_envs],
-                truncated: &mut out.truncated[t * num_envs..(t + 1) * num_envs],
-                actor: &mut out.actor[t * num_envs..(t + 1) * num_envs],
-                decision_kind: &mut out.decision_kind[t * num_envs..(t + 1) * num_envs],
-                decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
-                engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
-                spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
-                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
-                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
-            };
-            self.step_into_i16(action_slice, &mut out_min)?;
-            for (dst, env) in out.episode_seed[t * num_envs..(t + 1) * num_envs]
-                .iter_mut()
-                .zip(self.envs.iter())
-            {
-                *dst = env.episode_seed;
-            }
-            let ids_offset = t * num_envs * ACTION_SPACE_SIZE;
-            let offsets_offset = t * (num_envs + 1);
-            let ids_slice =
-                &mut out.legal_ids[ids_offset..ids_offset + num_envs * ACTION_SPACE_SIZE];
-            let meta_slice = &mut out.legal_action_meta[ids_offset
-                * crate::encode::ACTION_META_WIDTH
-                ..(ids_offset + num_envs * ACTION_SPACE_SIZE) * crate::encode::ACTION_META_WIDTH];
-            let offsets_slice =
-                &mut out.legal_offsets[offsets_offset..offsets_offset + num_envs + 1];
-            self.legal_action_ids_batch_into(ids_slice, offsets_slice)?;
-            self.legal_action_meta_batch_into(meta_slice)?;
-        }
-        Ok(())
-    }
-
-    /// Roll out a trajectory using heuristic-public actions with internal auto-reset.
-    ///
-    /// This transition-oriented helper is specialized for RL collection: `obs`,
-    /// `legal_ids`, `legal_action_meta`, `legal_offsets`, `actor`,
-    /// `decision_kind`, and `decision_id` describe the pre-action state at each
-    /// step, while rewards/terminal flags/engine status/main-action flags come
-    /// from the post-action transition. `episode_seed` carries the per-step
-    /// episode seed for this specialized transport, while `spec_hash` remains
-    /// the simulator compatibility hash.
-    ///
-    /// Requires output masks to be disabled.
-    pub fn rollout_heuristic_public_into_i16_legal_ids(
-        &mut self,
-        steps: usize,
-        out: &mut BatchOutTrajectoryI16LegalIds<'_>,
-    ) -> Result<()> {
-        self.rollout_heuristic_public_profile_into_i16_legal_ids(steps, out, "base")
-    }
-
-    /// Roll out a trajectory using a named heuristic-public profile with internal auto-reset.
-    ///
-    /// Profile names match the Python heuristic surface: `base`, `aggressive`, or `control`.
-    /// Requires output masks to be disabled.
-    pub fn rollout_heuristic_public_profile_into_i16_legal_ids(
-        &mut self,
-        steps: usize,
-        out: &mut BatchOutTrajectoryI16LegalIds<'_>,
-        profile_name: &str,
-    ) -> Result<()> {
-        if self.output_mask_enabled {
-            anyhow::bail!("legal ids trajectory requires output masks disabled");
-        }
-        self.validate_trajectory_i16_legal_ids(out, steps)?;
-        let num_envs = self.envs.len();
-        if num_envs == 0 {
-            return Ok(());
-        }
-
-        let keep_flags = vec![false; num_envs];
-        let env_indices: Vec<usize> = (0..num_envs).collect();
-        let mut chosen_actions = vec![0u16; num_envs];
-        let mut done_flags = vec![false; num_envs];
-
-        for t in 0..steps {
-            self.fill_outcomes_for_flags(&keep_flags)?;
-
-            let step_offset = t * num_envs;
-            let obs_offset = step_offset * OBS_LEN;
-            let ids_offset = step_offset * ACTION_SPACE_SIZE;
-            let offsets_offset = t * (num_envs + 1);
-            let meta_offset = ids_offset * crate::encode::ACTION_META_WIDTH;
-
-            let mut pre_step = BatchOutMinimalI16LegalIds {
-                obs: &mut out.obs[obs_offset..obs_offset + num_envs * OBS_LEN],
-                legal_ids: &mut out.legal_ids
-                    [ids_offset..ids_offset + num_envs * ACTION_SPACE_SIZE],
-                legal_action_meta: &mut out.legal_action_meta[meta_offset
-                    ..meta_offset
-                        + num_envs * ACTION_SPACE_SIZE * crate::encode::ACTION_META_WIDTH],
-                legal_offsets: &mut out.legal_offsets
-                    [offsets_offset..offsets_offset + num_envs + 1],
-                rewards: &mut out.rewards[step_offset..step_offset + num_envs],
-                terminated: &mut out.terminated[step_offset..step_offset + num_envs],
-                truncated: &mut out.truncated[step_offset..step_offset + num_envs],
-                actor: &mut out.actor[step_offset..step_offset + num_envs],
-                decision_kind: &mut out.decision_kind[step_offset..step_offset + num_envs],
-                decision_id: &mut out.decision_id[step_offset..step_offset + num_envs],
-                engine_status: &mut out.engine_status[step_offset..step_offset + num_envs],
-                spec_hash: &mut out.spec_hash[step_offset..step_offset + num_envs],
-                main_move_action: &mut out.main_move_action[step_offset..step_offset + num_envs],
-                main_pass_action: &mut out.main_pass_action[step_offset..step_offset + num_envs],
-            };
-            let outcomes = &self.outcomes_scratch;
-            self.fill_minimal_out_i16_legal_ids(outcomes, &mut pre_step)?;
-            for (dst, env) in out.episode_seed[step_offset..step_offset + num_envs]
-                .iter_mut()
-                .zip(self.envs.iter())
-            {
-                *dst = env.episode_seed;
-            }
-
-            self.choose_heuristic_public_profile_actions_into(
-                &env_indices,
-                &mut chosen_actions,
-                profile_name,
-            )?;
-            let action_slice = &mut out.actions[step_offset..step_offset + num_envs];
-            for (dst, &action_id) in action_slice.iter_mut().zip(chosen_actions.iter()) {
-                *dst = u32::from(action_id);
-            }
-
-            self.step_batch_outcomes(action_slice)?;
-            let outcomes = &self.outcomes_scratch;
-            let reward_slice = &mut out.rewards[step_offset..step_offset + num_envs];
-            let terminated_slice = &mut out.terminated[step_offset..step_offset + num_envs];
-            let truncated_slice = &mut out.truncated[step_offset..step_offset + num_envs];
-            let engine_status_slice = &mut out.engine_status[step_offset..step_offset + num_envs];
-            let main_move_slice = &mut out.main_move_action[step_offset..step_offset + num_envs];
-            let main_pass_slice = &mut out.main_pass_action[step_offset..step_offset + num_envs];
-            for (env_index, (env, outcome)) in self.envs.iter().zip(outcomes.iter()).enumerate() {
-                reward_slice[env_index] = outcome.reward;
-                terminated_slice[env_index] = outcome.terminated;
-                truncated_slice[env_index] = outcome.truncated;
-                engine_status_slice[env_index] = if outcome.info.engine_error {
-                    outcome.info.engine_error_code
-                } else {
-                    env.last_engine_error_code as u8
-                };
-                let (main_move_action, main_pass_action) = env.last_action_main_flags();
-                main_move_slice[env_index] = main_move_action;
-                main_pass_slice[env_index] = main_pass_action;
-                done_flags[env_index] = outcome.terminated || outcome.truncated;
-            }
-
-            if done_flags.iter().any(|&done| done) {
-                self.fill_outcomes_for_flags(&done_flags)?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Roll out a trajectory using first legal actions (no masks).
-    pub fn rollout_first_legal_into_nomask(
-        &mut self,
-        steps: usize,
-        out: &mut BatchOutTrajectoryNoMask<'_>,
-    ) -> Result<()> {
-        self.validate_trajectory_nomask(out, steps)?;
-        let num_envs = self.envs.len();
-        for t in 0..steps {
-            let action_slice = &mut out.actions[t * num_envs..(t + 1) * num_envs];
-            self.first_legal_action_ids_into(action_slice)?;
-            let obs_offset = t * num_envs * OBS_LEN;
-            let mut out_min = BatchOutMinimalNoMask {
-                obs: &mut out.obs[obs_offset..obs_offset + num_envs * OBS_LEN],
-                rewards: &mut out.rewards[t * num_envs..(t + 1) * num_envs],
-                terminated: &mut out.terminated[t * num_envs..(t + 1) * num_envs],
-                truncated: &mut out.truncated[t * num_envs..(t + 1) * num_envs],
-                actor: &mut out.actor[t * num_envs..(t + 1) * num_envs],
-                decision_kind: &mut out.decision_kind[t * num_envs..(t + 1) * num_envs],
-                decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
-                engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
-                spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
-                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
-                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
-            };
-            self.step_into_nomask(action_slice, &mut out_min)?;
-        }
-        Ok(())
-    }
-
-    /// Roll out a trajectory using uniformly sampled legal actions.
-    pub fn rollout_sample_legal_action_ids_uniform_into(
-        &mut self,
-        steps: usize,
-        seeds: &[u64],
-        out: &mut BatchOutTrajectory<'_>,
-    ) -> Result<()> {
-        let num_envs = self.envs.len();
-        if seeds.len() != steps * num_envs {
-            anyhow::bail!("seed buffer size mismatch");
-        }
-        self.validate_trajectory(out, steps)?;
-        for t in 0..steps {
-            let seed_slice = &seeds[t * num_envs..(t + 1) * num_envs];
-            let action_slice = &mut out.actions[t * num_envs..(t + 1) * num_envs];
-            self.sample_legal_action_ids_uniform_into(seed_slice, action_slice)?;
-            let obs_offset = t * num_envs * OBS_LEN;
-            let mask_offset = t * num_envs * ACTION_SPACE_SIZE;
-            let mut out_min = BatchOutMinimal {
-                obs: &mut out.obs[obs_offset..obs_offset + num_envs * OBS_LEN],
-                masks: &mut out.masks[mask_offset..mask_offset + num_envs * ACTION_SPACE_SIZE],
-                rewards: &mut out.rewards[t * num_envs..(t + 1) * num_envs],
-                terminated: &mut out.terminated[t * num_envs..(t + 1) * num_envs],
-                truncated: &mut out.truncated[t * num_envs..(t + 1) * num_envs],
-                actor: &mut out.actor[t * num_envs..(t + 1) * num_envs],
-                decision_kind: &mut out.decision_kind[t * num_envs..(t + 1) * num_envs],
-                decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
-                engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
-                spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
-                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
-                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
-            };
-            self.step_into(action_slice, &mut out_min)?;
-        }
-        Ok(())
-    }
-
-    /// Roll out a trajectory using uniformly sampled legal actions (i16 outputs).
-    pub fn rollout_sample_legal_action_ids_uniform_into_i16(
-        &mut self,
-        steps: usize,
-        seeds: &[u64],
-        out: &mut BatchOutTrajectoryI16<'_>,
-    ) -> Result<()> {
-        let num_envs = self.envs.len();
-        if seeds.len() != steps * num_envs {
-            anyhow::bail!("seed buffer size mismatch");
-        }
-        self.validate_trajectory_i16(out, steps)?;
-        for t in 0..steps {
-            let seed_slice = &seeds[t * num_envs..(t + 1) * num_envs];
-            let action_slice = &mut out.actions[t * num_envs..(t + 1) * num_envs];
-            self.sample_legal_action_ids_uniform_into(seed_slice, action_slice)?;
-            let obs_offset = t * num_envs * OBS_LEN;
-            let mask_offset = t * num_envs * ACTION_SPACE_SIZE;
-            let mut out_min = BatchOutMinimalI16 {
-                obs: &mut out.obs[obs_offset..obs_offset + num_envs * OBS_LEN],
-                masks: &mut out.masks[mask_offset..mask_offset + num_envs * ACTION_SPACE_SIZE],
-                rewards: &mut out.rewards[t * num_envs..(t + 1) * num_envs],
-                terminated: &mut out.terminated[t * num_envs..(t + 1) * num_envs],
-                truncated: &mut out.truncated[t * num_envs..(t + 1) * num_envs],
-                actor: &mut out.actor[t * num_envs..(t + 1) * num_envs],
-                decision_kind: &mut out.decision_kind[t * num_envs..(t + 1) * num_envs],
-                decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
-                engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
-                spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
-                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
-                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
-            };
-            self.step_into_i16(action_slice, &mut out_min)?;
-        }
-        Ok(())
-    }
-
-    /// Roll out a trajectory using uniformly sampled legal actions (i16 + legal ids).
-    ///
-    /// Requires output masks to be disabled.
-    pub fn rollout_sample_legal_action_ids_uniform_into_i16_legal_ids(
-        &mut self,
-        steps: usize,
-        seeds: &[u64],
-        out: &mut BatchOutTrajectoryI16LegalIds<'_>,
-    ) -> Result<()> {
-        if self.output_mask_enabled {
-            anyhow::bail!("legal ids trajectory requires output masks disabled");
-        }
-        let num_envs = self.envs.len();
-        if seeds.len() != steps * num_envs {
-            anyhow::bail!("seed buffer size mismatch");
-        }
-        self.validate_trajectory_i16_legal_ids(out, steps)?;
-        for t in 0..steps {
-            let seed_slice = &seeds[t * num_envs..(t + 1) * num_envs];
-            let action_slice = &mut out.actions[t * num_envs..(t + 1) * num_envs];
-            self.sample_legal_action_ids_uniform_into(seed_slice, action_slice)?;
-            let obs_offset = t * num_envs * OBS_LEN;
-            let mut out_min = BatchOutMinimalI16 {
-                obs: &mut out.obs[obs_offset..obs_offset + num_envs * OBS_LEN],
-                masks: &mut [],
-                rewards: &mut out.rewards[t * num_envs..(t + 1) * num_envs],
-                terminated: &mut out.terminated[t * num_envs..(t + 1) * num_envs],
-                truncated: &mut out.truncated[t * num_envs..(t + 1) * num_envs],
-                actor: &mut out.actor[t * num_envs..(t + 1) * num_envs],
-                decision_kind: &mut out.decision_kind[t * num_envs..(t + 1) * num_envs],
-                decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
-                engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
-                spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
-                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
-                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
-            };
-            self.step_into_i16(action_slice, &mut out_min)?;
-            for (dst, env) in out.episode_seed[t * num_envs..(t + 1) * num_envs]
-                .iter_mut()
-                .zip(self.envs.iter())
-            {
-                *dst = env.episode_seed;
-            }
-            let ids_offset = t * num_envs * ACTION_SPACE_SIZE;
-            let offsets_offset = t * (num_envs + 1);
-            let ids_slice =
-                &mut out.legal_ids[ids_offset..ids_offset + num_envs * ACTION_SPACE_SIZE];
-            let meta_slice = &mut out.legal_action_meta[ids_offset
-                * crate::encode::ACTION_META_WIDTH
-                ..(ids_offset + num_envs * ACTION_SPACE_SIZE) * crate::encode::ACTION_META_WIDTH];
-            let offsets_slice =
-                &mut out.legal_offsets[offsets_offset..offsets_offset + num_envs + 1];
-            self.legal_action_ids_batch_into(ids_slice, offsets_slice)?;
-            self.legal_action_meta_batch_into(meta_slice)?;
-        }
-        Ok(())
-    }
-
-    /// Roll out a trajectory using uniformly sampled legal actions (no masks).
-    pub fn rollout_sample_legal_action_ids_uniform_into_nomask(
-        &mut self,
-        steps: usize,
-        seeds: &[u64],
-        out: &mut BatchOutTrajectoryNoMask<'_>,
-    ) -> Result<()> {
-        let num_envs = self.envs.len();
-        if seeds.len() != steps * num_envs {
-            anyhow::bail!("seed buffer size mismatch");
-        }
-        self.validate_trajectory_nomask(out, steps)?;
-        for t in 0..steps {
-            let seed_slice = &seeds[t * num_envs..(t + 1) * num_envs];
-            let action_slice = &mut out.actions[t * num_envs..(t + 1) * num_envs];
-            self.sample_legal_action_ids_uniform_into(seed_slice, action_slice)?;
-            let obs_offset = t * num_envs * OBS_LEN;
-            let mut out_min = BatchOutMinimalNoMask {
-                obs: &mut out.obs[obs_offset..obs_offset + num_envs * OBS_LEN],
-                rewards: &mut out.rewards[t * num_envs..(t + 1) * num_envs],
-                terminated: &mut out.terminated[t * num_envs..(t + 1) * num_envs],
-                truncated: &mut out.truncated[t * num_envs..(t + 1) * num_envs],
-                actor: &mut out.actor[t * num_envs..(t + 1) * num_envs],
-                decision_kind: &mut out.decision_kind[t * num_envs..(t + 1) * num_envs],
-                decision_id: &mut out.decision_id[t * num_envs..(t + 1) * num_envs],
-                engine_status: &mut out.engine_status[t * num_envs..(t + 1) * num_envs],
-                spec_hash: &mut out.spec_hash[t * num_envs..(t + 1) * num_envs],
-                main_move_action: &mut out.main_move_action[t * num_envs..(t + 1) * num_envs],
-                main_pass_action: &mut out.main_pass_action[t * num_envs..(t + 1) * num_envs],
-            };
-            self.step_into_nomask(action_slice, &mut out_min)?;
-        }
-        Ok(())
     }
 }

@@ -1,3 +1,5 @@
+use super::*;
+
 fn ability_kind_key(kind: AbilityKind) -> u64 {
     match kind {
         AbilityKind::Continuous => 0,
@@ -204,21 +206,21 @@ fn battle_opponent_move_prelude_key(
     }
 }
 
-fn terminal_outcome_key(outcome: super::types::TerminalOutcomeSpec) -> u64 {
+fn terminal_outcome_key(outcome: TerminalOutcomeSpec) -> u64 {
     match outcome {
-        super::types::TerminalOutcomeSpec::WinSelf => 0,
-        super::types::TerminalOutcomeSpec::WinOpponent => 1,
-        super::types::TerminalOutcomeSpec::Draw => 2,
-        super::types::TerminalOutcomeSpec::Timeout => 3,
+        TerminalOutcomeSpec::WinSelf => 0,
+        TerminalOutcomeSpec::WinOpponent => 1,
+        TerminalOutcomeSpec::Draw => 2,
+        TerminalOutcomeSpec::Timeout => 3,
     }
 }
 
-fn rule_override_key(kind: super::types::RuleOverrideKind) -> u64 {
+fn rule_override_key(kind: RuleOverrideKind) -> u64 {
     match kind {
-        super::types::RuleOverrideKind::SkipDeckRefreshOrLoss => 0,
-        super::types::RuleOverrideKind::SkipLevelFourLoss => 1,
-        super::types::RuleOverrideKind::SkipNonCharacterStageCleanup => 2,
-        super::types::RuleOverrideKind::SkipZeroOrNegativePowerCleanup => 3,
+        RuleOverrideKind::SkipDeckRefreshOrLoss => 0,
+        RuleOverrideKind::SkipLevelFourLoss => 1,
+        RuleOverrideKind::SkipNonCharacterStageCleanup => 2,
+        RuleOverrideKind::SkipZeroOrNegativePowerCleanup => 3,
     }
 }
 

@@ -4,11 +4,29 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
-use crate::encode::{action_meta_for_id, ACTION_META_UNUSED, ACTION_META_WIDTH, ACTION_SPACE_SIZE};
+use crate::db::{CardColor, CardId, CardType};
+use crate::encode::{
+    action_meta_for_id, ACTION_META_UNUSED, ACTION_META_WIDTH, ACTION_SPACE_SIZE,
+    LEGAL_ACTION_CONTEXT_UNUSED, LEGAL_ACTION_CONTEXT_V1_WIDTH,
+};
 use crate::env::heuristic_public::HeuristicPublicProfile;
-use crate::legal::ActionDesc;
+use crate::legal::{ActionDesc, DecisionKind};
+use crate::state::{ChoiceOptionRef, ChoiceReason, ChoiceState, ChoiceZone, TargetSide};
 
 use super::super::core::EnvPool;
+
+const CONTEXT_ZONE_NONE: i32 = 0;
+const CONTEXT_ZONE_HAND: i32 = 1;
+const CONTEXT_ZONE_STAGE: i32 = 2;
+const CONTEXT_ZONE_CLOCK: i32 = 3;
+const CONTEXT_ZONE_LEVEL: i32 = 4;
+const CONTEXT_ZONE_CHOICE: i32 = 5;
+const CONTEXT_ZONE_DECK_TOP: i32 = 6;
+const CONTEXT_ZONE_STOCK: i32 = 7;
+const CONTEXT_ZONE_MEMORY: i32 = 8;
+const CONTEXT_ZONE_WAITING_ROOM: i32 = 9;
+const CONTEXT_ZONE_CLIMAX: i32 = 10;
+const CONTEXT_ZONE_RESOLUTION: i32 = 11;
 
 impl EnvPool {
     pub(super) fn ensure_legal_counts_scratch(&mut self) {
@@ -292,6 +310,27 @@ impl EnvPool {
         Ok(cursor)
     }
 
+    /// Fill optional per-legal-row context for all envs.
+    pub fn legal_action_context_v1_batch_into(&self, context: &mut [i32]) -> Result<usize> {
+        let num_envs = self.envs.len();
+        if context.len() != num_envs * ACTION_SPACE_SIZE * LEGAL_ACTION_CONTEXT_V1_WIDTH {
+            anyhow::bail!("legal action context buffer size mismatch");
+        }
+        let mut cursor = 0usize;
+        for env in &self.envs {
+            for &action_id in env.action_ids_cache() {
+                let row_offset = cursor * LEGAL_ACTION_CONTEXT_V1_WIDTH;
+                fill_legal_action_context_row(
+                    env,
+                    action_id,
+                    &mut context[row_offset..row_offset + LEGAL_ACTION_CONTEXT_V1_WIDTH],
+                );
+                cursor += 1;
+            }
+        }
+        Ok(cursor)
+    }
+
     /// Choose deterministic public-only heuristic actions for the selected env rows.
     pub fn choose_heuristic_public_actions_into(
         &mut self,
@@ -332,5 +371,209 @@ impl EnvPool {
             .iter()
             .map(|env| env.decision.as_ref().map(|d| d.player as i8).unwrap_or(-1))
             .collect()
+    }
+}
+
+fn decision_kind_code(kind: DecisionKind) -> i32 {
+    match kind {
+        DecisionKind::Mulligan => 0,
+        DecisionKind::Clock => 1,
+        DecisionKind::Main => 2,
+        DecisionKind::Climax => 3,
+        DecisionKind::AttackDeclaration => 4,
+        DecisionKind::LevelUp => 5,
+        DecisionKind::Encore => 6,
+        DecisionKind::TriggerOrder => 7,
+        DecisionKind::Choice => 8,
+    }
+}
+
+fn card_type_code(card_type: CardType) -> i32 {
+    match card_type {
+        CardType::Character => 0,
+        CardType::Event => 1,
+        CardType::Climax => 2,
+    }
+}
+
+fn color_code(color: CardColor) -> i32 {
+    match color {
+        CardColor::Yellow => 0,
+        CardColor::Green => 1,
+        CardColor::Red => 2,
+        CardColor::Blue => 3,
+        CardColor::Colorless => 4,
+    }
+}
+
+fn choice_zone_code(zone: ChoiceZone) -> i32 {
+    match zone {
+        ChoiceZone::WaitingRoom => CONTEXT_ZONE_WAITING_ROOM,
+        ChoiceZone::Stage => CONTEXT_ZONE_STAGE,
+        ChoiceZone::Hand => CONTEXT_ZONE_HAND,
+        ChoiceZone::DeckTop => CONTEXT_ZONE_DECK_TOP,
+        ChoiceZone::Clock => CONTEXT_ZONE_CLOCK,
+        ChoiceZone::Level => CONTEXT_ZONE_LEVEL,
+        ChoiceZone::Stock => CONTEXT_ZONE_STOCK,
+        ChoiceZone::Memory => CONTEXT_ZONE_MEMORY,
+        ChoiceZone::Climax => CONTEXT_ZONE_CLIMAX,
+        ChoiceZone::Resolution => CONTEXT_ZONE_RESOLUTION,
+        ChoiceZone::Stack | ChoiceZone::PriorityCounter | ChoiceZone::PriorityAct => {
+            CONTEXT_ZONE_CHOICE
+        }
+        ChoiceZone::PriorityPass | ChoiceZone::Skip => CONTEXT_ZONE_NONE,
+    }
+}
+
+fn card_id_to_i32(card_id: CardId) -> i32 {
+    i32::try_from(card_id).unwrap_or(i32::MAX)
+}
+
+fn set_card_fields(row: &mut [i32], env: &crate::env::GameEnv, card_id: Option<CardId>) {
+    let Some(card_id) = card_id else {
+        return;
+    };
+    if card_id == 0 || !env.db.is_valid_id(card_id) {
+        return;
+    }
+    row[8] = card_id_to_i32(card_id);
+    row[9] = card_type_code(env.db.card_type_by_id(card_id));
+    row[10] = color_code(env.db.color_by_id(card_id));
+    row[11] = i32::from(env.db.level_by_id(card_id));
+    row[12] = i32::from(env.db.cost_by_id(card_id));
+    row[13] = env.db.power_by_id(card_id);
+    row[14] = i32::from(env.db.soul_by_id(card_id));
+}
+
+fn opponent_seat(seat: u8) -> u8 {
+    match seat {
+        0 => 1,
+        1 => 0,
+        _ => seat,
+    }
+}
+
+fn choice_option_owner_for_context(env: &crate::env::GameEnv, choice: &ChoiceState) -> u8 {
+    if choice.reason != ChoiceReason::TargetSelect {
+        return choice.player;
+    }
+    let Some(selection) = env.state.turn.target_selection.as_ref() else {
+        return choice.player;
+    };
+    match selection.spec.side {
+        TargetSide::SelfSide => selection.controller,
+        TargetSide::Opponent => opponent_seat(selection.controller),
+    }
+}
+
+fn choice_option_zone_hidden_for_opponent(
+    env: &crate::env::GameEnv,
+    option: &ChoiceOptionRef,
+) -> bool {
+    matches!(
+        option.zone,
+        ChoiceZone::Hand | ChoiceZone::DeckTop | ChoiceZone::Stock | ChoiceZone::PriorityCounter
+    ) || (option.zone == ChoiceZone::Memory && !env.curriculum.memory_is_public)
+}
+
+fn choice_option_source_for_actor(
+    env: &crate::env::GameEnv,
+    actor: usize,
+    choice: &ChoiceState,
+    page_index: usize,
+    option: &ChoiceOptionRef,
+) -> (i32, i32, Option<CardId>) {
+    let zone = choice_zone_code(option.zone);
+    let owner = choice_option_owner_for_context(env, choice);
+    if actor as u8 != owner && choice_option_zone_hidden_for_opponent(env, option) {
+        return (zone, LEGAL_ACTION_CONTEXT_UNUSED, None);
+    }
+    (
+        zone,
+        option.index.map(i32::from).unwrap_or(page_index as i32),
+        (option.card_id != 0).then_some(option.card_id),
+    )
+}
+
+fn source_for_action(
+    env: &crate::env::GameEnv,
+    actor: usize,
+    action: &ActionDesc,
+) -> (i32, i32, Option<CardId>) {
+    match action {
+        ActionDesc::MulliganSelect { hand_index }
+        | ActionDesc::Clock { hand_index }
+        | ActionDesc::MainPlayEvent { hand_index }
+        | ActionDesc::ClimaxPlay { hand_index }
+        | ActionDesc::CounterPlay { hand_index } => {
+            let idx = *hand_index as usize;
+            let card_id = env.state.players[actor].hand.get(idx).map(|card| card.id);
+            (CONTEXT_ZONE_HAND, idx as i32, card_id)
+        }
+        ActionDesc::MainPlayCharacter {
+            hand_index,
+            stage_slot: _,
+        } => {
+            let idx = *hand_index as usize;
+            let card_id = env.state.players[actor].hand.get(idx).map(|card| card.id);
+            (CONTEXT_ZONE_HAND, idx as i32, card_id)
+        }
+        ActionDesc::MainMove { from_slot, .. } => {
+            let idx = *from_slot as usize;
+            let card_id = env.state.players[actor].stage[idx].card.map(|card| card.id);
+            (CONTEXT_ZONE_STAGE, idx as i32, card_id)
+        }
+        ActionDesc::MainActivateAbility { slot, .. }
+        | ActionDesc::Attack { slot, .. }
+        | ActionDesc::EncorePay { slot }
+        | ActionDesc::EncoreDecline { slot } => {
+            let idx = *slot as usize;
+            let card_id = env.state.players[actor].stage[idx].card.map(|card| card.id);
+            (CONTEXT_ZONE_STAGE, idx as i32, card_id)
+        }
+        ActionDesc::LevelUp { index } => {
+            let idx = *index as usize;
+            let card_id = env.state.players[actor].clock.get(idx).map(|card| card.id);
+            (CONTEXT_ZONE_CLOCK, idx as i32, card_id)
+        }
+        ActionDesc::ChoiceSelect { index } => {
+            let idx = *index as usize;
+            if let Some(choice) = env.state.turn.choice.as_ref() {
+                if let Some(option) = choice.options.get(idx) {
+                    return choice_option_source_for_actor(env, actor, choice, idx, option);
+                }
+            }
+            (CONTEXT_ZONE_CHOICE, idx as i32, None)
+        }
+        ActionDesc::TriggerOrder { index } => (CONTEXT_ZONE_CHOICE, i32::from(*index), None),
+        ActionDesc::MulliganConfirm
+        | ActionDesc::Pass
+        | ActionDesc::ChoicePrevPage
+        | ActionDesc::ChoiceNextPage
+        | ActionDesc::Concede => (CONTEXT_ZONE_NONE, LEGAL_ACTION_CONTEXT_UNUSED, None),
+    }
+}
+
+fn fill_legal_action_context_row(env: &crate::env::GameEnv, action_id: u16, row: &mut [i32]) {
+    row.fill(LEGAL_ACTION_CONTEXT_UNUSED);
+    let meta =
+        action_meta_for_id(action_id as usize).unwrap_or([ACTION_META_UNUSED; ACTION_META_WIDTH]);
+    for (dst, &value) in row.iter_mut().take(ACTION_META_WIDTH).zip(meta.iter()) {
+        *dst = if value == ACTION_META_UNUSED {
+            LEGAL_ACTION_CONTEXT_UNUSED
+        } else {
+            i32::from(value)
+        };
+    }
+    if let Some(decision) = env.decision.as_ref() {
+        row[4] = decision_kind_code(decision.kind);
+        row[5] = i32::from(decision.player);
+        if let Some(action) = crate::encode::action_desc_for_id(action_id as usize) {
+            let (source_zone, source_index, card_id) =
+                source_for_action(env, decision.player as usize, &action);
+            row[6] = source_zone;
+            row[7] = source_index;
+            set_card_fields(row, env, card_id);
+        }
     }
 }

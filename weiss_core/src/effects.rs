@@ -5,99 +5,17 @@ use crate::db::{
     ConditionTurn, GrantDuration, TriggerIcon, ZoneCountCondition,
 };
 use crate::events::RevealAudience;
-use crate::state::{
-    DamageType, ModifierDuration, ModifierKind, TargetSide, TargetSpec, TargetZone,
+use crate::state::{DamageType, ModifierDuration, ModifierKind, TargetSide, TargetZone};
+
+mod id;
+mod payload;
+mod replacement;
+
+pub use id::{EffectId, EffectSourceKind, EffectSpec};
+pub use payload::EffectPayload;
+pub use replacement::{
+    ReplacementHook, ReplacementKind, ReplacementSpec, RuleOverrideKind, TerminalOutcomeSpec,
 };
-
-/// Source category for an effect.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum EffectSourceKind {
-    /// Trigger resolution.
-    Trigger,
-    /// Auto ability.
-    Auto,
-    /// Activated ability.
-    Activated,
-    /// Continuous modifier.
-    Continuous,
-    /// Event card play.
-    EventPlay,
-    /// Counter timing.
-    Counter,
-    /// Replacement effect.
-    Replacement,
-    /// System-generated effect.
-    System,
-}
-
-/// Stable identifier for an effect instance.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct EffectId {
-    /// Effect source category.
-    pub source_kind: EffectSourceKind,
-    /// Source card id (0 means none; see EffectSourceKind).
-    pub source_card: CardId,
-    /// Ability index on the source card.
-    pub ability_index: u8,
-    /// Effect index within the ability.
-    pub effect_index: u8,
-}
-
-impl EffectId {
-    /// Build an effect id from its components.
-    pub fn new(
-        source_kind: EffectSourceKind,
-        source_card: CardId,
-        ability_index: u8,
-        effect_index: u8,
-    ) -> Self {
-        Self {
-            source_kind,
-            source_card,
-            ability_index,
-            effect_index,
-        }
-    }
-}
-
-/// Fully specified effect with targeting metadata.
-#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
-pub struct EffectSpec {
-    /// Stable effect id.
-    pub id: EffectId,
-    /// Effect kind.
-    pub kind: EffectKind,
-    /// Optional target specification.
-    pub target: Option<TargetSpec>,
-    /// Whether this effect is optional.
-    pub optional: bool,
-}
-
-/// Terminal outcome specified relative to the effect controller.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum TerminalOutcomeSpec {
-    /// Controller wins.
-    WinSelf,
-    /// Controller loses (opponent wins).
-    WinOpponent,
-    /// Game ends in draw.
-    Draw,
-    /// Game ends in timeout.
-    Timeout,
-}
-
-/// Turn-scoped rule-action override selectors.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum RuleOverrideKind {
-    /// Skip deck-empty refresh/loss processing in rule actions.
-    SkipDeckRefreshOrLoss,
-    /// Skip level-4 loss checks in rule actions.
-    SkipLevelFourLoss,
-    /// Skip non-character stage cleanup in rule actions.
-    SkipNonCharacterStageCleanup,
-    /// Skip non-positive-power stage cleanup in rule actions.
-    SkipZeroOrNegativePowerCleanup,
-}
 
 /// Effect kinds that can be executed by the engine.
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
@@ -649,52 +567,4 @@ impl EffectKind {
             _ => true,
         }
     }
-}
-
-/// Effect with resolved targets ready for execution.
-#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
-pub struct EffectPayload {
-    /// Underlying effect specification.
-    pub spec: EffectSpec,
-    /// Resolved targets for this effect.
-    pub targets: Vec<crate::state::TargetRef>,
-    /// Source reference for source-relative effects.
-    #[serde(default)]
-    pub source_ref: Option<crate::state::TargetRef>,
-}
-
-/// Hook point for replacement effects.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum ReplacementHook {
-    /// Damage resolution hook.
-    Damage,
-}
-
-/// Replacement behavior for a hook.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum ReplacementKind {
-    /// Cancel damage entirely.
-    CancelDamage,
-    /// Redirect damage to a new target.
-    RedirectDamage {
-        /// Target side to receive redirected damage.
-        new_target: TargetSide,
-    },
-}
-
-/// Replacement specification with priority ordering.
-#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
-pub struct ReplacementSpec {
-    /// Stable effect id.
-    pub id: EffectId,
-    /// Source card id.
-    pub source: CardId,
-    /// Hook point for the replacement.
-    pub hook: ReplacementHook,
-    /// Replacement behavior.
-    pub kind: ReplacementKind,
-    /// Priority ordering (higher first).
-    pub priority: i16,
-    /// Insertion order for stable sorting.
-    pub insertion: u32,
 }
