@@ -16,29 +16,38 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   docs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build Rust docs
+        run: cargo doc --workspace --all-features --no-deps
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     concurrency:
-      group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}', github.run_id) || 'gh-pages' }}
+      group: gh-pages
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Build Rust docs (PR)
-        if: github.event_name == 'pull_request'
-        run: cargo doc -p weiss_core --no-deps
-      - name: Build Rust docs (publish)
-        if: github.event_name != 'pull_request'
-        run: |
-          # rustdoc currently ICEs in numpy's docs on stable 1.95, so publish the
-          # primary Rust API surface (weiss_core) until upstream rustdoc is fixed.
-          cargo doc -p weiss_core --no-deps
+      - name: Build Rust docs
+        run: cargo doc --workspace --all-features --no-deps
       - name: Ensure rustdoc index.html
-        if: github.event_name != 'pull_request'
         run: |
           if [ -f target/doc/index.html ]; then
             echo "target/doc/index.html already exists."
@@ -83,7 +92,6 @@ jobs:
           </html>
           EOF
       - name: Publish to GitHub Pages (gh-pages/rustdoc)
-        if: github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -91,7 +99,6 @@ jobs:
           destination_dir: rustdoc
           keep_files: true
       - name: Build Pages index
-        if: github.event_name != 'pull_request'
         run: |
           mkdir -p pages-root
           cat > pages-root/index.html <<'EOF'
@@ -111,7 +118,7 @@ jobs:
             </head>
             <body>
               <h1>weiss-schwarz-simulator</h1>
-              <p>Project pages for docs & benchmarks.</p>
+              <p>Project pages for docs and benchmarks.</p>
               <ul>
                 <li><a href="./rustdoc/">Rust API docs</a></li>
                 <li><a href="./benchmarks/">Benchmarks</a></li>
@@ -123,7 +130,6 @@ jobs:
           EOF
           touch pages-root/.nojekyll
       - name: Publish index to GitHub Pages (gh-pages/)
-        if: github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

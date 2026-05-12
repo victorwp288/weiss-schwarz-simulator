@@ -27,7 +27,7 @@ jobs:
           filters: |
             rust:
               - '.gitattributes'
-              - '.github/workflows/ci.yml'
+              - '.github/**'
               - 'weiss_core/**'
               - 'weiss_py/**'
               - 'Cargo.toml'
@@ -36,7 +36,7 @@ jobs:
               - 'scripts/strip_rust_layering.py'
             python:
               - '.gitattributes'
-              - '.github/workflows/ci.yml'
+              - '.github/**'
               - 'python/**'
               - 'scraper/**'
               - 'scripts/**'
@@ -44,15 +44,18 @@ jobs:
               - 'weiss_py/**'
             docs:
               - '.gitattributes'
-              - '.github/workflows/ci.yml'
+              - '.github/**'
               - 'README.md'
-              - 'PROJECT_STATE.md'
+              - 'CHANGELOG.md'
+              - 'CONTRIBUTING.md'
+              - '.github/PULL_REQUEST_TEMPLATE.md'
               - 'docs/**'
               - 'scripts/check_docs_links.py'
               - 'scripts/check_docs_constants.py'
               - 'scripts/gen_docs_snippets.py'
             perf:
               - '.gitattributes'
+              - '.github/**'
               - 'weiss_core/**'
               - 'weiss_py/**'
               - 'python/examples/bench_python_boundary.py'
@@ -159,6 +162,8 @@ jobs:
         run: ruff check python scraper scripts
       - name: Generated docs check
         run: python scripts/gen_docs_snippets.py --check
+      - name: Packaged data freshness
+        run: python scripts/check_packaged_data.py
       - name: Ability coverage report
         run: python scripts/ability_coverage_report.py --output /tmp/ability_coverage_report.json
       - name: Ability coverage targets
@@ -171,6 +176,8 @@ jobs:
             --min-parse-line-coverage-strict 0.52 \
             --max-unsupported-lines-strict 14200 \
             --min-card-coverage-approx 0.99
+      - name: Scraper parser unittest
+        run: python -m unittest scraper.test_convert
       - name: Build + install extension (wheel)
         run: |
           maturin build --release --manifest-path weiss_py/Cargo.toml --out dist --interpreter python

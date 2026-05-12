@@ -3,7 +3,7 @@ repos:
     rev: v0.12.12
     hooks:
       - id: ruff
-        args: ["--fix"]
+        args: ["--no-fix"]
       - id: ruff-format
   - repo: local
     hooks:
@@ -14,8 +14,8 @@ repos:
         types: [rust]
         pass_filenames: false
       - id: cargo-clippy
-        name: cargo clippy --fix
-        entry: cargo clippy --fix --allow-dirty --allow-staged --workspace --all-targets -- -D warnings
+        name: cargo clippy
+        entry: cargo clippy --workspace --all-targets --all-features -- -D warnings
         language: system
         types: [rust]
         pass_filenames: false
