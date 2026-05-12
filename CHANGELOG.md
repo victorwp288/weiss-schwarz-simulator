@@ -2,6 +2,18 @@
 
 This file is maintained by Release Please.
 
+## [1.0.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.8.2...v1.0.0) (2026-05-12)
+
+
+### Features
+
+* refresh python catalog api ([730c952](https://github.com/victorwp288/weiss-schwarz-simulator/commit/730c952c9bb75c89d85e9e9dc255ba77d304e17d))
+
+
+### Miscellaneous Chores
+
+* rebaseline release please ([d4133bd](https://github.com/victorwp288/weiss-schwarz-simulator/commit/d4133bd8097f6da552b6abbcae5c8bd8c4cdfef5))
+
 ## [0.8.2](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.8.1...v0.8.2) (2026-04-28)
 
 
