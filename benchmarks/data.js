@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778583429226,
+  "lastUpdate": 1778589819556,
   "repoUrl": "https://github.com/victorwp288/weiss-schwarz-simulator",
   "entries": {
     "Benchmark": [
@@ -4832,6 +4832,168 @@ window.BENCHMARK_DATA = {
           {
             "name": "alloc_action_masks_batch_into",
             "value": 896,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_choice_paging_worst_case",
+            "value": 176,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "victorwpetersen@gmail.com",
+            "name": "Victor Wejergang Petersen",
+            "username": "victorwp288"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7819596aa12590811adc18de7911172138ec6115",
+          "message": "Merge pull request #33 from victorwp288/codex/release-1.1.0-security-benchmarks\n\nFix release security and benchmark gates",
+          "timestamp": "2026-05-12T14:37:05+02:00",
+          "tree_id": "3dfa88740f700595e9d3d9d5a6b24978bb880ad4",
+          "url": "https://github.com/victorwp288/weiss-schwarz-simulator/commit/7819596aa12590811adc18de7911172138ec6115"
+        },
+        "date": 1778589818682,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "advance_until_decision",
+            "value": 50005,
+            "range": "± 516",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_64",
+            "value": 16198,
+            "range": "± 124",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reset_batch_256",
+            "value": 795905,
+            "range": "± 8565",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reset_i16_legal_ids_256",
+            "value": 786824,
+            "range": "± 4952",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reset_i16_legal_ids_nometa_256",
+            "value": 789806,
+            "range": "± 2949",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_off",
+            "value": 82100,
+            "range": "± 565",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_batch_fast_256_priority_on",
+            "value": 83023,
+            "range": "± 1742",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_first_legal_i16_legal_ids_256",
+            "value": 245624,
+            "range": "± 11325",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "step_first_legal_i16_legal_ids_nometa_256",
+            "value": 227727,
+            "range": "± 8647",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "rollout_heuristic_public_i16_legal_ids_256x16",
+            "value": 5075727,
+            "range": "± 31961",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions",
+            "value": 13,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "legal_actions_forced",
+            "value": 12,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_on",
+            "value": 1279,
+            "range": "± 7676",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "on_reverse_decision_frequency_off",
+            "value": 1290,
+            "range": "± 7101",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode",
+            "value": 194,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "observation_encode_forced",
+            "value": 192,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction",
+            "value": 305,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "mask_construction_forced",
+            "value": 304,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "choice_paging_worst_case_mask",
+            "value": 180,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_legal_actions",
+            "value": 50,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_observation_encode",
+            "value": 118,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "alloc_action_masks_batch_into",
+            "value": 899,
             "range": "± 2",
             "unit": "ns/iter"
           },
