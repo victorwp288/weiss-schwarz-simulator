@@ -34,7 +34,7 @@ jobs:
       group: gh-pages
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Ensure gh-pages branch exists
         run: |
           git fetch origin gh-pages || true
