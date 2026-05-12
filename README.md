@@ -193,26 +193,25 @@ python scripts/gen_docs_snippets.py --check
 ## Benchmark snapshot (main)
 
 <!-- BENCHMARKS:START -->
-_Last updated: 2026-05-11_
+_Last updated: 2026-05-12 10:57 UTC_
 
 | Benchmark | Time |
 | --- | --- |
-| rust/advance_until_decision | 21272 ns/iter |
-| rust/step_batch_64 | 9581 ns/iter |
-| rust/reset_batch_256 | 512004 ns/iter |
-| rust/step_batch_fast_256_priority_off | 39563 ns/iter |
-| rust/step_batch_fast_256_priority_on | 42891 ns/iter |
-| rust/legal_actions | 4 ns/iter |
-| rust/legal_actions_forced | 4 ns/iter |
-| rust/on_reverse_decision_frequency_on | 990 ns/iter |
-| rust/on_reverse_decision_frequency_off | 1006 ns/iter |
-| rust/observation_encode | 80 ns/iter |
-| rust/observation_encode_forced | 79 ns/iter |
-| rust/mask_construction | 180 ns/iter |
-| rust/mask_construction_forced | 178 ns/iter |
-| python/reset_into | 75.8 us/reset |
-| python/step(mask) | 2602377 env-steps/sec |
-| python/step(ids) | 4929457 env-steps/sec |
+| rust/advance_until_decision | 49762 ns/iter |
+| rust/step_batch_64 | 16307 ns/iter |
+| rust/reset_batch_256 | 790366 ns/iter |
+| rust/reset_i16_legal_ids_256 | 778183 ns/iter |
+| rust/reset_i16_legal_ids_nometa_256 | 805080 ns/iter |
+| rust/step_batch_fast_256_priority_off | 76542 ns/iter |
+| rust/step_batch_fast_256_priority_on | 84879 ns/iter |
+| rust/step_first_legal_i16_legal_ids_256 | 240355 ns/iter |
+| rust/step_first_legal_i16_legal_ids_nometa_256 | 222181 ns/iter |
+| rust/rollout_heuristic_public_i16_legal_ids_256x16 | 4967234 ns/iter |
+| rust/legal_actions | 12 ns/iter |
+| rust/legal_actions_forced | 12 ns/iter |
+| python/reset_into | 255.7 us/reset |
+| python/step(mask) | 1997769 env-steps/sec |
+| python/step(ids) | 1901783 env-steps/sec |
 <!-- BENCHMARKS:END -->
 
 Long-form benchmark docs: [`docs/performance_benchmarks.md`](docs/performance_benchmarks.md)
