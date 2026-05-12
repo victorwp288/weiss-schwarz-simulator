@@ -30,7 +30,7 @@ jobs:
           maturin-version: "1.8.2"
           args: --manifest-path weiss_py/Cargo.toml --out dist
           sccache: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: dist/*
@@ -102,7 +102,7 @@ jobs:
           python -c "import glob, subprocess, sys; wheels = glob.glob('dist/*.whl'); assert wheels, 'no wheel built'; subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--force-reinstall', '--no-deps', *wheels])"
           python -c "import weiss_sim; env = weiss_sim.fast(num_envs=1, seed=7); batch = env.reset(); actions = batch.legal.first_legal(); step = env.step(actions); assert step.obs.shape[0] == 1; env.close()"
           python -c "import importlib.resources as r, weiss_sim; expected = {'starter_deck_ws02_v1', 'control_deck_jj_s66_v1', 'main_deck_5hy_yotsuba_v1', 'aggro_deck_5hy_nino_v1'}; assert expected == set(weiss_sim.cards.presets()); assert weiss_sim.cards.preset_min_rules_profile('main_deck_5hy_yotsuba_v1') == 'approx'; data = r.files('weiss_sim').joinpath('data'); [data.joinpath(name).read_bytes() for name in ('default_cards.wsdb', 'card_catalog.json.gz', 'catalog_meta.json', 'deck_presets.json', 'deck_preset_meta.json')]"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}-py${{ matrix.python-version }}
           path: dist/*
