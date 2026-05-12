@@ -1,6 +1,6 @@
 [package]
 name = "weiss_core"
-version = "1.0.0"
+version = "0.8.2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Deterministic Weiss Schwarz simulator core for research and RL environments."

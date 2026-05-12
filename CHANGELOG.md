@@ -2,20 +2,6 @@
 
 This file is maintained by Release Please.
 
-## [1.0.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.8.2...v1.0.0) (2026-05-11)
-
-
-### Features
-
-* stabilize the simulator as the 1.0 research release line
-* expose packed no-metadata RL layouts and fused sampled-logp stepping for throughput-sensitive Python training loops
-* document legal-action context tensors for learner-side feature construction
-
-
-### Documentation
-
-* refresh the README, CONTRIBUTING release flow, Python API guide, benchmark docs, and GitHub community files for release readiness
-
 ## [0.8.2](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.8.1...v0.8.2) (2026-04-28)
 
 
