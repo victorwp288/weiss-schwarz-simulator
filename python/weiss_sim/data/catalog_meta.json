@@ -1,9 +1,18 @@
 {
   "approx_supported_count": 17167,
-  "cards_raw_path": "/Users/vwp/code/weiss-schwarz-simulator/scraper/out/cards_raw.json",
+  "cards_raw_path": "scraper/out/cards_raw.json",
   "catalog_count": 18474,
-  "catalog_db_sha256": "6801381435567785340512b4163eae49bed7b1d0ddb729f0ee2472cc7320bf95",
-  "coverage_report_path": "/Users/vwp/code/weiss-schwarz-simulator/scraper/out/ability_coverage_report.json",
+  "catalog_db_sha256": "f0871cbf7a641af2b2185499adc255758e5c5aed4d4f7cd822a9de70eb50fb8a",
+  "coverage_report_path": "scraper/out/ability_coverage_report.json",
+  "deck_preset_count": 4,
+  "deck_preset_meta_sha256": "73fd85d3033dc424aad607beb9a9a89b231bcf89967b62927bfbccff5a03f023",
+  "deck_preset_names": [
+    "aggro_deck_5hy_nino_v1",
+    "control_deck_jj_s66_v1",
+    "main_deck_5hy_yotsuba_v1",
+    "starter_deck_ws02_v1"
+  ],
+  "deck_presets_sha256": "48cfdff9b64604fb1141b4f7c3b726812cf73bfc98488d18668ec66e6763207a",
   "schema_version": 1,
   "strict_supported_count": 6217
 }

@@ -8,7 +8,7 @@ import weiss_sim
 
 def _starter_ids() -> list[int]:
     return weiss_sim.cards.resolve_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
     )
@@ -35,7 +35,7 @@ def test_deck_builder_mutation_and_deterministic_serialization():
 
 
 def test_deck_builder_validate_build_and_describe():
-    builder = weiss_sim.cards.builder(initial="starter_v1")
+    builder = weiss_sim.cards.builder(initial="starter_deck_ws02_v1")
     report = builder.validate(rules_profile="approx", card_pool="all")
     assert report.ok
     assert not report.errors

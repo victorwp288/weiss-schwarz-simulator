@@ -60,3 +60,73 @@ def test_step_rl_sample_from_logits_with_logp_matches_manual_softmax() -> None:
     timing = pool.timing_counters()
     assert timing["step_sample_from_logits_with_logp_into_i16_legal_ids_count"] == 1
     assert timing["step_sample_from_logits_with_logp_into_i16_legal_ids_ns"] >= 0
+
+
+def test_step_rl_sample_from_logits_with_logp_supports_nometa_layout() -> None:
+    legal_deck = (list(range(1, 14)) * 4)[:50]
+    common = dict(
+        mode="train",
+        num_envs=4,
+        deck_lists=[legal_deck, legal_deck],
+        deck_ids=[201, 202],
+        max_decisions=200,
+        max_ticks=10_000,
+        seed=1919,
+    )
+    pool_meta, _ = weiss_sim.make_pool(layout="i16_legal_ids", **common)
+    pool_nometa, _ = weiss_sim.make_pool(layout="i16_legal_ids_nometa", **common)
+
+    reset_meta = weiss_sim.reset_rl(pool_meta, layout="i16_legal_ids")
+    reset_nometa = weiss_sim.reset_rl(pool_nometa, layout="i16_legal_ids_nometa")
+    assert reset_nometa.legal_action_meta is None
+    assert reset_meta.legal_action_meta is not None
+    for name in (
+        "obs",
+        "legal_ids",
+        "legal_offsets",
+        "rewards",
+        "terminated",
+        "truncated",
+        "actor",
+        "decision_kind",
+        "decision_id",
+        "engine_status",
+        "main_move_action",
+        "main_pass_action",
+    ):
+        assert np.array_equal(getattr(reset_meta, name), getattr(reset_nometa, name))
+
+    logits = np.random.default_rng(123).standard_normal(
+        (pool_meta.envs_len, pool_meta.action_space), dtype=np.float32
+    )
+    seeds = np.array([41, 42, 43, 44], dtype=np.uint64)
+    step_meta, actions_meta, logp_meta = weiss_sim.step_rl_sample_from_logits_with_logp(
+        pool_meta,
+        logits,
+        seeds=seeds,
+        layout="i16_legal_ids",
+    )
+    step_nometa, actions_nometa, logp_nometa = weiss_sim.step_rl_sample_from_logits_with_logp(
+        pool_nometa,
+        logits,
+        seeds=seeds,
+        layout="i16_legal_ids_nometa",
+    )
+    assert step_nometa.legal_action_meta is None
+    assert np.array_equal(actions_meta, actions_nometa)
+    np.testing.assert_allclose(logp_meta, logp_nometa, rtol=1e-6, atol=1e-6)
+    for name in (
+        "obs",
+        "legal_ids",
+        "legal_offsets",
+        "rewards",
+        "terminated",
+        "truncated",
+        "actor",
+        "decision_kind",
+        "decision_id",
+        "engine_status",
+        "main_move_action",
+        "main_pass_action",
+    ):
+        assert np.array_equal(getattr(step_meta, name), getattr(step_nometa, name))

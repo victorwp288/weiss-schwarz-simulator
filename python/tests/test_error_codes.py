@@ -2,6 +2,8 @@ import numpy as np
 import weiss_sim
 
 from tests.support import (
+    _DEFAULT_LEGAL_DECK,
+    _FIXTURE_DB_PATH,
     first_legal_actions as _first_legal_actions,
     make_rl_train_pool,
 )
@@ -125,6 +127,24 @@ def test_make_batch_out_debug_uses_pool_ring_capacity_default():
     pool.reset_debug_into(out)
     assert out.event_codes.shape[0] == pool.num_envs
     assert out.event_codes.shape[1] == pool.debug_event_ring_capacity()
+    assert out.reward_components.shape == (pool.num_envs, weiss_sim.REWARD_COMPONENT_WIDTH)
+
+
+def test_debug_reward_components_sum_to_reward():
+    pool = weiss_sim.EnvPool.new_rl_train(
+        1,
+        str(_FIXTURE_DB_PATH),
+        deck_lists=[_DEFAULT_LEGAL_DECK, _DEFAULT_LEGAL_DECK],
+        deck_ids=[11, 12],
+        seed=7009,
+        reward_json='{"enable_shaping":true,"damage_reward":0.1}',
+    )
+    out = weiss_sim.make_batch_out_debug(pool)
+    pool.reset_debug_into(out)
+    actions = _first_legal_actions(out.masks)
+    pool.step_debug_into(np.array(actions, dtype=np.uint32), out)
+    assert out.reward_components.shape == (pool.num_envs, weiss_sim.REWARD_COMPONENT_WIDTH)
+    assert np.allclose(out.reward_components.sum(axis=1), out.rewards)
 
 
 def test_make_batch_out_debug_rejects_negative_capacity():

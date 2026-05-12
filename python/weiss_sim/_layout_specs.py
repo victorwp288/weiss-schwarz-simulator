@@ -7,6 +7,7 @@ from .weiss_sim import (
     BatchOutMinimal,
     BatchOutMinimalI16,
     BatchOutMinimalI16LegalIds,
+    BatchOutMinimalI16LegalIdsNoMeta,
     BatchOutMinimalNoMask,
     BatchOutTrajectory,
     BatchOutTrajectoryI16,
@@ -14,7 +15,7 @@ from .weiss_sim import (
     BatchOutTrajectoryNoMask,
 )
 
-LayoutName = Literal["mask", "nomask", "i16", "i16_legal_ids"]
+LayoutName = Literal["mask", "nomask", "i16", "i16_legal_ids", "i16_legal_ids_nometa"]
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,14 @@ LAYOUT_SPECS: dict[LayoutName, LayoutSpec] = {
         has_legal_ids=True,
         use_i16=True,
     ),
+    "i16_legal_ids_nometa": LayoutSpec(
+        suffix="_i16_legal_ids_nometa",
+        out_cls=BatchOutMinimalI16LegalIdsNoMeta,
+        trajectory_out_cls=BatchOutTrajectoryI16LegalIds,
+        has_masks=False,
+        has_legal_ids=True,
+        use_i16=True,
+    ),
 }
 
 LAYOUT_FLAGS: dict[LayoutName, tuple[bool, bool, bool]] = {
@@ -67,11 +76,13 @@ LAYOUT_FLAGS: dict[LayoutName, tuple[bool, bool, bool]] = {
     "nomask": (False, False, False),
     "i16": (True, True, False),
     "i16_legal_ids": (False, True, True),
+    "i16_legal_ids_nometa": (False, True, True),
 }
 
 FLAGS_TO_LAYOUT: dict[tuple[bool, bool, bool], LayoutName] = {
     flags: layout for layout, flags in LAYOUT_FLAGS.items()
 }
+FLAGS_TO_LAYOUT[(False, True, True)] = "i16_legal_ids"
 
 
 def normalize_layout(layout: str) -> LayoutName:

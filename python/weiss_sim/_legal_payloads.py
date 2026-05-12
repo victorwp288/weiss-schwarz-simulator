@@ -18,9 +18,11 @@ def materialize_legal_ids_u16(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return legal ids/offsets as uint16/uint32 views without unnecessary copies."""
     if embedded_legal_ids:
+        offsets = np.asarray(out.legal_offsets, dtype=np.uint32)
+        used_rows = int(offsets[-1]) if offsets.size else 0
         return (
-            np.asarray(out.legal_ids, dtype=np.uint16),
-            np.asarray(out.legal_offsets, dtype=np.uint32),
+            np.asarray(out.legal_ids, dtype=np.uint16)[:used_rows],
+            offsets,
         )
 
     count = int(legal_action_ids_into(legal_ids_buffer, legal_offsets_buffer))
@@ -31,7 +33,7 @@ def materialize_legal_action_meta_u16(
     *,
     embedded_legal_ids: bool,
     out: Any,
-    legal_action_meta_buffer: np.ndarray,
+    legal_action_meta_buffer: np.ndarray | None,
     used_rows: int,
     legal_action_meta_into: LegalActionMetaIntoFn | None,
 ) -> np.ndarray | None:
@@ -51,6 +53,8 @@ def materialize_legal_action_meta_u16(
         return raw_arr[:used_rows]
 
     if legal_action_meta_into is None:
+        return None
+    if legal_action_meta_buffer is None:
         return None
     count = int(legal_action_meta_into(legal_action_meta_buffer))
     if count != used_rows:

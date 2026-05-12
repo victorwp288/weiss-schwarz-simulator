@@ -10,9 +10,7 @@ LCG_MULT = np.uint64(6364136223846793005)
 LCG_INC = np.uint64(1)
 
 
-def select_first_ids(
-    ids: np.ndarray, offsets: np.ndarray, actions_out: np.ndarray
-) -> None:
+def select_first_ids(ids: np.ndarray, offsets: np.ndarray, actions_out: np.ndarray) -> None:
     for i in range(actions_out.shape[0]):
         start = int(offsets[i])
         end = int(offsets[i + 1])
@@ -47,9 +45,9 @@ def run_case(
     )
     out = buffers.reset()
     actions = buffers.actions
-    seeds = None
+    seeds = np.arange(num_envs, dtype=np.uint64) + np.uint64(seed)
     if mode == "fast_random_legal":
-        seeds = np.arange(num_envs, dtype=np.uint64) + np.uint64(seed)
+        seeds += np.uint64(1)
 
     def step_once(out_step):
         done = np.logical_or(out_step.terminated, out_step.truncated)
@@ -60,15 +58,13 @@ def run_case(
             select_first_ids(buffers.legal_ids, buffers.legal_offsets, actions)
             return buffers.step(actions)
         if mode == "fast_first_legal":
-            buffers.pool.step_first_legal_into(actions, buffers.out)
-            return buffers.out
+            out_next, _ = buffers.step_first_legal()
+            return out_next
         if mode == "fast_random_legal":
             np.multiply(seeds, LCG_MULT, out=seeds)
-            seeds += LCG_INC
-            buffers.pool.step_sample_legal_action_ids_uniform_into(
-                seeds, actions, buffers.out
-            )
-            return buffers.out
+            np.add(seeds, LCG_INC, out=seeds)
+            out_next, _ = buffers.step_random_legal(seeds)
+            return out_next
         raise RuntimeError(f"unknown mode: {mode}")
 
     for _ in range(warmup):

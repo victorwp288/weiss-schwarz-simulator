@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that contract checksum values in docs match encode constants."""
+"""Verify that compatibility constants in docs match Rust constants."""
 
 from __future__ import annotations
 
@@ -10,8 +10,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONSTANTS_PATH = ROOT / "weiss_core" / "src" / "encode" / "constants.rs"
-STATE_PATH = ROOT / "weiss_core" / "src" / "state.rs"
+STATE_REVEAL_PATH = ROOT / "weiss_core" / "src" / "state" / "reveal.rs"
+REPLAY_PATH = ROOT / "weiss_core" / "src" / "replay.rs"
+WSDB_PATH = ROOT / "weiss_core" / "src" / "db" / "serialization.rs"
 DOC_PATH = ROOT / "docs" / "rl_contract.md"
+DOCS_TO_SCAN = [
+    ROOT / "README.md",
+    ROOT / "docs" / "README.md",
+    ROOT / "docs" / "architecture.md",
+    ROOT / "docs" / "rl_contract.md",
+]
 
 TARGET_FIELDS = {
     "OBS_LEN",
@@ -19,6 +27,10 @@ TARGET_FIELDS = {
     "OBS_ENCODING_VERSION",
     "ACTION_ENCODING_VERSION",
     "SPEC_HASH",
+}
+VERSION_FIELDS = {
+    "REPLAY_SCHEMA_VERSION": REPLAY_PATH,
+    "WSDB_SCHEMA_VERSION": WSDB_PATH,
 }
 
 CONST_RE = re.compile(r"^\s*pub const (\w+): [^=]+ = (.+)$")
@@ -72,7 +84,7 @@ def safe_eval(expr: str, env: dict[str, int]) -> int:
 
 def parse_state_constants() -> dict[str, int]:
     env: dict[str, int] = {}
-    text = STATE_PATH.read_text()
+    text = STATE_REVEAL_PATH.read_text()
     m = re.search(r"pub const REVEAL_HISTORY_LEN: usize = (\d+);", text)
     if not m:
         raise ValueError("REVEAL_HISTORY_LEN not found")
@@ -134,6 +146,24 @@ def parse_contract_table() -> dict[str, int]:
     return table
 
 
+def parse_named_constant(path: Path, name: str) -> int:
+    pattern = re.compile(rf"^\s*pub const {re.escape(name)}: [^=]+ = (\d+);")
+    for line in path.read_text().splitlines():
+        match = pattern.match(line)
+        if match:
+            return int(match.group(1))
+    raise ValueError(f"{name} not found in {path.relative_to(ROOT)}")
+
+
+def find_documented_versions(path: Path, name: str) -> list[tuple[int, int]]:
+    pattern = re.compile(rf"\b{re.escape(name)}\s*[=`|]\s*`?(\d+)")
+    found: list[tuple[int, int]] = []
+    for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        for match in pattern.finditer(line):
+            found.append((line_no, int(match.group(1))))
+    return found
+
+
 def main() -> int:
     env = parse_encode_constants()
     table = parse_contract_table()
@@ -150,6 +180,23 @@ def main() -> int:
             continue
         if expected != actual:
             errors.append(f"{field} mismatch: docs={actual} constants={expected}")
+    for field, path in VERSION_FIELDS.items():
+        expected = parse_named_constant(path, field)
+        occurrences = []
+        for doc_path in DOCS_TO_SCAN:
+            occurrences.extend(
+                (doc_path, line_no, value)
+                for line_no, value in find_documented_versions(doc_path, field)
+            )
+        if not occurrences:
+            errors.append(f"{field} is not documented in checked docs")
+            continue
+        for doc_path, line_no, actual in occurrences:
+            if actual != expected:
+                rel = doc_path.relative_to(ROOT)
+                errors.append(
+                    f"{field} mismatch in {rel}:{line_no}: docs={actual} constants={expected}"
+                )
     if errors:
         for err in errors:
             print(err)

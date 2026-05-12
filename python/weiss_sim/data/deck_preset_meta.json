@@ -1,0 +1,18 @@
+{
+  "aggro_deck_5hy_nino_v1": {
+    "min_rules_profile": "approx",
+    "source": "Aggro_deck_1.csv"
+  },
+  "control_deck_jj_s66_v1": {
+    "min_rules_profile": "approx",
+    "source": "control_deck_1.csv"
+  },
+  "main_deck_5hy_yotsuba_v1": {
+    "min_rules_profile": "approx",
+    "source": "Main_deck_1.csv"
+  },
+  "starter_deck_ws02_v1": {
+    "min_rules_profile": "approx",
+    "source": "starter_deck_1.csv"
+  }
+}

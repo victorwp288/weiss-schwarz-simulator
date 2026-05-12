@@ -77,15 +77,9 @@ def _load_weiss_sim(repo_root: Path) -> Any:
 def pick_first_legal_from_mask(
     masks: np.ndarray, done: np.ndarray, actions_out: np.ndarray
 ) -> None:
-    for i in range(masks.shape[0]):
-        if bool(done[i]):
-            actions_out[i] = int(weiss_sim.PASS_ACTION_ID)
-            continue
-        row = masks[i]
-        if row.any():
-            actions_out[i] = int(np.argmax(row))
-        else:
-            actions_out[i] = int(weiss_sim.PASS_ACTION_ID)
+    has_any = masks.any(axis=1)
+    np.copyto(actions_out, masks.argmax(axis=1), casting="unsafe")
+    actions_out[np.logical_or(done, ~has_any)] = int(weiss_sim.PASS_ACTION_ID)
 
 
 def pick_first_legal_from_ids(
@@ -107,9 +101,7 @@ def bench_reset(buffers: weiss_sim.EnvPoolBuffers, reps: int) -> float:
     return perf_counter() - start
 
 
-def bench_step_mask(
-    buffers: weiss_sim.EnvPoolBuffers, steps: int, reset_done: bool
-) -> float:
+def bench_step_mask(buffers: weiss_sim.EnvPoolBuffers, steps: int, reset_done: bool) -> float:
     actions = np.empty(buffers.pool.envs_len, dtype=np.uint32)
     out = buffers.out
     start = perf_counter()
@@ -123,9 +115,7 @@ def bench_step_mask(
     return perf_counter() - start
 
 
-def bench_step_ids(
-    buffers: weiss_sim.EnvPoolBuffers, steps: int, reset_done: bool
-) -> float:
+def bench_step_ids(buffers: weiss_sim.EnvPoolBuffers, steps: int, reset_done: bool) -> float:
     actions = np.empty(buffers.pool.envs_len, dtype=np.uint32)
     out = buffers.out
     start = perf_counter()
@@ -224,17 +214,13 @@ def main() -> None:
         mask_elapsed = bench_step_mask(buffers, args.steps, args.reset_done)
         mask_eps = (args.steps * args.num_envs) / max(mask_elapsed, 1e-9)
         print(
-            f"step(mask): {args.steps} steps in {mask_elapsed:.4f}s "
-            f"({mask_eps:.0f} env-steps/sec)"
+            f"step(mask): {args.steps} steps in {mask_elapsed:.4f}s ({mask_eps:.0f} env-steps/sec)"
         )
 
     if args.mode in ("ids", "both"):
         ids_elapsed = bench_step_ids(buffers, args.steps, args.reset_done)
         ids_eps = (args.steps * args.num_envs) / max(ids_elapsed, 1e-9)
-        print(
-            f"step(ids): {args.steps} steps in {ids_elapsed:.4f}s "
-            f"({ids_eps:.0f} env-steps/sec)"
-        )
+        print(f"step(ids): {args.steps} steps in {ids_elapsed:.4f}s ({ids_eps:.0f} env-steps/sec)")
 
     if args.mode == "fast_first_legal":
         fast_elapsed = bench_step_fast_first_legal(buffers, args.steps, args.reset_done)

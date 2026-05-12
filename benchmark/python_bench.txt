@@ -1,3 +1,3 @@
-reset_into: 200 reps in 0.0256s (127.8 us/reset)
-step(mask): 2000 steps in 0.1024s (2499535 env-steps/sec)
-step(ids): 2000 steps in 0.0555s (4609215 env-steps/sec)
+reset_into: 200 reps in 0.0152s (75.8 us/reset)
+step(mask): 2000 steps in 0.0984s (2602377 env-steps/sec)
+step(ids): 2000 steps in 0.0519s (4929457 env-steps/sec)

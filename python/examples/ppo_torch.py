@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from dataclasses import dataclass
 
 import numpy as np
@@ -34,6 +33,9 @@ class PpoConfig:
     hidden_dim: int
     enable_shaping: bool
     damage_reward: float
+    level_reward: float
+    board_reward: float
+    no_progress_penalty: float
 
 
 class Net(nn.Module):
@@ -55,12 +57,12 @@ class Net(nn.Module):
 
 def _coerce_legal_mask(mask: np.ndarray | None, *, num_envs: int, action_space: int) -> np.ndarray:
     if mask is None:
-        raise RuntimeError(
-            "legal mask is unavailable; construct the env with legal_repr='mask_u8'"
-        )
+        raise RuntimeError("legal mask is unavailable; construct the env with legal_repr='mask_u8'")
     arr = np.asarray(mask)
     if arr.shape != (num_envs, action_space):
-        raise RuntimeError(f"legal mask shape mismatch: got {arr.shape}, expected {(num_envs, action_space)}")
+        raise RuntimeError(
+            f"legal mask shape mismatch: got {arr.shape}, expected {(num_envs, action_space)}"
+        )
     return arr.astype(np.uint8, copy=False)
 
 
@@ -104,7 +106,9 @@ def _compute_gae(
 
 
 def parse_args() -> PpoConfig:
-    parser = argparse.ArgumentParser(description="Minimal PPO example for weiss_sim (masked discrete).")
+    parser = argparse.ArgumentParser(
+        description="Minimal PPO example for weiss_sim (masked discrete)."
+    )
     parser.add_argument("--num-envs", type=int, default=32)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--rollout-len", type=int, default=128)
@@ -119,8 +123,13 @@ def parse_args() -> PpoConfig:
     parser.add_argument("--minibatches", type=int, default=4)
     parser.add_argument("--max-grad-norm", type=float, default=0.5)
     parser.add_argument("--hidden-dim", type=int, default=256)
-    parser.add_argument("--enable-shaping", action="store_true", help="Enable damage shaping rewards.")
+    parser.add_argument(
+        "--enable-shaping", action="store_true", help="Enable simulator reward shaping."
+    )
     parser.add_argument("--damage-reward", type=float, default=0.1)
+    parser.add_argument("--level-reward", type=float, default=0.0)
+    parser.add_argument("--board-reward", type=float, default=0.0)
+    parser.add_argument("--no-progress-penalty", type=float, default=0.0)
     args = parser.parse_args()
 
     if args.num_envs <= 0:
@@ -151,6 +160,9 @@ def parse_args() -> PpoConfig:
         hidden_dim=int(args.hidden_dim),
         enable_shaping=bool(args.enable_shaping),
         damage_reward=float(args.damage_reward),
+        level_reward=float(args.level_reward),
+        board_reward=float(args.board_reward),
+        no_progress_penalty=float(args.no_progress_penalty),
     )
 
 
@@ -159,13 +171,14 @@ def main() -> None:
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
 
-    reward_json = None
+    reward = None
     if cfg.enable_shaping:
-        reward_json = json.dumps(
-            {
-                "enable_shaping": True,
-                "damage_reward": float(cfg.damage_reward),
-            }
+        reward = weiss_sim.RewardOverrides(
+            enable_shaping=True,
+            damage_reward=cfg.damage_reward,
+            level_reward=cfg.level_reward,
+            board_reward=cfg.board_reward,
+            no_progress_penalty=cfg.no_progress_penalty,
         )
 
     with weiss_sim.fast(
@@ -173,7 +186,7 @@ def main() -> None:
         seed=cfg.seed,
         legal_repr="mask_u8",
         obs_dtype="i16",
-        reward_json=reward_json,
+        reward=reward,
     ) as sim:
         batch = sim.reset()
         obs_dim = int(batch.obs.shape[1])
@@ -250,7 +263,9 @@ def main() -> None:
             batch_size = b_actions.shape[0]
             minibatch_size = batch_size // cfg.minibatches
             if minibatch_size <= 0:
-                raise RuntimeError("minibatch_size is 0; decrease --minibatches or increase rollout size")
+                raise RuntimeError(
+                    "minibatch_size is 0; decrease --minibatches or increase rollout size"
+                )
 
             approx_kl = 0.0
             clip_frac = 0.0
@@ -264,16 +279,16 @@ def main() -> None:
                     if not bool(has_legal.all()):
                         mask = mask.clone()
                         mask[~has_legal, int(weiss_sim.PASS_ACTION_ID)] = True
-                    dist = torch.distributions.Categorical(
-                        logits=logits.masked_fill(~mask, -1e9)
-                    )
+                    dist = torch.distributions.Categorical(logits=logits.masked_fill(~mask, -1e9))
                     new_logp = dist.log_prob(b_actions[idx])
                     new_logp = torch.where(has_legal, new_logp, torch.zeros_like(new_logp))
                     entropy = dist.entropy().mean()
 
                     ratio = torch.exp(new_logp - b_logp[idx])
                     unclipped = ratio * b_adv[idx]
-                    clipped = torch.clamp(ratio, 1.0 - cfg.clip_coef, 1.0 + cfg.clip_coef) * b_adv[idx]
+                    clipped = (
+                        torch.clamp(ratio, 1.0 - cfg.clip_coef, 1.0 + cfg.clip_coef) * b_adv[idx]
+                    )
                     pg_loss = -torch.min(unclipped, clipped).mean()
                     v_loss = 0.5 * ((values - b_ret[idx]) ** 2).mean()
                     loss = pg_loss + cfg.vf_coef * v_loss - cfg.ent_coef * entropy
@@ -312,4 +327,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

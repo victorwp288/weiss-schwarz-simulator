@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import json
 from dataclasses import dataclass
 
 import numpy as np
@@ -34,6 +33,9 @@ class ImpalaConfig:
     sync_every: int
     enable_shaping: bool
     damage_reward: float
+    level_reward: float
+    board_reward: float
+    no_progress_penalty: float
 
 
 class Net(nn.Module):
@@ -55,12 +57,12 @@ class Net(nn.Module):
 
 def _coerce_legal_mask(mask: np.ndarray | None, *, num_envs: int, action_space: int) -> np.ndarray:
     if mask is None:
-        raise RuntimeError(
-            "legal mask is unavailable; construct the env with legal_repr='mask_u8'"
-        )
+        raise RuntimeError("legal mask is unavailable; construct the env with legal_repr='mask_u8'")
     arr = np.asarray(mask)
     if arr.shape != (num_envs, action_space):
-        raise RuntimeError(f"legal mask shape mismatch: got {arr.shape}, expected {(num_envs, action_space)}")
+        raise RuntimeError(
+            f"legal mask shape mismatch: got {arr.shape}, expected {(num_envs, action_space)}"
+        )
     return arr.astype(np.uint8, copy=False)
 
 
@@ -125,9 +127,16 @@ def parse_args() -> ImpalaConfig:
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--rho-bar", type=float, default=1.0)
     parser.add_argument("--c-bar", type=float, default=1.0)
-    parser.add_argument("--sync-every", type=int, default=1, help="Learner->actor sync interval (updates).")
-    parser.add_argument("--enable-shaping", action="store_true", help="Enable damage shaping rewards.")
+    parser.add_argument(
+        "--sync-every", type=int, default=1, help="Learner->actor sync interval (updates)."
+    )
+    parser.add_argument(
+        "--enable-shaping", action="store_true", help="Enable simulator reward shaping."
+    )
     parser.add_argument("--damage-reward", type=float, default=0.1)
+    parser.add_argument("--level-reward", type=float, default=0.0)
+    parser.add_argument("--board-reward", type=float, default=0.0)
+    parser.add_argument("--no-progress-penalty", type=float, default=0.0)
     args = parser.parse_args()
 
     if args.num_envs <= 0:
@@ -157,6 +166,9 @@ def parse_args() -> ImpalaConfig:
         sync_every=int(args.sync_every),
         enable_shaping=bool(args.enable_shaping),
         damage_reward=float(args.damage_reward),
+        level_reward=float(args.level_reward),
+        board_reward=float(args.board_reward),
+        no_progress_penalty=float(args.no_progress_penalty),
     )
 
 
@@ -165,13 +177,14 @@ def main() -> None:
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
 
-    reward_json = None
+    reward = None
     if cfg.enable_shaping:
-        reward_json = json.dumps(
-            {
-                "enable_shaping": True,
-                "damage_reward": float(cfg.damage_reward),
-            }
+        reward = weiss_sim.RewardOverrides(
+            enable_shaping=True,
+            damage_reward=cfg.damage_reward,
+            level_reward=cfg.level_reward,
+            board_reward=cfg.board_reward,
+            no_progress_penalty=cfg.no_progress_penalty,
         )
 
     with weiss_sim.fast(
@@ -179,7 +192,7 @@ def main() -> None:
         seed=cfg.seed,
         legal_repr="mask_u8",
         obs_dtype="i16",
-        reward_json=reward_json,
+        reward=reward,
     ) as sim:
         batch = sim.reset()
         obs_dim = int(batch.obs.shape[1])
@@ -301,4 +314,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

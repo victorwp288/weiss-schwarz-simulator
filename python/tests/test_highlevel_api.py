@@ -839,7 +839,7 @@ def test_termination_truncation_exclusive_and_timeout_reward_zero():
 def test_strict_profile_conflicting_curriculum_rejected():
     with pytest.raises(weiss_sim.ConfigConflictError):
         weiss_sim.make(
-            deck="preset:starter_v1",
+            deck="preset:starter_deck_ws02_v1",
             rules_profile="strict",
             curriculum={"enable_approx_effects": True},
         )
@@ -862,7 +862,7 @@ def test_parsed_only_rejects_mismatched_external_db(tmp_path: Path):
     bad_wsdb.write_bytes(default_wsdb_path.read_bytes() + b"\x00")
     with pytest.raises(weiss_sim.DbMismatchError) as exc_info:
         weiss_sim.make(
-            deck="preset:starter_v1",
+            deck="preset:starter_deck_ws02_v1",
             db_path=str(bad_wsdb),
             card_pool="parsed_only",
         )
@@ -886,11 +886,19 @@ def test_cards_namespace_search_get_presets_and_resolve_deck(tmp_path: Path):
     assert any(r.id == card.id for r in results)
 
     names = weiss_sim.cards.presets()
-    assert "starter_v1" in names
-    assert "quints_balanced_v2" in names
-    assert "quints_ichika_focus_v1" in names
-    assert "quints_yotsuba_focus_v1" in names
-    assert "quints_support_mix_v1" in names
+    assert names == [
+        "aggro_deck_5hy_nino_v1",
+        "control_deck_jj_s66_v1",
+        "main_deck_5hy_yotsuba_v1",
+        "starter_deck_ws02_v1",
+    ]
+    metadata = weiss_sim.cards.preset_metadata()
+    assert set(metadata) == set(names)
+    assert weiss_sim.cards.preset_min_rules_profile("starter_deck_ws02_v1") == "approx"
+    assert weiss_sim.cards.preset_min_rules_profile("main_deck_5hy_yotsuba_v1") == "approx"
+    assert (
+        weiss_sim.cards.preset_metadata("main_deck_5hy_yotsuba_v1")["min_rules_profile"] == "approx"
+    )
 
     seq_ids = weiss_sim.cards.resolve_deck(
         [1] * 50,
@@ -907,11 +915,18 @@ def test_cards_namespace_search_get_presets_and_resolve_deck(tmp_path: Path):
     assert map_ids == [1] * 50
 
     preset_ids = weiss_sim.cards.resolve_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
     )
     assert len(preset_ids) == 50
+
+    main_deck_ids = weiss_sim.cards.resolve_deck(
+        "main_deck_5hy_yotsuba_v1",
+        rules_profile="approx",
+        card_pool="parsed_only",
+    )
+    assert len(main_deck_ids) == 50
 
     file_path = tmp_path / "deck.json"
     file_path.write_text(json.dumps({"1": 50}), encoding="utf-8")
@@ -956,7 +971,7 @@ def test_cards_namespace_search_get_presets_and_resolve_deck(tmp_path: Path):
     assert suggestions
 
     report = weiss_sim.cards.validate_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
     )
@@ -964,12 +979,12 @@ def test_cards_namespace_search_get_presets_and_resolve_deck(tmp_path: Path):
     assert not report.errors
     assert len(report.resolved_ids) == 50
 
-    builder = weiss_sim.cards.builder(initial="starter_v1")
+    builder = weiss_sim.cards.builder(initial="starter_deck_ws02_v1")
     assert isinstance(builder, weiss_sim.DeckBuilder)
     assert builder.total_cards() == 50
 
     exported = weiss_sim.cards.export_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
     )
@@ -978,7 +993,7 @@ def test_cards_namespace_search_get_presets_and_resolve_deck(tmp_path: Path):
     deck_path = tmp_path / "starter_export.json"
     saved_path = weiss_sim.cards.save_deck(
         deck_path,
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
     )
@@ -1007,12 +1022,21 @@ def test_deck_resolve_rejects_invalid_length_and_unknown_id():
             card_pool="all",
         )
 
-    with pytest.raises(weiss_sim.DeckValidationError):
-        weiss_sim.cards.resolve_deck(
-            [17] + [1] * 49,
+
+def test_all_bundled_presets_reset_with_default_db():
+    for preset in weiss_sim.cards.presets():
+        with weiss_sim.fast(
+            num_envs=1,
+            seed=7,
+            deck=f"preset:{preset}",
+            opponent_deck=f"preset:{preset}",
             rules_profile="approx",
-            card_pool="all",
-        )
+            card_pool="parsed_only",
+        ) as sim:
+            batch = sim.reset()
+
+        assert batch.obs.shape == (1, weiss_sim.OBS_LEN), preset
+        assert int(batch.engine_status[0]) == 0, preset
 
 
 def test_deck_resolve_db_probe_does_not_depend_on_starter_cards(monkeypatch, tmp_path: Path):
@@ -1078,12 +1102,12 @@ def test_effective_config_and_spec_export_contract():
         cfg = sim.effective_config()
         assert cfg["mode"] == "inspect"
         assert cfg["runtime_mode"] == "eval_debug"
-        assert cfg["rules_profile"] == "strict"
+        assert cfg["rules_profile"] == "approx"
         assert cfg["card_pool"] == "all"
         assert cfg["legal_repr"] == "both"
         assert cfg["obs_dtype"] == "i32"
         assert isinstance(cfg["curriculum"], dict)
-        assert cfg["curriculum"]["enable_approx_effects"] is False
+        assert cfg["curriculum"]["enable_approx_effects"] is True
         assert isinstance(cfg["db"], dict)
         assert {"db_sha256", "catalog_db_sha256", "matches_catalog"} <= set(cfg["db"].keys())
         assert cfg["reward_timeout_policy"]["timeout_uses_terminal_draw_reward"] is False
@@ -1109,6 +1133,18 @@ def test_effective_config_and_spec_export_contract():
         assert exported["action_factorization_v1"]["factorization_version"] == 1
         assert exported["action_meta_v1"]["fields"] == ["family_id", "arg0", "arg1", "arg2"]
         assert exported["action"]["factorization"] == exported["action_factorization_v1"]
+        assert exported["legal_action_context_v1"]["width"] == (
+            weiss_sim.LEGAL_ACTION_CONTEXT_V1_WIDTH
+        )
+        assert exported["legal_action_context_v1"]["unused"] == (
+            weiss_sim.LEGAL_ACTION_CONTEXT_UNUSED
+        )
+        assert exported["legal_action_context_v1"]["fields"][:4] == [
+            "action_family_code",
+            "action_arg0",
+            "action_arg1",
+            "action_arg2",
+        ]
 
     info = weiss_sim.db_info()
     assert bool(info["matches_catalog"]) is True
@@ -1167,9 +1203,54 @@ def test_reward_json_dict_supported_in_high_level_api():
         }
 
 
+def test_reward_overrides_supported_in_high_level_api():
+    reward_cfg = weiss_sim.RewardOverrides(
+        terminal_win=1.5,
+        terminal_loss=-1.5,
+        terminal_timeout=-0.1,
+        enable_shaping=True,
+        damage_reward=0.04,
+        level_reward=0.2,
+        board_reward=0.03,
+        no_progress_penalty=0.01,
+    )
+    with weiss_sim.inspect(num_envs=2, seed=17, card_pool="all", reward=reward_cfg) as sim:
+        cfg = sim.effective_config()
+        assert cfg["reward"] == {
+            "terminal_win": 1.5,
+            "terminal_loss": -1.5,
+            "terminal_draw": 0.0,
+            "terminal_timeout": -0.1,
+            "enable_shaping": True,
+            "damage_reward": 0.04,
+            "level_reward": 0.2,
+            "board_reward": 0.03,
+            "no_progress_penalty": 0.01,
+        }
+
+
 def test_reward_json_empty_string_rejected():
     with pytest.raises(weiss_sim.ConfigConflictError):
         weiss_sim.make(card_pool="all", reward_json="")
+
+
+def test_reward_unknown_fields_rejected_in_high_level_api():
+    with pytest.raises(weiss_sim.ConfigConflictError, match="unknown reward fields"):
+        weiss_sim.make(card_pool="all", reward={"damage_rewrad": 0.05})
+
+
+def test_reward_json_unknown_fields_rejected_in_high_level_api():
+    with pytest.raises(weiss_sim.ConfigConflictError, match="unknown reward_json fields"):
+        weiss_sim.make(card_pool="all", reward_json='{"damage_rewrad": 0.05}')
+
+
+def test_reward_and_reward_json_are_mutually_exclusive():
+    with pytest.raises(weiss_sim.ConfigConflictError, match="mutually exclusive"):
+        weiss_sim.make(
+            card_pool="all",
+            reward=weiss_sim.RewardOverrides(enable_shaping=True),
+            reward_json={"enable_shaping": True},
+        )
 
 
 def test_end_condition_policy_override_supported_in_high_level_api():

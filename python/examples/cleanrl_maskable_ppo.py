@@ -65,7 +65,7 @@ def main() -> None:
 
         out = buffers.step(actions)
 
-        # Placeholder update: encourage non-zero rewards (replace with PPO in real training).
+        # Keep the example executable without bundling a full PPO objective.
         rewards_t = torch.from_numpy(out.rewards.astype(np.float32, copy=False)).to(device)
         loss = -(rewards_t.mean()) + 0.01 * (values.mean() ** 2)
         optimizer.zero_grad()

@@ -22,7 +22,7 @@ from .weiss_sim import (
     EnvPool,
 )
 
-Layout = Literal["mask", "nomask", "i16_legal_ids"]
+Layout = Literal["mask", "nomask", "i16_legal_ids", "i16_legal_ids_nometa"]
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ class RlStep:
         return self.actor != ACTOR_NONE
 
 
-_RL_LAYOUTS = frozenset({"mask", "nomask", "i16_legal_ids"})
+_RL_LAYOUTS = frozenset({"mask", "nomask", "i16_legal_ids", "i16_legal_ids_nometa"})
 
 
 def _resolve_layout(layout: str) -> tuple[LayoutName, LayoutSpec]:
@@ -192,12 +192,12 @@ def step_rl_sample_from_logits_with_logp(
 ):
     """Sample actions from `logits`, return sampled-action log-probs, and step the pool.
 
-    This fast path is currently only available for the packed-id layout.
+    This fast path is currently only available for packed legal-id layouts.
     """
     layout_name, spec = _resolve_layout(layout)
-    if layout_name != "i16_legal_ids":
+    if layout_name not in {"i16_legal_ids", "i16_legal_ids_nometa"}:
         raise ValueError(
-            "step_rl_sample_from_logits_with_logp currently requires layout='i16_legal_ids'"
+            "step_rl_sample_from_logits_with_logp currently requires a packed legal-id layout"
         )
     out_buf = _prepare_out(pool, out, spec)
     logits_buf = coerce_logits(logits, num_envs=pool.envs_len, action_space=pool.action_space)
@@ -212,7 +212,7 @@ def step_rl_sample_from_logits_with_logp(
                 f"action_logp must have shape ({pool.envs_len},), got {action_logp_buf.shape}"
             )
         action_logp_buf = np.ascontiguousarray(action_logp_buf, dtype=np.float32)
-    pool.step_sample_from_logits_with_logp_into_i16_legal_ids(
+    getattr(pool, pool_method_name("step_sample_from_logits_with_logp_into", spec))(
         logits_buf,
         seeds_buf,
         actions_buf,

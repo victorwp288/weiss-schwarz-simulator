@@ -2,17 +2,23 @@ from __future__ import annotations
 
 from ._buffers import EnvPoolBuffers, EnvPoolTrajectoryBuffers, make_batch_out_debug, make_pool
 from .weiss_sim import (
+    ACTION_ENCODING_VERSION,
     ACTION_SPACE_SIZE,
     ACTION_META_UNUSED,
     ACTION_META_WIDTH,
     ACTOR_NONE,
     DECISION_KIND_NONE,
+    LEGAL_ACTION_CONTEXT_UNUSED,
+    LEGAL_ACTION_CONTEXT_V1_WIDTH,
+    OBS_ENCODING_VERSION,
     POLICY_VERSION,
     OBS_LEN,
     PASS_ACTION_ID,
     SPEC_HASH,
+    REWARD_COMPONENT_WIDTH,
     BatchOutMinimalI16,
     BatchOutMinimalI16LegalIds,
+    BatchOutMinimalI16LegalIdsNoMeta,
     BatchOutDebug,
     BatchOutMinimal,
     BatchOutMinimalNoMask,
@@ -40,7 +46,7 @@ from .rl import (
 )
 from .api import db_info, export_card_table, export_spec_bundle, fast, inspect, make
 from .catalog import cards
-from .config_types import CurriculumOverrides, DeckInput, EndConditionOverrides
+from .config_types import CurriculumOverrides, DeckInput, EndConditionOverrides, RewardOverrides
 from .deck_builder import DeckBuilder
 from .league import (
     AgentSummary,
@@ -86,6 +92,7 @@ __all__ = [
     "BatchOutMinimal",
     "BatchOutMinimalI16",
     "BatchOutMinimalI16LegalIds",
+    "BatchOutMinimalI16LegalIdsNoMeta",
     "BatchOutMinimalNoMask",
     "BatchOutTrajectory",
     "BatchOutTrajectoryI16",
@@ -95,8 +102,13 @@ __all__ = [
     "ACTION_SPACE_SIZE",
     "ACTION_META_WIDTH",
     "ACTION_META_UNUSED",
+    "REWARD_COMPONENT_WIDTH",
+    "LEGAL_ACTION_CONTEXT_V1_WIDTH",
+    "LEGAL_ACTION_CONTEXT_UNUSED",
     "ACTOR_NONE",
     "DECISION_KIND_NONE",
+    "OBS_ENCODING_VERSION",
+    "ACTION_ENCODING_VERSION",
     "POLICY_VERSION",
     "OBS_LEN",
     "SPEC_HASH",
@@ -127,6 +139,7 @@ __all__ = [
     "WeissEnv",
     "CurriculumOverrides",
     "EndConditionOverrides",
+    "RewardOverrides",
     "DeckInput",
     "DeckBuilder",
     "MatchRecord",

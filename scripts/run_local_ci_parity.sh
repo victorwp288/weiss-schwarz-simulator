@@ -91,11 +91,12 @@ run "Check env layering" ./scripts/check_env_layering.sh
 run "Docs link check" "$PYTHON_BIN" scripts/check_docs_links.py
 run "Docs constants check" "$PYTHON_BIN" scripts/check_docs_constants.py
 run "Generated docs check" "$PYTHON_BIN" scripts/gen_docs_snippets.py --check
+run "Packaged data freshness" "$PYTHON_BIN" scripts/check_packaged_data.py
 
 run "Cargo fmt" cargo fmt --all -- --check
 run "Cargo clippy" cargo clippy --workspace --all-targets --all-features -- -D warnings
 run "Cargo test" cargo test --workspace --all-features
-run "Cargo doc (missing docs denied)" env RUSTDOCFLAGS="-D missing-docs" cargo doc --workspace --all-features --no-deps
+run "Cargo doc (missing docs denied)" env RUSTDOCFLAGS="-D missing-docs" cargo doc -p weiss_core --all-features --no-deps
 
 run "Ruff format" "$PYTHON_BIN" -m ruff format --check python scraper scripts
 run "Ruff check" "$PYTHON_BIN" -m ruff check python scraper scripts

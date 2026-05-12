@@ -31,6 +31,8 @@ from .weiss_sim import (
     ACTION_META_WIDTH,
     BatchOutDebug,
     EnvPool,
+    LEGAL_ACTION_CONTEXT_UNUSED,
+    LEGAL_ACTION_CONTEXT_V1_WIDTH,
 )
 
 ModeName = Literal["train", "eval"]
@@ -283,7 +285,7 @@ def make_pool(
         Supported values: `"fast"`, `"balanced"`, `"eval"`, `"debug"`.
     layout:
         Optional explicit layout override. Supported values: `"mask"`, `"nomask"`,
-        `"i16"`, `"i16_legal_ids"`.
+        `"i16"`, `"i16_legal_ids"`, `"i16_legal_ids_nometa"`.
     """
     mode_name = _normalize_mode(mode)
     profile_spec = _resolve_profile(profile, mode_name)
@@ -364,15 +366,7 @@ class EnvPoolBuffers(_EngineStatusMixin):
         self.main_pass_action: np.ndarray = self.out.main_pass_action
         if spec.has_legal_ids:
             self.legal_ids: np.ndarray = self.out.legal_ids
-            self.legal_action_meta: np.ndarray = getattr(
-                self.out,
-                "legal_action_meta",
-                np.full(
-                    (num_envs * pool.action_space, ACTION_META_WIDTH),
-                    ACTION_META_UNUSED,
-                    dtype=np.uint16,
-                ),
-            )
+            self.legal_action_meta: np.ndarray | None = getattr(self.out, "legal_action_meta", None)
             self.legal_offsets: np.ndarray = self.out.legal_offsets
         else:
             self.legal_ids = np.empty(num_envs * pool.action_space, dtype=np.uint16)
@@ -401,10 +395,14 @@ class EnvPoolBuffers(_EngineStatusMixin):
         self._step_sample_from_logits_into = _bind_pool_method(
             pool, "step_sample_from_logits_into", spec
         )
+        self._step_sample_from_logits_with_logp_into = getattr(
+            pool, pool_method_name("step_sample_from_logits_with_logp_into", spec), None
+        )
         self._select_actions_from_logits_into = pool.select_actions_from_logits_into
         self._sample_actions_from_logits_into = pool.sample_actions_from_logits_into
         self._legal_action_ids_into = pool.legal_action_ids_into
         self._legal_action_meta_into = getattr(pool, "legal_action_meta_into", None)
+        self._legal_action_context_v1_into = getattr(pool, "legal_action_context_v1_into", None)
         self._legal_action_ids_and_sample_uniform_into = (
             pool.legal_action_ids_and_sample_uniform_into
         )
@@ -414,6 +412,8 @@ class EnvPoolBuffers(_EngineStatusMixin):
             "legal_ids_materialize_ns": 0,
             "legal_action_meta_materialize_count": 0,
             "legal_action_meta_materialize_ns": 0,
+            "legal_action_context_v1_materialize_count": 0,
+            "legal_action_context_v1_materialize_ns": 0,
         }
 
     def _coerce_logits(self, logits: object) -> np.ndarray:
@@ -421,6 +421,18 @@ class EnvPoolBuffers(_EngineStatusMixin):
 
     def _coerce_seeds(self, seeds: object) -> np.ndarray:
         return coerce_seeds(seeds, num_envs=self._num_envs)
+
+    def _coerce_action_logp(self, action_logp: object | None) -> np.ndarray:
+        if action_logp is None:
+            return np.empty(self._num_envs, dtype=np.float32)
+        arr = np.asarray(action_logp)
+        if arr.shape != (self._num_envs,):
+            raise ValueError(f"action_logp must have shape ({self._num_envs},), got {arr.shape}")
+        if arr.dtype != np.float32:
+            raise ValueError(f"action_logp must have dtype float32, got {arr.dtype}")
+        if not arr.flags.c_contiguous:
+            raise ValueError("action_logp must be C-contiguous")
+        return arr
 
     def reset(self) -> MinimalOut:
         """Reset all envs into the preallocated buffers."""
@@ -484,6 +496,32 @@ class EnvPoolBuffers(_EngineStatusMixin):
         self._step_sample_from_logits_into(logits, seeds, self.actions, self.out)
         return self.out, self.actions
 
+    def step_sample_from_logits_with_logp(
+        self,
+        logits: object,
+        seeds: int | Sequence[int] | np.ndarray,
+        action_logp: np.ndarray | None = None,
+    ) -> tuple[MinimalOut, np.ndarray, np.ndarray]:
+        """Step by sampling actions from `logits` and writing sampled-action log-probs.
+
+        This fused Rust/PyO3 path is available for packed legal-id layouts.
+        """
+        if self.layout not in {"i16_legal_ids", "i16_legal_ids_nometa"}:
+            raise ValueError("step_sample_from_logits_with_logp requires a packed legal-id layout")
+        if self._step_sample_from_logits_with_logp_into is None:
+            raise AttributeError("pool does not expose fused sampled-logp stepping for this layout")
+        logits = self._coerce_logits(logits)
+        seeds = self._coerce_seeds(seeds)
+        action_logp_buf = self._coerce_action_logp(action_logp)
+        self._step_sample_from_logits_with_logp_into(
+            logits,
+            seeds,
+            self.actions,
+            action_logp_buf,
+            self.out,
+        )
+        return self.out, self.actions, action_logp_buf
+
     def select_actions_from_logits(self, logits: object) -> np.ndarray:
         """Write selected actions from `logits` into `self.actions` and return it."""
         logits = self._coerce_logits(logits)
@@ -534,6 +572,8 @@ class EnvPoolBuffers(_EngineStatusMixin):
             "legal_ids_materialize_ns": 0,
             "legal_action_meta_materialize_count": 0,
             "legal_action_meta_materialize_ns": 0,
+            "legal_action_context_v1_materialize_count": 0,
+            "legal_action_context_v1_materialize_ns": 0,
         }
         resetter = getattr(self.pool, "reset_timing_counters", None)
         if resetter is not None:
@@ -583,6 +623,43 @@ class EnvPoolBuffers(_EngineStatusMixin):
             self._timing_counters["legal_action_meta_materialize_ns"] += elapsed
         return ids, meta, offsets
 
+    def legal_action_context_v1(
+        self, out: np.ndarray | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Materialize opt-in legal-action context rows aligned with packed legal ids."""
+        if self._legal_action_context_v1_into is None:
+            raise AttributeError("pool does not expose legal_action_context_v1_into")
+        _ids, offsets = self._timed_legal_ids()
+        used_rows = int(offsets[-1]) if offsets.size else 0
+        if out is None:
+            context = np.full(
+                (self._num_envs * self._action_space, LEGAL_ACTION_CONTEXT_V1_WIDTH),
+                LEGAL_ACTION_CONTEXT_UNUSED,
+                dtype=np.int32,
+            )
+        else:
+            context = np.asarray(out)
+            expected = (self._num_envs * self._action_space, LEGAL_ACTION_CONTEXT_V1_WIDTH)
+            if context.shape != expected:
+                raise ValueError(f"legal_action_context_v1 out must have shape {expected}")
+            if context.dtype != np.int32:
+                raise ValueError(
+                    f"legal_action_context_v1 out must have dtype int32, got {context.dtype}"
+                )
+            if not context.flags.c_contiguous:
+                raise ValueError("legal_action_context_v1 out must be C-contiguous")
+        start_ns = perf_counter_ns() if self._timing_enabled else None
+        count = self._legal_action_context_v1_into(context)
+        if count != used_rows:
+            raise RuntimeError(
+                f"legal action context row count mismatch (context={count}, legal_ids={used_rows})"
+            )
+        if start_ns is not None:
+            elapsed = perf_counter_ns() - start_ns
+            self._timing_counters["legal_action_context_v1_materialize_count"] += 1
+            self._timing_counters["legal_action_context_v1_materialize_ns"] += elapsed
+        return context[:count], offsets
+
     def legal_action_ids_and_sample_uniform(
         self, seeds: int | Sequence[int] | np.ndarray
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -605,6 +682,8 @@ class EnvPoolTrajectoryBuffers(_EngineStatusMixin):
 
         self.pool = pool
         self.layout = _normalize_layout(layout)
+        if self.layout == "i16_legal_ids_nometa":
+            raise ValueError("layout='i16_legal_ids_nometa' is only supported for step buffers")
         self.steps = steps
         self._num_envs = int(pool.envs_len)
         spec = _LAYOUT_SPECS[self.layout]
@@ -654,4 +733,4 @@ class EnvPoolTrajectoryBuffers(_EngineStatusMixin):
         return self.out
 
 
-__all__ = ["EnvPoolBuffers", "EnvPoolTrajectoryBuffers", "make_pool"]
+__all__ = ["EnvPoolBuffers", "EnvPoolTrajectoryBuffers", "make_batch_out_debug", "make_pool"]

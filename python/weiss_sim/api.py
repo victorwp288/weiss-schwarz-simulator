@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, is_dataclass
@@ -31,6 +32,7 @@ from .config_types import (
     NumLike,
     ObservationVisibility,
     ObsDType,
+    RewardOverrides,
     RulesProfile,
     ThreadsLike,
 )
@@ -48,6 +50,8 @@ from .weiss_sim import (
     BatchOutMinimalI16LegalIds,
     BatchOutMinimalNoMask,
     EnvPool,
+    LEGAL_ACTION_CONTEXT_UNUSED,
+    LEGAL_ACTION_CONTEXT_V1_WIDTH,
     action_spec_json,
     export_card_table_json,
     observation_spec_json,
@@ -55,6 +59,7 @@ from .weiss_sim import (
 
 _KNOWN_CURRICULUM_KEYS = set(CurriculumOverrides.__annotations__.keys())
 _KNOWN_END_CONDITION_KEYS = {"simultaneous_loss", "allow_draw_on_simultaneous_loss"}
+_KNOWN_REWARD_KEYS = set(RewardOverrides.__annotations__.keys())
 _DEFAULT_REWARD_CONFIG: dict[str, object] = {
     "terminal_win": 1.0,
     "terminal_loss": -1.0,
@@ -113,18 +118,73 @@ def _reject_unknown_fields(
         raise ConfigConflictError(f"unknown {field_name} fields: {', '.join(unknown)}")
 
 
-def _normalize_reward_json(value: str | Mapping[str, object] | None) -> str | None:
+def _decode_json_object(value: str, *, field_name: str) -> dict[str, object]:
+    if not value.strip():
+        raise ConfigConflictError(f"{field_name} must be non-empty when provided as a JSON string")
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ConfigConflictError(f"{field_name} JSON parse error: {exc}") from exc
+    if not isinstance(decoded, dict):
+        raise ConfigConflictError(f"{field_name} JSON must decode to an object")
+    return dict(decoded)
+
+
+def _coerce_reward_payload(
+    value: RewardOverrides | Mapping[str, object] | str | None, *, field_name: str
+) -> dict[str, object] | None:
     if value is None:
         return None
     if isinstance(value, str):
-        if not value.strip():
-            raise ConfigConflictError("reward_json must be non-empty when provided as a string")
-        return value
+        return _decode_json_object(value, field_name=field_name)
+    if isinstance(value, RewardOverrides):
+        return value.to_dict()
+    if is_dataclass(value) and not isinstance(value, type):
+        return {k: v for k, v in asdict(value).items() if v is not None}
     if isinstance(value, Mapping):
-        payload = dict(_DEFAULT_REWARD_CONFIG)
-        payload.update(dict(value))
-        return json.dumps(payload)
-    raise ConfigConflictError("reward_json must be a JSON string, mapping, or None")
+        return dict(value)
+    raise ConfigConflictError(
+        f"{field_name} must be RewardOverrides, mapping, JSON string, dataclass, or None"
+    )
+
+
+def _normalize_reward_payload(payload: dict[str, object], *, field_name: str) -> dict[str, object]:
+    _reject_unknown_fields(payload, known_keys=_KNOWN_REWARD_KEYS, field_name=field_name)
+
+    normalized = dict(_DEFAULT_REWARD_CONFIG)
+    normalized.update(payload)
+
+    if not isinstance(normalized["enable_shaping"], bool):
+        raise ConfigConflictError(f"{field_name}.enable_shaping must be a bool")
+
+    for key in _KNOWN_REWARD_KEYS - {"enable_shaping"}:
+        value = normalized[key]
+        if isinstance(value, bool):
+            raise ConfigConflictError(f"{field_name}.{key} must be a finite number")
+        try:
+            coerced = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ConfigConflictError(f"{field_name}.{key} must be a finite number") from exc
+        if not math.isfinite(coerced):
+            raise ConfigConflictError(f"{field_name}.{key} must be a finite number")
+        normalized[key] = coerced
+
+    return normalized
+
+
+def _normalize_reward_config(
+    reward: RewardOverrides | Mapping[str, object] | None,
+    reward_json: RewardOverrides | Mapping[str, object] | str | None,
+) -> str | None:
+    if reward is not None and reward_json is not None:
+        raise ConfigConflictError("reward and reward_json are mutually exclusive")
+
+    value = reward if reward is not None else reward_json
+    field_name = "reward" if reward is not None else "reward_json"
+    payload = _coerce_reward_payload(value, field_name=field_name)
+    if payload is None:
+        return None
+    return json.dumps(_normalize_reward_payload(payload, field_name=field_name))
 
 
 def _normalize_simultaneous_loss_policy(value: object) -> str:
@@ -273,6 +333,28 @@ def export_spec_bundle() -> dict[str, object]:
             "unused": ACTION_META_UNUSED,
             "fields": ["family_id", "arg0", "arg1", "arg2"],
         },
+        "legal_action_context_v1": {
+            "version": "legal_action_context_v1",
+            "width": LEGAL_ACTION_CONTEXT_V1_WIDTH,
+            "unused": LEGAL_ACTION_CONTEXT_UNUSED,
+            "fields": [
+                "action_family_code",
+                "action_arg0",
+                "action_arg1",
+                "action_arg2",
+                "decision_kind",
+                "actor_seat",
+                "source_zone_code",
+                "source_index",
+                "source_card_id",
+                "source_card_type_code",
+                "source_card_color_code",
+                "source_card_level",
+                "source_card_cost",
+                "source_card_power",
+                "source_card_soul",
+            ],
+        },
     }
 
 
@@ -363,7 +445,8 @@ def _make_stage_normalize(
     rules_profile: RulesProfile,
     card_pool: CardPoolMode,
     curriculum: CurriculumOverrides | Mapping[str, object] | None,
-    reward_json: str | Mapping[str, object] | None,
+    reward: RewardOverrides | Mapping[str, object] | None,
+    reward_json: RewardOverrides | Mapping[str, object] | str | None,
     end_condition_policy: EndConditionOverrides | Mapping[str, object] | str | None,
     observation_visibility: ObservationVisibility,
     reveal_opponent_hand_stock_counts: bool | None,
@@ -386,7 +469,7 @@ def _make_stage_normalize(
     normalized_obs_dtype = normalize_obs_dtype(obs_dtype)
     normalized_ids_safety = normalize_ids_safety(ids_safety)
     normalized_error_policy = normalize_error_policy(error_policy)
-    reward_json_payload = _normalize_reward_json(reward_json)
+    reward_json_payload = _normalize_reward_config(reward, reward_json)
     end_condition_policy_json = _normalize_end_condition_policy_json(end_condition_policy)
     seed_value, seed_source = resolve_seed(seed, urandom_fn=os.urandom)
 
@@ -395,7 +478,7 @@ def _make_stage_normalize(
     if max_decisions <= 0 or max_ticks <= 0:
         raise ConfigConflictError("max_decisions and max_ticks must both be > 0")
 
-    resolved_deck = deck if deck is not None else "preset:starter_v1"
+    resolved_deck = deck if deck is not None else "preset:starter_deck_ws02_v1"
     curriculum_payload = _normalize_curriculum(curriculum, normalized_rules_profile)
     if (
         normalized_observation_visibility == "public"
@@ -611,10 +694,11 @@ def make(
     deck: DeckInput | None = None,
     opponent_deck: DeckInput | None = None,
     db_path: str | None = None,
-    rules_profile: RulesProfile = "strict",
+    rules_profile: RulesProfile = "approx",
     card_pool: CardPoolMode = "parsed_only",
     curriculum: CurriculumOverrides | Mapping[str, object] | None = None,
-    reward_json: str | Mapping[str, object] | None = None,
+    reward: RewardOverrides | Mapping[str, object] | None = None,
+    reward_json: RewardOverrides | Mapping[str, object] | str | None = None,
     end_condition_policy: EndConditionOverrides | Mapping[str, object] | str | None = None,
     observation_visibility: ObservationVisibility = "public",
     reveal_opponent_hand_stock_counts: bool | None = None,
@@ -643,6 +727,7 @@ def make(
         rules_profile=rules_profile,
         card_pool=card_pool,
         curriculum=curriculum,
+        reward=reward,
         reward_json=reward_json,
         end_condition_policy=end_condition_policy,
         observation_visibility=observation_visibility,
@@ -675,10 +760,11 @@ def fast(
     deck: DeckInput | None = None,
     opponent_deck: DeckInput | None = None,
     db_path: str | None = None,
-    rules_profile: RulesProfile = "strict",
+    rules_profile: RulesProfile = "approx",
     card_pool: CardPoolMode = "parsed_only",
     curriculum: CurriculumOverrides | Mapping[str, object] | None = None,
-    reward_json: str | Mapping[str, object] | None = None,
+    reward: RewardOverrides | Mapping[str, object] | None = None,
+    reward_json: RewardOverrides | Mapping[str, object] | str | None = None,
     end_condition_policy: EndConditionOverrides | Mapping[str, object] | str | None = None,
     observation_visibility: ObservationVisibility = "public",
     reveal_opponent_hand_stock_counts: bool | None = None,
@@ -708,10 +794,11 @@ def inspect(
     deck: DeckInput | None = None,
     opponent_deck: DeckInput | None = None,
     db_path: str | None = None,
-    rules_profile: RulesProfile = "strict",
+    rules_profile: RulesProfile = "approx",
     card_pool: CardPoolMode = "parsed_only",
     curriculum: CurriculumOverrides | Mapping[str, object] | None = None,
-    reward_json: str | Mapping[str, object] | None = None,
+    reward: RewardOverrides | Mapping[str, object] | None = None,
+    reward_json: RewardOverrides | Mapping[str, object] | str | None = None,
     end_condition_policy: EndConditionOverrides | Mapping[str, object] | str | None = None,
     observation_visibility: ObservationVisibility = "public",
     reveal_opponent_hand_stock_counts: bool | None = None,

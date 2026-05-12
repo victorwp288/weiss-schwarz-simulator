@@ -88,3 +88,26 @@ class EndConditionOverrides:
                 continue
             payload[key] = value
         return payload
+
+
+@dataclass(slots=True)
+class RewardOverrides:
+    terminal_win: float | None = None
+    terminal_loss: float | None = None
+    terminal_draw: float | None = None
+    terminal_timeout: float | None = None
+    enable_shaping: bool | None = None
+    damage_reward: float | None = None
+    level_reward: float | None = None
+    board_reward: float | None = None
+    no_progress_penalty: float | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {}
+        for field in fields(self):
+            key = field.name
+            value = getattr(self, key)
+            if value is None:
+                continue
+            payload[key] = value
+        return payload

@@ -1,38 +1,38 @@
-test advance_until_decision ... bench:       20847 ns/iter (+/- 1254)
+test advance_until_decision ... bench:       21272 ns/iter (+/- 450)
 
-test step_batch_64 ... bench:       13963 ns/iter (+/- 80)
+test step_batch_64 ... bench:        9581 ns/iter (+/- 274)
 
-test reset_batch_256 ... bench:      534177 ns/iter (+/- 7274)
+test reset_batch_256 ... bench:      512004 ns/iter (+/- 13451)
 
-test step_batch_fast_256_priority_off ... bench:       56227 ns/iter (+/- 424)
+test step_batch_fast_256_priority_off ... bench:       39563 ns/iter (+/- 1038)
 
-test step_batch_fast_256_priority_on ... bench:       56310 ns/iter (+/- 1029)
+test step_batch_fast_256_priority_on ... bench:       42891 ns/iter (+/- 3600)
 
-test legal_actions ... bench:           7 ns/iter (+/- 0)
+test legal_actions ... bench:           4 ns/iter (+/- 0)
 
-test legal_actions_forced ... bench:           6 ns/iter (+/- 0)
+test legal_actions_forced ... bench:           4 ns/iter (+/- 0)
 
-test on_reverse_decision_frequency_on ... bench:         599 ns/iter (+/- 60)
+test on_reverse_decision_frequency_on ... bench:         990 ns/iter (+/- 233)
 
-test on_reverse_decision_frequency_off ... bench:         604 ns/iter (+/- 50)
+test on_reverse_decision_frequency_off ... bench:        1006 ns/iter (+/- 283)
 
-test observation_encode ... bench:          85 ns/iter (+/- 0)
+test observation_encode ... bench:          80 ns/iter (+/- 1)
 
-test observation_encode_forced ... bench:          88 ns/iter (+/- 0)
+test observation_encode_forced ... bench:          79 ns/iter (+/- 1)
 
-test mask_construction ... bench:         187 ns/iter (+/- 38)
+test mask_construction ... bench:         180 ns/iter (+/- 2)
 
-test mask_construction_forced ... bench:         189 ns/iter (+/- 2)
+test mask_construction_forced ... bench:         178 ns/iter (+/- 2)
 
-test choice_paging_worst_case_mask ... bench:          96 ns/iter (+/- 0)
+test choice_paging_worst_case_mask ... bench:          84 ns/iter (+/- 1)
 
 alloc_legal_actions avg_allocs_per_iter=0
-test alloc_legal_actions ... bench:          31 ns/iter (+/- 0)
+test alloc_legal_actions ... bench:          28 ns/iter (+/- 0)
 
 alloc_observation_encode avg_allocs_per_iter=0
-test alloc_observation_encode ... bench:          58 ns/iter (+/- 0)
+test alloc_observation_encode ... bench:          54 ns/iter (+/- 1)
 
 alloc_action_masks_batch_into avg_allocs_per_iter=0
-test alloc_action_masks_batch_into ... bench:         392 ns/iter (+/- 2)
+test alloc_action_masks_batch_into ... bench:         563 ns/iter (+/- 14)
 
-test alloc_choice_paging_worst_case ... bench:          97 ns/iter (+/- 0)
+test alloc_choice_paging_worst_case ... bench:          87 ns/iter (+/- 1)

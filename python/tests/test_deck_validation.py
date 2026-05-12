@@ -49,7 +49,9 @@ def _deck_from_counts(pairs: list[tuple[int, int]]) -> list[int]:
 
 
 def _starter_ids() -> list[int]:
-    return weiss_sim.cards.resolve_deck("starter_v1", rules_profile="approx", card_pool="all")
+    return weiss_sim.cards.resolve_deck(
+        "starter_deck_ws02_v1", rules_profile="approx", card_pool="all"
+    )
 
 
 def test_validate_deck_invalid_input_code():
@@ -117,7 +119,7 @@ def test_validate_deck_db_hash_mismatch_code(tmp_path: Path):
     bad_wsdb.write_bytes(default_wsdb.read_bytes() + b"\x00")
 
     report = weiss_sim.cards.validate_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="strict",
         card_pool="parsed_only",
         db_path=str(bad_wsdb),
@@ -156,7 +158,7 @@ def test_validate_deck_db_validation_failed_code(monkeypatch):
     monkeypatch.setattr(decks_mod.EnvPool, "validate_deck_issues", fake_validate_deck_issues)
 
     report = weiss_sim.cards.validate_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
     )
@@ -168,7 +170,7 @@ def test_validate_deck_db_validation_failed_code(monkeypatch):
 def test_validate_deck_missing_db_path_reports_error(tmp_path: Path, card_pool: str):
     missing_db = tmp_path / "missing.wsdb"
     report = weiss_sim.cards.validate_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool=card_pool,  # type: ignore[arg-type]
         db_path=str(missing_db),
@@ -179,7 +181,7 @@ def test_validate_deck_missing_db_path_reports_error(tmp_path: Path, card_pool: 
 
 def test_validate_deck_copy_and_climax_limit_codes():
     starter_details = weiss_sim.cards.describe_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
     )
@@ -200,7 +202,7 @@ def test_validate_deck_copy_and_climax_limit_codes():
         }
     )
     if not climax_ids or len(non_climax_ids) < 13:
-        pytest.skip("starter_v1 does not expose enough ids for limit tests")
+        pytest.skip("starter_deck_ws02_v1 does not expose enough ids for limit tests")
 
     copy_exceeded_deck = _deck_from_counts(
         [(non_climax_ids[0], 5)]
@@ -257,7 +259,7 @@ def test_validate_deck_profile_not_supported_code():
 
 def test_validate_deck_warning_codes():
     starter_details = weiss_sim.cards.describe_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
     )
@@ -278,7 +280,7 @@ def test_validate_deck_warning_codes():
         }
     )
     if len(climax_ids) < 2 or len(non_climax_ids) < 11:
-        pytest.skip("starter_v1 does not expose enough ids for warning tests")
+        pytest.skip("starter_deck_ws02_v1 does not expose enough ids for warning tests")
 
     warning_deck = _deck_from_counts(
         [(climax_ids[0], 4), (climax_ids[1], 4)]

@@ -10,7 +10,7 @@ import weiss_sim
 
 def _starter_ids() -> list[int]:
     return weiss_sim.cards.resolve_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
     )
@@ -18,7 +18,7 @@ def _starter_ids() -> list[int]:
 
 def test_export_deck_default_envelope_contract():
     payload = weiss_sim.cards.export_deck(
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
     )
@@ -34,7 +34,7 @@ def test_export_deck_raw_formats_roundtrip():
     expected = Counter(_starter_ids())
     for encoding in ("card_no_map", "id_map", "id_list"):
         payload = weiss_sim.cards.export_deck(
-            "starter_v1",
+            "starter_deck_ws02_v1",
             format=encoding,
             rules_profile="approx",
             card_pool="all",
@@ -55,7 +55,7 @@ def test_save_and_load_deck_supports_envelope_and_raw(tmp_path: Path):
     meta_path = tmp_path / "starter_meta.json"
     saved = weiss_sim.cards.save_deck(
         meta_path,
-        "starter_v1",
+        "starter_deck_ws02_v1",
         rules_profile="approx",
         card_pool="all",
         include_meta=True,
@@ -73,7 +73,7 @@ def test_save_and_load_deck_supports_envelope_and_raw(tmp_path: Path):
     raw_path = tmp_path / "starter_raw.json"
     weiss_sim.cards.save_deck(
         raw_path,
-        "starter_v1",
+        "starter_deck_ws02_v1",
         format="id_list",
         rules_profile="approx",
         card_pool="all",

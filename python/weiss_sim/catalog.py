@@ -10,7 +10,13 @@ from importlib import resources
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeAlias
 
-from ._presets import get_preset as _get_preset, preset_names as _preset_names
+from ._presets import (
+    get_preset as _get_preset,
+    get_preset_metadata as _get_preset_metadata,
+    load_preset_metadata as _load_preset_metadata,
+    preset_min_rules_profile as _preset_min_rules_profile,
+    preset_names as _preset_names,
+)
 from .config_types import CardPoolMode, DeckInput, RulesProfile
 from .errors import CardLookupError, DbMismatchError, DeckSpecError
 from .types import CardRef, DeckValidationReport
@@ -112,6 +118,18 @@ def presets() -> list[str]:
 def get_preset(name: str) -> list[int]:
     """Resolve a preset name to a concrete 50-card id list."""
     return _get_preset(name)
+
+
+def preset_metadata(name: str | None = None) -> dict[str, object] | dict[str, dict[str, object]]:
+    """Return metadata for one bundled preset, or all bundled presets."""
+    if name is None:
+        return _load_preset_metadata()
+    return _get_preset_metadata(name)
+
+
+def preset_min_rules_profile(name: str) -> str:
+    """Return the minimum rules profile needed for a bundled preset."""
+    return _preset_min_rules_profile(name)
 
 
 def get_card(identifier: int | str) -> CardRef:
@@ -278,6 +296,16 @@ class _CardsNamespace:
     def presets(self) -> list[str]:
         """List available deck preset names."""
         return presets()
+
+    def preset_metadata(
+        self, name: str | None = None
+    ) -> dict[str, object] | dict[str, dict[str, object]]:
+        """Return metadata for one bundled preset, or all bundled presets."""
+        return preset_metadata(name)
+
+    def preset_min_rules_profile(self, name: str) -> str:
+        """Return the minimum rules profile needed for a bundled preset."""
+        return preset_min_rules_profile(name)
 
     def builder(self, initial: DeckInput | None = None) -> DeckBuilder:
         """Create a fluent deck builder."""

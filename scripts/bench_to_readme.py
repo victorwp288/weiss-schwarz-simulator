@@ -90,12 +90,12 @@ def main() -> int:
 
     bench_text = read_text_file(Path(args.input), "benchmark output")
     bench_lines = bench_text.splitlines()
-    benches = parse_benches(bench_lines, prefix="rust/")
+    benches = parse_benches(bench_lines, prefix="rust/")[: args.max]
     if args.python_input:
         python_text = read_text_file(Path(args.python_input), "python benchmark output")
         python_lines = python_text.splitlines()
-        benches.extend(parse_python_bench(python_lines, prefix="py/"))
-    table_md = render_table(benches, max_rows=args.max)
+        benches.extend(parse_python_bench(python_lines, prefix="python/"))
+    table_md = render_table(benches, max_rows=len(benches))
     update_readme(Path(args.readme), table_md)
     return 0
 
