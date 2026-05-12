@@ -1,20 +1,15 @@
 name: Benchmarks
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/benchmarks.yml"
-      - "scripts/bench_to_readme.py"
-      - "weiss_core/**"
-      - "weiss_py/**"
-      - "python/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "pyproject.toml"
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      update-readme:
+        description: "Commit the benchmark snapshot back to README.md"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -25,10 +20,10 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Benchmarks run on main pushes; PRs skip heavy bench runs."
+      - run: echo "Full benchmark history is manual; CI uses the light performance budget gate."
 
   benches:
-    if: github.event_name != 'pull_request' && github.actor != 'github-actions[bot]'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     concurrency:
       group: gh-pages
@@ -128,6 +123,7 @@ jobs:
           fi
           git checkout main
       - name: Update README benchmark snapshot
+        if: inputs.update-readme
         run: |
           python scripts/bench_to_readme.py \
             --input /tmp/benchmark-run/benches.txt \
@@ -135,6 +131,7 @@ jobs:
             --readme README.md \
             --max 12
       - name: Commit README update
+        if: inputs.update-readme
         run: |
           if git diff --quiet; then
             echo "No README changes."
