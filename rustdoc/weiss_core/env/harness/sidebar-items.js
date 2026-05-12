@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["force_deck_refresh","install_choice_paging"]};

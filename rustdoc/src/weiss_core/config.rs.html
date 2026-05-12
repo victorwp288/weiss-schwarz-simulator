@@ -27,7 +27,7 @@
 <a href=#27 id=27 data-nosnippet>27</a>
 <a href=#28 id=28 data-nosnippet>28</a><span class="doccomment">/// Reward shaping configuration for RL training.
 <a href=#29 id=29 data-nosnippet>29</a></span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-<a href=#30 id=30 data-nosnippet>30</a>#[serde(default)]
+<a href=#30 id=30 data-nosnippet>30</a>#[serde(default, deny_unknown_fields)]
 <a href=#31 id=31 data-nosnippet>31</a></span><span class="kw">pub struct </span>RewardConfig {
 <a href=#32 id=32 data-nosnippet>32</a>    <span class="doccomment">/// Reward for winning the episode.
 <a href=#33 id=33 data-nosnippet>33</a>    </span><span class="kw">pub </span>terminal_win: f32,
@@ -299,7 +299,7 @@
 <a href=#299 id=299 data-nosnippet>299</a>    </span><span class="doccomment">/// Enable continuous modifiers.
 <a href=#300 id=300 data-nosnippet>300</a>    </span><span class="kw">pub </span>enable_continuous_modifiers: bool,
 <a href=#301 id=301 data-nosnippet>301</a>    <span class="attr">#[serde(default)]
-<a href=#302 id=302 data-nosnippet>302</a>    </span><span class="doccomment">/// Enable approximated non-combat effects listed in docs/approximation_policy.md.
+<a href=#302 id=302 data-nosnippet>302</a>    </span><span class="doccomment">/// Enable approximated non-combat effects described in docs/architecture.md.
 <a href=#303 id=303 data-nosnippet>303</a>    </span><span class="kw">pub </span>enable_approx_effects: bool,
 <a href=#304 id=304 data-nosnippet>304</a>    <span class="attr">#[serde(default)]
 <a href=#305 id=305 data-nosnippet>305</a>    </span><span class="doccomment">/// Enable explicit priority windows.
@@ -492,5 +492,12 @@
 <a href=#492 id=492 data-nosnippet>492</a>            <span class="string">"unexpected error: {err}"
 <a href=#493 id=493 data-nosnippet>493</a>        </span>);
 <a href=#494 id=494 data-nosnippet>494</a>    }
-<a href=#495 id=495 data-nosnippet>495</a>}
+<a href=#495 id=495 data-nosnippet>495</a>
+<a href=#496 id=496 data-nosnippet>496</a>    <span class="attr">#[test]
+<a href=#497 id=497 data-nosnippet>497</a>    </span><span class="kw">fn </span>reward_config_serde_rejects_unknown_fields() {
+<a href=#498 id=498 data-nosnippet>498</a>        <span class="kw">let </span>err = serde_json::from_str::&lt;RewardConfig&gt;(<span class="string">r#"{"damage_rewrad":0.1}"#</span>)
+<a href=#499 id=499 data-nosnippet>499</a>            .expect_err(<span class="string">"unknown reward fields must fail"</span>);
+<a href=#500 id=500 data-nosnippet>500</a>        <span class="macro">assert!</span>(err.to_string().contains(<span class="string">"unknown field"</span>));
+<a href=#501 id=501 data-nosnippet>501</a>    }
+<a href=#502 id=502 data-nosnippet>502</a>}
 </code></pre></div></section></main></body></html>
