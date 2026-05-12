@@ -2,6 +2,20 @@
 
 This file is maintained by Release Please.
 
+## [1.1.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v1.0.0...v1.1.0) (2026-05-12)
+
+
+### Bug Fixes
+
+* bound replay and WSDB parsing for untrusted inputs
+* reject read-only NumPy output buffers before Rust FFI writes
+* make Python boundary benchmarks reset done environments by default
+
+
+### Miscellaneous Chores
+
+* bump GitHub workflow actions
+
 ## [1.0.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v0.8.2...v1.0.0) (2026-05-12)
 
 
