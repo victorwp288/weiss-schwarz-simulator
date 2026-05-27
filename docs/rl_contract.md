@@ -124,6 +124,9 @@ Low-level legal action surfaces:
   a display-only, redacted dict for human play/study UIs. Its `legal_actions`
   are decoded from the same current legal-id cache and preserve simulator order;
   clients should submit the exact returned `action_id`, not reconstruct moves.
+  Legal ids/actions are actor-only, non-actor perspectives receive empty action
+  lists, deck and stock contents are count-only for every viewer, and the view
+  intentionally omits deterministic episode seed material.
 
 ## High-level batch schema (`ResetBatch` / `StepBatch`)
 

@@ -312,7 +312,10 @@ for i in range(num_envs):
 - `human_decision_view(pool, env_index=0, perspective_seat=None) -> dict`: redacted
   current-decision state for a human UI. `legal_actions` are decoded only from
   the simulator's current legal-id set and should be submitted back by exact
-  `action_id`.
+  `action_id`. Legal action ids and decoded labels are included only for the
+  current actor; non-actor perspectives receive empty legal-action lists. Deck
+  and stock contents are count-only for all viewers, and the payload does not
+  expose deterministic episode seed material.
 
 ### Runtime error auto-reset helper
 

@@ -45,6 +45,7 @@ Date: 2026-05-27
 - Did not scan the full action space to construct UI choices. Legal action display is aligned to `action_ids_cache()` for the current decision.
 - Did not reuse `render_ansi`; it is debug output and not strict enough as a public-view contract.
 - Did not expose raw effect text or card instance ids in the human view. The event log is sanitized and strips `instance_id` keys before serialization.
+- Did not expose legal-action ids to non-actor perspectives, deterministic episode seed material, or deck/stock contents. The human view is meant to be fair-play safe by default, not a full debug replay.
 
 ## Next hypotheses
 

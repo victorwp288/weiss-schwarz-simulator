@@ -25,7 +25,6 @@ struct HumanDecisionViewCore {
     simulator_version: &'static str,
     env_index: u32,
     episode_key: String,
-    episode_seed: u64,
     episode_index: u32,
     decision_id: u32,
     summary: HumanSummaryView,
@@ -237,17 +236,19 @@ impl GameEnv {
             mode: ObservationVisibility::Public,
             policies_enabled: true,
         };
-        let legal_action_ids = self.action_ids_cache().to_vec();
+        let actor = self.decision.as_ref().map(|decision| decision.player);
+        let viewer_is_actor = actor == Some(viewer);
+        let legal_action_ids = if viewer_is_actor {
+            self.action_ids_cache().to_vec()
+        } else {
+            Vec::new()
+        };
         let legal_fingerprint64 = self.legal_fingerprint64(&legal_action_ids);
         let core = HumanDecisionViewCore {
             schema_version: HUMAN_VIEW_SCHEMA_VERSION,
             simulator_version: env!("CARGO_PKG_VERSION"),
             env_index: self.env_id,
-            episode_key: format!(
-                "env{}:episode{}:{:016x}",
-                self.env_id, self.episode_index, self.episode_seed
-            ),
-            episode_seed: self.episode_seed,
+            episode_key: self.human_episode_key(),
             episode_index: self.episode_index,
             decision_id: self.decision_id(),
             summary: self.build_human_summary(viewer),
@@ -277,6 +278,14 @@ impl GameEnv {
             anyhow::bail!("perspective_seat must be 0, 1, or None (got {viewer})");
         }
         Ok(viewer)
+    }
+
+    fn human_episode_key(&self) -> String {
+        let mut bytes = Vec::with_capacity(24);
+        bytes.extend_from_slice(b"human-episode-v1");
+        bytes.extend_from_slice(&self.env_id.to_le_bytes());
+        bytes.extend_from_slice(&self.episode_index.to_le_bytes());
+        format!("episode:{}", format_hash64(hash_bytes(&bytes)))
     }
 
     fn build_human_summary(&self, viewer: u8) -> HumanSummaryView {
@@ -385,7 +394,7 @@ impl GameEnv {
         zone: Zone,
         cards: &[crate::state::CardInstance],
     ) -> HumanZoneView {
-        let hidden = self.zone_hidden_for_viewer(ctx, owner, zone);
+        let hidden = self.human_zone_hidden_for_viewer(ctx, owner, zone);
         let visibility = zone_visibility_label(owner, viewer, zone, &self.curriculum, hidden);
         let zone_name = zone_name(zone);
         let card_views = (!hidden).then(|| {
@@ -411,6 +420,10 @@ impl GameEnv {
             visibility,
             cards: card_views,
         }
+    }
+
+    fn human_zone_hidden_for_viewer(&self, ctx: VisibilityContext, owner: u8, zone: Zone) -> bool {
+        matches!(zone, Zone::Deck | Zone::Stock) || self.zone_hidden_for_viewer(ctx, owner, zone)
     }
 
     fn build_human_stage(
@@ -605,7 +618,7 @@ impl GameEnv {
         zone: Zone,
         index: u8,
     ) -> HumanActionRefView {
-        let hidden = self.zone_hidden_for_viewer(ctx, owner, zone);
+        let hidden = self.human_zone_hidden_for_viewer(ctx, owner, zone);
         let zone_name = zone_name(zone);
         let card = if hidden {
             None
@@ -724,16 +737,16 @@ impl GameEnv {
     ) -> HumanActionRefView {
         let owner = self.choice_option_owner(reason, actor);
         let zone = choice_zone_name(option.zone);
-        let hidden =
-            option.card_id == 0 && option.index.is_none() && choice_zone_private(option.zone);
+        let hidden = matches!(option.zone, ChoiceZone::DeckTop | ChoiceZone::Stock)
+            || (option.card_id == 0 && option.index.is_none() && choice_zone_private(option.zone));
         HumanActionRefView {
             ref_id: match option.index {
-                Some(index) => card_ref(viewer, owner, zone, index),
+                Some(index) if !hidden => card_ref(viewer, owner, zone, index),
                 None if option.zone == ChoiceZone::Stage => option
                     .target_slot
                     .map(|slot| card_ref(viewer, owner, "stage", slot as u16))
                     .unwrap_or_else(|| hidden_ref(viewer, owner, zone)),
-                None => hidden_ref(viewer, owner, zone),
+                _ => hidden_ref(viewer, owner, zone),
             },
             zone,
             owner_seat: owner,
@@ -745,9 +758,9 @@ impl GameEnv {
                 &self.curriculum,
                 hidden,
             ),
-            index: option.index,
-            slot: option.target_slot,
-            card: (option.card_id != 0).then(|| self.card_record(option.card_id)),
+            index: (!hidden).then_some(option.index).flatten(),
+            slot: (!hidden).then_some(option.target_slot).flatten(),
+            card: (!hidden && option.card_id != 0).then(|| self.card_record(option.card_id)),
         }
     }
 
@@ -1049,7 +1062,11 @@ fn zone_visibility_label(
     hidden: bool,
 ) -> &'static str {
     if hidden {
-        return "opponent_count_only";
+        return if owner == viewer {
+            "self_count_only"
+        } else {
+            "opponent_count_only"
+        };
     }
     match zone_identity_visibility(zone, curriculum) {
         ZoneIdentityVisibility::Public => "public",
@@ -1066,7 +1083,11 @@ fn choice_zone_visibility_label(
     hidden: bool,
 ) -> &'static str {
     if hidden {
-        return "opponent_count_only";
+        return if owner == viewer {
+            "self_count_only"
+        } else {
+            "opponent_count_only"
+        };
     }
     let target_zone = match choice_zone_to_target_zone(zone) {
         Some(zone) => zone,

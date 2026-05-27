@@ -119,6 +119,8 @@ def test_human_decision_view_uses_current_legal_ids_in_order():
     assert len(view["legal_fingerprint64"]) == 16
     assert isinstance(view["view_hash64"], str)
     assert len(view["view_hash64"]) == 16
+    assert "episode_seed" not in view
+    assert view["episode_key"].startswith("episode:")
 
 
 def test_human_decision_view_redacts_opponent_hidden_zones():
@@ -134,6 +136,10 @@ def test_human_decision_view_redacts_opponent_hidden_zones():
     assert self_player["zones"]["hand"]["count"] == 5
     assert len(self_player["zones"]["hand"]["cards"]) == 5
     assert self_player["zones"]["hand"]["cards"][0]["card_ref"].startswith("self.hand.")
+    assert self_player["zones"]["deck"]["count"] == 45
+    assert "cards" not in self_player["zones"]["deck"]
+    assert self_player["zones"]["stock"]["count"] == 0
+    assert "cards" not in self_player["zones"]["stock"]
 
     assert opponent_player["zones"]["hand"]["count"] == 5
     assert "cards" not in opponent_player["zones"]["hand"]
@@ -148,6 +154,19 @@ def test_human_decision_view_redacts_opponent_hidden_zones():
     )
     assert actor_as_opponent["zones"]["hand"]["count"] == 5
     assert "cards" not in actor_as_opponent["zones"]["hand"]
+    assert observer_view["legal_action_ids"] == []
+    assert observer_view["legal_actions"] == []
+
+
+def test_human_decision_view_rejects_invalid_selection():
+    pool = _make_pool(seed=314, num_envs=1)
+    out = weiss_sim.BatchOutMinimal(1)
+    pool.reset_into(out)
+
+    with pytest.raises(ValueError, match="env_index"):
+        weiss_sim.human_decision_view(pool, env_index=1)
+    with pytest.raises(ValueError, match="perspective_seat"):
+        weiss_sim.human_decision_view(pool, perspective_seat=2)
 
 
 def test_envpool_num_threads_optional_and_deterministic():
