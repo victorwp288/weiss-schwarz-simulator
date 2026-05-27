@@ -309,6 +309,10 @@ for i in range(num_envs):
   current actor/start-seat perspective
 - `decode_action(action_id) -> dict | None`: decode an action id into a structured
   dict (family + params), or return `None` for invalid / unknown ids
+- `human_decision_view(pool, env_index=0, perspective_seat=None) -> dict`: redacted
+  current-decision state for a human UI. `legal_actions` are decoded only from
+  the simulator's current legal-id set and should be submitted back by exact
+  `action_id`.
 
 ### Runtime error auto-reset helper
 

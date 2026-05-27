@@ -92,6 +92,7 @@ def test_public_exports_cover_core_autocomplete_surface() -> None:
         "inspect",
         "cards",
         "DeckBuilder",
+        "human_decision_view",
         "RewardOverrides",
         "LegalActions",
         "ResetBatch",

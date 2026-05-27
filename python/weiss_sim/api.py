@@ -387,6 +387,22 @@ def db_info(db_path: str | Path | None = None) -> dict[str, object]:
     return _db_info(db_path=db_path)
 
 
+def human_decision_view(
+    pool: EnvPool, env_index: int = 0, perspective_seat: int | None = None
+) -> dict[str, object]:
+    """Return a redacted, UI-friendly view of one current simulator decision.
+
+    The legal actions in the returned view are decoded from the simulator's
+    current legal-id cache for this exact decision and should be submitted back
+    as their unchanged ``action_id`` values.
+    """
+    payload = pool.human_decision_view_json(int(env_index), perspective_seat)
+    decoded = json.loads(payload)
+    if not isinstance(decoded, dict):
+        raise RuntimeError("human_decision_view_json() must decode to an object")
+    return dict(decoded)
+
+
 @dataclass(slots=True)
 class _MakeNormalized:
     mode: Literal["fast", "inspect"]

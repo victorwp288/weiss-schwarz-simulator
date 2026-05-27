@@ -21,6 +21,7 @@ mod debug_fingerprints;
 mod debug_validate;
 mod fault;
 pub(crate) mod heuristic_public;
+mod human_view;
 mod lifecycle;
 mod live_abilities;
 mod obs;
@@ -33,8 +34,8 @@ mod movement;
 mod phases;
 mod visibility;
 
-#[cfg(feature = "test-harness")]
-/// Test harness helpers exposed only when the `test-harness` feature is enabled.
+#[cfg(any(feature = "test-harness", test))]
+/// Test harness helpers exposed when the `test-harness` feature or crate tests are enabled.
 pub mod harness;
 
 pub use actions::legal_action_ids_cached_into;

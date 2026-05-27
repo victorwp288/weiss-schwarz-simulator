@@ -44,7 +44,15 @@ from .rl import (
     step_rl_sample_from_logits,
     step_rl_select_from_logits,
 )
-from .api import db_info, export_card_table, export_spec_bundle, fast, inspect, make
+from .api import (
+    db_info,
+    export_card_table,
+    export_spec_bundle,
+    fast,
+    human_decision_view,
+    inspect,
+    make,
+)
 from .catalog import cards
 from .config_types import CurriculumOverrides, DeckInput, EndConditionOverrides, RewardOverrides
 from .deck_builder import DeckBuilder
@@ -132,6 +140,7 @@ __all__ = [
     "export_spec_bundle",
     "export_card_table",
     "db_info",
+    "human_decision_view",
     "make",
     "fast",
     "inspect",

@@ -3,6 +3,7 @@ use super::core::EnvPool;
 mod fill_minimal;
 mod fill_trajectory;
 mod fingerprint;
+mod human_view;
 mod legal_sampling;
 mod masks;
 mod unsafe_bytes;

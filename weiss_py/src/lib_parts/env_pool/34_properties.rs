@@ -8,6 +8,17 @@
         Ok(self.pool.render_ansi(env_index, perspective))
     }
 
+    #[pyo3(signature = (env_index=0, perspective_seat=None))]
+    fn human_decision_view_json(
+        &mut self,
+        env_index: usize,
+        perspective_seat: Option<u8>,
+    ) -> PyResult<String> {
+        self.pool
+            .human_decision_view_json(env_index, perspective_seat)
+            .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{err}")))
+    }
+
     #[getter]
     fn envs_len(&self) -> usize {
         self.pool.envs.len()

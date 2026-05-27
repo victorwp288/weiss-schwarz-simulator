@@ -32,6 +32,15 @@ def _make_pool(seed=123, num_envs=1, num_threads=None, output_masks=True):
     )
 
 
+def _legal_ids_for_env(pool, env_index=0):
+    ids = np.empty(pool.envs_len * pool.action_space, dtype=np.uint16)
+    offsets = np.zeros(pool.envs_len + 1, dtype=np.uint32)
+    pool.legal_action_ids_into(ids, offsets)
+    start = int(offsets[env_index])
+    end = int(offsets[env_index + 1])
+    return [int(action_id) for action_id in ids[start:end]]
+
+
 def test_envpool_smoke():
     assert hasattr(weiss_sim, "EnvPool")
     assert hasattr(weiss_sim, "BatchOutMinimal")
@@ -89,6 +98,56 @@ def test_envpool_determinism_across_pools():
         assert np.array_equal(out_a.masks, out_b.masks)
         if bool(out_a.terminated[0]) or bool(out_a.truncated[0]):
             break
+
+
+def test_human_decision_view_uses_current_legal_ids_in_order():
+    pool = _make_pool(seed=1776, num_envs=1)
+    out = weiss_sim.BatchOutMinimal(1)
+    pool.reset_into(out)
+
+    view = weiss_sim.human_decision_view(pool)
+    expected_ids = _legal_ids_for_env(pool)
+
+    assert view["schema_version"] == "human_decision_view_v1"
+    assert view["legal_action_ids"] == expected_ids
+    assert [action["action_id"] for action in view["legal_actions"]] == expected_ids
+    assert [action["index"] for action in view["legal_actions"]] == list(range(len(expected_ids)))
+    assert all(
+        isinstance(action["label"], str) and action["label"] for action in view["legal_actions"]
+    )
+    assert isinstance(view["legal_fingerprint64"], str)
+    assert len(view["legal_fingerprint64"]) == 16
+    assert isinstance(view["view_hash64"], str)
+    assert len(view["view_hash64"]) == 16
+
+
+def test_human_decision_view_redacts_opponent_hidden_zones():
+    pool = _make_pool(seed=2718, num_envs=1)
+    out = weiss_sim.BatchOutMinimal(1)
+    pool.reset_into(out)
+
+    view = weiss_sim.human_decision_view(pool)
+    actor = int(view["summary"]["actor_seat"])
+    self_player = next(player for player in view["players"] if player["seat"] == actor)
+    opponent_player = next(player for player in view["players"] if player["seat"] != actor)
+
+    assert self_player["zones"]["hand"]["count"] == 5
+    assert len(self_player["zones"]["hand"]["cards"]) == 5
+    assert self_player["zones"]["hand"]["cards"][0]["card_ref"].startswith("self.hand.")
+
+    assert opponent_player["zones"]["hand"]["count"] == 5
+    assert "cards" not in opponent_player["zones"]["hand"]
+    assert opponent_player["zones"]["deck"]["count"] == 45
+    assert "cards" not in opponent_player["zones"]["deck"]
+    assert opponent_player["zones"]["stock"]["count"] == 0
+    assert "cards" not in opponent_player["zones"]["stock"]
+
+    observer_view = weiss_sim.human_decision_view(pool, perspective_seat=1 - actor)
+    actor_as_opponent = next(
+        player for player in observer_view["players"] if player["seat"] == actor
+    )
+    assert actor_as_opponent["zones"]["hand"]["count"] == 5
+    assert "cards" not in actor_as_opponent["zones"]["hand"]
 
 
 def test_envpool_num_threads_optional_and_deterministic():

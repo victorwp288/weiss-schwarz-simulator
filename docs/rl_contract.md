@@ -120,6 +120,10 @@ Low-level legal action surfaces:
 - opt-in dynamic action context via `EnvPoolBuffers.legal_action_context_v1(...)`;
   this is not emitted by default and is aligned 1:1 with the used
   `legal_ids[:legal_offsets[-1]]` prefix
+- `weiss_sim.human_decision_view(pool, env_index=0, perspective_seat=None)` is
+  a display-only, redacted dict for human play/study UIs. Its `legal_actions`
+  are decoded from the same current legal-id cache and preserve simulator order;
+  clients should submit the exact returned `action_id`, not reconstruct moves.
 
 ## High-level batch schema (`ResetBatch` / `StepBatch`)
 
