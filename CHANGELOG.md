@@ -2,6 +2,18 @@
 
 This file is maintained by Release Please.
 
+## [1.2.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v1.1.0...v1.2.0) (2026-05-27)
+
+
+### Features
+
+* add human decision view API ([169d9ea](https://github.com/victorwp288/weiss-schwarz-simulator/commit/169d9ea8a614ca2c5293fd79545bf995d4e29abc))
+
+
+### Bug Fixes
+
+* harden human decision view redaction ([87e4438](https://github.com/victorwp288/weiss-schwarz-simulator/commit/87e44380be4a6cf7ddf74297e69bb41f79360bbf))
+
 ## [1.1.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v1.0.0...v1.1.0) (2026-05-12)
 
 
