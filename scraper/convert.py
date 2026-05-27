@@ -239,7 +239,7 @@ def convert(
             continue
         deduped[card_no] = rec
 
-    ordered = sorted(deduped.values(), key=lambda r: (r.get("card_no") or ""))
+    ordered = sorted(deduped.values(), key=lambda r: r.get("card_no") or "")
     name_to_ids: Dict[str, List[int]] = defaultdict(list)
     for idx, rec in enumerate(ordered, start=1):
         name = rec.get("name")

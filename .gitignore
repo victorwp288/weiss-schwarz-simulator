@@ -264,6 +264,7 @@ $RECYCLE.BIN/
 
 # Local scratch outputs
 !docs/architecture.md
+.VSCodeCounter/
 dist_refactor/
 perf_refactor*/
 .serena/

@@ -816,7 +816,7 @@ def write_stats(path: Path, stats: dict) -> None:
 
 
 def stable_sort_ids(pairs: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
-    return sorted(pairs, key=lambda p: (int(p[0]) if p[0].isdigit() else p[0]))
+    return sorted(pairs, key=lambda p: int(p[0]) if p[0].isdigit() else p[0])
 
 
 async def main() -> int:

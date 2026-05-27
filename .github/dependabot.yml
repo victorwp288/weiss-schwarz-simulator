@@ -23,3 +23,20 @@ updates:
     labels:
       - dependencies
       - python
+
+  - package-ecosystem: pip
+    directory: /scraper
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - python
+      - scraper
+
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - pre-commit
