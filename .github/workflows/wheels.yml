@@ -19,6 +19,7 @@ permissions:
 
 env:
   CARGO_TARGET_DIR: target
+  PIP_NO_CACHE_DIR: "1"
 
 jobs:
   sdist:
