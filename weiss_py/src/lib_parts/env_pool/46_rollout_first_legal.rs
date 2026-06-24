@@ -78,7 +78,7 @@
             main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
-        py.allow_threads(|| self.pool.rollout_first_legal_into(steps, &mut out_traj))
+        py.detach(|| self.pool.rollout_first_legal_into(steps, &mut out_traj))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -162,7 +162,7 @@
             main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
-        py.allow_threads(|| self.pool.rollout_first_legal_into_i16(steps, &mut out_traj))
+        py.detach(|| self.pool.rollout_first_legal_into_i16(steps, &mut out_traj))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -261,7 +261,7 @@
             main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .rollout_first_legal_into_i16_legal_ids(steps, &mut out_traj)
         })

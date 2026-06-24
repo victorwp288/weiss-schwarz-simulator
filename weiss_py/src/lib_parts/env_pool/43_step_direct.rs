@@ -72,7 +72,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.step_into(actions, &mut out_min))
+        py.detach(|| self.pool.step_into(actions, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -150,7 +150,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.step_into_i16(actions, &mut out_min))
+        py.detach(|| self.pool.step_into_i16(actions, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -238,7 +238,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.step_into_i16_legal_ids(actions, &mut out_min))
+        py.detach(|| self.pool.step_into_i16_legal_ids(actions, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -321,7 +321,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.step_into_i16_legal_ids_nometa(actions, &mut out_min))
+        py.detach(|| self.pool.step_into_i16_legal_ids_nometa(actions, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -394,7 +394,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.step_into_nomask(actions, &mut out_min))
+        py.detach(|| self.pool.step_into_nomask(actions, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 

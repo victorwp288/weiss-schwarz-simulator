@@ -94,7 +94,7 @@
             main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool.rollout_heuristic_public_profile_into_i16_legal_ids(
                 steps,
                 &mut out_traj,

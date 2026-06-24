@@ -155,7 +155,7 @@
             .as_slice()
             .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("seeds not contiguous"))?;
         let ids = py
-            .allow_threads(|| self.pool.sample_legal_action_ids_uniform(seeds))
+            .detach(|| self.pool.sample_legal_action_ids_uniform(seeds))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))?;
         let arr = Array1::<u32>::from(ids);
         Ok(PyArray1::from_owned_array(py, arr).unbind())

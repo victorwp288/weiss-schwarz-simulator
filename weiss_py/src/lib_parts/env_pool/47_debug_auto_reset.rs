@@ -110,7 +110,7 @@
             event_counts: event_counts_slice,
             event_codes: event_codes_slice,
         };
-        py.allow_threads(|| self.pool.step_debug_into(actions, &mut out_debug))
+        py.detach(|| self.pool.step_debug_into(actions, &mut out_debug))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -221,7 +221,7 @@
             event_counts: event_counts_slice,
             event_codes: event_codes_slice,
         };
-        py.allow_threads(|| self.pool.reset_debug_into(&mut out_debug))
+        py.detach(|| self.pool.reset_debug_into(&mut out_debug))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -299,7 +299,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .auto_reset_on_error_codes_into(codes, &mut out_min)
         })
@@ -375,7 +375,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .auto_reset_on_error_codes_into_nomask(codes, &mut out_min)
         })

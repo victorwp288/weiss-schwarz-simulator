@@ -105,7 +105,7 @@
             main_pass_action: main_pass_action_slice,
         };
         let timing_start = self.pool.timing_start();
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool.step_sample_from_logits_with_logp_into_i16_legal_ids(
                 logits,
                 seeds,
@@ -159,7 +159,7 @@
         ensure_len("action_logp", action_logp_slice.len(), num_envs)?;
         with_batch_out_minimal_i16_legal_ids_nometa(py, &out, num_envs, |mut out_min| {
             let timing_start = self.pool.timing_start();
-            py.allow_threads(|| {
+            py.detach(|| {
                 self.pool
                     .step_sample_from_logits_with_logp_into_i16_legal_ids_nometa(
                         logits,

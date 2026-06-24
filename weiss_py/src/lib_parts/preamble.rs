@@ -406,7 +406,7 @@ fn ensure_action_space_u16() -> PyResult<()> {
     Ok(())
 }
 
-fn action_desc_to_pydict(py: Python<'_>, action: &ActionDesc) -> PyResult<PyObject> {
+fn action_desc_to_pydict(py: Python<'_>, action: &ActionDesc) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     match action {
         ActionDesc::MulliganConfirm => {
@@ -497,7 +497,7 @@ fn action_desc_to_pydict(py: Python<'_>, action: &ActionDesc) -> PyResult<PyObje
 fn action_id_desc_to_pydict(
     py: Python<'_>,
     desc: &weiss_core::encode::ActionIdDesc,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     dict.set_item("family", desc.family)?;
     let params = PyList::empty(py);
@@ -517,7 +517,7 @@ fn action_id_desc_to_pydict(
 fn factorized_action_desc_to_pydict(
     py: Python<'_>,
     desc: &weiss_core::encode::FactorizedActionDesc,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     dict.set_item("family", desc.family)?;
     dict.set_item("arg0", desc.arg0)?;
@@ -560,7 +560,7 @@ fn action_spec_json_py() -> String {
 }
 
 #[pyfunction(name = "decode_action_id")]
-fn decode_action_id_py(py: Python<'_>, action_id: u32) -> PyResult<PyObject> {
+fn decode_action_id_py(py: Python<'_>, action_id: u32) -> PyResult<Py<PyAny>> {
     let Some(desc) = decode_action_id_core(action_id as usize) else {
         return Ok(py.None());
     };
@@ -568,7 +568,7 @@ fn decode_action_id_py(py: Python<'_>, action_id: u32) -> PyResult<PyObject> {
 }
 
 #[pyfunction(name = "decode_factorized_action_id")]
-fn decode_factorized_action_id_py(py: Python<'_>, action_id: u32) -> PyResult<PyObject> {
+fn decode_factorized_action_id_py(py: Python<'_>, action_id: u32) -> PyResult<Py<PyAny>> {
     let Some(desc) = decode_factorized_action_id_core(action_id as usize) else {
         return Ok(py.None());
     };
@@ -598,7 +598,7 @@ fn encode_factorized_action_py(
 }
 
 #[pyfunction(name = "build_info")]
-fn build_info_py(py: Python<'_>) -> PyResult<PyObject> {
+fn build_info_py(py: Python<'_>) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
     let profile = option_env!("BUILD_PROFILE")
         .map(|value| value.to_string())

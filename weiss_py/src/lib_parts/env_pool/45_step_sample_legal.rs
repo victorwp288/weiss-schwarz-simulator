@@ -78,7 +78,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .step_sample_legal_action_ids_uniform_into(seeds, actions_slice, &mut out_min)
         })
@@ -165,7 +165,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool.step_sample_legal_action_ids_uniform_into_i16(
                 seeds,
                 actions_slice,
@@ -265,7 +265,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .step_sample_legal_action_ids_uniform_into_i16_legal_ids(
                     seeds,
@@ -294,7 +294,7 @@
         })?;
         ensure_len("actions", actions_slice.len(), num_envs)?;
         with_batch_out_minimal_i16_legal_ids_nometa(py, &out, num_envs, |mut out_min| {
-            py.allow_threads(|| {
+            py.detach(|| {
                 self.pool
                     .step_sample_legal_action_ids_uniform_into_i16_legal_ids_nometa(
                         seeds,
@@ -381,7 +381,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool.step_sample_legal_action_ids_uniform_into_nomask(
                 seeds,
                 actions_slice,

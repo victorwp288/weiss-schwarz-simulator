@@ -68,7 +68,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.reset_indices_into(&indices, &mut out_min))
+        py.detach(|| self.pool.reset_indices_into(&indices, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -142,7 +142,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.reset_indices_into_i16(&indices, &mut out_min))
+        py.detach(|| self.pool.reset_indices_into_i16(&indices, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -226,7 +226,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .reset_indices_into_i16_legal_ids(&indices, &mut out_min)
         })
@@ -241,7 +241,7 @@
     ) -> PyResult<()> {
         let num_envs = self.pool.envs.len();
         with_batch_out_minimal_i16_legal_ids_nometa(py, &out, num_envs, |mut out_min| {
-            py.allow_threads(|| {
+            py.detach(|| {
                 self.pool
                     .reset_indices_into_i16_legal_ids_nometa(&indices, &mut out_min)
             })
@@ -314,7 +314,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.reset_indices_into_nomask(&indices, &mut out_min))
+        py.detach(|| self.pool.reset_indices_into_nomask(&indices, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 

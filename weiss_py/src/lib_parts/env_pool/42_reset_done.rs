@@ -72,7 +72,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.reset_done_into(done, &mut out_min))
+        py.detach(|| self.pool.reset_done_into(done, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -150,7 +150,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.reset_done_into_i16(done, &mut out_min))
+        py.detach(|| self.pool.reset_done_into_i16(done, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -238,7 +238,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.reset_done_into_i16_legal_ids(done, &mut out_min))
+        py.detach(|| self.pool.reset_done_into_i16_legal_ids(done, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 
@@ -254,7 +254,7 @@
         })?;
         ensure_len("done_mask", done.len(), num_envs)?;
         with_batch_out_minimal_i16_legal_ids_nometa(py, &out, num_envs, |mut out_min| {
-            py.allow_threads(|| {
+            py.detach(|| {
                 self.pool
                     .reset_done_into_i16_legal_ids_nometa(done, &mut out_min)
             })
@@ -331,7 +331,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| self.pool.reset_done_into_nomask(done, &mut out_min))
+        py.detach(|| self.pool.reset_done_into_nomask(done, &mut out_min))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{e}")))
     }
 

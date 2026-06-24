@@ -73,7 +73,7 @@
             main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .rollout_first_legal_into_nomask(steps, &mut out_traj)
         })

@@ -83,7 +83,7 @@
             main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .rollout_sample_legal_action_ids_uniform_into(steps, seeds, &mut out_traj)
         })
@@ -175,7 +175,7 @@
             main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .rollout_sample_legal_action_ids_uniform_into_i16(steps, seeds, &mut out_traj)
         })
@@ -282,7 +282,7 @@
             main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .rollout_sample_legal_action_ids_uniform_into_i16_legal_ids(
                     steps,
@@ -373,7 +373,7 @@
             main_pass_action: main_pass_action_slice,
             actions: actions_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .rollout_sample_legal_action_ids_uniform_into_nomask(steps, seeds, &mut out_traj)
         })

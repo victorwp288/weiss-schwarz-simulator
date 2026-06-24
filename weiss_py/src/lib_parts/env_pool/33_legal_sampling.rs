@@ -35,7 +35,7 @@
                 expected_offsets
             )));
         }
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .legal_action_ids_batch_into(ids_slice, offsets_slice)
         })
@@ -57,7 +57,7 @@
         let meta_slice = meta_arr.as_slice_mut().ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyValueError, _>("legal_action_meta not contiguous")
         })?;
-        py.allow_threads(|| self.pool.legal_action_meta_batch_into(meta_slice))
+        py.detach(|| self.pool.legal_action_meta_batch_into(meta_slice))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
     }
 
@@ -84,7 +84,7 @@
                 "legal_action_context not contiguous",
             )
         })?;
-        py.allow_threads(|| self.pool.legal_action_context_v1_batch_into(context_slice))
+        py.detach(|| self.pool.legal_action_context_v1_batch_into(context_slice))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
     }
 
@@ -120,7 +120,7 @@
                 indices.len()
             )));
         }
-        py.allow_threads(|| self.pool.choose_heuristic_public_actions_into(&indices, actions_slice))
+        py.detach(|| self.pool.choose_heuristic_public_actions_into(&indices, actions_slice))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{e}")))
     }
 
@@ -157,7 +157,7 @@
                 indices.len()
             )));
         }
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool.choose_heuristic_public_profile_actions_into(
                 &indices,
                 actions_slice,
@@ -195,7 +195,7 @@
                 num_envs
             )));
         }
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .sample_legal_action_ids_uniform_into(seeds, actions_slice)
         })
@@ -224,7 +224,7 @@
         })?;
         ensure_len("actions", actions_slice.len(), num_envs)?;
         let timing_start = self.pool.timing_start();
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .select_actions_from_logits_into(logits, actions_slice)
         })
@@ -263,7 +263,7 @@
         })?;
         ensure_len("actions", actions_slice.len(), num_envs)?;
         let timing_start = self.pool.timing_start();
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .sample_actions_from_logits_into(logits, seeds, actions_slice)
         })
@@ -335,7 +335,7 @@
                 num_envs
             )));
         }
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool.legal_action_ids_and_sample_uniform_into(
                 ids_slice,
                 offsets_slice,

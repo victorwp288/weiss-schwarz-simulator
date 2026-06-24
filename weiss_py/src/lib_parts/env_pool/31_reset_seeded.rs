@@ -70,7 +70,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .reset_indices_with_episode_seeds_into(&indices, &episode_seeds, &mut out_min)
         })
@@ -149,7 +149,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool.reset_indices_with_episode_seeds_into_i16(
                 &indices,
                 &episode_seeds,
@@ -241,7 +241,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool
                 .reset_indices_with_episode_seeds_into_i16_legal_ids(
                     &indices,
@@ -262,7 +262,7 @@
         let num_envs = self.pool.envs.len();
         validate_indices_and_seeds(&indices, &episode_seeds, num_envs)?;
         with_batch_out_minimal_i16_legal_ids_nometa(py, &out, num_envs, |mut out_min| {
-            py.allow_threads(|| {
+            py.detach(|| {
                 self.pool
                     .reset_indices_with_episode_seeds_into_i16_legal_ids_nometa(
                         &indices,
@@ -341,7 +341,7 @@
             main_move_action: main_move_action_slice,
             main_pass_action: main_pass_action_slice,
         };
-        py.allow_threads(|| {
+        py.detach(|| {
             self.pool.reset_indices_with_episode_seeds_into_nomask(
                 &indices,
                 &episode_seeds,
