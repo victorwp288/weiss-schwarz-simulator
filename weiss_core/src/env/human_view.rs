@@ -514,9 +514,8 @@ impl GameEnv {
                     .unwrap_or_else(|| "unknown".to_string());
                 let params = desc.as_ref().map(action_params_map).unwrap_or_default();
                 let action = action_desc_for_id(action_id as usize);
-                let (source_refs, target_refs) = action
-                    .as_ref()
-                    .and_then(|action| actor.map(|actor| (actor, action)))
+                let (source_refs, target_refs) = actor
+                    .zip(action.as_ref())
                     .map(|(actor, action)| self.action_refs(viewer, ctx, actor, action))
                     .unwrap_or_default();
                 let (label, short_label, description) = action
