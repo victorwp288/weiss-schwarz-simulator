@@ -29,7 +29,7 @@ jobs:
       group: gh-pages
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Ensure gh-pages branch exists
         run: |
           git fetch origin gh-pages || true
