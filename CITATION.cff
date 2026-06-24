@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: If you use this simulator in research, please cite it using this metadata.
 title: Weiss Schwarz Simulator
-version: 1.2.0
+version: 1.2.1
 date-released: '2026-05-27'
 authors:
   - name: Victor Wejergang Petersen
