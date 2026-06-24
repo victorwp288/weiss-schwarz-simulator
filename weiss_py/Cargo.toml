@@ -1,6 +1,6 @@
 [package]
 name = "weiss_py"
-version = "1.2.0"
+version = "1.2.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 publish = false
@@ -16,7 +16,7 @@ crate-type = ["cdylib"]
 doc = false
 
 [dependencies]
-weiss_core = { path = "../weiss_core", version = "1.2.0" }
+weiss_core = { path = "../weiss_core", version = "1.2.1" }
 pyo3 = { version = "0.29", features = ["extension-module"] }
 numpy = "0.29"
 anyhow = "1"

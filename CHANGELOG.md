@@ -2,6 +2,14 @@
 
 This file is maintained by Release Please.
 
+## [1.2.1](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v1.2.0...v1.2.1) (2026-06-24)
+
+
+### Bug Fixes
+
+* satisfy rust 1.96 clippy ([fc40b3c](https://github.com/victorwp288/weiss-schwarz-simulator/commit/fc40b3c2332bdd706c5089b7eea6e5214d9bded1))
+* update pyo3 for security audit ([ae1f43b](https://github.com/victorwp288/weiss-schwarz-simulator/commit/ae1f43b704c6042806f685841ec4d5ef2288d332))
+
 ## [1.2.0](https://github.com/victorwp288/weiss-schwarz-simulator/compare/v1.1.0...v1.2.0) (2026-05-27)
 
 
